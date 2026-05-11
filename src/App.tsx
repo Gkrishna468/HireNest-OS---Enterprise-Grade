@@ -153,7 +153,6 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
             const isGlobalAdmin = (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com");
             
             if (isGlobalAdmin) {
-              // Bootstrap Admin
               const orgId = "ORG-GLOBAL-HQ";
               orgData = {
                 organizationId: orgId,
@@ -180,7 +179,6 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
                 console.error("Failed to bootstrap admin:", e);
               }
             } else {
-              // Check pending invites
               const emailLower = fbUser.email?.toLowerCase().trim();
               if (emailLower) {
                 try {
@@ -199,14 +197,22 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
                     await deleteDoc(doc(db, "pending_invites", emailLower));
                   }
                 } catch (e) {
-                  console.error("Failed to check pending invites. Likely Firebase rules are outdated:", e);
+                  // If we are offline, we can't check invites, but we shouldn't necessarily kill the session
+                  console.error("Failed to check pending invites. Possible network issue:", e);
                 }
               }
             }
 
             if (!userData) {
-              // Unauthorized! Add to lead_captures for SecOps/Notifications
-              try {
+              // Only treat as unauthorized if we are definitively online and have verified no invite exists.
+              // If offline, we might be authorized but just don't have access to the data to know it yet.
+              // To be safe, for now, we will continue to sign out if no user found, 
+              // but we need to ensure this only happens when definitively online.
+              
+              // Simplification: assume if auth succeeded, they exist, but maybe just couldn't fetch local doc due to offline?
+              // For now, let's keep the signout but maybe delay it or make it less aggressive?
+              // Actually, simply signout is the safest way to ensure no unauthorized access.
+               try {
                 const { setDoc } = await import("firebase/firestore");
                 await setDoc(doc(db, "lead_captures", fbUser.uid), {
                    email: fbUser.email,
