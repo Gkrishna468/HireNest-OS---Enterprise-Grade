@@ -150,121 +150,26 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
 }
 
   useEffect(() => {
-    console.log("App component useEffect running");
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      console.log("onAuthStateChanged triggered with user:", fbUser);
-      if (fbUser) {
-        try {
-          let userData: any = null;
-          let orgData: any = null;
-
-          const userDoc = await fetchWithRetry(() => getDoc(doc(db, "users", fbUser.uid)));
-          if (userDoc.exists()) {
-            userData = userDoc.data();
-          } else {
-            const isGlobalAdmin = (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com");
-            
-            if (isGlobalAdmin) {
-              const orgId = "ORG-GLOBAL-HQ";
-              orgData = {
-                organizationId: orgId,
-                type: "admin",
-                companyName: "HireNest Global HQ",
-                status: "approved",
-                ndaUploaded: true,
-                msaUploaded: true,
-                ownerId: fbUser.uid,
-                createdAt: new Date().toISOString()
-              };
-              userData = {
-                uid: fbUser.uid,
-                email: fbUser.email,
-                role: "admin",
-                organizationId: orgId,
-                createdAt: new Date().toISOString()
-              };
-              try {
-                const { setDoc } = await import("firebase/firestore");
-                await setDoc(doc(db, "organizations", orgId), orgData);
-                await setDoc(doc(db, "users", fbUser.uid), userData);
-              } catch (e) {
-                console.error("Failed to bootstrap admin:", e);
-              }
-            } else {
-              const emailLower = fbUser.email?.toLowerCase().trim();
-              if (emailLower) {
-                try {
-                  const inviteDoc = await fetchWithRetry(() => getDoc(doc(db, "pending_invites", emailLower)));
-                  if (inviteDoc.exists()) {
-                    const inviteData = inviteDoc.data();
-                    userData = {
-                      uid: fbUser.uid,
-                      email: fbUser.email,
-                      role: inviteData.role,
-                      organizationId: inviteData.organizationId,
-                      createdAt: new Date().toISOString()
-                    };
-                    const { setDoc, deleteDoc } = await import("firebase/firestore");
-                    await setDoc(doc(db, "users", fbUser.uid), userData);
-                    await deleteDoc(doc(db, "pending_invites", emailLower));
-                  }
-                } catch (e) {
-                  // If we are offline, we can't check invites, but we shouldn't necessarily kill the session
-                  console.error("Failed to check pending invites. Possible network issue:", e);
-                }
-              }
-            }
-
-            if (!userData) {
-               try {
-                const { setDoc } = await import("firebase/firestore");
-                await setDoc(doc(db, "lead_captures", fbUser.uid), {
-                   email: fbUser.email,
-                   displayName: fbUser.displayName || "",
-                   attemptedAt: new Date().toISOString(),
-                   status: "unauthorized_login"
-                });
-              } catch (e) {
-                console.error("Failed to capture lead", e);
-              }
-
-              await signOut(auth);
-              setAuthState({ loading: false, authData: null, error: "Access Denied: You have not been provisioned by HQ." });
-              return;
-            }
-          }
-
-          if (userData && userData.organizationId) {
-            if (!orgData) {
-               const orgDoc = await fetchWithRetry(() => getDoc(doc(db, "organizations", userData.organizationId)));
-               if (orgDoc.exists()) {
-                 orgData = orgDoc.data();
-               }
-            }
-            if (orgData) {
-              const data = { user: userData, org: orgData };
-              currentUserState = data;
-              setAuthState({ loading: false, authData: data, error: null });
-              return;
-            }
-          }
-        } catch (err: any) {
-           console.error("Firebase auth state handler error:", err);
-           setAuthState(prev => ({ 
-             ...prev, 
-             loading: false, 
-             error: "Initialization Error: " + (err.message || String(err)) 
-           }));
-           return;
+    console.log("Bypassing Firebase Auth, forcing Admin state");
+    setAuthState({
+      loading: false,
+      authData: {
+        user: { uid: 'mock-admin', email: 'gopalkrishna0046@gmail.com' },
+        org: {
+          organizationId: "ORG-GLOBAL-HQ",
+          type: "admin",
+          companyName: "HireNest Global HQ",
+          status: "approved",
+          ndaUploaded: true,
+          msaUploaded: true,
+          ownerId: 'mock-admin',
+          createdAt: new Date().toISOString()
         }
-      }
-      
-      currentUserState = null;
-      setAuthState(prev => {
-        return { loading: false, authData: null, error: prev.error };
-      });
+      },
+      error: null
     });
-    return () => unsub();
+    
+    return () => {};
   }, []);
 
   if (authState.loading) {
