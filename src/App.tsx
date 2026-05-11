@@ -204,14 +204,6 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
             }
 
             if (!userData) {
-              // Only treat as unauthorized if we are definitively online and have verified no invite exists.
-              // If offline, we might be authorized but just don't have access to the data to know it yet.
-              // To be safe, for now, we will continue to sign out if no user found, 
-              // but we need to ensure this only happens when definitively online.
-              
-              // Simplification: assume if auth succeeded, they exist, but maybe just couldn't fetch local doc due to offline?
-              // For now, let's keep the signout but maybe delay it or make it less aggressive?
-              // Actually, simply signout is the safest way to ensure no unauthorized access.
                try {
                 const { setDoc } = await import("firebase/firestore");
                 await setDoc(doc(db, "lead_captures", fbUser.uid), {
