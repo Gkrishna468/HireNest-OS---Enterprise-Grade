@@ -1,0 +1,181 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "Represents a vendor or client organization",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "type": { "type": "string", "enum": ["vendor", "client", "admin"] },
+        "companyName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending_review", "approved", "rejected"] },
+        "ndaUploaded": { "type": "boolean" },
+        "msaUploaded": { "type": "boolean" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["organizationId", "type", "companyName", "status", "ownerId", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the system (admin, vendor, client)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "vendor_recruiter", "client_hm"] },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PendingInvite": {
+      "title": "PendingInvite",
+      "description": "An invited user email",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "vendor", "client"] },
+        "organizationId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "organizationId", "createdAt"]
+    },
+    "LeadCapture": {
+      "title": "LeadCapture",
+      "description": "A captured unauthorized login attempt",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "attemptedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" }
+      },
+      "required": ["email", "attemptedAt", "status"]
+    },
+    "ComplianceDocument": {
+      "title": "ComplianceDocument",
+      "description": "NDA and MSA documents",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "documentType": { "type": "string", "enum": ["NDA", "MSA"] },
+        "fileUrl": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["organizationId", "documentType", "fileUrl", "uploadedAt", "status", "ownerId"]
+    },
+    "Requirement": {
+      "title": "Requirement",
+      "description": "A job requirement posted by a client",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "clientBudget": { "type": "number" },
+        "marginPercentage": { "type": "number" },
+        "vendorVisiblePayout": { "type": "number" },
+        "status": { "type": "string", "enum": ["Draft", "Pending Approval", "Active", "Closed"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "title", "status", "ownerId", "createdAt"]
+    },
+    "Candidate": {
+      "title": "Candidate",
+      "description": "A candidate submitted by a vendor",
+      "type": "object",
+      "properties": {
+        "vendorId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "resumeText": { "type": "string" },
+        "resumeUrl": { "type": "string" },
+        "pipelineStage": { "type": "string", "enum": ["Candidate Added", "Duplicate Review", "AI Screening", "Client Submission", "Interview Scheduled"] },
+        "matchScore": { "type": "number" },
+        "duplicateScore": { "type": "number" },
+        "duplicateOf": { "type": "string" },
+        "duplicateReason": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vendorId", "name", "ownerId", "createdAt"]
+    },
+    "DealRoom": {
+      "title": "DealRoom",
+      "description": "An anonymous deal room",
+      "type": "object",
+      "properties": {
+        "requirementId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Closed"] },
+        "identitiesRevealed": { "type": "boolean" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requirementId", "clientId", "vendorId", "candidateId", "status", "identitiesRevealed", "ownerId", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a deal room",
+      "type": "object",
+      "properties": {
+        "dealRoomId": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "document", "system"] },
+        "fileUrl": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dealRoomId", "senderRole", "senderId", "text", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "organizations/{organizationId}": {
+      "schema": { "$ref": "Organization" },
+      "description": "All organizations (vendors, clients, admin)"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles"
+    },
+    "pending_invites/{email}": {
+      "schema": { "$ref": "PendingInvite" },
+      "description": "Pending user invites"
+    },
+    "lead_captures/{captureId}": {
+      "schema": { "$ref": "LeadCapture" },
+      "description": "Captured unauthorized logins"
+    },
+    "compliance_documents/{documentId}": {
+      "schema": { "$ref": "ComplianceDocument" },
+      "description": "NDA and MSA documents"
+    },
+    "requirements/{requirementId}": {
+      "schema": { "$ref": "Requirement" },
+      "description": "Job requirements"
+    },
+    "candidates/{candidateId}": {
+      "schema": { "$ref": "Candidate" },
+      "description": "Candidate submissions"
+    },
+    "dealRooms/{dealRoomId}": {
+      "schema": { "$ref": "DealRoom" },
+      "description": "Deal rooms"
+    },
+    "dealRooms/{dealRoomId}/messages/{messageId}": {
+      "schema": { "$ref": "Message" },
+      "description": "Messages inside a deal room"
+    }
+  }
+}
