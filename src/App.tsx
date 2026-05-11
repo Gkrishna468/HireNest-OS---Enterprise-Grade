@@ -122,6 +122,7 @@ function TopBar({ orgData }: { orgData: any }) {
 }
 
 export default function App() {
+  console.log("App component mounting");
   const [authState, setAuthState] = useState<{ loading: boolean, authData: { user: any, org: any } | null, error: string | null }>({ loading: true, authData: null, error: null });
 
 // Helper to fetch data with retries
@@ -140,7 +141,9 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
 }
 
   useEffect(() => {
+    console.log("App component useEffect running");
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      console.log("onAuthStateChanged triggered with user:", fbUser);
       if (fbUser) {
         try {
           let userData: any = null;
