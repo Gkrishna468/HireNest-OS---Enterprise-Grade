@@ -18,10 +18,10 @@ service cloud.firestore {
     }
 
     match /pending_invites/{email} {
-      allow get: if isSignedIn() && (request.auth.token.email.lower() == email || isAdmin());
+      allow get: if isSignedIn() && (request.auth.token.email.toLower() == email || isAdmin());
       allow list: if isAdmin();
       allow create: if isAdmin();
-      allow delete: if isSignedIn() && (request.auth.token.email.lower() == email || isAdmin());
+      allow delete: if isSignedIn() && (request.auth.token.email.toLower() == email || isAdmin());
     }
 
     match /lead_captures/{captureId} {

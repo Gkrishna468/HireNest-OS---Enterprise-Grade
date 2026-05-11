@@ -125,6 +125,15 @@ export default function App() {
   console.log("App component mounting");
   const [authState, setAuthState] = useState<{ loading: boolean, authData: { user: any, org: any } | null, error: string | null }>({ loading: true, authData: null, error: null });
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+       if (authState.loading) {
+         setAuthState(prev => ({ ...prev, loading: false, error: "Initialization timed out. Please check your network connection or try refreshing." }));
+       }
+    }, 10000); // 10s timeout
+    return () => clearTimeout(timer);
+  }, [authState.loading]);
+
 // Helper to fetch data with retries
 async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000): Promise<any> {
     try {
