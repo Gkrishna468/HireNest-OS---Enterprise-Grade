@@ -29,31 +29,6 @@
       },
       "required": ["uid", "email", "role"]
     },
-    "PendingInvite": {
-      "title": "PendingInvite",
-      "description": "An invited user email",
-      "type": "object",
-      "properties": {
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "vendor", "client"] },
-        "organizationId": { "type": "string" },
-        "companyName": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["email", "role", "organizationId", "createdAt"]
-    },
-    "LeadCapture": {
-      "title": "LeadCapture",
-      "description": "A captured unauthorized login attempt",
-      "type": "object",
-      "properties": {
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "attemptedAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string" }
-      },
-      "required": ["email", "attemptedAt", "status"]
-    },
     "ComplianceDocument": {
       "title": "ComplianceDocument",
       "description": "NDA and MSA documents",
@@ -148,14 +123,6 @@
     "users/{userId}": {
       "schema": { "$ref": "User" },
       "description": "User profiles"
-    },
-    "pending_invites/{email}": {
-      "schema": { "$ref": "PendingInvite" },
-      "description": "Pending user invites"
-    },
-    "lead_captures/{captureId}": {
-      "schema": { "$ref": "LeadCapture" },
-      "description": "Captured unauthorized logins"
     },
     "compliance_documents/{documentId}": {
       "schema": { "$ref": "ComplianceDocument" },

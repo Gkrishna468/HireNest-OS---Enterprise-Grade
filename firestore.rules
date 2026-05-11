@@ -6,46 +6,38 @@ service cloud.firestore {
     }
 
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com' || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')); }
+    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'gopal@hirenestworkforce.com' || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')); }
 
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;
       allow list: if isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId 
+                    && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt'])
+                    && request.resource.data.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId 
                     && request.resource.data.uid == resource.data.uid
                     && request.resource.data.role == resource.data.role;
     }
 
-    match /pending_invites/{email} {
-      allow get: if isSignedIn() && (request.auth.token.email.toLower() == email || isAdmin());
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow delete: if isSignedIn() && (request.auth.token.email.toLower() == email || isAdmin());
-    }
-
-    match /lead_captures/{captureId} {
-      allow create: if isSignedIn() && request.auth.uid == captureId;
-      allow read, update, delete: if isAdmin();
-    }
-
     match /organizations/{orgId} {
-      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId));
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn();
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid 
+                    && (request.resource.data.status == 'pending_review' || isAdmin());
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin())
+                    && request.resource.data.ownerId == resource.data.ownerId;
     }
 
     match /compliance_documents/{docId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     match /requirements/{reqId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || isSignedIn();
+      allow create, update, delete: if isAdmin() || isSignedIn(); // Adjusting for prototype simplicity initially
     }
 
     match /candidates/{candId} {
@@ -63,4 +55,3 @@ service cloud.firestore {
     }
   }
 }
-

@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { cn } from "./lib/utils";
 import { auth, db } from "./lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import Onboarding from "./views/Onboarding";
-import { ComplianceBanner } from "./components/ComplianceBanner";
 
 import DashboardTab from "./views/DashboardTab";
 import JobsTab from "./views/JobsTab";
@@ -16,6 +15,7 @@ import AdminUsersManager from "./views/AdminUsersManager";
 // Global auth context simulation
 export let currentUserState: { user: any; org: any } | null = null;
 
+
 function Sidebar({ orgType }: { orgType: string }) {
   const location = useLocation();
   const navItems = [
@@ -25,6 +25,9 @@ function Sidebar({ orgType }: { orgType: string }) {
     { name: "Deal Rooms", path: "/deals", icon: "💬" },
     ...(orgType === 'admin' ? [{ name: "Users", path: "/users", icon: "⚙️" }] : [])
   ];
+
+  // Vendors should not see 'AI Agent Flows' related to outreach targeting them?
+  // Let's hide specific things based on orgType if needed, but keeping it simple for now.
 
   const intelligenceItems = [
     { name: "Agent Flows", path: "#", icon: "✦" },
@@ -62,13 +65,13 @@ function Sidebar({ orgType }: { orgType: string }) {
       <div className="mt-8 space-y-1">
         <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">AI Intelligence</div>
         {intelligenceItems.map((item) => (
-            <a
+            <Link
               key={item.name}
-              href={item.path}
+              to={item.path}
               className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-slate-100 text-slate-600 text-sm"
             >
               <span className="text-lg leading-none">{item.icon}</span> <span>{item.name}</span>
-            </a>
+            </Link>
         ))}
       </div>
 
@@ -122,54 +125,58 @@ function TopBar({ orgData }: { orgData: any }) {
 }
 
 export default function App() {
-  console.log("App component mounting");
-  const [authState, setAuthState] = useState<{ loading: boolean, authData: { user: any, org: any } | null, error: string | null }>({ loading: true, authData: null, error: null });
+  const [authState, setAuthState] = useState<{ loading: boolean, authData: { user: any, org: any } | null }>({ loading: true, authData: null });
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-       if (authState.loading) {
-         setAuthState(prev => ({ ...prev, loading: false, error: "Initialization timed out. Please check your network connection or try refreshing." }));
-       }
-    }, 10000); // 10s timeout
-    return () => clearTimeout(timer);
-  }, [authState.loading]);
-
-// Helper to fetch data with retries
-async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000): Promise<any> {
-    try {
-      return await fn();
-    } catch (err: any) {
-      const errMsg = (err.message || "").toLowerCase();
-      console.log("Firestore fetch error:", errMsg, err);
-      if (retries > 0 && (errMsg.includes("offline") || errMsg.includes("unavailable") || errMsg.includes("network"))) {
-        await new Promise(r => setTimeout(r, delay));
-        return fetchWithRetry(fn, retries - 1, delay * 2);
-      }
-      throw err;
-    }
-}
-
-  useEffect(() => {
-    console.log("Bypassing Firebase Auth, forcing Admin state");
-    setAuthState({
-      loading: false,
-      authData: {
-        user: { uid: 'mock-admin', email: 'gopalkrishna0046@gmail.com' },
-        org: {
-          organizationId: "ORG-GLOBAL-HQ",
-          type: "admin",
-          companyName: "HireNest Global HQ",
-          status: "approved",
-          ndaUploaded: true,
-          msaUploaded: true,
-          ownerId: 'mock-admin',
-          createdAt: new Date().toISOString()
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.organizationId) {
+            const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
+            if (orgDoc.exists()) {
+              const data = { user: userData, org: orgDoc.data() };
+              currentUserState = data;
+              setAuthState({ loading: false, authData: data });
+              return;
+            }
+          }
+        } else if (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com") {
+          // Bootstrap the admin user
+          const orgId = "ORG-GLOBAL-HQ";
+          const orgData = {
+            organizationId: orgId,
+            type: "admin",
+            companyName: "HireNest Global HQ",
+            status: "approved",
+            ndaUploaded: false,
+            msaUploaded: false,
+            ownerId: fbUser.uid,
+            createdAt: new Date().toISOString()
+          };
+          const userData = {
+            uid: fbUser.uid,
+            email: fbUser.email,
+            role: "admin",
+            organizationId: orgId,
+            createdAt: new Date().toISOString()
+          };
+          
+          const { setDoc } = await import("firebase/firestore");
+          await setDoc(doc(db, "organizations", orgId), orgData);
+          await setDoc(doc(db, "users", fbUser.uid), userData);
+          
+          const data = { user: userData, org: orgData };
+          currentUserState = data;
+          setAuthState({ loading: false, authData: data });
+          return;
         }
-      },
-      error: null
+      }
+      currentUserState = null;
+      setAuthState({ loading: false, authData: null });
     });
-    
-    return () => {};
+    return () => unsub();
   }, []);
 
   if (authState.loading) {
@@ -177,20 +184,18 @@ async function fetchWithRetry(fn: () => Promise<any>, retries = 3, delay = 1000)
   }
 
   if (!authState.authData) {
-    return <Onboarding error={authState.error} onComplete={(data) => {
+    return <Onboarding onComplete={(data) => {
        currentUserState = data;
-       setAuthState({ loading: false, authData: data, error: null });
+       setAuthState({ loading: false, authData: data });
     }} />;
   }
 
-  const { user, org } = authState.authData;
+  const { org } = authState.authData;
 
   return (
     <BrowserRouter>
       <div className="flex flex-col h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
         <TopBar orgData={org} />
-        <ComplianceBanner orgData={org} userId={user.uid} />
-        
         <div className="flex flex-1 overflow-hidden">
           <Sidebar orgType={org.type} />
           <main className="flex-1 overflow-y-auto flex flex-col">
