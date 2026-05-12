@@ -11,6 +11,8 @@ import JobsTab from "./views/JobsTab";
 import CandidatesTab from "./views/CandidatesTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import AdminUsersManager from "./views/AdminUsersManager";
+import ClientsTab from "./views/ClientsTab";
+import VendorsTab from "./views/VendorsTab";
 
 // Global auth context simulation
 export let currentUserState: { user: any; org: any } | null = null;
@@ -23,6 +25,8 @@ function Sidebar({ orgType }: { orgType: string }) {
     { name: "Requirements", path: "/jobs", icon: "⌘" },
     { name: "Candidates", path: "/candidates", icon: "👥" },
     { name: "Deal Rooms", path: "/deals", icon: "💬" },
+    { name: "Clients", path: "/clients", icon: "🏢" },
+    { name: "Vendors", path: "/vendors", icon: "⛑️" },
     ...(orgType === 'admin' ? [{ name: "Users", path: "/users", icon: "⚙️" }] : [])
   ];
 
@@ -204,6 +208,8 @@ export default function App() {
               <Route path="/jobs" element={<JobsTab />} />
               <Route path="/candidates" element={<CandidatesTab />} />
               <Route path="/deals" element={<DealRoomsTab />} />
+              <Route path="/clients" element={<ClientsTab />} />
+              <Route path="/vendors" element={<VendorsTab />} />
               <Route path="/users" element={<AdminUsersManager orgData={org} />} />
             </Routes>
           </main>
