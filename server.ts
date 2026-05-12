@@ -39,6 +39,10 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.get("/api/metrics", (req, res) => {
+    res.json(db.metrics);
+  });
+
   // Mock Database
   const db = {
     metrics: {
