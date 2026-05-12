@@ -26,7 +26,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "users"));
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => !u.deleted));
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }) as any).filter((u: any) => !u.deleted));
     } catch (err: any) {
       console.error(err);
       setError("Failed to fetch users");
@@ -57,6 +57,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         type: role === "client" ? "client" : role === "vendor" ? "vendor" : "admin",
         companyName: companyName,
         status: "approved",
+        adminApproved: true,
         ndaUploaded: false,
         msaUploaded: false,
         ownerId: newUid,

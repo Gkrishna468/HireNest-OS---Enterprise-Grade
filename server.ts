@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize AI if key is present
-let ai: GoogleGenAI | null = null;
+let ai: any = null; // Use any to bypass strict type check if SDK is inconsistent 
 if (process.env.GEMINI_API_KEY) {
   ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 }
@@ -206,32 +206,66 @@ Return a JSON document (without markdown) matching this schema:
       if (!ai) {
         return res.status(500).json({ error: "Gemini API config missing" });
       }
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Extract the following details from this Job Description as JSON: { title, skills (array of strings), experience_years, location }. JD: ${jdText}`,
+
+      const prompt = `You are the Intelligence Layer for HireNestOS, an enterprise Staffing ERP.
+Extract structured metadata from the following Job Description.
+
+JD Text:
+${jdText}
+
+Return only a valid JSON object matching this schema:
+{
+  "title": "Professional Job Title",
+  "description": "2-3 sentence summary",
+  "skills": ["Skill 1", "Skill 2", ...],
+  "experience": "e.g. 5+ years",
+  "suggestedBudget": number (estimated monthly or hourly rate based on title if identifiable, otherwise null),
+  "criticalRequirements": ["Req 1", "Req 2"]
+}
+Do not include any other text or markdown.`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
       });
-      const content = response.text;
+      
+      const content = result.text;
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       
-      const newJob = {
-        id: "REQ-" + Math.floor(Math.random() * 10000),
-        clientId: "C-" + Math.floor(Math.random() * 10000),
-        title: parsed.title || "Unknown Title",
-        skills: parsed.skills || [],
-        clientBudget: 22000, 
-        marginPercentage: 15,
-        vendorVisiblePayout: 22000 - (22000 * 0.15),
-        status: "Draft",
-        rate: "TBD",
-        submissions: 0
-      };
-      db.jobs.push(newJob);
-      res.json(newJob);
+      res.json(parsed);
 
     } catch (err: any) {
+      console.error("AI Parsing failed", err);
       res.status(500).json({ error: err.message });
     }
+  });
+
+  app.post("/api/match-candidates", async (req, res) => {
+     try {
+       const { requirement, candidates } = req.body;
+       if (!ai) return res.status(500).json({ error: "Gemini API missing" });
+       
+       const prompt = `Match the following job requirement against these candidate profiles.
+Job: ${JSON.stringify(requirement)}
+Candidates: ${JSON.stringify(candidates)}
+
+For each candidate, provide a matchScore (0-100) and a brief matchReason.
+Return as JSON array: [{ "candidateId": "...", "matchScore": 85, "matchReason": "..." }]`;
+
+       const result = await ai.models.generateContent({
+         model: "gemini-2.0-flash",
+         contents: [{ role: "user", parts: [{ text: prompt }] }]
+       });
+
+       const content = result.text;
+       const jsonMatch = content.match(/\[[\s\S]*\]/);
+       const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+       
+       res.json(parsed);
+     } catch (err: any) {
+       res.status(500).json({ error: err.message });
+     }
   });
 
   // Vite middleware for development

@@ -4,9 +4,10 @@ import { cn } from "./utils"
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "secondary" | "destructive" | "outline" | "success"
   className?: string
+  children?: React.ReactNode
 }
 
-function Badge({ className, variant = "default", ...props }: BadgeProps) {
+function Badge({ children, className, variant = "default", ...props }: BadgeProps) {
   return (
     <div
       className={cn(
@@ -21,7 +22,9 @@ function Badge({ className, variant = "default", ...props }: BadgeProps) {
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 

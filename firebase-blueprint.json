@@ -2,7 +2,7 @@
   "entities": {
     "Organization": {
       "title": "Organization",
-      "description": "Represents a vendor or client organization",
+      "description": "Represents a client, vendor, or admin organization",
       "type": "object",
       "properties": {
         "organizationId": { "type": "string" },
@@ -11,6 +11,7 @@
         "status": { "type": "string", "enum": ["pending_review", "approved", "rejected"] },
         "ndaUploaded": { "type": "boolean" },
         "msaUploaded": { "type": "boolean" },
+        "adminApproved": { "type": "boolean" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -18,131 +19,121 @@
     },
     "User": {
       "title": "User",
-      "description": "A user of the system (admin, vendor, client)",
+      "description": "A user belonging to an organization",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "vendor_recruiter", "client_hm"] },
+        "role": { "type": "string", "enum": ["admin", "client_hm", "client_finance", "client_recruiter", "vendor_recruiter", "vendor_sourcer"] },
         "organizationId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email", "role"]
-    },
-    "ComplianceDocument": {
-      "title": "ComplianceDocument",
-      "description": "NDA and MSA documents",
-      "type": "object",
-      "properties": {
-        "organizationId": { "type": "string" },
-        "documentType": { "type": "string", "enum": ["NDA", "MSA"] },
-        "fileUrl": { "type": "string" },
-        "uploadedAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
-        "ownerId": { "type": "string" }
-      },
-      "required": ["organizationId", "documentType", "fileUrl", "uploadedAt", "status", "ownerId"]
+      "required": ["uid", "email", "role", "organizationId", "createdAt"]
     },
     "Requirement": {
       "title": "Requirement",
       "description": "A job requirement posted by a client",
       "type": "object",
       "properties": {
+        "requirementId": { "type": "string" },
         "clientId": { "type": "string" },
         "title": { "type": "string" },
+        "description": { "type": "string" },
         "skills": { "type": "array", "items": { "type": "string" } },
-        "clientBudget": { "type": "number" },
-        "marginPercentage": { "type": "number" },
-        "vendorVisiblePayout": { "type": "number" },
-        "status": { "type": "string", "enum": ["Draft", "Pending Approval", "Active", "Closed"] },
+        "status": { "type": "string", "enum": ["DRAFT", "PENDING_FINANCIAL_APPROVAL", "PUBLISHED", "CLOSED"] },
+        "visibility": { "type": "string", "enum": ["INTERNAL", "VENDOR_NETWORK"] },
+        "vendorVisibleBudget": { "type": "number" },
+        "currency": { "type": "string" },
+        "adminApproved": { "type": "boolean" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["clientId", "title", "status", "ownerId", "createdAt"]
+      "required": ["requirementId", "clientId", "title", "status", "visibility", "ownerId", "createdAt"]
     },
-    "Candidate": {
-      "title": "Candidate",
-      "description": "A candidate submitted by a vendor",
-      "type": "object",
-      "properties": {
-        "vendorId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "phone": { "type": "string" },
-        "linkedin": { "type": "string" },
-        "skills": { "type": "array", "items": { "type": "string" } },
-        "resumeText": { "type": "string" },
-        "resumeUrl": { "type": "string" },
-        "pipelineStage": { "type": "string", "enum": ["Candidate Added", "Duplicate Review", "AI Screening", "Client Submission", "Interview Scheduled"] },
-        "matchScore": { "type": "number" },
-        "duplicateScore": { "type": "number" },
-        "duplicateOf": { "type": "string" },
-        "duplicateReason": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["vendorId", "name", "ownerId", "createdAt"]
-    },
-    "DealRoom": {
-      "title": "DealRoom",
-      "description": "An anonymous deal room",
+    "FinancialRecord": {
+      "title": "FinancialRecord",
+      "description": "Sensitive financial data for a requirement, visible only to Admin and Client Finance",
       "type": "object",
       "properties": {
         "requirementId": { "type": "string" },
-        "clientId": { "type": "string" },
-        "vendorId": { "type": "string" },
+        "actualClientBudget": { "type": "number" },
+        "platformMargin": { "type": "number" },
+        "marginType": { "type": "string", "enum": ["fixed", "percentage"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requirementId", "actualClientBudget", "platformMargin"]
+    },
+    "Candidate": {
+      "title": "Candidate",
+      "description": "A candidate profile in the pool",
+      "type": "object",
+      "properties": {
         "candidateId": { "type": "string" },
-        "status": { "type": "string", "enum": ["Active", "Closed"] },
-        "identitiesRevealed": { "type": "boolean" },
+        "vendorId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "resumeUrl": { "type": "string" },
+        "matchScore": { "type": "number" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["requirementId", "clientId", "vendorId", "candidateId", "status", "identitiesRevealed", "ownerId", "createdAt"]
+      "required": ["candidateId", "vendorId", "name", "ownerId", "createdAt"]
     },
-    "Message": {
-      "title": "Message",
-      "description": "A message in a deal room",
+    "Submission": {
+      "title": "Submission",
+      "description": "A candidate submission to a requirement",
       "type": "object",
       "properties": {
-        "dealRoomId": { "type": "string" },
-        "senderRole": { "type": "string" },
-        "senderId": { "type": "string" },
-        "text": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "document", "system"] },
-        "fileUrl": { "type": "string" },
+        "submissionId": { "type": "string" },
+        "requirementId": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "SCREENING", "CLIENT_REVIEW", "INTERVIEW", "OFFER", "REJECTED"] },
+        "vendorTrustScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["submissionId", "requirementId", "candidateId", "vendorId", "status", "createdAt"]
+    },
+    "DealRoom": {
+      "title": "DealRoom",
+      "description": "A collaboration space for a submission",
+      "type": "object",
+      "properties": {
+        "submissionId": { "type": "string" },
+        "requirementId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "identitiesRevealed": { "type": "boolean" },
+        "adminAuthorized": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "CLOSED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["submissionId", "requirementId", "clientId", "vendorId", "identitiesRevealed", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System-wide tracking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": ["dealRoomId", "senderRole", "senderId", "text", "type", "timestamp"]
+      "required": ["userId", "action", "timestamp"]
     }
   },
   "firestore": {
-    "organizations/{organizationId}": {
-      "schema": { "$ref": "Organization" },
-      "description": "All organizations (vendors, clients, admin)"
-    },
-    "users/{userId}": {
-      "schema": { "$ref": "User" },
-      "description": "User profiles"
-    },
-    "compliance_documents/{documentId}": {
-      "schema": { "$ref": "ComplianceDocument" },
-      "description": "NDA and MSA documents"
-    },
-    "requirements/{requirementId}": {
-      "schema": { "$ref": "Requirement" },
-      "description": "Job requirements"
-    },
-    "candidates/{candidateId}": {
-      "schema": { "$ref": "Candidate" },
-      "description": "Candidate submissions"
-    },
-    "dealRooms/{dealRoomId}": {
-      "schema": { "$ref": "DealRoom" },
-      "description": "Deal rooms"
-    },
-    "dealRooms/{dealRoomId}/messages/{messageId}": {
-      "schema": { "$ref": "Message" },
-      "description": "Messages inside a deal room"
-    }
+    "organizations/{organizationId}": { "schema": { "$ref": "Organization" }, "description": "Global organizations" },
+    "users/{userId}": { "schema": { "$ref": "User" }, "description": "User profiles" },
+    "requirements/{requirementId}": { "schema": { "$ref": "Requirement" }, "description": "Public job requirements" },
+    "financials/{requirementId}": { "schema": { "$ref": "FinancialRecord" }, "description": "Private financial metadata for requirements" },
+    "candidatePool/{candidateId}": { "schema": { "$ref": "Candidate" }, "description": "Global candidate database" },
+    "submissions/{submissionId}": { "schema": { "$ref": "Submission" }, "description": "Vendor submissions" },
+    "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },
+    "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "title": "Message", "type": "object", "properties": { "text": { "type": "string" }, "senderId": { "type": "string" }, "timestamp": { "type": "string" } } }, "description": "Messages" },
+    "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" }
   }
 }

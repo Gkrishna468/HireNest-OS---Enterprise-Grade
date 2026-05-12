@@ -1,57 +1,93 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // --- Helpers ---
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'gopalkrishna0046@gmail.com' || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')); }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'gopalkrishna0046@gmail.com' ||
+        getUserData().role == 'admin'
+      );
+    }
+
+    function isClient() {
+      return isSignedIn() && getUserData().role.matches('client_.*');
+    }
+
+    function isVendor() {
+      return isSignedIn() && getUserData().role.matches('vendor_.*');
+    }
+
+    function isOrganizationMember(orgId) {
+      return isSignedIn() && getUserData().organizationId == orgId;
+    }
+
+    // --- Collections ---
 
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;
       allow list: if isAdmin();
-      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin())
-                    && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt'])
-                    && request.resource.data.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId 
-                    && request.resource.data.uid == resource.data.uid
-                    && request.resource.data.role == resource.data.role;
+      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) 
+                    && request.resource.data.role == resource.data.role; // Role is immutable
     }
 
     match /organizations/{orgId} {
-      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin())
-                    && request.resource.data.ownerId == resource.data.ownerId;
+      allow read: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin());
+      allow create: if isSignedIn(); // Allow onboarding
+      allow update: if isAdmin() || (isOrganizationMember(orgId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'adminApproved']));
       allow delete: if isAdmin();
-    }
-
-    match /compliance_documents/{docId} {
-      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     match /requirements/{reqId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || isSignedIn(); // Adjusting for prototype simplicity initially
+      allow create: if isAdmin() || isClient();
+      allow update: if isAdmin() || (isClient() && isOrganizationMember(resource.data.clientId));
+      allow delete: if isAdmin();
     }
 
-    match /candidates/{candId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+    match /financials/{reqId} {
+      // Only Admin or the Client's Finance role can see the actual budget/margin
+      allow read: if isAdmin() || (isClient() && isOrganizationMember(get(/databases/$(database)/documents/requirements/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isAdmin() || (isClient() && isOrganizationMember(get(/databases/$(database)/documents/requirements/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
     }
-    
+
+    match /candidatePool/{candId} {
+      // Vendors see their own pool; Admins see all; Clients see if identities revealed (complex, keeping simple for now)
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getUserData().organizationId) || isClient();
+      allow create: if isVendor();
+      allow update: if isAdmin() || (isVendor() && resource.data.vendorId == getUserData().organizationId);
+    }
+
+    match /submissions/{subId} {
+      allow read: if isAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements/$(resource.data.requirementId)).data.clientId);
+      allow create: if isVendor();
+      allow update: if isAdmin() || isOrganizationMember(resource.data.vendorId);
+    }
+
     match /dealRooms/{roomId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read: if isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId);
+      allow create: if isAdmin() || isVendor(); // Usually created when submission happens
+      allow update: if isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId);
     }
-    
-    match /dealRooms/{roomId}/messages/{messageId} {
-      allow read, write: if isSignedIn();
+
+    match /dealRooms/{roomId}/messages/{msgId} {
+      allow read, write: if isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.entityId);
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
     }
   }
 }
