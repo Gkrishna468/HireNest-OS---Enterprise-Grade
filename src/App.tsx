@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-do
 import { cn } from "./lib/utils";
 import { auth, db } from "./lib/firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { handleFirestoreError, OperationType } from "./lib/firebase";
 import Onboarding from "./views/Onboarding";
 
 import DashboardTab from "./views/DashboardTab";
@@ -139,8 +140,15 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       try {
         if (fbUser) {
-          const userDoc = await getDoc(doc(db, "users", fbUser.uid));
-          if (userDoc.exists()) {
+          let userDoc;
+          try {
+            userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          } catch (e) {
+             handleFirestoreError(e, OperationType.GET, `users/${fbUser.uid}`);
+             return;
+          }
+
+          if (userDoc?.exists()) {
             const userData = userDoc.data();
             if (userData.organizationId) {
               const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
@@ -172,7 +180,6 @@ export default function App() {
               createdAt: new Date().toISOString()
             };
             
-            const { setDoc } = await import("firebase/firestore");
             await setDoc(doc(db, "organizations", orgId), orgData);
             await setDoc(doc(db, "users", fbUser.uid), userData);
             
@@ -184,7 +191,6 @@ export default function App() {
         }
       } catch (error: any) {
         console.error("Initialization error:", error);
-        // Ensure we clear the loading state on any error so the user can see onboarding or try again
         setAuthState({ loading: false, authData: null });
         return;
       }

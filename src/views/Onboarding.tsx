@@ -3,6 +3,7 @@ import { auth, db, storage } from "../lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { handleFirestoreError, OperationType } from "../lib/firebase";
 import { Button } from "../lib/Button";
 
 export default function Onboarding({ onComplete }: { onComplete: (orgData: any) => void }) {
@@ -114,10 +115,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       try {
         await setDoc(doc(db, "organizations", orgId), orgData);
       } catch (orgErr: any) {
-        console.error("Organization creation failed:", orgErr);
-        if (orgErr.code === 'permission-denied') {
-          throw new Error("Unable to save Organization profile. This is likely due to Firestore Security Rules. Please ensure the rules I provided are deployed in your Firebase Console.");
-        }
+        handleFirestoreError(orgErr, OperationType.WRITE, `organizations/${orgId}`);
         throw orgErr;
       }
 
@@ -142,10 +140,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
           ownerId: user.uid,
         });
       } catch (docErr: any) {
-        console.error("Compliance docs failed:", docErr);
-        if (docErr.code === 'permission-denied') {
-          throw new Error("Permission Denied while saving compliance records. Please ensure 'compliance_documents' collection is allowed in Firestore Rules.");
-        }
+        handleFirestoreError(docErr, OperationType.WRITE, "compliance_documents");
         throw docErr;
       }
 
@@ -162,10 +157,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       try {
         await setDoc(doc(db, "users", user.uid), userData);
       } catch (userErr: any) {
-        console.error("User creation failed:", userErr);
-        if (userErr.code === 'permission-denied') {
-          throw new Error("Unable to save User profile. Please check your Firestore Security Rules matching 'match /users/{userId}'.");
-        }
+        handleFirestoreError(userErr, OperationType.WRITE, `users/${user.uid}`);
         throw userErr;
       }
 

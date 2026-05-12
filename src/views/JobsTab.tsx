@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity } from "lucide-react";
-import { db, auth } from "../lib/firebase";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
 import { analyzeCandidateMatch, CandidateMatchResult } from "../services/aiService";
 
@@ -38,6 +38,8 @@ export default function JobsTab() {
     const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setJobs(data.sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "requirements_public");
     });
     return () => unsubscribe();
   }, []);
@@ -47,6 +49,8 @@ export default function JobsTab() {
       const q = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
       const unsubscribe = onSnapshot(q, (snap) => {
         setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, "submissions");
       });
       return () => unsubscribe();
     }

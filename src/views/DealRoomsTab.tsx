@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign } from "lucide-react";
-import { db, auth } from "../lib/firebase";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, orderBy, updateDoc } from "firebase/firestore";
 
 export default function DealRoomsTab() {
@@ -27,6 +27,8 @@ export default function DealRoomsTab() {
     const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setDealRooms(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "dealRooms");
     });
     return () => unsubscribe();
   }, []);
@@ -39,6 +41,8 @@ export default function DealRoomsTab() {
       );
       const unsubscribe = onSnapshot(q, (snap) => {
         setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, `dealRooms/${selectedRoom.id}/messages`);
       });
       return () => unsubscribe();
     }

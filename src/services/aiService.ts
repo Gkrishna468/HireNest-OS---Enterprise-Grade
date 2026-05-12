@@ -1,6 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Standard Vite environment doesn't have process.env, but this platform injects it.
+// We use a safe accessor to prevent crashes if it's missing in some contexts.
+const getApiKey = () => {
+  try {
+    return process.env.GEMINI_API_KEY || "";
+  } catch {
+    return "";
+  }
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export interface CandidateMatchResult {
   matchScore: number;
@@ -62,12 +72,14 @@ export async function analyzeCandidateMatch(jd: string, candidateProfile: string
       }
     });
 
-    return JSON.parse(response.text);
+    const text = response.text;
+    if (!text) throw new Error("Empty response from AI");
+    return JSON.parse(text);
   } catch (error) {
     console.error("AI Analysis failed:", error);
     return {
       matchScore: 0,
-      summary: "Matching failed due to intelligence layer timeout.",
+      summary: "Matching failed due to intelligence layer timeout or connection error.",
       strengths: [],
       gaps: [],
       outreachDrafts: { founder: "", professional: "", executive: "", warm: "" }
@@ -76,31 +88,32 @@ export async function analyzeCandidateMatch(jd: string, candidateProfile: string
 }
 
 export async function parseBulkResumes(resumeTexts: string[]): Promise<any[]> {
-    // Highly simplified mock for the logic
-    const prompt = `Parse these ${resumeTexts.length} resumes into basic profile objects. Each object should have name, email, skills (list), and topExperience. Respond with JSON array.`;
-    
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            name: { type: Type.STRING },
-                            email: { type: Type.STRING },
-                            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            topExperience: { type: Type.STRING }
-                        }
-                    }
-                }
+  const prompt = `Parse these ${resumeTexts.length} resumes into basic profile objects. Each object should have name, email, skills (list), and topExperience. Respond with JSON array.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              email: { type: Type.STRING },
+              skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+              topExperience: { type: Type.STRING }
             }
-        });
-        return JSON.parse(response.text);
-    } catch (e) {
-        return [];
-    }
+          }
+        }
+      }
+    });
+    const text = response.text;
+    return text ? JSON.parse(text) : [];
+  } catch (e) {
+    console.error("Bulk parse error:", e);
+    return [];
+  }
 }

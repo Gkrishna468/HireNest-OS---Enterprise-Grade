@@ -147,8 +147,8 @@ Return a JSON document (without markdown) matching this schema:
 { "duplicateScore": number (0-100, where > 85 is likely duplicate), "duplicateOf": "Candidate ID" or null, "reason": "brief explanation" }`;
 
         const response = await ai.models.generateContent({
-           model: 'gemini-2.0-flash',
-           contents: [{ role: 'user', parts: [{ text: prompt }] }]
+           model: 'gemini-3-flash-preview',
+           contents: prompt
         });
         
         const content = response.text;
@@ -255,8 +255,8 @@ Return only a valid JSON object matching this schema:
 Do not include any other text or markdown.`;
 
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: [{ role: "user", parts: [{ text: prompt }] }]
+        model: "gemini-3-flash-preview",
+        contents: prompt
       });
       
       const content = result.text;
@@ -297,6 +297,7 @@ Return as JSON array: [{ "candidateId": "...", "matchScore": 85, "matchReason": 
        res.status(500).json({ error: err.message });
      }
   });
+
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

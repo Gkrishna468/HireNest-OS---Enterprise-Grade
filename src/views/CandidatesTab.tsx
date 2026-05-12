@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { AlertTriangle, BrainCircuit, Plus, X, Upload, MapPin, Briefcase, Activity, Bot } from "lucide-react";
 import { Button } from "../lib/Button";
-import { db, auth } from "../lib/firebase";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where } from "firebase/firestore";
 import { parseBulkResumes } from "../services/aiService";
 
@@ -29,6 +29,8 @@ export default function CandidatesTab() {
           const q = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
           const unsubscribe = onSnapshot(q, (snap) => {
             setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, "candidatePool");
           });
           return () => unsubscribe();
         }
