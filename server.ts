@@ -358,11 +358,18 @@ Return as JSON array: [{ "candidateId": "...", "matchScore": 85, "matchReason": 
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
+    
+    // SPA Fallback: All routes that don't match static files or API are sent to index.html
     app.get("*", (req, res) => {
+      // Ensure we don't accidentally serve index.html for missing images or other assets
+      if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        return res.status(404).send("File not found");
+      }
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
+        // Fallback for case where build hasn't run or index.html is missing
         res.status(404).send("Application shell not found. Build may be incomplete.");
       }
     });

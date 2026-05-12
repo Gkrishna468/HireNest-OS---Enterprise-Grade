@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Activity, ShieldCheck, Cpu } from "lucide-react";
 import { currentUserState } from "../App";
+import { Badge } from "../lib/Badge";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -21,6 +22,14 @@ export default function DashboardTab() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 pt-4 pb-2 bg-white flex items-center justify-between">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">
+           {isClient ? "Client Lifecycle Management" : isVendor ? "Vendor Service Operations" : "Global Admin Governance"}
+        </h2>
+        <Badge variant="outline" className="text-[9px] uppercase border-indigo-200 text-indigo-600 bg-indigo-50">
+          Sync: Real-Time
+        </Badge>
+      </div>
       {/* Metric Bar Structure mimicking the High Density design */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 border-b border-slate-200 bg-white shrink-0">
         {(isAdmin || isVendor) && (

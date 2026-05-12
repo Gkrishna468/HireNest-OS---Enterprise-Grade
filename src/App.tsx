@@ -46,6 +46,13 @@ function Sidebar({ org, user }: { org: any, user: any }) {
 
   return (
     <nav className="w-52 bg-white border-r border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
+      <div className="mb-6 pb-4 border-b border-slate-100">
+        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Authenticated Hub</label>
+        <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+            <span className="text-[11px] font-bold uppercase text-slate-700">{org.type} workforce</span>
+        </div>
+      </div>
       <div className="space-y-1">
         <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">Operating Layer</div>
         {navItems.filter(i => i.visible).map((item) => {
@@ -243,6 +250,7 @@ export default function App() {
                   <Route path="/users" element={<AdminUsersManager orgData={org} />} />
                 </>
               )}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
         </div>
