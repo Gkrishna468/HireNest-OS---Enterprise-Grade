@@ -69,9 +69,18 @@ export default function DealRoomsTab() {
     await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
       senderRole: "System Admin",
       senderId: "Admin",
-      text: "🚨 NDA Approved. Market identities have been revealed for direct coordination.",
+      text: "🚨 NDA Approved. Market identities have been revealed for direct coordination. Audit log updated: GOV-REVEAL-LOG.",
       type: "system",
       timestamp: serverTimestamp()
+    });
+    
+    // Audit log
+    await addDoc(collection(db, "auditLogs"), {
+      eventId: "IDENTITY_REVEALED",
+      dealRoomId: selectedRoom.id,
+      actorId: auth.currentUser?.uid,
+      timestamp: serverTimestamp(),
+      metadata: { clientId: selectedRoom.clientId, vendorId: selectedRoom.vendorId }
     });
   };
 
