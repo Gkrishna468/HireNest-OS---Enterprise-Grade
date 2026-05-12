@@ -137,47 +137,57 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        const userDoc = await getDoc(doc(db, "users", fbUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.organizationId) {
-            const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
-            if (orgDoc.exists()) {
-              const data = { user: userData, org: orgDoc.data() };
-              currentUserState = data;
-              setAuthState({ loading: false, authData: data });
-              return;
+      try {
+        if (fbUser) {
+          const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.organizationId) {
+              const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
+              if (orgDoc.exists()) {
+                const data = { user: userData, org: orgDoc.data() };
+                currentUserState = data;
+                setAuthState({ loading: false, authData: data });
+                return;
+              }
             }
+          } else if (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com") {
+            // Bootstrap the admin user
+            const orgId = "ORG-GLOBAL-HQ";
+            const orgData = {
+              organizationId: orgId,
+              type: "admin",
+              companyName: "HireNest Global HQ",
+              status: "approved",
+              ndaUploaded: false,
+              msaUploaded: false,
+              ownerId: fbUser.uid,
+              createdAt: new Date().toISOString()
+            };
+            const userData = {
+              uid: fbUser.uid,
+              email: fbUser.email,
+              role: "admin",
+              organizationId: orgId,
+              createdAt: new Date().toISOString()
+            };
+            
+            const { setDoc } = await import("firebase/firestore");
+            await setDoc(doc(db, "organizations", orgId), orgData);
+            await setDoc(doc(db, "users", fbUser.uid), userData);
+            
+            const data = { user: userData, org: orgData };
+            currentUserState = data;
+            setAuthState({ loading: false, authData: data });
+            return;
           }
-        } else if (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com") {
-          // Bootstrap the admin user
-          const orgId = "ORG-GLOBAL-HQ";
-          const orgData = {
-            organizationId: orgId,
-            type: "admin",
-            companyName: "HireNest Global HQ",
-            status: "approved",
-            ndaUploaded: false,
-            msaUploaded: false,
-            ownerId: fbUser.uid,
-            createdAt: new Date().toISOString()
-          };
-          const userData = {
-            uid: fbUser.uid,
-            email: fbUser.email,
-            role: "admin",
-            organizationId: orgId,
-            createdAt: new Date().toISOString()
-          };
-          
-          const { setDoc } = await import("firebase/firestore");
-          await setDoc(doc(db, "organizations", orgId), orgData);
-          await setDoc(doc(db, "users", fbUser.uid), userData);
-          
-          const data = { user: userData, org: orgData };
-          currentUserState = data;
-          setAuthState({ loading: false, authData: data });
+        }
+      } catch (error: any) {
+        console.error("Initialization error:", error);
+        if (error.code === 'permission-denied') {
+          // If we can't read the profile, it's likely a rule issue.
+          // We set loading to false but keep authData null so they see onboarding or can logout.
+          setAuthState({ loading: false, authData: null });
           return;
         }
       }
