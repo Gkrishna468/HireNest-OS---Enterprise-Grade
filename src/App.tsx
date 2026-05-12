@@ -184,12 +184,9 @@ export default function App() {
         }
       } catch (error: any) {
         console.error("Initialization error:", error);
-        if (error.code === 'permission-denied') {
-          // If we can't read the profile, it's likely a rule issue.
-          // We set loading to false but keep authData null so they see onboarding or can logout.
-          setAuthState({ loading: false, authData: null });
-          return;
-        }
+        // Ensure we clear the loading state on any error so the user can see onboarding or try again
+        setAuthState({ loading: false, authData: null });
+        return;
       }
       currentUserState = null;
       setAuthState({ loading: false, authData: null });

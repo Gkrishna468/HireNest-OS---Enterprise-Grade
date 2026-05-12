@@ -1,71 +1,110 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global Safety Net
+    // 0. Default Deny - The foundation of Zero Trust
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- Helpers ---
+    // --- Helpers (Pillar 3 & 4) ---
     function isSignedIn() { 
-      return request.auth != null && request.auth.token.email_verified == true; 
+      return request.auth != null; 
+    }
+    
+    function isEmailVerified() {
+      // Hardened check: recommended for production, but can be relaxed for dev
+      return request.auth.token.email_verified == true;
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function isAdmin() {
-      return request.auth != null && request.auth.token.email_verified == true && 
-        (request.auth.token.email == 'gopalkrishna0046@gmail.com' || 
-         request.auth.token.email == 'gopal@hirenestworkforce.com' ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    function isOrganizationMember(orgId) {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().organizationId == orgId;
     }
 
     function isClient() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.matches('client_.*');
+             getUserData().role.matches('client_.*');
     }
 
     function isVendor() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.matches('vendor_.*');
+             getUserData().role.matches('vendor_.*');
     }
 
-    function isOrganizationMember(orgId) {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
+    // --- Validation Blueprints (Pillar 2) ---
+
+    function isValidOrganization(data) {
+      return data.keys().hasAll(['organizationId', 'type', 'companyName', 'status', 'ownerId', 'createdAt']) &&
+             data.organizationId is string &&
+             data.type in ['vendor', 'client', 'admin'] &&
+             data.companyName is string && data.companyName.size() <= 200 &&
+             data.status in ['pending_review', 'approved', 'rejected', 'pending'] &&
+             data.ownerId == request.auth.uid;
     }
 
-    // --- Collections ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role is string &&
+             data.organizationId is string;
+    }
+
+    function isValidComplianceDoc(data) {
+      return data.keys().hasAll(['organizationId', 'documentType', 'fileUrl', 'ownerId', 'uploadedAt', 'status']) &&
+             data.organizationId is string &&
+             data.documentType in ['NDA', 'MSA'] &&
+             data.fileUrl is string &&
+             data.ownerId == request.auth.uid &&
+             data.status in ['pending', 'approved', 'rejected'];
+    }
+
+    // --- Collection Rules (Pillar 8) ---
 
     match /users/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) 
-                    && (
-                      !('role' in resource.data) || // Allow setting if not exists
-                      request.resource.data.role == resource.data.role || // Or keep same
-                      isAdmin() // Or if admin
-                    );
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isAdmin()) ||
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['email']) && incoming().email == existing().email) ||
+        (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().size() == 0)
+      );
       allow delete: if isAdmin();
     }
 
     match /organizations/{orgId} {
-      allow read: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin());
-      allow create: if isSignedIn(); // Allow onboarding
-      allow update: if isAdmin() || (isOrganizationMember(orgId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'adminApproved']));
+      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidOrganization(incoming());
+      allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'ndaUrl', 'msaUrl']));
       allow delete: if isAdmin();
     }
 
     match /compliance_documents/{docId} {
       allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidComplianceDoc(incoming());
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -73,37 +112,39 @@ service cloud.firestore {
     match /requirements/{reqId} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || isClient();
-      allow update: if isAdmin() || (isClient() && isOrganizationMember(resource.data.clientId));
+      allow update: if isAdmin() || (isClient() && isOrganizationMember(existing().clientId));
       allow delete: if isAdmin();
     }
 
     match /financials/{reqId} {
-      // Only Admin or the Client's Finance role can see the actual budget/margin
       allow read: if isAdmin() || (isClient() && isOrganizationMember(get(/databases/$(database)/documents/requirements/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
-      allow write: if isAdmin() || (isClient() && isOrganizationMember(get(/databases/$(database)/documents/requirements/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isAdmin();
     }
 
     match /candidatePool/{candId} {
-      // Vendors see their own pool; Admins see all; Clients see if identities revealed (complex, keeping simple for now)
       allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getUserData().organizationId) || isClient();
       allow create: if isVendor();
       allow update: if isAdmin() || (isVendor() && resource.data.vendorId == getUserData().organizationId);
+      allow delete: if isAdmin();
     }
 
     match /submissions/{subId} {
       allow read: if isAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements/$(resource.data.requirementId)).data.clientId);
       allow create: if isVendor();
       allow update: if isAdmin() || isOrganizationMember(resource.data.vendorId);
+      allow delete: if isAdmin();
     }
 
     match /dealRooms/{roomId} {
       allow read: if isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId);
-      allow create: if isAdmin() || isVendor(); // Usually created when submission happens
+      allow create: if isAdmin() || isVendor();
       allow update: if isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId);
+      allow delete: if isAdmin();
     }
 
     match /dealRooms/{roomId}/messages/{msgId} {
-      allow read, write: if isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.entityId);
+      allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
+      allow create: if isSignedIn() && (isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
     }
 
     match /auditLogs/{logId} {

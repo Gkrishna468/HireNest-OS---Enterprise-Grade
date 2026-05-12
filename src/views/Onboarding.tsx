@@ -110,7 +110,16 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         ownerId: user.uid,
         createdAt: new Date().toISOString()
       };
-      await setDoc(doc(db, "organizations", orgId), orgData);
+      
+      try {
+        await setDoc(doc(db, "organizations", orgId), orgData);
+      } catch (orgErr: any) {
+        console.error("Organization creation failed:", orgErr);
+        if (orgErr.code === 'permission-denied') {
+          throw new Error("Unable to save Organization profile. This is likely due to Firestore Security Rules. Please ensure the rules I provided are deployed in your Firebase Console.");
+        }
+        throw orgErr;
+      }
 
       // Create Compliance Docs
       console.log("Creating Compliance documents...");
@@ -149,7 +158,16 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         organizationId: orgId,
         createdAt: new Date().toISOString()
       };
-      await setDoc(doc(db, "users", user.uid), userData);
+      
+      try {
+        await setDoc(doc(db, "users", user.uid), userData);
+      } catch (userErr: any) {
+        console.error("User creation failed:", userErr);
+        if (userErr.code === 'permission-denied') {
+          throw new Error("Unable to save User profile. Please check your Firestore Security Rules matching 'match /users/{userId}'.");
+        }
+        throw userErr;
+      }
 
       // Trigger email
       console.log("Triggering registration email...");
