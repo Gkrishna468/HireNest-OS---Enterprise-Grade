@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { AlertTriangle, BrainCircuit, Plus, X, Upload, MapPin, Briefcase, Activity, Bot } from "lucide-react";
 import { Button } from "../lib/Button";
@@ -87,6 +87,36 @@ export default function CandidatesTab() {
     } catch (e) {
       console.error("Bulk upload failed", e);
     }
+    setIsBulkProcessing(false);
+  };
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsBulkProcessing(true);
+    let cumulativeText = bulkText;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch("/api/extract-text", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (data.text) {
+                cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
+            }
+        } catch (err) {
+            console.error("Failed to parse file", file.name, err);
+        }
+    }
+
+    setBulkText(cumulativeText);
     setIsBulkProcessing(false);
   };
 
@@ -191,15 +221,31 @@ export default function CandidatesTab() {
                 <Button variant="ghost" size="icon" onClick={() => setShowBulkUpload(false)} className="h-6 w-6"><X size={14}/></Button>
               </div>
               <div className="p-4">
-                <p className="text-[10px] text-slate-500 mb-3 bg-indigo-50 border border-indigo-100 p-2 rounded italic">
-                    Paste multiple resume blocks separated by "---". Our AI will extract profiles, identify duplicates, and index them into your pool.
+                <p className="text-[10px] text-slate-500 mb-3 bg-indigo-50 border border-indigo-100 p-2 rounded italic font-mono flex items-center gap-2">
+                    <Activity size={12} className="animate-pulse" />
+                    Paste multiple resumes with "---" or upload PDF/Word files.
                 </p>
-                <textarea 
-                    value={bulkText} 
-                    onChange={e => setBulkText(e.target.value)} 
-                    className="w-full h-64 border border-slate-300 rounded p-2 text-xs font-mono focus:ring-1 focus:ring-indigo-500"
-                    placeholder={"Candidate 1 Header...\n--- \nCandidate 2 Header..."}
-                />
+                
+                <div className="mb-4">
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all group">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <Upload className="w-8 h-8 mb-2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Drop PDF / Word Files here</p>
+                            <p className="text-[8px] text-slate-400 uppercase mt-1">Multi-file support active</p>
+                        </div>
+                        <input type="file" multiple accept=".pdf,.doc,.docx" className="hidden" onChange={handleFileChange} />
+                    </label>
+                </div>
+
+                <div className="relative">
+                    <div className="absolute -top-2 left-4 px-2 bg-white text-[8px] font-bold uppercase text-slate-400 tracking-widest border rounded">Parsed Data Buffering</div>
+                    <textarea 
+                        value={bulkText} 
+                        onChange={e => setBulkText(e.target.value)} 
+                        className="w-full h-48 border border-slate-300 rounded p-4 text-xs font-mono focus:ring-1 focus:ring-indigo-500 bg-slate-50/50"
+                        placeholder={"Candidate 1 Raw Text...\n---\nCandidate 2 Raw Text..."}
+                    />
+                </div>
               </div>
               <div className="p-3 border-t bg-slate-50 flex flex-col gap-2">
                  <Button onClick={handleBulkUpload} disabled={isBulkProcessing || !bulkText.trim()} className="h-9 text-xs font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white">

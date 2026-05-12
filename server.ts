@@ -1,15 +1,22 @@
-import express from "express";
+import express, { Request } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { fileURLToPath } from 'url';
+import multer from 'multer';
+// @ts-ignore
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Configure Multer for in-memory storage
+const upload = multer({ storage: multer.memoryStorage() });
+
 // Initialize AI if key is present
-let ai: any = null; // Use any to bypass strict type check if SDK is inconsistent 
+let ai: any = null; 
 if (process.env.GEMINI_API_KEY) {
   ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 }
@@ -22,6 +29,36 @@ async function startServer() {
 
   // --- API Routes ---
   
+  // Endpoint to extract text from PDF/Word
+  app.post("/api/extract-text", upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      let text = "";
+      const mimetype = req.file.mimetype;
+
+      if (mimetype === "application/pdf") {
+        const data = await pdf(req.file.buffer);
+        text = data.text;
+      } else if (
+        mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mimetype === "application/msword"
+      ) {
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        text = result.value;
+      } else {
+        text = req.file.buffer.toString('utf-8');
+      }
+
+      res.json({ text });
+    } catch (err: any) {
+      console.error("Extraction failed", err);
+      res.status(500).json({ error: "Failed to extract text from file" });
+    }
+  });
+
   // Trigger Registration Email simulating Resend / SendGrid
   app.post("/api/trigger-registration-email", (req, res) => {
     const { orgId, type, companyName, email } = req.body;
@@ -306,11 +343,28 @@ Return as JSON array: [{ "candidateId": "...", "matchScore": 85, "matchReason": 
       appType: "spa",
     });
     app.use(vite.middlewares);
+    
+    // Fallback for dev if Vite somehow misses it (rare but adds robustness)
+    app.use('*', async (req, res, next) => {
+      if (req.originalUrl.startsWith('/api')) return next();
+      try {
+        const template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      const indexPath = path.join(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Application shell not found. Build may be incomplete.");
+      }
     });
   }
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
-import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity } from "lucide-react";
+import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
 import { analyzeCandidateMatch, CandidateMatchResult } from "../services/aiService";
@@ -118,6 +118,36 @@ export default function JobsTab() {
     setIsParsing(false);
   };
 
+  const handleJobFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsParsing(true);
+    let cumulativeText = jdText;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch("/api/extract-text", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (data.text) {
+                cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
+            }
+        } catch (err) {
+            console.error("Failed to parse file", file.name, err);
+        }
+    }
+
+    setJdText(cumulativeText);
+    setIsParsing(false);
+  };
+
   const handleSubmitBudget = async (jobId: string, budget: number) => {
     await updateDoc(doc(db, "requirements_public", jobId), {
       status: "PENDING_FINANCIAL_APPROVAL",
@@ -209,17 +239,28 @@ export default function JobsTab() {
             <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden shrink-0">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Intake New Requirement</label>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer group flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded hover:border-indigo-400 transition-all">
+                    <Upload size={12} className="text-slate-400 group-hover:text-indigo-600" />
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">Upload PDF/DOCX</span>
+                    <input type="file" multiple accept=".pdf,.doc,.docx" className="hidden" onChange={handleJobFileChange} />
+                  </label>
+                </div>
               </div>
               <div className="p-3">
                 <textarea 
-                  className="w-full h-20 p-2 border border-slate-300 rounded shadow-sm text-xs font-mono text-slate-700 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                  placeholder="Paste Job Description here..."
+                  className="w-full h-24 p-2 border border-slate-300 rounded shadow-sm text-xs font-mono text-slate-700 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                  placeholder="Paste Job Description here or upload files. Use '---' to separate multiple jobs if pasting bulk text."
                   value={jdText}
                   onChange={(e) => setJdText(e.target.value)}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex justify-end items-center gap-3">
+                  <p className="text-[8px] text-slate-400 uppercase font-bold italic">
+                    {isParsing && <Activity size={10} className="inline mr-1 animate-spin" />}
+                    Powered by Gemini 2.0 Flash Extraction
+                  </p>
                   <Button onClick={handleParseJD} disabled={isParsing || !jdText.trim()} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold tracking-wider text-[10px] uppercase h-auto py-1.5 px-3">
-                    {isParsing ? "AI Extraction Active..." : "Parse & Submit"}
+                    {isParsing ? "Extraction Active..." : "Parse & Submit"}
                   </Button>
                 </div>
               </div>
@@ -370,53 +411,49 @@ export default function JobsTab() {
                   </Badge>
                 </div>
 
-                {selectedJob.matchProcessingStatus === 'pending' ? (
+                {selectedJob.matchProcessingStatus === 'pending' || [...submissions, ...globalMatches].length === 0 ? (
                    <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20">
-                      <Activity size={24} className="mb-2 text-indigo-300 animate-pulse" />
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Scanning Vendor Networks...</p>
-                      <p className="text-[8px] mt-1 text-slate-400">Please check in sometime (Max 5 mins)</p>
+                      <Bot size={32} className="mb-2 text-indigo-300 opacity-30" />
+                      <p className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">
+                        {selectedJob.matchProcessingStatus === 'pending' ? "Scanning Vendor Networks..." : "Awaiting Fresh Matches"}
+                      </p>
+                      <p className="text-[8px] mt-1 text-slate-400 uppercase font-bold">Please check in sometime</p>
+                      {selectedJob.matchProcessingStatus === 'pending' && <p className="text-[7px] mt-2 text-slate-300">(Processing window: 5 minutes)</p>}
                    </div>
                 ) : (
                   <div className="space-y-3">
-                    {[...submissions, ...globalMatches].length === 0 ? (
-                      <div className="py-12 flex flex-col items-center justify-center text-slate-400 opacity-50 border border-dashed rounded-lg">
-                          <Bot size={32} className="mb-2" />
-                          <p className="text-xs uppercase font-bold tracking-widest">No Matches Found Yet</p>
-                      </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {[...submissions, ...globalMatches].map(sub => (
-                                <div 
-                                    key={sub.id} 
-                                    className={`border rounded-lg p-3 transition-all cursor-pointer ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300'}`}
-                                    onClick={() => handleRunAiMatch(sub)}
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 font-bold text-xs uppercase">
-                                                {sub.candidateName?.slice(0, 2) || sub.name?.slice(0, 2)}
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-slate-900">{sub.candidateName || sub.name}</div>
-                                                <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
-                                                    <ShieldAlert size={10} /> {sub.isGlobalMatch ? "Pre-Screened Match" : sub.vendorName || "Active Vendor"}
-                                                </div>
-                                            </div>
+                    <div className="space-y-3">
+                        {[...submissions, ...globalMatches].map(sub => (
+                            <div 
+                                key={sub.id} 
+                                className={`border rounded-lg p-3 transition-all cursor-pointer ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300'}`}
+                                onClick={() => handleRunAiMatch(sub)}
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 font-bold text-xs uppercase">
+                                            {sub.candidateName?.slice(0, 2) || sub.name?.slice(0, 2)}
                                         </div>
-                                        <div className="flex flex-col items-end">
-                                            {sub.isGlobalMatch && <Badge className="text-[7px] py-0 bg-amber-100 text-amber-700 border-amber-200">MARKET MATCH</Badge>}
-                                            <div className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
-                                                {sub.matchScore ? `${sub.matchScore}% FIT` : "PENDING AI"}
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-900">{sub.candidateName || sub.name}</div>
+                                            <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
+                                                <ShieldAlert size={10} /> {sub.isGlobalMatch ? "Pre-Screened Match" : sub.vendorName || "Active Vendor"}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="text-[10px] text-slate-500 line-clamp-2">
-                                        Top Skills: {sub.skills?.join(", ")}
+                                    <div className="flex flex-col items-end">
+                                        {sub.isGlobalMatch && <Badge className="text-[7px] py-0 bg-amber-100 text-amber-700 border-amber-200">MARKET MATCH</Badge>}
+                                        <div className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
+                                            {sub.matchScore ? `${sub.matchScore}% FIT` : "PENDING AI"}
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                                <div className="text-[10px] text-slate-500 line-clamp-2">
+                                    Top Skills: {sub.skills?.join(", ")}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                   </div>
                 )}
               </div>
