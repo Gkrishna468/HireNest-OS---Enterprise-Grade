@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { Button } from "../lib/Button";
 
@@ -19,13 +19,16 @@ export default function ClientsTab() {
   }, []);
 
   const handleDeleteClient = async (clientId: string) => {
+    if (!clientId) {
+      alert("Error: No client ID found for deletion.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to permanently remove this client?")) return;
     try {
       await deleteDoc(doc(db, "organizations", clientId));
       await fetchClients();
     } catch (err: any) {
-      console.error(err);
-      alert("Failed to delete client: " + err.message);
+      handleFirestoreError(err, OperationType.DELETE, `organizations/${clientId}`);
     }
   };
 

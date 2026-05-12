@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { Button } from "../lib/Button";
 
@@ -19,13 +19,16 @@ export default function VendorsTab() {
   }, []);
 
   const handleDeleteVendor = async (vendorId: string) => {
+    if (!vendorId) {
+      alert("Error: No vendor ID found for deletion.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to permanently remove this vendor?")) return;
     try {
       await deleteDoc(doc(db, "organizations", vendorId));
       await fetchVendors();
     } catch (err: any) {
-      console.error(err);
-      alert("Failed to delete vendor: " + err.message);
+      handleFirestoreError(err, OperationType.DELETE, `organizations/${vendorId}`);
     }
   };
 

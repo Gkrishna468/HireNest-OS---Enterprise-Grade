@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "firebase/auth";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import firebaseConfig from "../../firebase-applet-config.json";
 
@@ -96,19 +96,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   };
 
   const handleDeleteUser = async (userId: string, organizationId: string) => {
+    if (!userId) {
+      alert("Error: No user ID found for deletion.");
+      return;
+    }
     if (!window.confirm("Are you sure you want to permanently remove this user and their organization?")) return;
     try {
       // Hard delete: remove user and organization documents
-      await setDoc(doc(db, "users", userId), { deleted: true }, { merge: true }); // Keeping soft delete as a backup, or could use deleteDoc(doc(db, "users", userId))
-      // Since I don't have enough context if hard delete is safe from cloud functions, I will proceed with deleting the DB entries
-      // Based on requested 'hard delete', I will use deleteDoc
       await deleteDoc(doc(db, "users", userId));
       await deleteDoc(doc(db, "organizations", organizationId));
       
       await fetchUsers();
     } catch (err: any) {
-      console.error(err);
-      setError("Failed to delete user: " + err.message);
+      handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
     }
   };
 
