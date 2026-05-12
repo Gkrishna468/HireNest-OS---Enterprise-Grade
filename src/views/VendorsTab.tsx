@@ -1,20 +1,33 @@
 import { useEffect, useState } from "react";
 import { db } from "../lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { Button } from "../lib/Button";
 
 export default function VendorsTab() {
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchVendors() {
+  async function fetchVendors() {
       const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
       const snap = await getDocs(q);
       setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    }
+  }
+
+  useEffect(() => {
     fetchVendors();
   }, []);
+
+  const handleDeleteVendor = async (vendorId: string) => {
+    if (!window.confirm("Are you sure you want to permanently remove this vendor?")) return;
+    try {
+      await deleteDoc(doc(db, "organizations", vendorId));
+      await fetchVendors();
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to delete vendor: " + err.message);
+    }
+  };
 
   const getReminderStatus = (org: any) => {
     if (org.msaUploaded && org.ndaUploaded) return "Signed";
@@ -39,6 +52,7 @@ export default function VendorsTab() {
               <th className="pb-3">MSA</th>
               <th className="pb-3">NDA</th>
               <th className="pb-3">Reminder Status</th>
+              <th className="pb-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -48,6 +62,9 @@ export default function VendorsTab() {
                 <td className="py-3">{v.msaUploaded ? "✅" : "❌"}</td>
                 <td className="py-3">{v.ndaUploaded ? "✅" : "❌"}</td>
                 <td className="py-3">{getReminderStatus(v)}</td>
+                <td className="py-3 text-right">
+                  <Button onClick={() => handleDeleteVendor(v.id)} className="bg-red-500 hover:bg-red-600 px-2 py-1 text-[10px]">Delete</Button>
+                </td>
               </tr>
             ))}
           </tbody>
