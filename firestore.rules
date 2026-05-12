@@ -11,7 +11,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;
       allow list: if isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId 
+      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin())
                     && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt'])
                     && request.resource.data.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId 
@@ -22,8 +22,7 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid 
-                    && (request.resource.data.status == 'pending_review' || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
       allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin())
                     && request.resource.data.ownerId == resource.data.ownerId;
     }

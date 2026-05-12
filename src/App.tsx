@@ -11,6 +11,7 @@ import JobsTab from "./views/JobsTab";
 import CandidatesTab from "./views/CandidatesTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import AdminUsersManager from "./views/AdminUsersManager";
+import AdminOverview from "./views/AdminOverview";
 import ClientsTab from "./views/ClientsTab";
 import VendorsTab from "./views/VendorsTab";
 
@@ -27,7 +28,10 @@ function Sidebar({ orgType }: { orgType: string }) {
     { name: "Deal Rooms", path: "/deals", icon: "💬" },
     { name: "Clients", path: "/clients", icon: "🏢" },
     { name: "Vendors", path: "/vendors", icon: "⛑️" },
-    ...(orgType === 'admin' ? [{ name: "Users", path: "/users", icon: "⚙️" }] : [])
+    ...(orgType === 'admin' ? [
+        { name: "Admin Overview", path: "/admin-overview", icon: "📊" },
+        { name: "Users", path: "/users", icon: "⚙️" }
+    ] : [])
   ];
 
   // Vendors should not see 'AI Agent Flows' related to outreach targeting them?
@@ -210,6 +214,7 @@ export default function App() {
               <Route path="/deals" element={<DealRoomsTab />} />
               <Route path="/clients" element={<ClientsTab />} />
               <Route path="/vendors" element={<VendorsTab />} />
+              <Route path="/admin-overview" element={<AdminOverview />} />
               <Route path="/users" element={<AdminUsersManager orgData={org} />} />
             </Routes>
           </main>
