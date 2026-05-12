@@ -28,8 +28,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       const snap = await getDocs(collection(db, "users"));
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }) as any).filter((u: any) => !u.deleted));
     } catch (err: any) {
-      console.error(err);
-      setError("Failed to fetch users");
+      handleFirestoreError(err, OperationType.LIST, "users");
     }
     setLoading(false);
   };
@@ -84,11 +83,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       await fetchUsers();
       
     } catch (err: any) {
-      console.error(err);
       if (err.code === 'auth/operation-not-allowed') {
         setError("Email/Password auth is not enabled. Please go to your Firebase Console -> Authentication -> Sign-in method and enable 'Email/Password'.");
+      } else if (err.code?.startsWith('auth/')) {
+         setError(err.message || "Auth error");
       } else {
-        setError(err.message || "Failed to create user.");
+         handleFirestoreError(err, OperationType.WRITE, "onboarding_new_user");
       }
     } finally {
       setIsSubmitting(false);

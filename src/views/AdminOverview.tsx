@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { DollarSign, Briefcase, Users, Radio, Activity } from "lucide-react";
 import { Badge } from "../lib/Badge";
@@ -9,18 +9,22 @@ export default function AdminOverview() {
 
   useEffect(() => {
     async function fetchData() {
-        const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
-            getDocs(collection(db, "candidatePool")),
-            getDocs(collection(db, "organizations")),
-            getDocs(collection(db, "dealRooms")),
-            getDocs(collection(db, "requirements")),
-        ]);
-        setData({
-            candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
-            organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
-            dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
-            requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
-        });
+        try {
+            const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
+                getDocs(collection(db, "candidatePool")),
+                getDocs(collection(db, "organizations")),
+                getDocs(collection(db, "dealRooms")),
+                getDocs(collection(db, "requirements")),
+            ]);
+            setData({
+                candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
+            });
+        } catch (err: any) {
+            handleFirestoreError(err, OperationType.LIST, "admin_overview_collections");
+        }
     }
     fetchData();
   }, []);

@@ -16,20 +16,27 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'gopalkrishna0046@gmail.com' ||
-        getUserData().role == 'admin'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
     function isClient() {
-      return isSignedIn() && getUserData().role.matches('client_.*');
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.matches('client_.*');
     }
 
     function isVendor() {
-      return isSignedIn() && getUserData().role.matches('vendor_.*');
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.matches('vendor_.*');
     }
 
     function isOrganizationMember(orgId) {
-      return isSignedIn() && getUserData().organizationId == orgId;
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
     }
 
     // --- Collections ---
