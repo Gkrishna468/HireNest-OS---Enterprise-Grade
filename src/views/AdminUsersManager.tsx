@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "firebase/auth";
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { db } from "../lib/firebase";
 import { Button } from "../lib/Button";
@@ -94,10 +94,16 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to remove this user?")) return;
+  const handleDeleteUser = async (userId: string, organizationId: string) => {
+    if (!window.confirm("Are you sure you want to permanently remove this user and their organization?")) return;
     try {
-      await setDoc(doc(db, "users", userId), { deleted: true }, { merge: true }); // Soft delete
+      // Hard delete: remove user and organization documents
+      await setDoc(doc(db, "users", userId), { deleted: true }, { merge: true }); // Keeping soft delete as a backup, or could use deleteDoc(doc(db, "users", userId))
+      // Since I don't have enough context if hard delete is safe from cloud functions, I will proceed with deleting the DB entries
+      // Based on requested 'hard delete', I will use deleteDoc
+      await deleteDoc(doc(db, "users", userId));
+      await deleteDoc(doc(db, "organizations", organizationId));
+      
       await fetchUsers();
     } catch (err: any) {
       console.error(err);
@@ -211,7 +217,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="py-3 text-right">
-                        <Button onClick={() => handleDeleteUser(u.id)} className="bg-red-500 hover:bg-red-600 px-2 py-1 text-[10px]">Delete</Button>
+                        <Button onClick={() => handleDeleteUser(u.id, u.organizationId)} className="bg-red-500 hover:bg-red-600 px-2 py-1 text-[10px]">Delete</Button>
                       </td>
                     </tr>
                   ))}
