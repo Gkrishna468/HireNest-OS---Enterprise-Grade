@@ -29,18 +29,11 @@ async function startServer() {
     const targetEmail = type === "vendor" ? "vendors@hirenestworkforce.com" : "clients@hirenestworkforce.com";
     
     console.log(`[RESEND SIMULATION] Sending email to: ${targetEmail}`);
-    console.log(`Subject: New ${type} Registration: ${companyName}`);
-    console.log(`Body: Org ID ${orgId} registered by ${email}. MSA and NDA uploaded to Firebase Storage.`);
-    
     res.json({ success: true, message: "Email triggered" });
   });
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
-  });
-
-  app.get("/api/metrics", (req, res) => {
-    res.json(db.metrics);
   });
 
   // Mock Database
@@ -121,8 +114,8 @@ Return a JSON document (without markdown) matching this schema:
 { "duplicateScore": number (0-100, where > 85 is likely duplicate), "duplicateOf": "Candidate ID" or null, "reason": "brief explanation" }`;
 
         const response = await ai.models.generateContent({
-           model: 'gemini-2.5-flash',
-           contents: prompt
+           model: 'gemini-2.0-flash',
+           contents: [{ role: 'user', parts: [{ text: prompt }] }]
         });
         
         const content = response.text;

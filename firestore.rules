@@ -7,15 +7,17 @@ service cloud.firestore {
     }
 
     // --- Helpers ---
-    function isSignedIn() { return request.auth != null; }
-    
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com'] ||
+      return request.auth != null && (
+        (request.auth.token.email_verified == true && request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com']) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
