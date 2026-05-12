@@ -63,11 +63,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/unauthorized-domain') {
-        setError(`Domain not authorized: ${window.location.hostname}. 
-
-This usually happens because the application is still using the default Firebase project ("gen-lang-client-...") instead of your custom project ("hirenest-os"). 
-
-To fix this, please provide me with your project's Firebase Configuration values (apiKey, authDomain, projectId, etc.) from the Firebase Console, and I will update the application to use your project.`);
+        setError(`Domain not authorized: ${window.location.hostname}. Please ensure this domain is added to the "Authorized domains" list in your Firebase Console -> Authentication -> Settings.`);
       } else {
         setError(err.message || "Failed to sign in with Google.");
       }
