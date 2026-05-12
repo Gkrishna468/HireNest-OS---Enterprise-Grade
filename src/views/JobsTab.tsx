@@ -27,7 +27,7 @@ export default function JobsTab() {
     fetchUser();
 
     // Listen to Requirements
-    const q = collection(db, "requirements");
+    const q = collection(db, "requirements_public");
     const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setJobs(data.sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds));
@@ -63,7 +63,7 @@ export default function JobsTab() {
         createdAt: serverTimestamp()
       };
       
-      await setDoc(doc(db, "requirements", reqId), newReq);
+      await setDoc(doc(db, "requirements_public", reqId), newReq);
       setJdText("");
     } catch (e) {
       console.error("Failed to parse JD", e);
@@ -76,7 +76,7 @@ export default function JobsTab() {
       const vendorVisible = actualBudget - margin;
       
       // Update Requirement (Public)
-      await updateDoc(doc(db, "requirements", req.id), {
+      await updateDoc(doc(db, "requirements_public", req.id), {
         status: "PUBLISHED",
         visibility: "VENDOR_NETWORK",
         vendorVisibleBudget: vendorVisible,
@@ -84,7 +84,7 @@ export default function JobsTab() {
       });
       
       // Set Financials (Private)
-      await setDoc(doc(db, "financials", req.id), {
+      await setDoc(doc(db, "requirements_private", req.id), {
         requirementId: req.id,
         actualClientBudget: actualBudget,
         platformMargin: margin,

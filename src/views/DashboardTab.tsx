@@ -1,24 +1,47 @@
 import { useEffect, useState } from "react";
 import { Activity, ShieldCheck, Cpu } from "lucide-react";
+import { currentUserState } from "../App";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
+  const user = currentUserState?.user;
+  const org = currentUserState?.org;
 
   useEffect(() => {
-    fetch("/api/metrics").then(res => res.json()).then(setMetrics);
-  }, []);
+    if (org) {
+      fetch(`/api/metrics?type=${org.type}`).then(res => res.json()).then(setMetrics);
+    }
+  }, [org]);
 
-  if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Loading intelligence models...</div>;
+  if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Initializing Governance Layer...</div>;
+
+  const isAdmin = org?.type === 'admin';
+  const isClient = org?.type === 'client';
+  const isVendor = org?.type === 'vendor';
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Metric Bar Structure mimicking the High Density design */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 border-b border-slate-200 bg-white shrink-0">
-        <div className="p-3 bg-slate-50 rounded border border-slate-100">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Platform Revenue</div>
-          <div className="text-xl font-bold font-mono">${(metrics.revenue / 1000).toFixed(1)}k</div>
-          <div className="text-[10px] text-emerald-600">↑ 14.5% vs last month</div>
-        </div>
+        {(isAdmin || isVendor) && (
+          <div className="p-3 bg-slate-50 rounded border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+              {isAdmin ? "Platform Revenue" : "Earnings Potential"}
+            </div>
+            <div className="text-xl font-bold font-mono">${(metrics.revenue / 1000).toFixed(1)}k</div>
+            <div className="text-[10px] text-emerald-600">↑ 14.5% vs last month</div>
+          </div>
+        )}
+
+        {(isAdmin || isClient) && (
+          <div className="p-3 bg-slate-50 rounded border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+              {isAdmin ? "Total Spending" : "Current Budget Utilization"}
+            </div>
+            <div className="text-xl font-bold font-mono">${(metrics.spending / 1000).toFixed(1)}k</div>
+            <div className="text-[10px] text-amber-600">82% of quarterly budget</div>
+          </div>
+        )}
         
         <div className="p-3 bg-slate-50 rounded border border-slate-100">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Active Deal Rooms</div>
@@ -33,27 +56,24 @@ export default function DashboardTab() {
         </div>
 
         <div className="p-3 bg-slate-50 rounded border border-slate-100">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Vendor Quality</div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+            {isVendor ? "Submission Quality" : "Candidate Quality"}
+          </div>
           <div className="text-xl font-bold font-mono text-emerald-600">{metrics.vendorQuality}/100</div>
           <div className="text-[10px] text-slate-500">0% duplicate rate</div>
         </div>
 
-        <div className="p-3 bg-slate-50 rounded border border-slate-100">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Avg Margin</div>
-          <div className="text-xl font-bold font-mono">{metrics.margin}</div>
-          <div className="text-[10px] text-amber-600 text-right font-bold italic underline">Optimize ✦</div>
-        </div>
-
-        <div className="p-3 bg-slate-50 rounded border border-slate-100">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Recruiter Productivity</div>
-          <div className="text-xl font-bold font-mono text-blue-600">{metrics.recruiterProductivity}/100</div>
-          <div className="text-[10px] text-slate-500">Top quartile efficiency</div>
-        </div>
+        {isAdmin && (
+          <div className="p-3 bg-slate-50 rounded border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Platform Margin</div>
+            <div className="text-xl font-bold font-mono text-amber-600">{metrics.avgMargin}%</div>
+            <div className="text-[10px] text-slate-500 italic">Target: 20%</div>
+          </div>
+        )}
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto p-4">
-        {/* We can re-use the AI Copilot Insights box but styled with High Density theme */}
         <div className="bg-indigo-900 text-white rounded-lg p-4 shadow-lg max-w-3xl mb-6">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-3 flex items-center gap-2">
             <span className="animate-pulse">✦</span> Intelligence Alert
@@ -62,9 +82,10 @@ export default function DashboardTab() {
             <div className="bg-indigo-800 p-3 rounded border border-indigo-700">
               <p className="text-xs font-semibold mb-1 flex items-center gap-2"><Cpu size={14}/> Active Insights</p>
               <ul className="text-[11px] text-indigo-200 space-y-2">
-                <li>• <strong className="text-white">Vendor V-2048</strong> submitted a strong match for REQ-001 with a 94% match probability. Deal Room DR-501 is engaged.</li>
+                {isAdmin && <li>• <strong className="text-white">Vendor V-2048</strong> submitted a strong match for REQ-001.</li>}
+                {isClient && <li>• <strong className="text-white">Senior React Role</strong> has 3 new high-quality submissions.</li>}
+                {isVendor && <li>• <strong className="text-white">Cloud Architect</strong> role is trending. You have 2 potential candidates in your pool.</li>}
                 <li>• Cloud Architect (REQ-003) has 0 submissions. Consider deploying AI Outreach Agent.</li>
-                <li>• Client C-8821 response velocity is slowing down. Automated follow-up suggested.</li>
               </ul>
               <button className="mt-3 w-full py-1.5 bg-indigo-500 hover:bg-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider transition-colors">
                 Initiate Guided Workflow
@@ -73,10 +94,9 @@ export default function DashboardTab() {
           </div>
         </div>
         
-        {/* Placeholder for standard dashboard content if needed */}
         <div>
            <div className="text-[10px] font-bold text-slate-400 uppercase pb-2 border-b border-slate-200 mb-4">Operations Feed</div>
-           <div className="text-xs text-slate-500">No active operations events. System is stable.</div>
+           <div className="text-xs text-slate-500">No active operations events. Governance layer is secure.</div>
         </div>
       </div>
     </div>

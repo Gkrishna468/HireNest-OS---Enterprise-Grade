@@ -1,25 +1,136 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 0. Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    // --- Hardened Global Helpers (Phase 3) ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
-    // Check if user is an admin by verifying email via token or looking up a secure admin collection
+    // Critical: Admin check using trusted identifiers
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isSignedIn() && (
+        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
-    // Role checks
-    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
 
-    // DRAFT RULES FOR DEVELOPMENT - NOT FINALIZED
-    // In actual system per instructions, we must implement Master Gate Pattern, Validation Blueprints, and strictly validated read/write rules.
-    // Given the complexity of the entities, I will construct a DRAFT.
+    function isOrganizationMember(orgId) {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().organizationId == orgId;
+    }
+
+    // --- Entity Validation Blueprints (Phase 4) ---
+
+    function isValidOrganization(data) {
+      return data.keys().hasAll(['organizationId', 'type', 'companyName', 'status', 'ownerId', 'createdAt']) &&
+             data.organizationId is string && data.organizationId.size() <= 64 &&
+             data.type in ['vendor', 'client', 'admin'] &&
+             data.companyName is string && data.companyName.size() <= 200 &&
+             data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending'] &&
+             data.ownerId == request.auth.uid &&
+             data.createdAt is string;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer'] &&
+             data.organizationId is string && data.organizationId.size() <= 64;
+    }
+
+    function isValidRequirementPublic(data) {
+      return data.keys().hasAll(['requirementId', 'clientId', 'title', 'description', 'skills', 'status', 'visibility', 'vendorVisibleBudget', 'currency', 'adminApproved', 'ownerId', 'createdAt']) &&
+             data.requirementId is string &&
+             data.clientId is string &&
+             data.title is string && data.title.size() <= 200 &&
+             data.skills is list && data.skills.size() <= 50 &&
+             data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'] &&
+             data.visibility in ['INTERNAL', 'VENDOR_NETWORK'] &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidRequirementPrivate(data) {
+      return data.keys().hasAll(['requirementId', 'actualClientBudget', 'platformMargin', 'marginType', 'updatedAt']) &&
+             data.requirementId is string &&
+             data.actualClientBudget is number &&
+             data.platformMargin is number &&
+             data.marginType in ['fixed', 'percentage'];
+    }
+
+    // --- Hardened Rules ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isAdmin()) ||
+        (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().size() == 0)
+      );
+    }
+
+    match /organizations/{orgId} {
+      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow create: if isSignedIn() && isValidOrganization(incoming());
+      allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus']));
+    }
+
+    match /requirements_public/{reqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidRequirementPublic(incoming()) && (isOrganizationMember(incoming().clientId) || isAdmin());
+      allow update: if (isAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
+         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility'])) ||
+         (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills']))
+      );
+    }
+
+    match /requirements_private/{reqId} {
+      allow read: if isAdmin() || (isSignedIn() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isAdmin();
+    }
+
+    match /compliance_documents/{docId} {
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (isOrganizationMember(incoming().organizationId) || isAdmin());
+    }
+
+    match /candidatePool/{candId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId);
+      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+    }
+
+    match /submissions/{subId} {
+      allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(resource.data.requirementId)).data.clientId));
+      allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId);
+      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+    }
+
+    match /dealRooms/{roomId} {
+      allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId));
+      allow write: if isAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)));
+    }
+
+    match /dealRooms/{roomId}/messages/{msgId} {
+      allow read, write: if isSignedIn() && (isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
   }
 }

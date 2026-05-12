@@ -142,8 +142,8 @@
   "firestore": {
     "organizations/{organizationId}": { "schema": { "$ref": "Organization" }, "description": "Global organizations" },
     "users/{userId}": { "schema": { "$ref": "User" }, "description": "User profiles" },
-    "requirements/{requirementId}": { "schema": { "$ref": "Requirement" }, "description": "Public job requirements" },
-    "financials/{requirementId}": { "schema": { "$ref": "FinancialRecord" }, "description": "Private financial metadata for requirements" },
+    "requirements_public/{requirementId}": { "schema": { "$ref": "Requirement" }, "description": "Public job requirements (Vendor safe)" },
+    "requirements_private/{requirementId}": { "schema": { "$ref": "FinancialRecord" }, "description": "Private financial metadata (Admin only)" },
     "candidatePool/{candidateId}": { "schema": { "$ref": "Candidate" }, "description": "Global candidate database" },
     "submissions/{submissionId}": { "schema": { "$ref": "Submission" }, "description": "Vendor submissions" },
     "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },

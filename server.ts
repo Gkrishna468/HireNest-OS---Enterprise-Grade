@@ -67,7 +67,40 @@ async function startServer() {
     ]
   };
 
-  app.get("/api/metrics", (req, res) => res.json(db.metrics));
+  app.get("/api/metrics", (req, res) => {
+    const { type } = req.query;
+    const baseMetrics = {
+      revenue: 1450000,
+      spending: 1200000,
+      activeDeals: 42,
+      placements: 18,
+      avgMargin: 18,
+      vendorQuality: 92,
+      recruiterProductivity: 88,
+    };
+
+    if (type === 'vendor') {
+      return res.json({
+        ...baseMetrics,
+        revenue: 85000, // Vendor earnings
+        activeDeals: 5,
+        placements: 3,
+        vendorQuality: 95
+      });
+    }
+
+    if (type === 'client') {
+      return res.json({
+        ...baseMetrics,
+        spending: 450000,
+        activeDeals: 12,
+        placements: 4,
+        vendorQuality: 88
+      });
+    }
+
+    res.json(baseMetrics);
+  });
   
   app.get("/api/jobs", (req, res) => res.json(db.jobs));
   

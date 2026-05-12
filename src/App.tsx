@@ -19,35 +19,35 @@ import VendorsTab from "./views/VendorsTab";
 export let currentUserState: { user: any; org: any } | null = null;
 
 
-function Sidebar({ orgType }: { orgType: string }) {
+function Sidebar({ org, user }: { org: any, user: any }) {
   const location = useLocation();
+  
+  const isAdmin = org.type === 'admin';
+  const isClient = org.type === 'client';
+  const isVendor = org.type === 'vendor';
+
   const navItems = [
-    { name: "Dashboard", path: "/", icon: "▤" },
-    { name: "Requirements", path: "/jobs", icon: "⌘" },
-    { name: "Candidates", path: "/candidates", icon: "👥" },
-    { name: "Deal Rooms", path: "/deals", icon: "💬" },
-    { name: "Clients", path: "/clients", icon: "🏢" },
-    { name: "Vendors", path: "/vendors", icon: "⛑️" },
-    ...(orgType === 'admin' ? [
-        { name: "Admin Overview", path: "/admin-overview", icon: "📊" },
-        { name: "Users", path: "/users", icon: "⚙️" }
-    ] : [])
+    { name: "Dashboard", path: "/", icon: "▤", visible: true },
+    { name: "Requirements", path: "/jobs", icon: "⌘", visible: true },
+    { name: "Candidates", path: "/candidates", icon: "👥", visible: true },
+    { name: "Deal Rooms", path: "/deals", icon: "💬", visible: true },
+    { name: "Clients", path: "/clients", icon: "🏢", visible: isAdmin },
+    { name: "Vendors", path: "/vendors", icon: "⛑️", visible: isAdmin },
+    { name: "Admin Overview", path: "/admin-overview", icon: "📊", visible: isAdmin },
+    { name: "Users", path: "/users", icon: "⚙️", visible: isAdmin }
   ];
 
-  // Vendors should not see 'AI Agent Flows' related to outreach targeting them?
-  // Let's hide specific things based on orgType if needed, but keeping it simple for now.
-
   const intelligenceItems = [
-    { name: "Agent Flows", path: "#", icon: "✦" },
-    { name: "Margin Control", path: "#", icon: "⚖️" },
-    { name: "Outreach Bot", path: "#", icon: "⚡" },
+    { name: "Agent Flows", path: "#", icon: "✦", visible: isAdmin || isClient },
+    { name: "Margin Control", path: "#", icon: "⚖️", visible: isAdmin || (isClient && user.role === 'client_finance') },
+    { name: "Outreach Bot", path: "#", icon: "⚡", visible: isAdmin || isVendor },
   ];
 
   return (
     <nav className="w-52 bg-white border-r border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
       <div className="space-y-1">
         <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">Operating Layer</div>
-        {navItems.map((item) => {
+        {navItems.filter(i => i.visible).map((item) => {
           const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
           return (
             <Link
@@ -72,7 +72,7 @@ function Sidebar({ orgType }: { orgType: string }) {
       
       <div className="mt-8 space-y-1">
         <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">AI Intelligence</div>
-        {intelligenceItems.map((item) => (
+        {intelligenceItems.filter(i => i.visible).map((item) => (
             <Link
               key={item.name}
               to={item.path}
@@ -212,17 +212,21 @@ export default function App() {
       <div className="flex flex-col h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
         <TopBar orgData={org} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar orgType={org.type} />
+          <Sidebar org={org} user={authState.authData.user} />
           <main className="flex-1 overflow-y-auto flex flex-col">
             <Routes>
               <Route path="/" element={<DashboardTab />} />
               <Route path="/jobs" element={<JobsTab />} />
               <Route path="/candidates" element={<CandidatesTab />} />
               <Route path="/deals" element={<DealRoomsTab />} />
-              <Route path="/clients" element={<ClientsTab />} />
-              <Route path="/vendors" element={<VendorsTab />} />
-              <Route path="/admin-overview" element={<AdminOverview />} />
-              <Route path="/users" element={<AdminUsersManager orgData={org} />} />
+              {org.type === 'admin' && (
+                <>
+                  <Route path="/clients" element={<ClientsTab />} />
+                  <Route path="/vendors" element={<VendorsTab />} />
+                  <Route path="/admin-overview" element={<AdminOverview />} />
+                  <Route path="/users" element={<AdminUsersManager orgData={org} />} />
+                </>
+              )}
             </Routes>
           </main>
         </div>
