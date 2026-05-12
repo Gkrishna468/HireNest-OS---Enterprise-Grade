@@ -87,16 +87,19 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       const orgId = "ORG-" + Math.floor(Math.random() * 100000);
 
       // Upload NDA
+      console.log("Uploading NDA...");
       const ndaRef = ref(storage, `compliance/${orgId}/NDA.pdf`);
       await uploadBytes(ndaRef, ndaFile);
       const ndaUrl = await getDownloadURL(ndaRef);
 
       // Upload MSA
+      console.log("Uploading MSA...");
       const msaRef = ref(storage, `compliance/${orgId}/MSA.pdf`);
       await uploadBytes(msaRef, msaFile);
       const msaUrl = await getDownloadURL(msaRef);
 
       // Create Org
+      console.log("Creating Organization document...");
       const orgData = {
         organizationId: orgId,
         type: orgType,
@@ -110,25 +113,35 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       await setDoc(doc(db, "organizations", orgId), orgData);
 
       // Create Compliance Docs
-      await setDoc(doc(db, "compliance_documents", orgId + "_NDA"), {
-        organizationId: orgId,
-        documentType: "NDA",
-        fileUrl: ndaUrl,
-        uploadedAt: new Date().toISOString(),
-        status: "pending",
-        ownerId: user.uid,
-      });
+      console.log("Creating Compliance documents...");
+      try {
+        await setDoc(doc(db, "compliance_documents", orgId + "_NDA"), {
+          organizationId: orgId,
+          documentType: "NDA",
+          fileUrl: ndaUrl,
+          uploadedAt: new Date().toISOString(),
+          status: "pending",
+          ownerId: user.uid,
+        });
 
-      await setDoc(doc(db, "compliance_documents", orgId + "_MSA"), {
-        organizationId: orgId,
-        documentType: "MSA",
-        fileUrl: msaUrl,
-        uploadedAt: new Date().toISOString(),
-        status: "pending",
-        ownerId: user.uid,
-      });
+        await setDoc(doc(db, "compliance_documents", orgId + "_MSA"), {
+          organizationId: orgId,
+          documentType: "MSA",
+          fileUrl: msaUrl,
+          uploadedAt: new Date().toISOString(),
+          status: "pending",
+          ownerId: user.uid,
+        });
+      } catch (docErr: any) {
+        console.error("Compliance docs failed:", docErr);
+        if (docErr.code === 'permission-denied') {
+          throw new Error("Permission Denied while saving compliance records. Please ensure 'compliance_documents' collection is allowed in Firestore Rules.");
+        }
+        throw docErr;
+      }
 
       // Create User
+      console.log("Updating User document...");
       const userData = {
         uid: user.uid,
         email: user.email,
@@ -138,7 +151,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       };
       await setDoc(doc(db, "users", user.uid), userData);
 
-      // Trigger Cloud Function stand-in (Call our Express server to send emails/notifications)
+      // Trigger email
+      console.log("Triggering registration email...");
       fetch('/api/trigger-registration-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,7 +161,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
 
       onComplete({ user: userData, org: orgData });
     } catch (err: any) {
-      setError(err.message);
+      console.error("Full handleSubmit error:", err);
+      setError(err.message || "Registration failed. Check console for details.");
     }
     setLoading(false);
   };

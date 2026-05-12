@@ -123,6 +123,20 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "action", "timestamp"]
+    },
+    "ComplianceDocument": {
+      "title": "Compliance Document",
+      "description": "Legal document metadata",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "documentType": { "type": "string", "enum": ["NDA", "MSA"] },
+        "fileUrl": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["organizationId", "documentType", "fileUrl", "ownerId"]
     }
   },
   "firestore": {
@@ -134,6 +148,7 @@
     "submissions/{submissionId}": { "schema": { "$ref": "Submission" }, "description": "Vendor submissions" },
     "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },
     "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "title": "Message", "type": "object", "properties": { "text": { "type": "string" }, "senderId": { "type": "string" }, "timestamp": { "type": "string" } } }, "description": "Messages" },
-    "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" }
+    "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" },
+    "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" }
   }
 }

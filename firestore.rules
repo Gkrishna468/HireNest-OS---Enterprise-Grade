@@ -48,7 +48,11 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) 
-                    && request.resource.data.role == resource.data.role; // Role is immutable
+                    && (
+                      !('role' in resource.data) || // Allow setting if not exists
+                      request.resource.data.role == resource.data.role || // Or keep same
+                      isAdmin() // Or if admin
+                    );
       allow delete: if isAdmin();
     }
 
@@ -56,6 +60,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin());
       allow create: if isSignedIn(); // Allow onboarding
       allow update: if isAdmin() || (isOrganizationMember(orgId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'adminApproved']));
+      allow delete: if isAdmin();
+    }
+
+    match /compliance_documents/{docId} {
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
