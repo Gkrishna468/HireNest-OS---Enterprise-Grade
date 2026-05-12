@@ -19,6 +19,7 @@ export default function JobsTab() {
   const [aiAnalysis, setAiAnalysis] = useState<CandidateMatchResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [globalMatches, setGlobalMatches] = useState<any[]>([]);
 
   useEffect(() => {
     // Fetch User Role
@@ -46,15 +47,34 @@ export default function JobsTab() {
 
   useEffect(() => {
     if (selectedJob) {
-      const q = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
-      const unsubscribe = onSnapshot(q, (snap) => {
+      // 1. Listen to explicit vendor submissions
+      const qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
+      const unsubSub = onSnapshot(qSub, (snap) => {
         setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "submissions");
       });
-      return () => unsubscribe();
+
+      // 2. Cross-Vendor Global Matching
+      // We search the global candidate pool for skills matching this job
+      // In a real app, this would be a high-performance vector search. 
+      // Here we filter by the first 3 skills as a proxy.
+      const topSkills = selectedJob.skills?.slice(0, 3) || [];
+      if (topSkills.length > 0) {
+        const qMatch = query(
+          collection(db, "candidatePool"), 
+          where("skills", "array-contains-any", topSkills)
+        );
+        const unsubMatch = onSnapshot(qMatch, (snap) => {
+          const matched = snap.docs.map(d => ({ id: d.id, ...d.data(), isGlobalMatch: true } as any));
+          setGlobalMatches(matched.filter(m => m.vendorId !== orgId)); // Don't show your own candidates
+        });
+        return () => { unsubSub(); unsubMatch(); };
+      }
+
+      return () => unsubSub();
     }
-  }, [selectedJob]);
+  }, [selectedJob, orgId]);
 
   const handleParseJD = async () => {
     if (!jdText.trim()) return;
@@ -74,22 +94,37 @@ export default function JobsTab() {
         title: parsed.title,
         description: parsed.description,
         skills: parsed.skills,
-        status: "PENDING_FINANCIAL_APPROVAL",
+        status: "DRAFT", // Start as DRAFT
         visibility: "INTERNAL",
         vendorVisibleBudget: 0,
         currency: "USD",
         adminApproved: false,
         ownerId: auth.currentUser?.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        matchProcessingStatus: 'pending' // For the "5 minute" wait logic
       };
       
       await setDoc(doc(db, "requirements_public", reqId), newReq);
       setJdText("");
+
+      // Simulate the 5-minute processing window
+      setTimeout(async () => {
+        await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'completed' });
+      }, 5000); // 5 seconds for demo, but represents the 5 mins
+
     } catch (e) {
       console.error("Failed to parse JD", e);
     }
     setIsParsing(false);
   };
+
+  const handleSubmitBudget = async (jobId: string, budget: number) => {
+    await updateDoc(doc(db, "requirements_public", jobId), {
+      status: "PENDING_FINANCIAL_APPROVAL",
+      clientTargetBudget: budget
+    });
+  };
+
 
   const handleUpdateJD = async (jobId: string, newTitle: string, newDesc: string) => {
     await updateDoc(doc(db, "requirements_public", jobId), {
@@ -222,6 +257,9 @@ export default function JobsTab() {
                   {isAdmin && job.status === 'PENDING_FINANCIAL_APPROVAL' && (
                     <Button onClick={(e) => { e.stopPropagation(); setShowApprovalModal(job); }} size="sm" className="bg-amber-500 text-white text-[9px] h-6 px-2 font-bold uppercase">Approve</Button>
                   )}
+                  {isClient && job.status === 'DRAFT' && (
+                    <Button onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }} size="sm" className="bg-indigo-600 text-white text-[9px] h-6 px-2 font-bold uppercase">Set Budget</Button>
+                  )}
                   <Button variant="ghost" size="sm" className="text-[9px] uppercase font-bold text-slate-400 h-6">Matches →</Button>
                 </div>
               </div>
@@ -284,9 +322,37 @@ export default function JobsTab() {
                     </div>
                 ) : (
                     <div>
-                        <h4 className="text-sm font-bold mb-1">{selectedJob.title}</h4>
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-sm font-bold mb-1">{selectedJob.title}</h4>
+                          <Badge variant="outline" className="text-[9px]">{selectedJob.status}</Badge>
+                        </div>
                         <p className="text-[11px] text-slate-600 line-clamp-3 mb-2">{selectedJob.description}</p>
-                        <div className="flex flex-wrap gap-1">
+                        
+                        {isClient && selectedJob.status === 'DRAFT' && (
+                          <div className="mt-2 pt-2 border-t flex flex-col gap-2">
+                            <label className="text-[9px] font-bold uppercase text-slate-400">Specify Requirement Budget ($)</label>
+                            <div className="flex gap-2">
+                              <input 
+                                id="client_budget_input"
+                                type="number" 
+                                className="flex-1 border rounded p-1 text-xs" 
+                                placeholder="Total Budget" 
+                              />
+                              <Button 
+                                size="sm"
+                                className="bg-indigo-600 text-white text-[9px] uppercase font-bold py-1 px-2 h-7"
+                                onClick={() => {
+                                  const b = (document.getElementById('client_budget_input') as HTMLInputElement).valueAsNumber;
+                                  if (b > 0) handleSubmitBudget(selectedJob.id, b);
+                                }}
+                              >
+                                Submit to Admin
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-1 mt-2">
                             {selectedJob.skills?.map((s: string) => <span key={s} className="text-[9px] bg-slate-50 border px-1 rounded text-slate-500">{s}</span>)}
                         </div>
                     </div>
@@ -295,46 +361,63 @@ export default function JobsTab() {
 
               {/* Matched Candidates List */}
               <div className="p-4 flex-1">
-                <h3 className="text-[10px] font-bold uppercase text-slate-400 mb-3 flex items-center gap-1">
-                    <BrainCircuit size={12} className="text-indigo-500" /> AI-Native Submissions ({submissions.length})
-                </h3>
-                {submissions.length === 0 ? (
-                    <div className="py-12 flex flex-col items-center justify-center text-slate-400 opacity-50 border border-dashed rounded-lg">
-                        <Bot size={32} className="mb-2" />
-                        <p className="text-xs uppercase font-bold tracking-widest">Awaiting Vendor Units</p>
-                    </div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                      <BrainCircuit size={12} className="text-indigo-500" /> AI-Native Intelligence
+                  </h3>
+                  <Badge className="bg-indigo-50 text-indigo-600 border-indigo-200 text-[8px] uppercase">
+                    Cross-Vendor Search
+                  </Badge>
+                </div>
+
+                {selectedJob.matchProcessingStatus === 'pending' ? (
+                   <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20">
+                      <Activity size={24} className="mb-2 text-indigo-300 animate-pulse" />
+                      <p className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Scanning Vendor Networks...</p>
+                      <p className="text-[8px] mt-1 text-slate-400">Please check in sometime (Max 5 mins)</p>
+                   </div>
                 ) : (
-                    <div className="space-y-3">
-                        {submissions.map(sub => (
-                            <div 
-                                key={sub.id} 
-                                className={`border rounded-lg p-3 transition-all cursor-pointer ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300'}`}
-                                onClick={() => handleRunAiMatch(sub)}
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs uppercase">
-                                            {sub.candidateName?.slice(0, 2)}
+                  <div className="space-y-3">
+                    {[...submissions, ...globalMatches].length === 0 ? (
+                      <div className="py-12 flex flex-col items-center justify-center text-slate-400 opacity-50 border border-dashed rounded-lg">
+                          <Bot size={32} className="mb-2" />
+                          <p className="text-xs uppercase font-bold tracking-widest">No Matches Found Yet</p>
+                      </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {[...submissions, ...globalMatches].map(sub => (
+                                <div 
+                                    key={sub.id} 
+                                    className={`border rounded-lg p-3 transition-all cursor-pointer ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300'}`}
+                                    onClick={() => handleRunAiMatch(sub)}
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 font-bold text-xs uppercase">
+                                                {sub.candidateName?.slice(0, 2) || sub.name?.slice(0, 2)}
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-bold text-slate-900">{sub.candidateName || sub.name}</div>
+                                                <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
+                                                    <ShieldAlert size={10} /> {sub.isGlobalMatch ? "Pre-Screened Match" : sub.vendorName || "Active Vendor"}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">{sub.candidateName}</div>
-                                            <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
-                                                <ShieldAlert size={10} /> {sub.vendorName || "Active Vendor"}
+                                        <div className="flex flex-col items-end">
+                                            {sub.isGlobalMatch && <Badge className="text-[7px] py-0 bg-amber-100 text-amber-700 border-amber-200">MARKET MATCH</Badge>}
+                                            <div className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
+                                                {sub.matchScore ? `${sub.matchScore}% FIT` : "PENDING AI"}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-end">
-                                        <div className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                            {sub.matchScore ? `${sub.matchScore}% FIT` : "PENDING AI"}
-                                        </div>
+                                    <div className="text-[10px] text-slate-500 line-clamp-2">
+                                        Top Skills: {sub.skills?.join(", ")}
                                     </div>
                                 </div>
-                                <div className="text-[10px] text-slate-500 line-clamp-2">
-                                    Top Skills: {sub.skills?.join(", ")}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
