@@ -11,13 +11,18 @@ export default function DealRoomsTab() {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch User Role
     const fetchUser = async () => {
       if (auth.currentUser) {
         const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-        if (userDoc.exists()) setUserRole(userDoc.data().role);
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserRole(data.role);
+          setOrgId(data.organizationId);
+        }
       }
     };
     fetchUser();
@@ -89,6 +94,7 @@ export default function DealRoomsTab() {
   };
 
   const isAdmin = userRole === 'admin';
+  const filteredRooms = dealRooms.filter(room => isAdmin || room.clientId === orgId || room.vendorId === orgId);
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4 pb-0 h-full">
@@ -103,7 +109,7 @@ export default function DealRoomsTab() {
         
         <div className="flex-1 overflow-hidden flex flex-col">
           <div className="flex-1 overflow-auto">
-            {dealRooms.map(room => {
+            {filteredRooms.map(room => {
               const isSelected = selectedRoom?.id === room.id;
               return (
                 <div 

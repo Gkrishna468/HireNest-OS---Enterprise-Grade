@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 import { cn } from "./lib/utils";
 import { auth, db } from "./lib/firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
@@ -28,14 +28,14 @@ function Sidebar({ org, user }: { org: any, user: any }) {
   const isVendor = org.type === 'vendor';
 
   const navItems = [
-    { name: "Dashboard", path: "/", icon: "▤", visible: true },
+    { name: "Dashboard", path: isAdmin ? "/admin-overview" : (isClient ? "/clients" : "/vendors"), icon: "▤", visible: true },
     { name: "Requirements", path: "/jobs", icon: "⌘", visible: true },
-    { name: "Candidates", path: "/candidates", icon: "👥", visible: true },
+    { name: "Candidates", path: "/candidates", icon: "👥", visible: isAdmin || isVendor },
     { name: "Deal Rooms", path: "/deals", icon: "💬", visible: true },
-    { name: "Clients", path: "/clients", icon: "🏢", visible: isAdmin },
-    { name: "Vendors", path: "/vendors", icon: "⛑️", visible: isAdmin },
-    { name: "Admin Overview", path: "/admin-overview", icon: "📊", visible: isAdmin },
-    { name: "Users", path: "/users", icon: "⚙️", visible: isAdmin }
+    { name: "Manage Clients", path: "/admin/clients", icon: "🏢", visible: isAdmin },
+    { name: "Manage Vendors", path: "/admin/vendors", icon: "⛑️", visible: isAdmin },
+    { name: "Platform Analytics", path: "/admin-overview", icon: "📊", visible: isAdmin },
+    { name: "System Settings", path: "/users", icon: "⚙️", visible: isAdmin }
   ];
 
   const intelligenceItems = [
@@ -221,14 +221,24 @@ export default function App() {
           <Sidebar org={org} user={authState.authData.user} />
           <main className="flex-1 overflow-y-auto flex flex-col">
             <Routes>
-              <Route path="/" element={<DashboardTab />} />
+              <Route path="/" element={
+                 org.type === 'admin' ? <Navigate to="/admin-overview" replace /> : 
+                 org.type === 'client' ? <Navigate to="/clients" replace /> : 
+                 <Navigate to="/vendors" replace />
+              } />
+              
+              {/* Contextual Workspace Routes */}
+              <Route path="/clients" element={<DashboardTab />} />
+              <Route path="/vendors" element={<DashboardTab />} />
+              
               <Route path="/jobs" element={<JobsTab />} />
               <Route path="/candidates" element={<CandidatesTab />} />
               <Route path="/deals" element={<DealRoomsTab />} />
+              
               {org.type === 'admin' && (
                 <>
-                  <Route path="/clients" element={<ClientsTab />} />
-                  <Route path="/vendors" element={<VendorsTab />} />
+                  <Route path="/admin/clients" element={<ClientsTab />} />
+                  <Route path="/admin/vendors" element={<VendorsTab />} />
                   <Route path="/admin-overview" element={<AdminOverview />} />
                   <Route path="/users" element={<AdminUsersManager orgData={org} />} />
                 </>
