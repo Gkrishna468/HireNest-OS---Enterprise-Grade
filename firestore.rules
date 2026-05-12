@@ -6,7 +6,7 @@ service cloud.firestore {
     }
 
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'gopal@hirenestworkforce.com' || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')); }
+    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'gopalkrishna0046@gmail.com' || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')); }
 
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;

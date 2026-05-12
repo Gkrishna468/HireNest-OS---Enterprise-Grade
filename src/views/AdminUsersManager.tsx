@@ -26,7 +26,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "users"));
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => !u.deleted));
     } catch (err: any) {
       console.error(err);
       setError("Failed to fetch users");
@@ -91,6 +91,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to remove this user?")) return;
+    try {
+      await setDoc(doc(db, "users", userId), { deleted: true }, { merge: true }); // Soft delete
+      await fetchUsers();
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to delete user: " + err.message);
     }
   };
 
@@ -198,6 +209,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                       <td className="py-3 text-slate-500 font-mono text-xs">{u.organizationId}</td>
                       <td className="py-3 text-right text-slate-400">
                         {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 text-right">
+                        <Button onClick={() => handleDeleteUser(u.id)} className="bg-red-500 hover:bg-red-600 px-2 py-1 text-[10px]">Delete</Button>
                       </td>
                     </tr>
                   ))}
