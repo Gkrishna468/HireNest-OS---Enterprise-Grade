@@ -37,7 +37,7 @@ async function startServer() {
   });
 
   // Mock Database
-  const db = {
+  const db: any = {
     metrics: {
       revenue: 1450000,
       activeDeals: 42,
