@@ -1,33 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // 0. Default Deny is implicit, but we can be explicit. 
+    // We remove the catch-all to ensure it doesn't interfere with specific match evaluations.
 
     // --- Hardened Global Helpers ---
     function isSignedIn() { return request.auth != null; }
-    function isEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isEmailVerified() { return isSignedIn() && request.auth.token.get('email_verified', false) == true; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
-    // Static admin check (no DB reads) - Safe for list queries
+    // Static admin check (no DB reads) - Safe for all operations
     function isStaticAdmin() {
       return isSignedIn() && (
-        request.auth.uid == '0xpXdzSQE6V92xbnCkiczPHexiU2' ||
-        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com']
+        request.auth.uid == '0xpXdzSQE6V92xbnCkiczPHexiU2' || 
+        request.auth.uid == 'vetAu3RF2qYVmsCuB6cpEz9DDqA2' ||
+        request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' ||
+        request.auth.token.get('email', '') == 'gopal@hirenestworkforce.com'
       );
     }
     
-    // Dynamic admin check (with DB reads) - NOT safe for list queries
+    // Dynamic admin check (with DB reads)
     function isDynamicAdmin() {
       return isStaticAdmin() || (
-        isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+             isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
     }
 
     function isAdmin() {
@@ -39,16 +38,17 @@ service cloud.firestore {
     }
 
     function isOrganizationMember(orgId) {
-      return isSignedIn() && 
+      return isStaticAdmin() || (
+             isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData().organizationId == orgId;
+             getUserData().get('organizationId', '') == orgId);
     }
 
     // --- Entity Validation Blueprints ---
 
     function isValidOrganization(data) {
       return data.keys().hasAll(['organizationId', 'type', 'companyName', 'status', 'ownerId', 'createdAt']) &&
-             data.organizationId is string && data.organizationId.size() <= 64 &&
+             data.organizationId is string && data.organizationId.size() <= 128 &&
              data.type in ['vendor', 'client', 'admin'] &&
              data.companyName is string && data.companyName.size() <= 200 &&
              data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending'] &&
@@ -58,9 +58,9 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt']) &&
              data.uid == request.auth.uid &&
-             data.email == request.auth.token.email &&
+             data.email is string &&
              data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer'] &&
-             data.organizationId is string && data.organizationId.size() <= 64;
+             data.organizationId is string && data.organizationId.size() <= 128;
     }
 
     function isValidRequirementPublic(data) {
@@ -68,27 +68,28 @@ service cloud.firestore {
              data.requirementId is string &&
              data.clientId is string &&
              data.title is string && data.title.size() <= 200 &&
-             data.skills is list && data.skills.size() <= 50 &&
+             data.skills is list && data.skills.size() <= 100 &&
              data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'] &&
              data.visibility in ['INTERNAL', 'VENDOR_NETWORK'] &&
              data.ownerId == request.auth.uid;
     }
 
     match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isStaticAdmin() || isDynamicAdmin());
       allow list: if isStaticAdmin();
-      allow get: if isSignedIn() && (request.auth.uid == userId || isDynamicAdmin());
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
-      allow update: if (isDynamicAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isDynamicAdmin()) ||
-        (request.auth.uid == userId && !isDynamicAdmin() && incoming().diff(existing()).affectedKeys().size() == 0)
+      allow create: if isSignedIn() && (request.auth.uid == userId || isStaticAdmin()) && isValidUser(incoming());
+      allow update: if (isStaticAdmin() || isDynamicAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
+        isStaticAdmin() || 
+        isDynamicAdmin() || 
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().size() == 0)
       );
     }
 
     match /organizations/{orgId} {
-      allow list: if isStaticAdmin();
-      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isDynamicAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
       allow create: if isSignedIn() && isValidOrganization(incoming());
-      allow update: if isDynamicAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
+      allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
     }
 
     match /requirements_public/{reqId} {

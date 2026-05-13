@@ -154,6 +154,45 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       try {
         if (fbUser) {
+          // IMMEDIATE OVERRIDE: If they are the owner/admin emails, give them HQ access immediately
+          const isStaticAdmin = fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com";
+          
+          if (isStaticAdmin) {
+            const orgId = "ORG-GLOBAL-HQ";
+            const adminData = {
+              user: { 
+                uid: fbUser.uid, 
+                email: fbUser.email, 
+                role: "admin" as const, 
+                organizationId: orgId,
+                createdAt: new Date().toISOString()
+              },
+              org: { 
+                organizationId: orgId, 
+                type: "admin" as const, 
+                companyName: "HireNest Global HQ", 
+                status: "approved" as const,
+                ownerId: fbUser.uid,
+                createdAt: new Date().toISOString()
+              }
+            };
+            
+            // Background sync/bootstrap (silent)
+            try {
+              const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+              if (!userDoc.exists()) {
+                await setDoc(doc(db, "organizations", orgId), adminData.org);
+                await setDoc(doc(db, "users", fbUser.uid), adminData.user);
+              }
+            } catch (e) {
+              console.warn("Silent admin sync failed (non-blocking):", e);
+            }
+
+            currentUserState = adminData;
+            setAuthState({ loading: false, authData: adminData });
+            return;
+          }
+
           let userDoc;
           try {
             userDoc = await getDoc(doc(db, "users", fbUser.uid));
@@ -164,6 +203,7 @@ export default function App() {
 
           if (userDoc?.exists()) {
             const userData = userDoc.data();
+
             if (userData.organizationId) {
               const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
               if (orgDoc.exists()) {
@@ -173,35 +213,7 @@ export default function App() {
                 return;
               }
             }
-          } else if (fbUser.email === "gopalkrishna0046@gmail.com" || fbUser.email === "gopal@hirenestworkforce.com") {
-            // Bootstrap the admin user
-            const orgId = "ORG-GLOBAL-HQ";
-            const orgData = {
-              organizationId: orgId,
-              type: "admin",
-              companyName: "HireNest Global HQ",
-              status: "approved",
-              ndaUploaded: false,
-              msaUploaded: false,
-              ownerId: fbUser.uid,
-              createdAt: new Date().toISOString()
-            };
-            const userData = {
-              uid: fbUser.uid,
-              email: fbUser.email,
-              role: "admin",
-              organizationId: orgId,
-              createdAt: new Date().toISOString()
-            };
-            
-            await setDoc(doc(db, "organizations", orgId), orgData);
-            await setDoc(doc(db, "users", fbUser.uid), userData);
-            
-            const data = { user: userData, org: orgData };
-            currentUserState = data;
-            setAuthState({ loading: false, authData: data });
-            return;
-          }
+          } 
         }
       } catch (error: any) {
         console.error("Initialization error:", error);

@@ -7,25 +7,21 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-let pdf;
+let pdf: any;
 try {
-  const pdfImport = require('pdf-parse');
-  console.log("pdf-parse import type:", typeof pdfImport);
-  if (typeof pdfImport === 'function') {
-    pdf = pdfImport;
-  } else if (pdfImport && typeof pdfImport.default === 'function') {
-    pdf = pdfImport.default;
-  } else {
-    console.warn("pdf-parse is not a function, trying manual path...");
-    try {
-      pdf = require('pdf-parse/lib/pdf-parse.js');
-    } catch (e2) {
-      console.error("Manual pdf-parse load failed", e2);
-      pdf = pdfImport; // Fallback to whatever we got
-    }
-  }
+  const pdfParse = require('pdf-parse');
+  // pdf-parse is a CommonJS module that exports the function directly
+  pdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+  console.log("PDF-Parse loaded successfully via require");
 } catch (e) {
-  console.error("Critical: Failed to load pdf-parse", e);
+  console.error("Critical: Failed to load pdf-parse via require", e);
+  // Fallback to dynamic import if require fails in some environments
+  import('pdf-parse').then(module => {
+    pdf = module.default || module;
+    console.log("PDF-Parse loaded via dynamic import fallback");
+  }).catch(finalErr => {
+    console.error("Failed both require and dynamic import for pdf-parse", finalErr);
+  });
 }
 import mammoth from 'mammoth';
 import nlp from 'compromise';
@@ -181,13 +177,14 @@ async function startServer() {
       recruiterProductivity: 88,
     },
     organizations: [
-      { id: "ORG-GLOBAL-HQ", name: "HireNest Global HQ", type: "client", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0, status: "approved" },
+      { id: "ORG-GLOBAL-HQ", name: "HireNest Global HQ", type: "admin", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0, status: "approved" },
       { id: "C-CLIENT-001", name: "HireNest Client A", type: "client", companyName: "Enterprise Solutions Inc", msaUploaded: true, ndaUploaded: true, rating: 4.8, status: "approved" },
       { id: "V-VENDOR-001", name: "HireNest Vendor B", type: "vendor", companyName: "Elite Staffing Group", msaUploaded: true, ndaUploaded: true, rating: 4.6, status: "approved" },
       { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2, status: "approved" },
       { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5, status: "approved" }
     ],
     users: [
+      { id: "vetAu3RF2qYVmsCuB6cpEz9DDqA2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
       { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
       { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
     ],
