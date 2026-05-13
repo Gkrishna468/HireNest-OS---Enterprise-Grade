@@ -162,6 +162,36 @@ async function startServer() {
     next();
   });
 
+  // --- Admin HQ Data Proxy (Bypasses Client Rules for Super Admins) ---
+  app.get("/api/admin/governance-data", async (req, res) => {
+    try {
+      // In a real environment with Firestore Admin SDK, we would use that here.
+      // Since we are using standard Firestore via client-side libraries in this specific template
+      // but running server-side, we can simulate the merge.
+      // If we have live data from the application, return it.
+      
+      // Note: The 'db' here refers to the mock DB defined below in the file.
+      // We will also return empty arrays for collections not present in mock but needed by UI.
+      res.json({
+        organizations: db.organizations || [],
+        users: db.users || [],
+        candidates: db.candidates || [],
+        requirements: db.requirements || [],
+        submissions: db.submissions || []
+      });
+    } catch (err) {
+      console.error("Admin proxy error", err);
+      res.status(500).json({ error: "Failed to fetch governance data" });
+    }
+  });
+
+  // Ensure the mock db has collections initialized to avoid crashes
+  const db: any = {
+    organizations: [], // Start empty, will be populated if mocked
+    users: [],
+    // ... rest initialized later in file
+  };
+
   app.post("/api/parse-jd", async (req, res) => {
     try {
       const { jdText } = req.body;

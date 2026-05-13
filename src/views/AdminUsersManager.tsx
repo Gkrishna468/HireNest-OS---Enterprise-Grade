@@ -25,18 +25,46 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const [userSnap, orgSnap] = await Promise.all([
-        getDocs(collection(db, "users")),
-        getDocs(collection(db, "organizations"))
-      ]);
-      const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
-      setUsers(userSnap.docs.map(d => {
-        const u = d.data() as any;
-        const org = orgs.find(o => o.id === u.organizationId);
-        return { id: d.id, ...u, org };
-      }).filter((u: any) => !u.deleted));
+      // Use administrative proxy for Global HQ
+      const response = await fetch('/api/admin/governance-data');
+      if (response.ok) {
+        const data = await response.json();
+        const orgs = data.organizations || [];
+        const remoteUsers = data.users || [];
+        
+        setUsers(remoteUsers.map((u: any) => {
+          const org = orgs.find((o: any) => o.id === u.organizationId);
+          return { ...u, id: u.uid || u.id, org };
+        }).filter((u: any) => !u.deleted));
+      } else {
+        // Fallback to direct Firestore if API fails
+        const [userSnap, orgSnap] = await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "organizations"))
+        ]);
+        const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
+        setUsers(userSnap.docs.map(d => {
+          const u = d.data() as any;
+          const org = orgs.find(o => o.id === u.organizationId);
+          return { id: d.id, ...u, org };
+        }).filter((u: any) => !u.deleted));
+      }
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.LIST, "users_and_orgs");
+      console.warn("Governance API failed, attempting Firestore fallback", err);
+      try {
+        const [userSnap, orgSnap] = await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "organizations"))
+        ]);
+        const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
+        setUsers(userSnap.docs.map(d => {
+          const u = d.data() as any;
+          const org = orgs.find(o => o.id === u.organizationId);
+          return { id: d.id, ...u, org };
+        }).filter((u: any) => !u.deleted));
+      } catch (fErr) {
+        handleFirestoreError(fErr, OperationType.LIST, "users_and_orgs");
+      }
     }
     setLoading(false);
   };

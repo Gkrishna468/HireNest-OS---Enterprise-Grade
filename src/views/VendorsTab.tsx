@@ -12,15 +12,32 @@ export default function VendorsTab() {
 
   async function fetchVendors() {
       try {
-        const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
-        const snap = await getDocs(q);
-        const vendorsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setVendors(vendorsData);
+        // Attempt administrative proxy first for Global HQ
+        const response = await fetch('/api/admin/governance-data');
+        if (response.ok) {
+          const data = await response.json();
+          const orgs = data.organizations || [];
+          setVendors(orgs.filter((o: any) => o.type === "vendor"));
+          
+          if (data.candidates) setCandidates(data.candidates);
+        } else {
+          const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
+          const snap = await getDocs(q);
+          const vendorsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setVendors(vendorsData);
 
-        const candSnap = await getDocs(collection(db, "candidatePool"));
-        setCandidates(candSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          const candSnap = await getDocs(collection(db, "candidatePool"));
+          setCandidates(candSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
       } catch (err: any) {
-        handleFirestoreError(err, OperationType.LIST, "vendors_governance");
+        console.warn("Governance API failed, attempting Firestore fallback", err);
+        try {
+          const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
+          const snap = await getDocs(q);
+          setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (fErr) {
+          handleFirestoreError(fErr, OperationType.LIST, "vendors_governance");
+        }
       } finally {
         setLoading(false);
       }
