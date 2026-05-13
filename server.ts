@@ -210,9 +210,12 @@ async function startServer() {
   // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
   app.get("/api/admin/governance-data", (req, res) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [HQ SYNC HUB V2] Authorized sync request from ${req.ip}`);
+    const sourceIp = req.ip || req.headers['x-forwarded-for'] || 'unknown-ip';
+    console.log(`[${timestamp}] [HQ SYNC HUB V2] Authorized sync request from ${sourceIp}`);
+    
     try {
-      return res.json({
+      // Ensure db exists in scope
+      const dataToSync = {
         organizations: db.organizations || [],
         users: db.users || [],
         candidatePool: db.candidatePool || [],
@@ -221,11 +224,21 @@ async function startServer() {
         dealRooms: db.dealRooms || [],
         metrics: db.metrics || {},
         lastSync: timestamp
-      });
+      };
+      
+      return res.status(200).json(dataToSync);
     } catch (err) {
       console.error("[HQ SYNC HUB ERROR]", err);
-      return res.status(500).json({ error: "Sync failed", details: String(err) });
+      return res.status(500).json({ 
+        error: "Sync failed", 
+        details: String(err),
+        timestamp: new Date().toISOString()
+      });
     }
+  });
+
+  app.get("/api/test-connection", (req, res) => {
+    res.json({ ok: true, env: process.env.NODE_ENV, vercel: !!process.env.VERCEL });
   });
 
   // Health check
@@ -609,6 +622,17 @@ async function startServer() {
   }
 
   // Only start listening if NOT in a serverless environment
+  // --- GLOBAL ERROR HANDLER ---
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("[FATAL ERROR]", err);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message,
+      path: req.path
+    });
+  });
+
   if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);

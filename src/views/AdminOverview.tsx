@@ -71,11 +71,23 @@ export default function AdminOverview() {
       };
 
       for (const [colName, items] of Object.entries(collections)) {
+        if (!items || !Array.isArray(items)) {
+           console.warn(`Collection ${colName} has no items to bootstrap.`);
+           continue;
+        }
         for (const item of (items as any[])) {
           const { id, ...rest } = item;
-          // Use doc name from ID if possible, or fallback to auto-id
-          const docRef = doc(collection(db, colName), id || undefined);
-          await setDoc(docRef, { ...rest, updatedAt: new Date().toISOString() }, { merge: true });
+          try {
+            // Use doc name from ID if possible, or fallback to auto-id
+            const docRef = doc(collection(db, colName), id || undefined);
+            await setDoc(docRef, { 
+              ...rest, 
+              updatedAt: new Date().toISOString(),
+              lastBootstrap: new Date().toISOString()
+            }, { merge: true });
+          } catch (writeErr) {
+            console.error(`Bootstrap FAILED for ${colName}/${id}:`, writeErr);
+          }
         }
       }
       alert("Marketplace Bootstrapped successfully to Production Firestore!");
