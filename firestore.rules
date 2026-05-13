@@ -62,7 +62,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com';
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com');
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
         (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isAdmin()) ||
@@ -71,7 +72,8 @@ service cloud.firestore {
     }
 
     match /organizations/{orgId} {
-      allow read: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow list: if isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com';
+      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com');
       allow create: if isSignedIn() && isValidOrganization(incoming());
       allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
     }

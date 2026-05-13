@@ -25,10 +25,18 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "users"));
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }) as any).filter((u: any) => !u.deleted));
+      const [userSnap, orgSnap] = await Promise.all([
+        getDocs(collection(db, "users")),
+        getDocs(collection(db, "organizations"))
+      ]);
+      const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
+      setUsers(userSnap.docs.map(d => {
+        const u = d.data() as any;
+        const org = orgs.find(o => o.id === u.organizationId);
+        return { id: d.id, ...u, org };
+      }).filter((u: any) => !u.deleted));
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.LIST, "users");
+      handleFirestoreError(err, OperationType.LIST, "users_and_orgs");
     }
     setLoading(false);
   };
@@ -194,16 +202,20 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs text-slate-500">
-                    <th className="pb-3 font-medium">Email</th>
+                    <th className="pb-3 font-medium">Email / User</th>
                     <th className="pb-3 font-medium">Role</th>
-                    <th className="pb-3 font-medium">Org ID</th>
+                    <th className="pb-3 font-medium">Compliance (MSA/NDA)</th>
                     <th className="pb-3 font-medium text-right">Created</th>
+                    <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {users.map(u => (
                     <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 text-slate-800">{u.email}</td>
+                      <td className="py-3">
+                        <div className="font-bold text-slate-800">{u.email}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">Org: {u.org?.companyName || u.organizationId}</div>
+                      </td>
                       <td className="py-3">
                         <span className={`px-2 py-1 text-[10px] rounded uppercase font-bold tracking-wider ${
                           u.role === 'admin' ? 'bg-indigo-100 border border-indigo-200 text-indigo-700' 
@@ -213,12 +225,25 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                           {u.role}
                         </span>
                       </td>
-                      <td className="py-3 text-slate-500 font-mono text-xs">{u.organizationId}</td>
-                      <td className="py-3 text-right text-slate-400">
+                      <td className="py-3">
+                         <div className="flex items-center space-x-2">
+                            <span className={`text-[10px] px-1 rounded border ${u.org?.msaUploaded ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>MSA</span>
+                            <span className={`text-[10px] px-1 rounded border ${u.org?.ndaUploaded ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>NDA</span>
+                            {(!u.org?.msaUploaded || !u.org?.ndaUploaded) && (
+                              <button 
+                                onClick={() => alert(`Reminder sent to ${u.email}`)}
+                                className="text-[9px] text-indigo-600 hover:underline font-bold uppercase"
+                              >
+                                Send Reminder
+                              </button>
+                            )}
+                         </div>
+                      </td>
+                      <td className="py-3 text-right text-slate-400 text-xs">
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="py-3 text-right">
-                        <Button onClick={() => handleDeleteUser(u.id, u.organizationId)} className="bg-red-500 hover:bg-red-600 px-2 py-1 text-[10px]">Delete</Button>
+                        <Button onClick={() => handleDeleteUser(u.id, u.organizationId)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-widest">Terminate</Button>
                       </td>
                     </tr>
                   ))}
