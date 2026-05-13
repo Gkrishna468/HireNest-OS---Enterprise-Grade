@@ -37,6 +37,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     return () => unsub();
   }, [onComplete]);
 
+  // --- Authentication Bridge ---
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

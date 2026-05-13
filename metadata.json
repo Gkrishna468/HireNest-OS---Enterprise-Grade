@@ -8,5 +8,6 @@
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ],
+  "lastUpdate": "2026-05-13T15:15:00Z",
   "version": "2.4.14-PROD-STABLE"
 }
