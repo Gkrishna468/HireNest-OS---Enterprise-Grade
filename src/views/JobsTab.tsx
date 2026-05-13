@@ -52,8 +52,8 @@ export default function JobsTab() {
             const response = await fetch('/api/admin/governance-data');
             if (response.ok) {
                 const resData = await response.json();
-                if (resData.requirements) {
-                    setJobs(resData.requirements.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                if (resData.requirements_public) {
+                    setJobs(resData.requirements_public.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                     return;
                 }
             }

@@ -5,7 +5,7 @@ import { DollarSign, Briefcase, Users, Radio, Activity } from "lucide-react";
 import { Badge } from "../lib/Badge";
 
 export default function AdminOverview() {
-  const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [] });
+  const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [], submissions: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,10 +17,10 @@ export default function AdminOverview() {
             if (response.ok) {
               const resData = await response.json();
               setData({
-                  candidates: resData.candidates || [],
+                  candidates: resData.candidatePool || [],
                   organizations: resData.organizations || [],
                   dealRooms: resData.dealRooms || [],
-                  requirements: resData.requirements || [],
+                  requirements: resData.requirements_public || [],
                   submissions: resData.submissions || []
               });
             } else {

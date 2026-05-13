@@ -7,7 +7,9 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
+const pdfParse = require('pdf-parse');
+// Improved resilience for different module export formats in ESM/CJS interop
+const pdf = (typeof pdfParse === 'function' && pdfParse.name === 'pdf') ? pdfParse : (pdfParse && typeof pdfParse.default === 'function' ? pdfParse.default : pdfParse);
 import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
@@ -174,11 +176,11 @@ async function startServer() {
       { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
       { id: "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53", email: "founder.itconsulting@outlook.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
     ],
-    requirements: [
+    requirements_public: [
       { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
       { id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], status: "PUBLISHED", rate: "$120/hr", submissions: 5, createdAt: new Date().toISOString() }
     ],
-    candidates: [
+    candidatePool: [
       { id: "CAND-001", vendorId: "V-VENDOR-001", name: "John Smith", skills: ["Go", "Kubernetes"], matchScore: 95, pipelineStage: "Interviewing", email: "jsmith@example.com", createdAt: new Date().toISOString() },
       { id: "CAND-002", vendorId: "V-2048", name: "Sarah Connor", skills: ["React", "Node.js"], matchScore: 92, pipelineStage: "Screening", email: "sconnor@example.com", createdAt: new Date().toISOString() }
     ],
@@ -203,8 +205,8 @@ async function startServer() {
       return res.json({
         organizations: db.organizations || [],
         users: db.users || [],
-        candidates: db.candidates || [],
-        requirements: db.requirements || [],
+        candidatePool: db.candidatePool || [],
+        requirements_public: db.requirements_public || [],
         submissions: db.submissions || [],
         dealRooms: db.dealRooms || [],
         metrics: db.metrics || {},
@@ -410,9 +412,9 @@ async function startServer() {
     res.json(baseMetrics);
   });
   
-  app.get("/api/jobs", (req, res) => res.json(db.requirements));
+  app.get("/api/jobs", (req, res) => res.json(db.requirements_public));
   
-  app.get("/api/candidates", (req, res) => res.json(db.candidates));
+  app.get("/api/candidates", (req, res) => res.json(db.candidatePool));
   app.post("/api/candidates", async (req, res) => {
     const newCandData = req.body;
     let highestDuplicateScore = 0;

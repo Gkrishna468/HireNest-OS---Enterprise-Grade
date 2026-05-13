@@ -18,7 +18,7 @@ export default function VendorsTab() {
           const data = await response.json();
           const orgs = (data.organizations || []).filter((o: any) => o.type === "vendor");
           setVendors(orgs);
-          if (data.candidates) setCandidates(data.candidates);
+          if (data.candidatePool) setCandidates(data.candidatePool);
         } else {
           const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
           const snap = await getDocs(q);

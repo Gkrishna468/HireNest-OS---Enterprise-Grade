@@ -19,7 +19,7 @@ export default function ClientsTab() {
           const data = await response.json();
           const orgs = (data.organizations || []).filter((o: any) => o.type === "client");
           setClients(orgs);
-          setJobs(data.requirements || []);
+          setJobs(data.requirements_public || []);
           setSubmissions(data.submissions || []);
         } else {
           const q = query(collection(db, "organizations"), where("type", "==", "client"));

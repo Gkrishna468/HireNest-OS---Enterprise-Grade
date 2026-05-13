@@ -49,8 +49,15 @@ function Sidebar({ org, user }: { org: any, user: any }) {
       <div className="mb-6 pb-4 border-b border-slate-100">
         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Authenticated Hub</label>
         <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-            <span className="text-[11px] font-bold uppercase text-slate-700">{org.type} workforce</span>
+            <div className={cn(
+                "w-2 h-2 rounded-full",
+                org.type === 'admin' ? "bg-indigo-500" : (org.type === 'client' ? "bg-emerald-500" : "bg-amber-500")
+            )}></div>
+            <span className={cn(
+                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border",
+                org.type === 'admin' ? "text-indigo-600 bg-indigo-50 border-indigo-100" : 
+                (org.type === 'client' ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-amber-600 bg-amber-50 border-amber-100")
+            )}>{org.type} OS</span>
         </div>
       </div>
       <div className="space-y-1">
