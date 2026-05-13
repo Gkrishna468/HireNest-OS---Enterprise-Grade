@@ -1,16 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
-// Standard Vite environment doesn't have process.env, but this platform injects it.
-// We use a safe accessor to prevent crashes if it's missing in some contexts.
-const getApiKey = () => {
-  try {
-    return process.env.GEMINI_API_KEY || "";
-  } catch {
-    return "";
-  }
-};
-
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+// src/services/aiService.ts
+// This file now acts as a proxy to the server-side AI endpoints to keep keys secure.
 
 export interface CandidateMatchResult {
   matchScore: number;
@@ -26,60 +15,20 @@ export interface CandidateMatchResult {
 }
 
 export async function analyzeCandidateMatch(jd: string, candidateProfile: string): Promise<CandidateMatchResult> {
-  const prompt = `
-    Analyze the match between this Job Description and Candidate Profile.
-    
-    JOB DESCRIPTION:
-    ${jd}
-    
-    CANDIDATE PROFILE:
-    ${candidateProfile}
-    
-    Provide the analysis in JSON format including:
-    - matchScore (0-100)
-    - summary (high-level assessment)
-    - strengths (list of key matching skills/exp)
-    - gaps (list of missing or weak areas)
-    - outreachDrafts (4 drafts in different tones: founder, professional, executive, warm)
-  `;
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            matchScore: { type: Type.NUMBER },
-            summary: { type: Type.STRING },
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-            gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
-            outreachDrafts: {
-              type: Type.OBJECT,
-              properties: {
-                founder: { type: Type.STRING },
-                professional: { type: Type.STRING },
-                executive: { type: Type.STRING },
-                warm: { type: Type.STRING }
-              },
-              required: ["founder", "professional", "executive", "warm"]
-            }
-          },
-          required: ["matchScore", "summary", "strengths", "gaps", "outreachDrafts"]
-        }
-      }
+    const response = await fetch("/api/match-candidates-detailed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jd, candidateProfile }),
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response from AI");
-    return JSON.parse(text);
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
+    return await response.json();
   } catch (error) {
-    console.error("AI Analysis failed:", error);
+    console.error("AI Analysis proxy failed:", error);
     return {
       matchScore: 0,
-      summary: "Matching failed due to intelligence layer timeout or connection error.",
+      summary: "AI Analysis currently unavailable. Please check your server connection and GEMINI_API_KEY.",
       strengths: [],
       gaps: [],
       outreachDrafts: { founder: "", professional: "", executive: "", warm: "" }
@@ -88,32 +37,17 @@ export async function analyzeCandidateMatch(jd: string, candidateProfile: string
 }
 
 export async function parseBulkResumes(resumeTexts: string[]): Promise<any[]> {
-  const prompt = `Parse these ${resumeTexts.length} resumes into basic profile objects. Each object should have name, email, skills (list), and topExperience. Respond with JSON array.`;
-  
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              email: { type: Type.STRING },
-              skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-              topExperience: { type: Type.STRING }
-            }
-          }
-        }
-      }
+    const response = await fetch("/api/bulk-parse-resumes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeTexts }),
     });
-    const text = response.text;
-    return text ? JSON.parse(text) : [];
+
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
+    return await response.json();
   } catch (e) {
-    console.error("Bulk parse error:", e);
+    console.error("Bulk parse proxy failed:", e);
     return [];
   }
 }

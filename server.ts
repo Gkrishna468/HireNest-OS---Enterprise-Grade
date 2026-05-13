@@ -2,7 +2,7 @@ import express, { Request } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 // @ts-ignore
@@ -18,14 +18,18 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Initialize AI if key is present
 let ai: any = null; 
 if (process.env.GEMINI_API_KEY) {
-  ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  ai = new GoogleGenAI({ 
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+  });
 }
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // IMPORTANT: middleware for parsing JSON must come before routes
+  app.use(express.json({ limit: '50mb' }));
 
   // --- API Routes ---
   
@@ -56,6 +60,87 @@ async function startServer() {
     } catch (err: any) {
       console.error("Extraction failed", err);
       res.status(500).json({ error: "Failed to extract text from file" });
+    }
+  });
+
+  // Server-side detailed candidate analysis
+  app.post("/api/match-candidates-detailed", async (req, res) => {
+    const { jd, candidateProfile } = req.body;
+    if (!ai) return res.status(500).json({ error: "AI not initialized. Check GEMINI_API_KEY." });
+
+    const prompt = `Analyze the match between this Job Description and Candidate Profile.
+    
+    JOB DESCRIPTION: ${jd}
+    CANDIDATE PROFILE: ${candidateProfile}
+    
+    Provide the analysis in JSON format including matchScore (0-100), summary, strengths, gaps, and outreachDrafts (founder, professional, executive, warm).`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              matchScore: { type: Type.NUMBER },
+              summary: { type: Type.STRING },
+              strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+              gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
+              outreachDrafts: {
+                type: Type.OBJECT,
+                properties: {
+                  founder: { type: Type.STRING },
+                  professional: { type: Type.STRING },
+                  executive: { type: Type.STRING },
+                  warm: { type: Type.STRING }
+                },
+                required: ["founder", "professional", "executive", "warm"]
+              }
+            },
+            required: ["matchScore", "summary", "strengths", "gaps", "outreachDrafts"]
+          }
+        }
+      });
+      res.json(JSON.parse(response.text || "{}"));
+    } catch (err) {
+      console.error("Detailed matching error:", err);
+      res.status(500).json({ error: "AI analysis failed" });
+    }
+  });
+
+  // Server-side bulk resume parsing
+  app.post("/api/bulk-parse-resumes", async (req, res) => {
+    const { resumeTexts } = req.body;
+    if (!ai) return res.status(500).json({ error: "AI not initialized" });
+
+    const prompt = `Parse these ${resumeTexts.length} resumes into basic profile objects. Respond with JSON array.`;
+    
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                email: { type: Type.STRING },
+                skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+                topExperience: { type: Type.STRING }
+              }
+            }
+          }
+        }
+      });
+      res.json(JSON.parse(response.text || "[]"));
+    } catch (e) {
+      console.error("Server-side bulk parse error:", e);
+      res.status(500).json({ error: "Bulk parsing failed" });
     }
   });
 
