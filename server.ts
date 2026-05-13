@@ -551,42 +551,55 @@ async function startServer() {
   });
 
 
-  // Vite middleware for development
+  // --- VITE / STATIC / SPA FALLBACK ---
+  
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+    
     app.use(vite.middlewares);
     
-    // Fallback for dev if Vite somehow misses it (rare but adds robustness)
-    app.use('*', async (req, res, next) => {
-      if (req.originalUrl.startsWith('/api')) return next();
+    // Explicit SPA fallback for development
+    app.get("*", async (req, res, next) => {
+      // Don't fallback for API calls
+      if (req.path.startsWith('/api')) return next();
+      
       try {
         const template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
-        const html = await vite.transformIndexHtml(req.originalUrl, template);
+        const html = await vite.transformIndexHtml(req.url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {
         next(e);
       }
     });
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    const distPath = path.resolve(process.cwd(), "dist");
     
-    // SPA Fallback: All routes that don't match static files or API are sent to index.html
+    // Serve static assets from dist
+    app.use(express.static(distPath, {
+      index: false // We handle the root / index explicitly or via catch-all
+    }));
+    
+    // SPA Fallback: ALL non-API / non-Static routes served index.html
     app.get("*", (req, res) => {
-      // Ensure we don't accidentally serve index.html for missing images or other assets
+      // Ignore API routes (which should have been handled above or 404'd already)
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: "API route not found" });
+      }
+      
+      // Safety: if the path looks like a file but isn't found, 404 rather than serve HTML
       if (req.path.includes('.') && !req.path.endsWith('.html')) {
         return res.status(404).send("File not found");
       }
-      const indexPath = path.join(distPath, "index.html");
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        // Fallback for case where build hasn't run or index.html is missing
-        res.status(404).send("Application shell not found. Build may be incomplete.");
-      }
+      
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          console.error("SPA Fallback failed:", err);
+          res.status(500).send("Application load error");
+        }
+      });
     });
   }
 
