@@ -162,25 +162,27 @@ async function startServer() {
       recruiterProductivity: 88,
     },
     organizations: [
-      { id: "GLOBAL_HQ", name: "Global HQ", type: "client", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0 },
-      { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2 },
-      { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5 }
+      { id: "ORG-GLOBAL-HQ", name: "HireNest Global HQ", type: "client", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0, status: "approved" },
+      { id: "C-CLIENT-001", name: "HireNest Client A", type: "client", companyName: "Enterprise Solutions Inc", msaUploaded: true, ndaUploaded: true, rating: 4.8, status: "approved" },
+      { id: "V-VENDOR-001", name: "HireNest Vendor B", type: "vendor", companyName: "Elite Staffing Group", msaUploaded: true, ndaUploaded: true, rating: 4.6, status: "approved" },
+      { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2, status: "approved" },
+      { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5, status: "approved" }
     ],
     users: [
-      { id: "admin-1", email: "admin@hirenest.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() },
-      { id: "gopal-1", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() },
-      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() }
+      { id: "admin-1", email: "admin@hirenest.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+      { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
     ],
     requirements: [
-      { id: "REQ-001", clientId: "C-8821", title: "Senior React Developer", skills: ["React", "TypeScript", "Node.js"], status: "Active", rate: "$80/hr", submissions: 5 },
-      { id: "REQ-002", clientId: "C-9012", title: "Data Engineer", skills: ["Python", "SQL", "Snowflake"], status: "Active", rate: "$95/hr", submissions: 2 }
+      { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
+      { id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], status: "PUBLISHED", rate: "$120/hr", submissions: 5, createdAt: new Date().toISOString() }
     ],
     candidates: [
-      { id: "CAND-101", vendorId: "V-2048", name: "Alex Johnson", skills: ["React", "TypeScript", "Next.js"], matchScore: 94, pipelineStage: "AI Screening", email: "alex.j@example.com" },
-      { id: "CAND-102", vendorId: "V-2048", name: "Maria Garcia", skills: ["React", "Node.js", "Express"], matchScore: 88, pipelineStage: "Client Submission", email: "m.garcia@example.com" }
+      { id: "CAND-001", vendorId: "V-VENDOR-001", name: "John Smith", skills: ["Go", "Kubernetes"], matchScore: 95, pipelineStage: "Interviewing", email: "jsmith@example.com", createdAt: new Date().toISOString() },
+      { id: "CAND-002", vendorId: "V-2048", name: "Sarah Connor", skills: ["React", "Node.js"], matchScore: 92, pipelineStage: "Screening", email: "sconnor@example.com", createdAt: new Date().toISOString() }
     ],
     submissions: [
-        { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-101", status: "submitted" }
+        { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-001", status: "submitted", vendorId: "V-VENDOR-001" }
     ],
     dealRooms: [
       { id: "DR-501", requirementId: "REQ-001", client: "C-8821", vendor: "V-2048", candidate: "CAND-101", status: "Active", identitiesRevealed: false },
@@ -192,10 +194,11 @@ async function startServer() {
 
   // --- API Routes ---
   
-  // Admin HQ Data Proxy
-  app.get("/api/admin/governance-data", async (req, res) => {
+  // PRIMARY ADMIN PROXY (MUST BE BEFORE VITE)
+  app.get("/api/admin/governance-data", (req, res) => {
+    console.log(`[HQ SYNC] Request from ${req.ip} for admin governance data`);
     try {
-      res.json({
+      return res.json({
         organizations: db.organizations || [],
         users: db.users || [],
         candidates: db.candidates || [],
@@ -203,8 +206,8 @@ async function startServer() {
         submissions: db.submissions || []
       });
     } catch (err) {
-      console.error("Admin proxy error", err);
-      res.status(500).json({ error: "Failed to fetch governance data" });
+      console.error("[HQ SYNC ERROR]", err);
+      return res.status(500).json({ error: "Sync failed" });
     }
   });
 

@@ -1,6 +1,12 @@
 {
-  "name": "HireNestOS",
-  "description": "AI Native Multi-Tenant Staffing Operations System",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "name": "HireNest Workforce OS",
+  "description": "Enterprise-grade recruiting workforce orchestration platform with AI-powered matching and global governance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "version": "2.4.13-PROD-SYNC"
 }

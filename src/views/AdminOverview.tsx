@@ -6,24 +6,57 @@ import { Badge } from "../lib/Badge";
 
 export default function AdminOverview() {
   const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [] });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
+        setLoading(true);
         try {
-            const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
-                getDocs(collection(db, "candidatePool")),
-                getDocs(collection(db, "organizations")),
-                getDocs(collection(db, "dealRooms")),
-                getDocs(collection(db, "requirements_public")),
-            ]);
-            setData({
-                candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
-            });
+            // Priority 1: Administrative HQ Sync Proxy
+            const response = await fetch('/api/admin/governance-data');
+            if (response.ok) {
+              const resData = await response.json();
+              setData({
+                  candidates: resData.candidates || [],
+                  organizations: resData.organizations || [],
+                  dealRooms: resData.dealRooms || [],
+                  requirements: resData.requirements || []
+              });
+            } else {
+              // Priority 2: Direct Firestore Fallback
+              const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
+                  getDocs(collection(db, "candidatePool")),
+                  getDocs(collection(db, "organizations")),
+                  getDocs(collection(db, "dealRooms")),
+                  getDocs(collection(db, "requirements_public")),
+              ]);
+              setData({
+                  candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
+              });
+            }
         } catch (err: any) {
-            handleFirestoreError(err, OperationType.LIST, "admin_overview_collections");
+            console.warn("Governance Sync failed, attempting Firestore fallback", err);
+            try {
+              const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
+                  getDocs(collection(db, "candidatePool")),
+                  getDocs(collection(db, "organizations")),
+                  getDocs(collection(db, "dealRooms")),
+                  getDocs(collection(db, "requirements_public")),
+              ]);
+              setData({
+                  candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
+              });
+            } catch (fErr) {
+               handleFirestoreError(fErr, OperationType.LIST, "admin_overview_collections");
+            }
+        } finally {
+          setLoading(false);
         }
     }
     fetchData();
