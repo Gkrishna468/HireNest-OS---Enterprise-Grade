@@ -5,8 +5,9 @@ import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fileURLToPath } from 'url';
 import multer from 'multer';
-// @ts-ignore
-import pdf from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdf = require('pdf-parse');
 import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
