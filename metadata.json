@@ -8,5 +8,5 @@
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ],
-  "version": "2.4.13-PROD-SYNC"
+  "version": "2.4.14-PROD-STABLE"
 }

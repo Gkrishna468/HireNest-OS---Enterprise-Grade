@@ -195,6 +195,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
                 placeholder="Enter your email"
+                autoComplete="email"
                 required
               />
             </div>
@@ -206,6 +207,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
                 placeholder="Enter your password"
+                autoComplete="current-password"
                 required
               />
             </div>
