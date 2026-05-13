@@ -13,17 +13,25 @@ service cloud.firestore {
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
-    function isAdmin() {
-      let uid = request.auth.uid;
-      let email = request.auth.token.email;
+    // Static admin check (no DB reads) - Safe for list queries
+    function isStaticAdmin() {
       return isSignedIn() && (
-        uid == '0xpXdzSQE6V92xbnCkiczPHexiU2' || 
-        uid == 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53' ||
-        email == 'gopalkrishna0046@gmail.com' || 
-        email == 'gopal@hirenestworkforce.com' || 
-        email == 'founder.itconsulting@outlook.com'
-        || (exists(/databases/$(database)/documents/users/$(uid)) && get(/databases/$(database)/documents/users/$(uid)).data.role == 'admin')
+        request.auth.uid in ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'] ||
+        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com', 'founder.itconsulting@outlook.com']
       );
+    }
+    
+    // Dynamic admin check (with DB reads) - NOT safe for list queries
+    function isDynamicAdmin() {
+      return isStaticAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isAdmin() {
+      return isStaticAdmin() || isDynamicAdmin();
     }
 
     function getUserData() {
@@ -67,64 +75,66 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow list: if isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com';
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com');
+      allow list: if isStaticAdmin();
+      allow get: if isSignedIn() && (request.auth.uid == userId || isDynamicAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
-      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isAdmin()) ||
-        (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().size() == 0)
+      allow update: if (isDynamicAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId']) && isDynamicAdmin()) ||
+        (request.auth.uid == userId && !isDynamicAdmin() && incoming().diff(existing()).affectedKeys().size() == 0)
       );
     }
 
     match /organizations/{orgId} {
-      allow list: if isAdmin() || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com';
-      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || request.auth.token.email == 'gopal@hirenestworkforce.com' || request.auth.token.email == 'gopalkrishna0046@gmail.com');
+      allow list: if isStaticAdmin();
+      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isDynamicAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
       allow create: if isSignedIn() && isValidOrganization(incoming());
-      allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
+      allow update: if isDynamicAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
     }
 
     match /requirements_public/{reqId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidRequirementPublic(incoming()) && (isOrganizationMember(incoming().clientId) || isAdmin());
-      allow update: if (isAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
-         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility'])) ||
+      allow create: if isSignedIn() && isValidRequirementPublic(incoming()) && (isOrganizationMember(incoming().clientId) || isDynamicAdmin());
+      allow update: if (isDynamicAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
+         (isDynamicAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility'])) ||
          (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills']))
       );
     }
 
     match /requirements_private/{reqId} {
-      allow read: if isAdmin() || (isSignedIn() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
-      allow write: if isAdmin();
+      allow read: if isDynamicAdmin() || (isSignedIn() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isDynamicAdmin();
     }
 
     match /compliance_documents/{docId} {
-      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (isOrganizationMember(incoming().organizationId) || isAdmin());
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isDynamicAdmin());
+      allow create: if isSignedIn() && (isOrganizationMember(incoming().organizationId) || isDynamicAdmin());
     }
 
     match /candidatePool/{candId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId);
-      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+      allow update: if isDynamicAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
     }
 
     match /submissions/{subId} {
-      allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(resource.data.requirementId)).data.clientId));
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (isDynamicAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(resource.data.requirementId)).data.clientId));
       allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId);
-      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+      allow update: if isDynamicAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
     }
 
     match /dealRooms/{roomId} {
-      allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId));
-      allow write: if isAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)));
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (isDynamicAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId));
+      allow write: if isDynamicAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)));
     }
 
     match /dealRooms/{roomId}/messages/{msgId} {
-      allow read, write: if isSignedIn() && (isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
+      allow read, write: if isSignedIn() && (isDynamicAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
     }
 
     match /auditLogs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isDynamicAdmin();
       allow create: if isSignedIn();
     }
   }
