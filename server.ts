@@ -151,27 +151,50 @@ async function startServer() {
   // IMPORTANT: middleware for parsing JSON must come before routes
   app.use(express.json({ limit: '50mb' }));
 
+  // --- Mock Database (Source of Truth for Admin Proxy) ---
+  const db: any = {
+    metrics: {
+      revenue: 1450000,
+      activeDeals: 42,
+      placements: 18,
+      margin: "18%",
+      vendorQuality: 92,
+      recruiterProductivity: 88,
+    },
+    organizations: [
+      { id: "GLOBAL_HQ", name: "Global HQ", type: "client", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0 },
+      { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2 },
+      { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5 }
+    ],
+    users: [
+      { id: "admin-1", email: "admin@hirenest.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() },
+      { id: "gopal-1", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() },
+      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "GLOBAL_HQ", createdAt: new Date().toISOString() }
+    ],
+    requirements: [
+      { id: "REQ-001", clientId: "C-8821", title: "Senior React Developer", skills: ["React", "TypeScript", "Node.js"], status: "Active", rate: "$80/hr", submissions: 5 },
+      { id: "REQ-002", clientId: "C-9012", title: "Data Engineer", skills: ["Python", "SQL", "Snowflake"], status: "Active", rate: "$95/hr", submissions: 2 }
+    ],
+    candidates: [
+      { id: "CAND-101", vendorId: "V-2048", name: "Alex Johnson", skills: ["React", "TypeScript", "Next.js"], matchScore: 94, pipelineStage: "AI Screening", email: "alex.j@example.com" },
+      { id: "CAND-102", vendorId: "V-2048", name: "Maria Garcia", skills: ["React", "Node.js", "Express"], matchScore: 88, pipelineStage: "Client Submission", email: "m.garcia@example.com" }
+    ],
+    submissions: [
+        { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-101", status: "submitted" }
+    ],
+    dealRooms: [
+      { id: "DR-501", requirementId: "REQ-001", client: "C-8821", vendor: "V-2048", candidate: "CAND-101", status: "Active", identitiesRevealed: false },
+    ],
+    messages: [
+      { id: "M-001", dealRoomId: "DR-501", senderRole: "Client", senderId: "C-8821", text: "Candidate resume looks strong.", timestamp: new Date(Date.now() - 3600000).toISOString() }
+    ]
+  };
+
   // --- API Routes ---
   
-  // JSON 404 for API routes
-  app.use('/api', (req, res, next) => {
-    // If we've reached this, no specific /api route matched
-    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
-       // Only apply to these as GET might be handled by static fallback if not careful
-    }
-    next();
-  });
-
-  // --- Admin HQ Data Proxy (Bypasses Client Rules for Super Admins) ---
+  // Admin HQ Data Proxy
   app.get("/api/admin/governance-data", async (req, res) => {
     try {
-      // In a real environment with Firestore Admin SDK, we would use that here.
-      // Since we are using standard Firestore via client-side libraries in this specific template
-      // but running server-side, we can simulate the merge.
-      // If we have live data from the application, return it.
-      
-      // Note: The 'db' here refers to the mock DB defined below in the file.
-      // We will also return empty arrays for collections not present in mock but needed by UI.
       res.json({
         organizations: db.organizations || [],
         users: db.users || [],
@@ -184,13 +207,6 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch governance data" });
     }
   });
-
-  // Ensure the mock db has collections initialized to avoid crashes
-  const db: any = {
-    organizations: [], // Start empty, will be populated if mocked
-    users: [],
-    // ... rest initialized later in file
-  };
 
   app.post("/api/parse-jd", async (req, res) => {
     try {
@@ -340,36 +356,10 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Mock Database
-  const db: any = {
-    metrics: {
-      revenue: 1450000,
-      activeDeals: 42,
-      placements: 18,
-      margin: "18%",
-      vendorQuality: 92,
-      recruiterProductivity: 88,
-    },
-    jobs: [
-      { id: "REQ-001", clientId: "C-8821", title: "Senior React Developer", skills: ["React", "TypeScript", "Node.js"], status: "Active", rate: "$80/hr", submissions: 5 },
-      { id: "REQ-002", clientId: "C-9012", title: "Data Engineer", skills: ["Python", "SQL", "Snowflake"], status: "Active", rate: "$95/hr", submissions: 2 },
-      { id: "REQ-003", clientId: "C-8821", title: "Cloud Architect", skills: ["AWS", "Terraform", "Kubernetes"], status: "Draft", rate: "$120/hr", submissions: 0 }
-    ],
-    candidates: [
-      { id: "CAND-101", vendorId: "V-2048", name: "Alex Johnson", skills: ["React", "TypeScript", "Next.js"], matchScore: 94, pipelineStage: "AI Screening", email: "alex.j@example.com", phone: "+1 555-0101", linkedin: "linkedin.com/in/alexj" },
-      { id: "CAND-102", vendorId: "V-2048", name: "Maria Garcia", skills: ["React", "Node.js", "Express"], matchScore: 88, pipelineStage: "Client Submission", email: "m.garcia@example.com", phone: "+1 555-0102", linkedin: "linkedin.com/in/mgarcia" },
-      { id: "CAND-103", vendorId: "V-998", name: "David Chen", skills: ["Python", "SQL", "Spark"], matchScore: 92, pipelineStage: "Interview Scheduled", email: "david.c@example.com", phone: "+1 555-0103", linkedin: "linkedin.com/in/davidc" },
-      { id: "CAND-104", vendorId: "V-1502", name: "Sarah Williams", skills: ["AWS", "Docker", "Linux"], matchScore: 85, pipelineStage: "Candidate Added", email: "swilliams@example.com", phone: "+1 555-0104", linkedin: "linkedin.com/in/swilliams" },
-    ],
-    dealRooms: [
-      { id: "DR-501", requirementId: "REQ-001", client: "C-8821", vendor: "V-2048", candidate: "CAND-101", status: "Active", identitiesRevealed: false },
-    ],
-    messages: [
-      { id: "M-001", dealRoomId: "DR-501", senderRole: "Client", senderId: "C-8821", text: "Candidate resume looks strong. Can we schedule an interview next week?", timestamp: new Date(Date.now() - 3600000).toISOString() },
-      { id: "M-002", dealRoomId: "DR-501", senderRole: "Vendor", senderId: "V-2048", text: "Absolutely. I will check their availability for Tuesday or Wednesday.", timestamp: new Date(Date.now() - 3000000).toISOString() },
-      { id: "M-003", dealRoomId: "DR-501", senderRole: "AI Copilot", senderId: "AI", text: "I have analyzed Candidate CAND-101's calendar integration. They are open Tue 10am-1pm EST.", timestamp: new Date(Date.now() - 2900000).toISOString() }
-    ]
-  };
+  app.use('/api', (req, res, next) => {
+    // Middleware to ensure JSON for /api errors
+    next();
+  });
 
   app.get("/api/metrics", (req, res) => {
     const { type } = req.query;

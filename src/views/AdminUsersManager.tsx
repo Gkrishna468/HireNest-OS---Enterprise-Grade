@@ -33,21 +33,11 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         const remoteUsers = data.users || [];
         
         setUsers(remoteUsers.map((u: any) => {
-          const org = orgs.find((o: any) => o.id === u.organizationId);
+          const org = orgs.find((o: any) => o.id === (u.organizationId || u.orgId));
           return { ...u, id: u.uid || u.id, org };
         }).filter((u: any) => !u.deleted));
       } else {
-        // Fallback to direct Firestore if API fails
-        const [userSnap, orgSnap] = await Promise.all([
-          getDocs(collection(db, "users")),
-          getDocs(collection(db, "organizations"))
-        ]);
-        const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
-        setUsers(userSnap.docs.map(d => {
-          const u = d.data() as any;
-          const org = orgs.find(o => o.id === u.organizationId);
-          return { id: d.id, ...u, org };
-        }).filter((u: any) => !u.deleted));
+        throw new Error(`Governance API returned ${response.status}`);
       }
     } catch (err: any) {
       console.warn("Governance API failed, attempting Firestore fallback", err);
@@ -63,10 +53,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           return { id: d.id, ...u, org };
         }).filter((u: any) => !u.deleted));
       } catch (fErr) {
-        handleFirestoreError(fErr, OperationType.LIST, "users_and_orgs");
+        console.error("Firestore fallback also failed", fErr);
+        // We don't throw here to ensure finally block runs and UI doesn't hang
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -225,7 +217,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           
           <div className="overflow-auto max-h-[500px]">
             {loading ? (
-              <div className="text-sm text-slate-500">Loading users...</div>
+              <div className="py-20 flex flex-col items-center justify-center border border-slate-100 rounded-xl bg-slate-50/50">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
+                <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">Link established. Syncing identity data...</div>
+              </div>
             ) : (
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
