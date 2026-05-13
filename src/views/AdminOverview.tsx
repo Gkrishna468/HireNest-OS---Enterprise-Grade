@@ -14,7 +14,7 @@ export default function AdminOverview() {
                 getDocs(collection(db, "candidatePool")),
                 getDocs(collection(db, "organizations")),
                 getDocs(collection(db, "dealRooms")),
-                getDocs(collection(db, "requirements")),
+                getDocs(collection(db, "requirements_public")),
             ]);
             setData({
                 candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),

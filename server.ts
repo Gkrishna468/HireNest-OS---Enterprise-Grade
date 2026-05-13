@@ -152,6 +152,56 @@ async function startServer() {
 
   // --- API Routes ---
   
+  // JSON 404 for API routes
+  app.use('/api', (req, res, next) => {
+    // If we've reached this, no specific /api route matched
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+       // Only apply to these as GET might be handled by static fallback if not careful
+    }
+    next();
+  });
+
+  app.post("/api/parse-jd", async (req, res) => {
+    try {
+      const { jdText } = req.body;
+      if (!jdText) return res.status(400).json({ error: "Missing jdText" });
+      
+      // Local Heuristic parsing
+      const doc = nlp(jdText);
+      const title = doc.nouns().toTitleCase().out('array')[0] || "Requirements Specialist";
+      const skills = OSIntelligenceEngine['COMMON_SKILLS'].filter(s => jdText.toLowerCase().includes(s));
+      const expMatch = jdText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+
+      let parsed = {
+        title,
+        description: jdText.slice(0, 150) + "...",
+        skills,
+        experience: expMatch ? expMatch[0] : "Not specified",
+        suggestedBudget: 100, // Default heuristic
+        criticalRequirements: skills.slice(0, 2)
+      };
+
+      if (ai) {
+        try {
+          const prompt = `Extract structured metadata from this Job Description: ${jdText}. Return JSON.`;
+          const result = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+          });
+          const refined = JSON.parse(result.text || "{}");
+          parsed = { ...parsed, ...refined };
+        } catch (e) {
+          console.warn("AI JD enhancement failed, using local result.");
+        }
+      }
+      
+      res.json(parsed);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Endpoint to extract text from PDF/Word
   app.post("/api/extract-text", upload.single('file'), async (req: any, res) => {
     try {
@@ -439,45 +489,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/parse-jd", async (req, res) => {
-    try {
-      const { jdText } = req.body;
-      
-      // Local Heuristic parsing
-      const doc = nlp(jdText);
-      const title = doc.nouns().toTitleCase().out('array')[0] || "Requirements Specialist";
-      const skills = OSIntelligenceEngine['COMMON_SKILLS'].filter(s => jdText.toLowerCase().includes(s));
-      const expMatch = jdText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
 
-      let parsed = {
-        title,
-        description: jdText.slice(0, 150) + "...",
-        skills,
-        experience: expMatch ? expMatch[0] : "Not specified",
-        suggestedBudget: 100, // Default heuristic
-        criticalRequirements: skills.slice(0, 2)
-      };
-
-      if (ai) {
-        try {
-          const prompt = `Extract structured metadata from this Job Description: ${jdText}. Return JSON.`;
-          const result = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: { responseMimeType: "application/json" }
-          });
-          const refined = JSON.parse(result.text || "{}");
-          parsed = { ...parsed, ...refined };
-        } catch (e) {
-          console.warn("AI JD enhancement failed, using local result.");
-        }
-      }
-      
-      res.json(parsed);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
 
   app.post("/api/match-candidates", async (req, res) => {
      try {
@@ -496,6 +508,11 @@ async function startServer() {
      } catch (err: any) {
        res.status(500).json({ error: err.message });
      }
+  });
+
+  // Catch-all for missing API routes to prevent HTML 404
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
   });
 
 
