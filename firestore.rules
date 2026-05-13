@@ -14,11 +14,15 @@ service cloud.firestore {
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
     function isAdmin() {
+      let uid = request.auth.uid;
+      let email = request.auth.token.email;
       return isSignedIn() && (
-        request.auth.uid in ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'] ||
-        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com', 'founder.itconsulting@outlook.com'] ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        uid == '0xpXdzSQE6V92xbnCkiczPHexiU2' || 
+        uid == 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53' ||
+        email == 'gopalkrishna0046@gmail.com' || 
+        email == 'gopal@hirenestworkforce.com' || 
+        email == 'founder.itconsulting@outlook.com'
+        || (exists(/databases/$(database)/documents/users/$(uid)) && get(/databases/$(database)/documents/users/$(uid)).data.role == 'admin')
       );
     }
 

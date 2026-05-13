@@ -7,9 +7,26 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
-// Improved resilience for different module export formats in ESM/CJS interop
-const pdf = (typeof pdfParse === 'function' && pdfParse.name === 'pdf') ? pdfParse : (pdfParse && typeof pdfParse.default === 'function' ? pdfParse.default : pdfParse);
+let pdf;
+try {
+  const pdfImport = require('pdf-parse');
+  console.log("pdf-parse import type:", typeof pdfImport);
+  if (typeof pdfImport === 'function') {
+    pdf = pdfImport;
+  } else if (pdfImport && typeof pdfImport.default === 'function') {
+    pdf = pdfImport.default;
+  } else {
+    console.warn("pdf-parse is not a function, trying manual path...");
+    try {
+      pdf = require('pdf-parse/lib/pdf-parse.js');
+    } catch (e2) {
+      console.error("Manual pdf-parse load failed", e2);
+      pdf = pdfImport; // Fallback to whatever we got
+    }
+  }
+} catch (e) {
+  console.error("Critical: Failed to load pdf-parse", e);
+}
 import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
@@ -276,8 +293,21 @@ async function startServer() {
       const mimetype = req.file.mimetype;
 
       if (mimetype === "application/pdf") {
-        const data = await pdf(req.file.buffer);
-        text = data.text;
+        if (typeof pdf !== 'function') {
+          console.error("PDF Parser initialization details:", { 
+            pdfType: typeof pdf,
+            hasDefault: pdf && typeof (pdf as any).default === 'function'
+          });
+          throw new TypeError("PDF parser is not correctly initialized - please check server logs");
+        }
+        try {
+           console.log("Attempting PDF extraction for buffer size:", req.file.buffer.length);
+           const data = await pdf(req.file.buffer);
+           text = data.text;
+        } catch (extractErr: any) {
+           console.error("Internal PDF-Parse crash:", extractErr);
+           throw new Error(`PDF Parser error: ${extractErr.message}`);
+        }
       } else if (
         mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         mimetype === "application/msword"
@@ -422,7 +452,8 @@ async function startServer() {
     let duplicateReason = "";
 
     // 1. Exact Match Checking
-    for (const cand of db.candidates) {
+    const candidatesToSearch = db.candidatePool || [];
+    for (const cand of candidatesToSearch) {
       if (cand.email && newCandData.email && cand.email.toLowerCase() === newCandData.email.toLowerCase()) {
          highestDuplicateScore = 100;
          duplicateOf = cand.id;
@@ -446,7 +477,7 @@ async function startServer() {
     // 2. Local Semantic Match Checking
     if (highestDuplicateScore === 0 && newCandData.resumeText) {
       try {
-        for (const cand of db.candidates) {
+        for (const cand of candidatesToSearch) {
           if (cand.resumeText) {
             const match = OSIntelligenceEngine.calculateMatch(cand.resumeText, newCandData.resumeText);
             if (match.matchScore > 90) {
@@ -477,15 +508,17 @@ async function startServer() {
       duplicateReason,
       ...req.body
     };
-    db.candidates.push(newCand);
+    if (!db.candidatePool) db.candidatePool = [];
+    db.candidatePool.push(newCand);
     res.json(newCand);
   });
   
   app.put("/api/candidates/:id", (req, res) => {
-    const idx = db.candidates.findIndex(c => c.id === req.params.id);
+    const list = db.candidatePool || [];
+    const idx = list.findIndex((c: any) => c.id === req.params.id);
     if (idx !== -1) {
-      db.candidates[idx] = { ...db.candidates[idx], ...req.body };
-      res.json(db.candidates[idx]);
+      list[idx] = { ...list[idx], ...req.body };
+      res.json(list[idx]);
     } else {
       res.status(404).json({ error: "Candidate not found" });
     }
