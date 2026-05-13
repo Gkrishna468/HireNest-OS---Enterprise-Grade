@@ -188,10 +188,8 @@ async function startServer() {
       { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5, status: "approved" }
     ],
     users: [
-      { id: "admin-1", email: "admin@hirenest.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
       { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-      { id: "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53", email: "founder.itconsulting@outlook.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
+      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
     ],
     requirements_public: [
       { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },

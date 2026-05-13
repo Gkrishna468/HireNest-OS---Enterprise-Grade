@@ -16,8 +16,8 @@ service cloud.firestore {
     // Static admin check (no DB reads) - Safe for list queries
     function isStaticAdmin() {
       return isSignedIn() && (
-        request.auth.uid in ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'] ||
-        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com', 'founder.itconsulting@outlook.com']
+        request.auth.uid == '0xpXdzSQE6V92xbnCkiczPHexiU2' ||
+        request.auth.token.email in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com']
       );
     }
     
