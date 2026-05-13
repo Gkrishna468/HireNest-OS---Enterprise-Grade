@@ -8,9 +8,122 @@ import multer from 'multer';
 // @ts-ignore
 import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
+import nlp from 'compromise';
+import natural from 'natural';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// --- Local OS Intelligence Engine ---
+class OSIntelligenceEngine {
+  public static COMMON_SKILLS = [
+    // Languages & Frameworks
+    "react", "typescript", "javascript", "node.js", "python", "java", "c++", "c#", "go", "rust", "php", "ruby", "swift", "kotlin",
+    "angular", "vue", "next.js", "nest.js", "express", "spring boot", "django", "flask", "laravel", "rails", "flutter", "react native",
+    // Infrastructure & Cloud
+    "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "ansible", "jenkins", "ci/cd", "serverless", "lambda", "ec2", "s3",
+    // Databases
+    "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "dynamodb", "snowflake", "oracle", "mariadb",
+    // Science & Data
+    "pytorch", "tensorflow", "scikit-learn", "pandas", "numpy", "spark", "hadoop", "kafka", "tableau", "powerbi",
+    // UI/UX & Design
+    "figma", "adobe xd", "sketch", "tailwind", "sass", "css3", "html5", "storybook",
+    // Concepts & Tools
+    "graphql", "rest api", "microservices", "agile", "scrum", "git", "jira", "confluence", "trello", "unit testing", "jest", "cypress"
+  ];
+
+  static extractProfile(text: string) {
+    const doc = nlp(text);
+    
+    // Extract Names - Try multiple heuristics
+    const names = doc.people().out('array');
+    let name = "Anonymous Candidate";
+    if (names.length > 0) {
+      name = names[0];
+    } else {
+      // Heuristic: First line that looks like a name (not an email or phone)
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      for (const line of lines) {
+        if (!line.includes('@') && !line.match(/\d{4}/) && line.length > 3 && line.length < 50) {
+           name = line;
+           break;
+        }
+      }
+    }
+
+    // Extract Emails
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const email = emailMatch ? emailMatch[0] : "";
+
+    // Extract Phone
+    const phoneMatch = text.match(/(?:\+?\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/);
+    const phone = phoneMatch ? phoneMatch[0] : "";
+
+    // Extract Skills - Case insensitive and word boundary aware
+    const lowerText = text.toLowerCase();
+    const skills = this.COMMON_SKILLS.filter(skill => {
+      const regex = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      return regex.test(lowerText);
+    });
+    
+    // Extract Experience
+    const expMatch = text.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+    const experience = expMatch ? `${expMatch[1]}+ years` : "Entry Level / Unstated";
+
+    return {
+      name: name.slice(0, 50),
+      email: email.slice(0, 50),
+      phone: phone.slice(0, 30),
+      skills: Array.from(new Set(skills)).slice(0, 15),
+      topExperience: experience,
+      summary: `${name} shows proficiency in ${skills.slice(0, 3).join(", ") || 'various technologies'}.`,
+    };
+  }
+
+  static calculateMatch(jd: string, profileText: string) {
+    const jdSkills = this.COMMON_SKILLS.filter(s => {
+       const regex = new RegExp(`\\b${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+       return regex.test(jd);
+    });
+    const profileSkills = this.COMMON_SKILLS.filter(s => {
+       const regex = new RegExp(`\\b${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+       return regex.test(profileText);
+    });
+    
+    const intersection = jdSkills.filter(s => profileSkills.includes(s));
+    let score = 0;
+    
+    if (jdSkills.length > 0) {
+      score = (intersection.length / jdSkills.length) * 100;
+    } else {
+      // Fallback to text similarity if no specific skills found in JD
+      const tokenizer = new natural.WordTokenizer();
+      const jdTokens = tokenizer.tokenize(jd.toLowerCase());
+      const pTokens = tokenizer.tokenize(profileText.toLowerCase());
+      const common = jdTokens.filter(t => pTokens.includes(t) && t.length > 4);
+      score = Math.min(100, (common.length / 10) * 100);
+    }
+    
+    return {
+      matchScore: Math.round(score),
+      strengths: intersection,
+      gaps: jdSkills.filter(s => !profileSkills.includes(s)),
+      summary: score > 70 ? "Strong technical alignment with requirements." : (score > 40 ? "Partial match with some skill gaps." : "Low technical alignment."),
+    };
+  }
+
+  static generateOutreach(jdTitle: string, candidateName: string, skills: string[]) {
+    const firstName = candidateName.split(' ')[0];
+    const topSkill = skills[0] || "expertise";
+
+    return {
+      founder: `Hi ${firstName}, I'm the founder of HireNest. We're looking for a ${jdTitle} and your background in ${topSkill} really stood out. Would love to chat about our mission.`,
+      professional: `Dear ${candidateName}, I'm reaching out regarding a ${jdTitle} position. Your profile suggests you have the ideal technical stack, specifically in ${skills.slice(0, 2).join(" and ")}.`,
+      executive: `${firstName}, your leadership in ${topSkill} aligns perfectly with our ${jdTitle} opening. We are building a high-performance team and want you involved.`,
+      warm: `Hey ${firstName}! Found your profile while looking for a ${jdTitle}. Love what you've done with ${topSkill}. Let's catch up if you're open to new roles!`
+    };
+  }
+}
 
 // Configure Multer for in-memory storage
 const upload = multer({ storage: multer.memoryStorage() });
@@ -27,6 +140,12 @@ if (process.env.GEMINI_API_KEY) {
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Request Logging
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    next();
+  });
 
   // IMPORTANT: middleware for parsing JSON must come before routes
   app.use(express.json({ limit: '50mb' }));
@@ -66,82 +185,64 @@ async function startServer() {
   // Server-side detailed candidate analysis
   app.post("/api/match-candidates-detailed", async (req, res) => {
     const { jd, candidateProfile } = req.body;
-    if (!ai) return res.status(500).json({ error: "AI not initialized. Check GEMINI_API_KEY." });
-
-    const prompt = `Analyze the match between this Job Description and Candidate Profile.
     
-    JOB DESCRIPTION: ${jd}
-    CANDIDATE PROFILE: ${candidateProfile}
+    // Core Local Intelligence
+    const localResult = OSIntelligenceEngine.calculateMatch(jd, candidateProfile);
+    const doc = nlp(candidateProfile);
+    const name = doc.people().out('array')[0] || "Candidate";
+    const titleMatch = jd.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:Developer|Engineer|Manager|Lead)/);
+    const title = titleMatch ? titleMatch[0] : "Target Role";
     
-    Provide the analysis in JSON format including matchScore (0-100), summary, strengths, gaps, and outreachDrafts (founder, professional, executive, warm).`;
+    const outreach = OSIntelligenceEngine.generateOutreach(title, name, localResult.strengths);
 
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              matchScore: { type: Type.NUMBER },
-              summary: { type: Type.STRING },
-              strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-              gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
-              outreachDrafts: {
-                type: Type.OBJECT,
-                properties: {
-                  founder: { type: Type.STRING },
-                  professional: { type: Type.STRING },
-                  executive: { type: Type.STRING },
-                  warm: { type: Type.STRING }
-                },
-                required: ["founder", "professional", "executive", "warm"]
-              }
-            },
-            required: ["matchScore", "summary", "strengths", "gaps", "outreachDrafts"]
+    // If Gemini is available, we use it to "Refine" the summary and drafts
+    if (ai) {
+      try {
+        const prompt = `Refine this matching assessment for clarity. Keep JSON format.
+        JD: ${jd}
+        Candidate: ${candidateProfile}
+        Current Score: ${localResult.matchScore}`;
+        
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { 
+            responseMimeType: "application/json",
+            responseSchema: {
+               type: Type.OBJECT,
+               properties: {
+                 refinedSummary: { type: Type.STRING },
+                 premiumDrafts: { type: Type.OBJECT, properties: { professional: { type: Type.STRING } } }
+               }
+            }
           }
-        }
-      });
-      res.json(JSON.parse(response.text || "{}"));
-    } catch (err) {
-      console.error("Detailed matching error:", err);
-      res.status(500).json({ error: "AI analysis failed" });
+        });
+        const refined = JSON.parse(response.text || "{}");
+        if (refined.refinedSummary) localResult.summary = refined.refinedSummary;
+      } catch (e) {
+        console.warn("AI Refinement skipped", e);
+      }
     }
+
+    res.json({
+      ...localResult,
+      outreachDrafts: outreach
+    });
   });
 
   // Server-side bulk resume parsing
   app.post("/api/bulk-parse-resumes", async (req, res) => {
     const { resumeTexts } = req.body;
-    if (!ai) return res.status(500).json({ error: "AI not initialized" });
-
-    const prompt = `Parse these ${resumeTexts.length} resumes into basic profile objects. Respond with JSON array.`;
     
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                email: { type: Type.STRING },
-                skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-                topExperience: { type: Type.STRING }
-              }
-            }
-          }
-        }
-      });
-      res.json(JSON.parse(response.text || "[]"));
-    } catch (e) {
-      console.error("Server-side bulk parse error:", e);
-      res.status(500).json({ error: "Bulk parsing failed" });
+    // Use local intelligence to parse instantly
+    const profiles = (resumeTexts as string[]).map(text => OSIntelligenceEngine.extractProfile(text));
+    
+    // Optional AI enhancement for cleaner parsing if available
+    if (ai && profiles.length > 0) {
+       // We could do a batch refine here if we wanted, but local is robust enough for now
     }
+
+    res.json(profiles);
   });
 
   // Trigger Registration Email simulating Resend / SendGrid
@@ -255,36 +356,22 @@ async function startServer() {
       }
     }
 
-    // 2. AI Semantic/Fuzzy Match Checking
-    if (highestDuplicateScore === 0 && ai && newCandData.resumeText) {
+    // 2. Local Semantic Match Checking
+    if (highestDuplicateScore === 0 && newCandData.resumeText) {
       try {
-        const existingData = db.candidates.map(c => ({ id: c.id, name: c.name, email: c.email, skills: c.skills }));
-        const prompt = `You are a Duplicate Prevention Engine for an Applicant Tracking System.
-Compare the incoming candidate against the existing database. Look for semantic similarity in their profile (skills, names, etc.) that might indicate they are the same person despite different emails/phones.
-
-Incoming Candidate: ${JSON.stringify({ name: newCandData.name, email: newCandData.email, skills: newCandData.skills, resumeText: newCandData.resumeText })}
-Existing Candidates: ${JSON.stringify(existingData)}
-
-Return a JSON document (without markdown) matching this schema:
-{ "duplicateScore": number (0-100, where > 85 is likely duplicate), "duplicateOf": "Candidate ID" or null, "reason": "brief explanation" }`;
-
-        const response = await ai.models.generateContent({
-           model: 'gemini-3-flash-preview',
-           contents: prompt
-        });
-        
-        const content = response.text;
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.duplicateScore > highestDuplicateScore && parsed.duplicateScore > 75) {
-                highestDuplicateScore = parsed.duplicateScore;
-                duplicateOf = parsed.duplicateOf;
-                duplicateReason = parsed.reason;
+        for (const cand of db.candidates) {
+          if (cand.resumeText) {
+            const match = OSIntelligenceEngine.calculateMatch(cand.resumeText, newCandData.resumeText);
+            if (match.matchScore > 90) {
+              highestDuplicateScore = match.matchScore;
+              duplicateOf = cand.id;
+              duplicateReason = "High resume similarity detected locally.";
+              break;
             }
+          }
         }
       } catch (err) {
-        console.error("AI Duplicate detection failed", err);
+        console.error("Local duplicate detection failed", err);
       }
     }
 
@@ -355,40 +442,39 @@ Return a JSON document (without markdown) matching this schema:
   app.post("/api/parse-jd", async (req, res) => {
     try {
       const { jdText } = req.body;
-      if (!ai) {
-        return res.status(500).json({ error: "Gemini API config missing" });
-      }
-
-      const prompt = `You are the Intelligence Layer for HireNestOS, an enterprise Staffing ERP.
-Extract structured metadata from the following Job Description.
-
-JD Text:
-${jdText}
-
-Return only a valid JSON object matching this schema:
-{
-  "title": "Professional Job Title",
-  "description": "2-3 sentence summary",
-  "skills": ["Skill 1", "Skill 2", ...],
-  "experience": "e.g. 5+ years",
-  "suggestedBudget": number (estimated monthly or hourly rate based on title if identifiable, otherwise null),
-  "criticalRequirements": ["Req 1", "Req 2"]
-}
-Do not include any other text or markdown.`;
-
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt
-      });
       
-      const content = result.text;
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      // Local Heuristic parsing
+      const doc = nlp(jdText);
+      const title = doc.nouns().toTitleCase().out('array')[0] || "Requirements Specialist";
+      const skills = OSIntelligenceEngine['COMMON_SKILLS'].filter(s => jdText.toLowerCase().includes(s));
+      const expMatch = jdText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+
+      let parsed = {
+        title,
+        description: jdText.slice(0, 150) + "...",
+        skills,
+        experience: expMatch ? expMatch[0] : "Not specified",
+        suggestedBudget: 100, // Default heuristic
+        criticalRequirements: skills.slice(0, 2)
+      };
+
+      if (ai) {
+        try {
+          const prompt = `Extract structured metadata from this Job Description: ${jdText}. Return JSON.`;
+          const result = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+          });
+          const refined = JSON.parse(result.text || "{}");
+          parsed = { ...parsed, ...refined };
+        } catch (e) {
+          console.warn("AI JD enhancement failed, using local result.");
+        }
+      }
       
       res.json(parsed);
-
     } catch (err: any) {
-      console.error("AI Parsing failed", err);
       res.status(500).json({ error: err.message });
     }
   });
@@ -396,25 +482,17 @@ Do not include any other text or markdown.`;
   app.post("/api/match-candidates", async (req, res) => {
      try {
        const { requirement, candidates } = req.body;
-       if (!ai) return res.status(500).json({ error: "Gemini API missing" });
-       
-       const prompt = `Match the following job requirement against these candidate profiles.
-Job: ${JSON.stringify(requirement)}
-Candidates: ${JSON.stringify(candidates)}
-
-For each candidate, provide a matchScore (0-100) and a brief matchReason.
-Return as JSON array: [{ "candidateId": "...", "matchScore": 85, "matchReason": "..." }]`;
-
-       const result = await ai.models.generateContent({
-         model: "gemini-2.0-flash",
-         contents: [{ role: "user", parts: [{ text: prompt }] }]
+       const jd = (requirement.description || "") + " " + (requirement.skills || []).join(" ");
+       const results = (candidates as any[]).map(cand => {
+         const profileText = (cand.name || "") + " " + (cand.skills || []).join(" ") + " " + (cand.resumeText || "");
+         const match = OSIntelligenceEngine.calculateMatch(jd, profileText);
+         return {
+           candidateId: cand.id,
+           matchScore: match.matchScore,
+           matchReason: match.summary
+         };
        });
-
-       const content = result.text;
-       const jsonMatch = content.match(/\[[\s\S]*\]/);
-       const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-       
-       res.json(parsed);
+       res.json(results);
      } catch (err: any) {
        res.status(500).json({ error: err.message });
      }
