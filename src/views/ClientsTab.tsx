@@ -17,12 +17,10 @@ export default function ClientsTab() {
         const response = await fetch('/api/admin/governance-data');
         if (response.ok) {
           const data = await response.json();
-          const orgs = data.organizations || [];
-          setClients(orgs.filter((o: any) => o.type === "client"));
-          
-          // These might be empty if mock DB is used, so we keep them if available
-          if (data.requirements) setJobs(data.requirements);
-          // Submissions aren't in the primary proxy payload yet, but we'll fetch them normally or default
+          const orgs = (data.organizations || []).filter((o: any) => o.type === "client");
+          setClients(orgs);
+          setJobs(data.requirements || []);
+          setSubmissions(data.submissions || []);
         } else {
           const q = query(collection(db, "organizations"), where("type", "==", "client"));
           const snap = await getDocs(q);
@@ -35,10 +33,12 @@ export default function ClientsTab() {
         }
         
         try {
-          const subsSnap = await getDocs(collection(db, "submissions"));
-          setSubmissions(subsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          if (!clients.length) {
+            const subsSnap = await getDocs(collection(db, "submissions"));
+            setSubmissions(subsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
         } catch (sErr) {
-          console.warn("Could not fetch submissions for matching counts");
+          console.warn("Could not fetch submissions for matching counts - likely permission denied for HQ view.");
         }
       } catch (err: any) {
          console.warn("Governance API failed, attempting Firestore fallback", err);

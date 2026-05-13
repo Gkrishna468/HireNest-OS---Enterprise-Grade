@@ -16,9 +16,8 @@ export default function VendorsTab() {
         const response = await fetch('/api/admin/governance-data');
         if (response.ok) {
           const data = await response.json();
-          const orgs = data.organizations || [];
-          setVendors(orgs.filter((o: any) => o.type === "vendor"));
-          
+          const orgs = (data.organizations || []).filter((o: any) => o.type === "vendor");
+          setVendors(orgs);
           if (data.candidates) setCandidates(data.candidates);
         } else {
           const q = query(collection(db, "organizations"), where("type", "==", "vendor"));

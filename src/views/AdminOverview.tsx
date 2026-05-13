@@ -20,7 +20,8 @@ export default function AdminOverview() {
                   candidates: resData.candidates || [],
                   organizations: resData.organizations || [],
                   dealRooms: resData.dealRooms || [],
-                  requirements: resData.requirements || []
+                  requirements: resData.requirements || [],
+                  submissions: resData.submissions || []
               });
             } else {
               // Priority 2: Direct Firestore Fallback

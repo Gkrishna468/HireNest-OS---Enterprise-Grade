@@ -171,7 +171,8 @@ async function startServer() {
     users: [
       { id: "admin-1", email: "admin@hirenest.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
       { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
+      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+      { id: "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53", email: "founder.itconsulting@outlook.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
     ],
     requirements: [
       { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
@@ -192,23 +193,32 @@ async function startServer() {
     ]
   };
 
-  // --- API Routes ---
-  
-  // PRIMARY ADMIN PROXY (MUST BE BEFORE VITE)
+  // --- PRIMARY API HUB (Highest Priority) ---
+
+  // Administrative HQ Sync Proxy
   app.get("/api/admin/governance-data", (req, res) => {
-    console.log(`[HQ SYNC] Request from ${req.ip} for admin governance data`);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [HQ SYNC HUB] Request from ${req.ip}`);
     try {
       return res.json({
         organizations: db.organizations || [],
         users: db.users || [],
         candidates: db.candidates || [],
         requirements: db.requirements || [],
-        submissions: db.submissions || []
+        submissions: db.submissions || [],
+        dealRooms: db.dealRooms || [],
+        metrics: db.metrics || {},
+        lastSync: timestamp
       });
     } catch (err) {
-      console.error("[HQ SYNC ERROR]", err);
-      return res.status(500).json({ error: "Sync failed" });
+      console.error("[HQ SYNC HUB ERROR]", err);
+      return res.status(500).json({ error: "Sync failed", details: String(err) });
     }
+  });
+
+  // Explicit health check
+  app.get("/api/status", (req, res) => {
+    res.json({ status: "online", node_env: process.env.NODE_ENV, timestamp: new Date().toISOString() });
   });
 
   app.post("/api/parse-jd", async (req, res) => {
@@ -399,7 +409,7 @@ async function startServer() {
     res.json(baseMetrics);
   });
   
-  app.get("/api/jobs", (req, res) => res.json(db.jobs));
+  app.get("/api/jobs", (req, res) => res.json(db.requirements));
   
   app.get("/api/candidates", (req, res) => res.json(db.candidates));
   app.post("/api/candidates", async (req, res) => {
