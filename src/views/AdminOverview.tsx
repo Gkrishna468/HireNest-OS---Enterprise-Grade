@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, getDocs, query, limit } from "firebase/firestore";
+import { collection, getDocs, query, limit, doc, setDoc } from "firebase/firestore";
 import { DollarSign, Briefcase, Users, Radio, Activity } from "lucide-react";
 import { Badge } from "../lib/Badge";
 
@@ -55,6 +55,37 @@ export default function AdminOverview() {
     fetchData();
   }, []);
 
+  const handleBootstrap = async () => {
+    if (!window.confirm("This will overwrite/populate your real Firestore with mock Marketplace data. Proceed?")) return;
+    try {
+      const response = await fetch('/api/admin/governance-data');
+      if (!response.ok) throw new Error("Could not fetch mock data from server");
+      const resData = await response.json();
+      
+      const collections = {
+        candidatePool: resData.candidatePool,
+        organizations: resData.organizations,
+        dealRooms: resData.dealRooms,
+        requirements_public: resData.requirements_public,
+        submissions: resData.submissions
+      };
+
+      for (const [colName, items] of Object.entries(collections)) {
+        for (const item of (items as any[])) {
+          const { id, ...rest } = item;
+          // Use doc name from ID if possible, or fallback to auto-id
+          const docRef = doc(collection(db, colName), id || undefined);
+          await setDoc(docRef, { ...rest, updatedAt: new Date().toISOString() }, { merge: true });
+        }
+      }
+      alert("Marketplace Bootstrapped successfully to Production Firestore!");
+      window.location.reload();
+    } catch (err) {
+      console.error("Bootstrap failed", err);
+      alert("Bootstrap failed: " + String(err));
+    }
+  };
+
   return (
     <div className="flex-1 overflow-auto p-6 space-y-6 bg-slate-50">
       <div className="flex items-center justify-between">
@@ -62,9 +93,17 @@ export default function AdminOverview() {
           <h1 className="text-xl font-bold text-slate-800 uppercase tracking-widest">Global Governance Control</h1>
           <p className="text-xs text-slate-500 font-mono">Platform-wide visibility across Marketplace and ERP layers.</p>
         </div>
-        <div className="flex items-center space-x-2 text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
-           <Activity size={12} />
-           <span>System Healthy</span>
+        <div className="flex items-center space-x-3">
+           <button 
+             onClick={handleBootstrap}
+             className="text-[10px] font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-1.5 rounded-md shadow-sm transition-all"
+           >
+             Bootstrap Marketplace to Prod
+           </button>
+           <div className="flex items-center space-x-2 text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
+              <Activity size={12} />
+              <span>System Healthy</span>
+           </div>
         </div>
       </div>
 

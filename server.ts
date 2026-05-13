@@ -16,7 +16,7 @@ try {
 } catch (e) {
   console.error("Critical: Failed to load pdf-parse via require", e);
   // Fallback to dynamic import if require fails in some environments
-  import('pdf-parse').then(module => {
+  import('pdf-parse').then((module: any) => {
     pdf = module.default || module;
     console.log("PDF-Parse loaded via dynamic import fallback");
   }).catch(finalErr => {
@@ -208,8 +208,6 @@ async function startServer() {
   };
 
   // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
-
-  // Administrative HQ Sync Proxy
   app.get("/api/admin/governance-data", (req, res) => {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [HQ SYNC HUB V2] Authorized sync request from ${req.ip}`);
@@ -554,8 +552,6 @@ async function startServer() {
     }
   });
 
-
-
   app.post("/api/match-candidates", async (req, res) => {
      try {
        const { requirement, candidates } = req.body;
@@ -580,7 +576,6 @@ async function startServer() {
     res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
   });
 
-
   // --- VITE / STATIC / SPA FALLBACK ---
   
   if (process.env.NODE_ENV !== "production") {
@@ -591,11 +586,8 @@ async function startServer() {
     
     app.use(vite.middlewares);
     
-    // Explicit SPA fallback for development
     app.get("*", async (req, res, next) => {
-      // Don't fallback for API calls
       if (req.path.startsWith('/api')) return next();
-      
       try {
         const template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
         const html = await vite.transformIndexHtml(req.url, template);
@@ -606,36 +598,25 @@ async function startServer() {
     });
   } else {
     const distPath = path.resolve(process.cwd(), "dist");
-    
-    // Serve static assets from dist
-    app.use(express.static(distPath, {
-      index: false // We handle the root / index explicitly or via catch-all
-    }));
-    
-    // SPA Fallback: ALL non-API / non-Static routes served index.html
+    app.use(express.static(distPath, { index: false }));
     app.get("*", (req, res) => {
-      // Ignore API routes (which should have been handled above or 404'd already)
-      if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: "API route not found" });
-      }
-      
-      // Safety: if the path looks like a file but isn't found, 404 rather than serve HTML
-      if (req.path.includes('.') && !req.path.endsWith('.html')) {
-        return res.status(404).send("File not found");
-      }
-      
+      if (req.path.startsWith('/api')) return res.status(404).json({ error: "API route not found" });
+      if (req.path.includes('.') && !req.path.endsWith('.html')) return res.status(404).send("File not found");
       res.sendFile(path.join(distPath, "index.html"), (err) => {
-        if (err) {
-          console.error("SPA Fallback failed:", err);
-          res.status(500).send("Application load error");
-        }
+        if (err) res.status(500).send("Application load error");
       });
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only start listening if NOT in a serverless environment
+  if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+const expressAppPromise = startServer();
+export default expressAppPromise;
