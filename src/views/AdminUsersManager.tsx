@@ -234,10 +234,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {users.map(u => (
-                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={u.id || u.uid} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3">
                         <div className="font-bold text-slate-800">{u.email}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">Org: {u.org?.companyName || u.organizationId}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">Org: {u.org?.companyName || u.organizationId || 'N/A'}</div>
                       </td>
                       <td className="py-3">
                         <span className={`px-2 py-1 text-[10px] rounded uppercase font-bold tracking-wider ${

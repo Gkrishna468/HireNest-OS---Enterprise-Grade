@@ -12,7 +12,7 @@ export default function AdminOverview() {
     async function fetchData() {
         setLoading(true);
         try {
-            // Priority 1: Administrative HQ Sync Proxy
+            // Priority 1: Administrative HQ Sync Proxy (Bypasses Firestore Rules)
             const response = await fetch('/api/admin/governance-data');
             if (response.ok) {
               const resData = await response.json();
@@ -24,6 +24,7 @@ export default function AdminOverview() {
                   submissions: resData.submissions || []
               });
             } else {
+              console.warn(`Governance API returned ${response.status}, attempting Firestore direct load.`);
               // Priority 2: Direct Firestore Fallback
               const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
                   getDocs(collection(db, "candidatePool")),
@@ -35,26 +36,17 @@ export default function AdminOverview() {
                   candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
                   organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
                   dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
+                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()})),
+                  submissions: []
               });
             }
         } catch (err: any) {
-            console.warn("Governance Sync failed, attempting Firestore fallback", err);
-            try {
-              const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
-                  getDocs(collection(db, "candidatePool")),
-                  getDocs(collection(db, "organizations")),
-                  getDocs(collection(db, "dealRooms")),
-                  getDocs(collection(db, "requirements_public")),
-              ]);
-              setData({
-                  candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()}))
-              });
-            } catch (fErr) {
-               handleFirestoreError(fErr, OperationType.LIST, "admin_overview_collections");
+            console.error("Governance Sync & Firestore fallback failed", err);
+            // We don't throw into handleFirestoreError if we already tried Proxy
+            if (err.name !== 'FirebaseError') {
+               // Likely a network error for the proxy
+            } else {
+               handleFirestoreError(err, OperationType.LIST, "admin_overview_collections");
             }
         } finally {
           setLoading(false);

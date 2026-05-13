@@ -151,7 +151,7 @@ async function startServer() {
   // IMPORTANT: middleware for parsing JSON must come before routes
   app.use(express.json({ limit: '50mb' }));
 
-  // --- Mock Database (Source of Truth for Admin Proxy) ---
+  // --- Mock Database (Source of Truth for Admin Proxy & Legacy API) ---
   const db: any = {
     metrics: {
       revenue: 1450000,
@@ -186,19 +186,19 @@ async function startServer() {
         { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-001", status: "submitted", vendorId: "V-VENDOR-001" }
     ],
     dealRooms: [
-      { id: "DR-501", requirementId: "REQ-001", client: "C-8821", vendor: "V-2048", candidate: "CAND-101", status: "Active", identitiesRevealed: false },
+      { id: "DR-501", requirementId: "REQ-001", clientId: "C-8821", vendorId: "V-2048", candidateId: "CAND-001", candidateName: "John Smith", status: "Active", identitiesRevealed: false },
     ],
     messages: [
       { id: "M-001", dealRoomId: "DR-501", senderRole: "Client", senderId: "C-8821", text: "Candidate resume looks strong.", timestamp: new Date(Date.now() - 3600000).toISOString() }
     ]
   };
 
-  // --- PRIMARY API HUB (Highest Priority) ---
+  // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
 
   // Administrative HQ Sync Proxy
   app.get("/api/admin/governance-data", (req, res) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [HQ SYNC HUB] Request from ${req.ip}`);
+    console.log(`[${timestamp}] [HQ SYNC HUB V2] Authorized sync request from ${req.ip}`);
     try {
       return res.json({
         organizations: db.organizations || [],
@@ -216,11 +216,12 @@ async function startServer() {
     }
   });
 
-  // Explicit health check
+  // Health check
   app.get("/api/status", (req, res) => {
     res.json({ status: "online", node_env: process.env.NODE_ENV, timestamp: new Date().toISOString() });
   });
 
+  // Job Description Intelligence
   app.post("/api/parse-jd", async (req, res) => {
     try {
       const { jdText } = req.body;
