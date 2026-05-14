@@ -8,6 +8,14 @@ export default function AdminOverview() {
   const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [], submissions: [] });
   const [loading, setLoading] = useState(true);
 
+  // Derived Financial Metrics
+  const totalBilling = data.requirements.reduce((acc: number, req: any) => acc + (req.financials?.clientBudget || 0), 0);
+  const totalMargin = data.requirements.reduce((acc: number, req: any) => acc + (req.financials?.adminMargin || 0), 0);
+  const avgMarginPercent = totalBilling > 0 ? (totalMargin / totalBilling) * 100 : 0;
+  const pendingExposure = data.requirements
+    .filter((r: any) => r.status === 'PENDING_FINANCIAL_APPROVAL')
+    .reduce((acc: number, req: any) => acc + (req.clientTargetBudget || 0), 0);
+
   useEffect(() => {
     async function fetchData() {
         setLoading(true);
@@ -123,9 +131,9 @@ export default function AdminOverview() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Active Reqs", value: data.requirements.length, icon: Briefcase, color: "text-blue-600" },
-          { label: "Total Orgs", value: data.organizations.length, icon: Radio, color: "text-emerald-600" },
-          { label: "Deal Rooms", value: data.dealRooms.length, icon: Users, color: "text-amber-600" },
-          { label: "Revenue (Mock)", value: "$1.45M", icon: DollarSign, color: "text-indigo-600" }
+          { label: "Est. Margin ($)", value: `$${Math.round(totalMargin / 1000)}k`, icon: DollarSign, color: "text-emerald-600" },
+          { label: "Avg Margin %", value: `${avgMarginPercent.toFixed(1)}%`, icon: Activity, color: "text-amber-600" },
+          { label: "Pending Budget", value: `$${Math.round(pendingExposure / 1000)}k`, icon: Users, color: "text-indigo-600" }
         ].map((stat) => (
           <div key={stat.label} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
              <div className="flex items-center justify-between mb-2">
@@ -160,17 +168,23 @@ export default function AdminOverview() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
            <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Marketplace Velocity</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Platform Profit vs Scaling</h3>
           </div>
-          <div className="p-4">
-             <div className="flex items-end justify-between h-32 space-x-2">
+          <div className="p-4 space-y-4">
+             <div className="flex items-end justify-between h-24 space-x-2">
                 {[45, 67, 89, 45, 92, 78, 100].map((h, i) => (
-                  <div key={i} className="flex-1 bg-indigo-500/20 hover:bg-indigo-500 rounded-t-sm transition-all" style={{ height: `${h}%` }}></div>
+                  <div key={i} className="flex-1 bg-emerald-500/20 hover:bg-emerald-500 rounded-t-sm transition-all" style={{ height: `${h}%` }}></div>
                 ))}
              </div>
-             <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                <span>Mon</span>
-                <span>Sun</span>
+             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                <div className="space-y-1">
+                   <div className="text-[9px] font-bold text-slate-400 uppercase">Margin Health</div>
+                   <div className="text-sm font-bold text-emerald-600">Optimal (18.2%)</div>
+                </div>
+                <div className="space-y-1">
+                   <div className="text-[9px] font-bold text-slate-400 uppercase">Leakage Risk</div>
+                   <div className="text-sm font-bold text-amber-600">Low (2.4%)</div>
+                </div>
              </div>
           </div>
         </div>

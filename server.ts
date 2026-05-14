@@ -51,6 +51,47 @@ Return your assessment in the following JSON format:
   "nextSteps": "Concrete recruiter action item"
 }`;
 
+// --- Margin Governance Engine ---
+class MarginEngine {
+  static calculate(clientBudget: number, config: any, vendorScore: number = 90): any {
+    let vendorPayout = 0;
+    let platformProfit = 0;
+
+    if (config.type === 'PERCENTAGE') {
+      platformProfit = clientBudget * (config.value / 100);
+      vendorPayout = clientBudget - platformProfit;
+    } else if (config.type === 'FIXED') {
+      platformProfit = config.value;
+      vendorPayout = clientBudget - platformProfit;
+    } else if (config.type === 'TIERED') {
+      // Logic: Higher vendor score = Lower platform margin (Vendor loyalty bonus)
+      const marginPercent = vendorScore > 90 ? 10 : (vendorScore > 70 ? 15 : 20);
+      platformProfit = clientBudget * (marginPercent / 100);
+      vendorPayout = clientBudget - platformProfit;
+    } else {
+      // Dynamic AI Placeholder
+      platformProfit = clientBudget * 0.18;
+      vendorPayout = clientBudget - platformProfit;
+    }
+
+    return {
+      clientBudget,
+      adminMargin: Math.round(platformProfit),
+      vendorPayout: Math.round(vendorPayout),
+      platformProfit: Math.round(platformProfit),
+      marginConfig: config
+    };
+  }
+
+  static sanitizeForVendor(requirement: any) {
+    const { clientBudget, adminMargin, platformProfit, ...sanitized } = requirement;
+    return {
+      ...sanitized,
+      rate: requirement.vendorPayout ? `$${requirement.vendorPayout}/hr` : requirement.rate
+    };
+  }
+}
+
 // --- Local OS Intelligence Engine ---
 class OSIntelligenceEngine {
   public static COMMON_SKILLS = [
@@ -235,8 +276,20 @@ const dbMock: any = {
     { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
   ],
   requirements_public: [
-    { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
-    { id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], status: "PUBLISHED", rate: "$120/hr", submissions: 5, createdAt: new Date().toISOString() }
+    { 
+      id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], 
+      status: "PUBLISHED", rate: "$120/hr", submissions: 8, createdAt: new Date().toISOString(),
+      financials: { clientBudget: 150, platformProfit: 30, vendorPayout: 120, marginConfig: { type: 'FIXED', value: 30 } }
+    },
+    { 
+      id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], 
+      status: "PUBLISHED", rate: "$100/hr", submissions: 5, createdAt: new Date().toISOString(),
+      financials: { clientBudget: 125, platformProfit: 25, vendorPayout: 100, marginConfig: { type: 'PERCENTAGE', value: 20 } }
+    },
+    {
+      id: "REQ-003", clientId: "C-CLIENT-001", title: "DevOps Engineer", skills: ["Docker", "Jenkins"],
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 140, createdAt: new Date().toISOString()
+    }
   ],
   candidatePool: [
     { id: "CAND-001", vendorId: "V-VENDOR-001", name: "John Smith", skills: ["Go", "Kubernetes"], matchScore: 95, pipelineStage: "Interviewing", email: "jsmith@example.com", createdAt: new Date().toISOString() },
@@ -272,10 +325,15 @@ async function startServer() {
 
     try {
       const isAdmin = role === 'admin' || orgId === 'ORG-GLOBAL-HQ';
+      const isVendor = role === 'vendor';
       
-      const requirements = (dbMock.requirements_public || []).filter((r: any) => 
+      let requirements = (dbMock.requirements_public || []).filter((r: any) => 
         isAdmin || r.clientId === orgId || r.visibility === 'VENDOR_NETWORK'
       );
+
+      if (isVendor) {
+        requirements = requirements.map(MarginEngine.sanitizeForVendor);
+      }
 
       const dealRooms = (dbMock.dealRooms || []).filter((dr: any) => 
         isAdmin || dr.clientId === orgId || dr.vendorId === orgId

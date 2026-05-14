@@ -232,25 +232,39 @@ export default function JobsTab() {
     setIsEditing(null);
   };
 
-  const handleApproveMargin = async (req: any, actualBudget: number, margin: number) => {
+  const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE') => {
     try {
-      const vendorVisible = actualBudget - margin;
+      const platformProfit = marginType === 'PERCENTAGE' ? (actualBudget * (marginValue / 100)) : marginValue;
+      const vendorVisible = actualBudget - platformProfit;
+      
+      const financials = {
+        clientBudget: actualBudget,
+        clientCurrency: "USD",
+        adminMargin: platformProfit,
+        vendorPayout: vendorVisible,
+        platformProfit: platformProfit,
+        marginConfig: { type: marginType, value: marginValue }
+      };
+
       await updateDoc(doc(db, "requirements_public", req.id), {
         status: "PUBLISHED",
         visibility: "VENDOR_NETWORK",
-        vendorVisibleBudget: vendorVisible,
-        adminApproved: true
+        vendorVisibleBudget: vendorVisible, // Historically used for simple view
+        rate: `$${vendorVisible}/hr`,
+        adminApproved: true,
+        financials: financials // New rich structure
       });
+
+      // Keep private copy for sensitive audit
       await setDoc(doc(db, "requirements_private", req.id), {
         requirementId: req.id,
-        actualClientBudget: actualBudget,
-        platformMargin: margin,
-        marginType: "fixed",
+        ...financials,
         updatedAt: serverTimestamp()
       });
+
       setShowApprovalModal(null);
     } catch (e) {
-      console.error("Approval failed", e);
+      console.error("Governance engine failure", e);
     }
   };
 
@@ -679,33 +693,71 @@ export default function JobsTab() {
         )}
       </div>
 
-      {/* Approval Modal (Existing) */}
+      {/* Approval Modal (Margin Governance) */}
       {showApprovalModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-96 space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800">Margin Control</h2>
-              <Button variant="ghost" size="sm" onClick={() => setShowApprovalModal(null)}>×</Button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Margin Governance Console</h2>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">REQ: {showApprovalModal.requirementId}</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setShowApprovalModal(null)} className="h-8 w-8 rounded-full"><X size={16}/></Button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Actual Client Budget ($)</label>
-                <input id="actualBudget" type="number" className="w-full p-2 border border-slate-200 rounded text-sm mt-1" defaultValue={100} />
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Client Billing ($)</label>
+                  <div className="relative">
+                    <DollarSign size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input id="actualBudget" type="number" className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Margin Type</label>
+                  <select id="marginType" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                    <option value="PERCENTAGE">Percentage (%)</option>
+                    <option value="FIXED">Flat Fee ($)</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Platform Margin ($)</label>
-                <input id="platformMargin" type="number" className="w-full p-2 border border-slate-200 rounded text-sm mt-1" defaultValue={10} />
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Margin Value</label>
+                <input id="platformMargin" type="number" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={15} placeholder="e.g., 15 for 15% or 20 for $20" />
               </div>
-              <Button 
-                onClick={() => {
-                  const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
-                  const margin = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
-                  handleApproveMargin(showApprovalModal, budget, margin);
-                }}
-                className="w-full bg-indigo-600 text-white text-xs font-bold py-2 rounded-lg"
-              >
-                Approve & Publish to Marketplace
-              </Button>
+
+              <div className="bg-indigo-900 rounded-xl p-4 text-white shadow-lg shadow-indigo-200/50">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-3">Profit Simulation</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-indigo-400">Target Payout to Vendor</span>
+                    <span className="font-mono font-bold text-emerald-400">CALCULATED AT RUNTIME</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-black pt-2 border-t border-indigo-800">
+                    <span>Est. Platform Profit</span>
+                    <span className="text-indigo-300">$--.--</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button 
+                  onClick={() => {
+                    const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
+                    const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
+                    const type = (document.getElementById('marginType') as HTMLSelectElement).value as any;
+                    handleApproveMargin(showApprovalModal, budget, val, type);
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 rounded-xl shadow-xl shadow-indigo-100 uppercase tracking-widest text-xs transition-all active:scale-[0.98]"
+                >
+                  Confirm & Release to Vendor Network
+                </Button>
+                <p className="text-[9px] text-center text-slate-400 mt-3 italic">
+                  * This action will sanitize all financial data before vendor distribution.
+                </p>
+              </div>
             </div>
           </div>
         </div>

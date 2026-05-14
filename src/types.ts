@@ -23,6 +23,22 @@ export interface MatchBreakdown {
   totalScore: number;
 }
 
+export interface MarginConfig {
+  type: 'FIXED' | 'PERCENTAGE' | 'TIERED' | 'DYNAMIC';
+  value: number;
+  fixedAmount?: number;
+  percentage?: number;
+}
+
+export interface Financials {
+  clientBudget: number;
+  clientCurrency: string;
+  adminMargin: number;
+  vendorPayout: number;
+  platformProfit: number;
+  marginConfig: MarginConfig;
+}
+
 export interface HybridMatchResult {
   candidateId: string;
   requirementId: string;
