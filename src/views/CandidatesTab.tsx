@@ -93,22 +93,30 @@ export default function CandidatesTab() {
       const splitResumes = bulkText.split('---').map(r => r.trim()).filter(r => r.length > 10);
       const parsedProfiles = await parseBulkResumes(splitResumes);
       
+      if (!parsedProfiles || parsedProfiles.length === 0) {
+        throw new Error("No candidates were successfully parsed. Ensure resumes were separated by '---'.");
+      }
+
+      let count = 0;
       for (const profile of parsedProfiles) {
         const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
         await setDoc(doc(db, "candidatePool", candId), {
           ...profile,
           candidateId: candId,
           vendorId: userOrgId,
-          matchScore: Math.floor(Math.random() * 30) + 60,
+          matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
           pipelineStage: "Candidate Added",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+        count++;
       }
       setBulkText("");
       setShowBulkUpload(false);
-    } catch (e) {
+      alert(`Successfully added ${count} candidates to your pool.`);
+    } catch (e: any) {
       console.error("Bulk upload failed", e);
+      alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
     setIsBulkProcessing(false);
   };

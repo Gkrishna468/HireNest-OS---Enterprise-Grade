@@ -80,7 +80,12 @@ export default function JobsTab() {
 
       // Real-time fallback
       const q = collection(db, "requirements_public");
-      const requirementsQuery = userRole === 'admin' ? q : query(q, where("clientId", "==", orgId));
+      const isVendor = userRole?.includes('vendor');
+      const requirementsQuery = isAdmin 
+        ? q 
+        : (isVendor 
+            ? query(q, where("visibility", "==", "VENDOR_NETWORK")) 
+            : query(q, where("clientId", "==", orgId)));
 
       unsubscribe = onSnapshot(requirementsQuery, (snap) => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -275,7 +280,7 @@ export default function JobsTab() {
         marginConfig: { type: marginType, value: marginValue }
       };
 
-      // USE SECURE API FOR APPROVAL
+      // 1. USE SECURE API FOR APPROVAL (for HQ logic/metrics)
       const res = await fetch("/api/admin/approve-requirement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,8 +289,18 @@ export default function JobsTab() {
 
       if (!res.ok) throw new Error("Approval API failed");
 
+      // 2. UPDATE REAL FIRESTORE (for real-time consistency)
+      await updateDoc(doc(db, "requirements_public", req.id), {
+        status: "PUBLISHED",
+        visibility: "VENDOR_NETWORK",
+        adminApproved: true,
+        financials,
+        updatedAt: serverTimestamp()
+      });
+
       setShowApprovalModal(null);
       setSelectedJob(null);
+      alert("Requirement approved and released to Global OS.");
     } catch (e: any) {
       console.error("Governance engine failure", e.message);
       alert("Governance Error: " + e.message);

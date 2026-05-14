@@ -89,7 +89,14 @@ const dbMock: any = {
 // --- AI Init ---
 let ai: any = null;
 if (process.env.GEMINI_API_KEY) {
-    ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    ai = new GoogleGenAI({ 
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
 }
 
 // --- Server Setup ---
@@ -97,14 +104,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   
-  // ... (rest of the middleware)
-  
   app.use((req, res, next) => {
     console.log(`[REQ] ${req.method} ${req.path}`);
     next();
   });
 
   app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // --- API ROUTES ---
 
@@ -188,11 +194,12 @@ async function startServer() {
     
     if (ai) {
        try {
-         const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
          const prompt = `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`;
-         const result = await model.generateContent(prompt);
-         const response = await result.response;
-         analysis = response.text();
+         const response = await ai.models.generateContent({
+           model: "gemini-3-flash-preview",
+           contents: prompt
+         });
+         analysis = response.text || analysis;
        } catch (err) {
          console.warn("[STRATEGY] AI deferred", err);
        }
@@ -221,8 +228,6 @@ async function startServer() {
     const { requirementId, skills } = req.query;
     console.log(`[MATCHING] Running global search for REQ: ${requirementId}`);
     
-    // In a real app, this searches the cross-vendor pool
-    // We'll simulate by returning candidates from dbMock.candidatePool that have matching skills
     const skillList = String(skills || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     
     let matches = dbMock.candidatePool.map((c: any) => {
@@ -231,9 +236,7 @@ async function startServer() {
       return { ...c, matchScore: score, isGlobalMatch: true };
     });
 
-    // Filter to reasonably high scores
     matches = matches.filter((m: any) => m.matchScore > 70);
-    
     res.json({ matches: matches.sort((a: any, b: any) => b.matchScore - a.matchScore) });
   });
 
@@ -251,6 +254,78 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.post("/api/match-candidates-detailed", async (req, res) => {
+    const { jd, candidateProfile } = req.body;
+    let result = {
+      matchScore: 0,
+      summary: "Detailed matching currently simulated.",
+      strengths: ["Matching skills found"],
+      gaps: ["Verify location"],
+      outreachDrafts: {
+        founder: "Hey, I saw your profile and it looks like a great fit for our mission-driven team.",
+        professional: "Dear Candidate, we believe your background aligns well with our current requirements.",
+        executive: "We have an opening for a senior role that fits your leadership profile.",
+        warm: "Hi! Loved your recent projects. Let's talk about how you can contribute here."
+      }
+    };
+
+    if (ai) {
+      try {
+        const prompt = `Analyze this JD and Candidate Profile. Return a JSON object with: 
+        matchScore (number 0-100), 
+        summary (string), 
+        strengths (array of strings), 
+        gaps (array of strings), 
+        outreachDrafts (object with keys: founder, professional, executive, warm).
+        JD: ${jd}
+        Profile: ${candidateProfile}`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
+        });
+        
+        if (response.text) {
+          result = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+        }
+      } catch (e) {
+        console.warn("[AI MATCH] Error", e);
+      }
+    }
+    res.json(result);
+  });
+
+  app.post("/api/bulk-parse-resumes", async (req, res) => {
+    const { resumeTexts } = req.body;
+    let results = (resumeTexts || []).map((t: string) => ({ 
+      name: "Parsed Candidate", 
+      email: "parsed@example.com", 
+      skills: ["General Skills"],
+      resumeText: t 
+    }));
+
+    if (ai && resumeTexts?.length > 0) {
+      try {
+        const prompt = `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
+        Resumes: ${JSON.stringify(resumeTexts)}`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
+        });
+
+        if (response.text) {
+          results = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+        }
+      } catch (e) {
+        console.warn("[AI BULK] Error", e);
+      }
+    }
+    res.json(results);
+  });
+
   const upload = multer({ storage: multer.memoryStorage() });
 
   app.post("/api/extract-text", upload.single('file'), async (req: Request, res: Response) => {
@@ -261,8 +336,12 @@ async function startServer() {
       let text = "";
 
       if (filename.endsWith(".pdf")) {
-        const data = await pdf(anyReq.file.buffer);
-        text = data.text;
+        if (typeof pdf === 'function') {
+           const data = await pdf(anyReq.file.buffer);
+           text = data.text;
+        } else {
+           throw new Error("PDF parser not initialized");
+        }
       } else if (filename.endsWith(".docx")) {
         const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
         text = result.value;
@@ -272,7 +351,7 @@ async function startServer() {
       res.json({ text });
     } catch (err: any) {
       console.error("[EXTRACT ERROR]", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Extraction Failed", message: err.message });
     }
   });
 
@@ -282,14 +361,15 @@ async function startServer() {
     
     if (ai) {
       try {
-        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
         const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`;
-        const genResult = await model.generateContent(prompt);
-        const response = await genResult.response;
-        const text = response.text();
-        const jsonMatch = text.match(/\{.*\}/s);
-        if (jsonMatch) {
-            result = { ...result, ...JSON.parse(jsonMatch[0]) };
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
+        });
+        if (response.text) {
+          const parsed = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+          result = { ...result, ...parsed };
         }
       } catch (err) {
         console.warn("[PARSE-AI] Deferred", err);
@@ -298,12 +378,16 @@ async function startServer() {
     res.json(result);
   });
 
+  // --- API CATCH-ALL ---
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: "Endpoint not found", path: req.path, method: req.method });
+  });
+
   // --- VITE / SPA FALLBACK ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
     app.get("*", async (req, res, next) => {
-      if (req.path.startsWith('/api')) return next();
       try {
         const template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
         const html = await vite.transformIndexHtml(req.url, template);
@@ -316,7 +400,6 @@ async function startServer() {
     const distPath = path.resolve(process.cwd(), "dist");
     app.use(express.static(distPath, { index: false }));
     app.get("*", (req, res) => {
-      if (req.path.startsWith('/api')) return res.status(404).json({ error: "API not found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
@@ -324,7 +407,13 @@ async function startServer() {
   // --- GLOBAL ERROR HANDLER ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error("[FATAL ERROR]", err);
-    res.status(500).json({ error: "Internal Server Error", message: err.message, path: req.path });
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: "Internal Server Error", 
+        message: err.message || "An unexpected error occurred", 
+        path: req.path 
+      });
+    }
   });
 
   app.listen(PORT, "0.0.0.0", () => {
@@ -334,5 +423,9 @@ async function startServer() {
   return app;
 }
 
-const expressAppPromise = startServer();
-export default expressAppPromise;
+const appPromise = startServer().catch(err => {
+  console.error("[STARTUP FATAL]", err);
+  process.exit(1);
+});
+
+export default appPromise;
