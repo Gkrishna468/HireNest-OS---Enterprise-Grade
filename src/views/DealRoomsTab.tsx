@@ -41,9 +41,10 @@ export default function DealRoomsTab() {
 
     // Listen to Deal Rooms
     const loadDealRooms = async () => {
+      if (!orgId) return;
       try {
-        // Try Proxy FIRST (Zero-Permission Bypass for HQ)
-        const response = await fetch('/api/admin/governance-data');
+        // Try Proxy FIRST (Filtered by user context)
+        const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
         if (response.ok) {
            const resData = await response.json();
            if (resData.dealRooms) {

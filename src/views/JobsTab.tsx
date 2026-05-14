@@ -6,7 +6,10 @@ import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
 import { analyzeCandidateMatch, CandidateMatchResult } from "../services/aiService";
 
+import { useNavigate } from "react-router-dom";
+
 export default function JobsTab() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [jdText, setJdText] = useState("");
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
@@ -51,23 +54,28 @@ export default function JobsTab() {
 
     // Listen to Requirements
     const loadRequirements = async () => {
+        if (!orgId) return;
         try {
-            // PROXY FIRST
-            const response = await fetch('/api/admin/governance-data');
+            // PROXY FIRST (Filtered by orgId)
+            const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
             if (response.ok) {
                 const resData = await response.json();
-                if (resData.requirements_public) {
-                    setJobs(resData.requirements_public.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                if (resData.requirements) {
+                    setJobs(resData.requirements.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                     return;
                 }
             }
         } catch (e) {
-            console.warn("Requirements Sync Proxy failed");
+            console.warn("Requirements User Context Proxy failed");
         }
 
-        // Fallback to Firestore
-        const q = collection(db, "requirements_public");
-        const unsubscribe = onSnapshot(q, (snap) => {
+        // Fallback to Firestore with Data Isolation
+        let q = collection(db, "requirements_public");
+        
+        // If not admin, restrict to own organization
+        const requirementsQuery = isAdmin ? q : query(q, where("clientId", "==", orgId));
+
+        const unsubscribe = onSnapshot(requirementsQuery, (snap) => {
           const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setJobs(data.sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds));
         }, (error) => {
@@ -260,11 +268,11 @@ export default function JobsTab() {
       timestamp: serverTimestamp()
     });
 
-    alert("Deal Room Created! Redirecting to Deals...");
+    navigate("/deals");
   };
 
   const isAdmin = userRole === 'admin';
-  const isClient = currentUserState?.org?.type === 'client' || userRole === 'client';
+  const isClient = userRole === 'client' || userRole?.startsWith('client_');
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">

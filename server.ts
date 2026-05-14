@@ -207,6 +207,36 @@ async function startServer() {
   // IMPORTANT: middleware for parsing JSON must come before routes
   app.use(express.json({ limit: '50mb' }));
 
+  app.get("/api/user/context", (req, res) => {
+    const { orgId, role } = req.query;
+    if (!orgId) return res.status(400).json({ error: "orgId required" });
+
+    try {
+      const isAdmin = role === 'admin' || orgId === 'ORG-GLOBAL-HQ';
+      
+      const requirements = (dbMock.requirements_public || []).filter((r: any) => 
+        isAdmin || r.clientId === orgId || r.visibility === 'VENDOR_NETWORK'
+      );
+
+      const dealRooms = (dbMock.dealRooms || []).filter((dr: any) => 
+        isAdmin || dr.clientId === orgId || dr.vendorId === orgId
+      );
+
+      const submissions = (dbMock.submissions || []).filter((s: any) => 
+        isAdmin || s.clientId === orgId || s.vendorId === orgId
+      );
+
+      res.json({
+        requirements,
+        dealRooms,
+        submissions,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch user context" });
+    }
+  });
+
   // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
   app.get("/api/admin/governance-data", (req, res) => {
     const timestamp = new Date().toISOString();

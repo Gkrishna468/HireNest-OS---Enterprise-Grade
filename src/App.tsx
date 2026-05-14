@@ -16,6 +16,8 @@ import AdminOverview from "./views/AdminOverview";
 import ClientsTab from "./views/ClientsTab";
 import VendorsTab from "./views/VendorsTab";
 
+import WelcomeDemo from "./components/WelcomeDemo";
+
 // Global auth context simulation
 export let currentUserState: { user: any; org: any } | null = null;
 
@@ -29,7 +31,7 @@ function Sidebar({ org, user }: { org: any, user: any }) {
 
   const navItems = [
     { name: "Dashboard", path: isAdmin ? "/admin-overview" : (isClient ? "/clients" : "/vendors"), icon: "▤", visible: true },
-    { name: "Requirements", path: "/jobs", icon: "⌘", visible: true },
+    { name: "Jobs Center", path: "/jobs", icon: "⌘", visible: true },
     { name: "Candidates", path: "/candidates", icon: "👥", visible: isAdmin || isVendor },
     { name: "Deal Rooms", path: "/deals", icon: "💬", visible: true },
     { name: "Manage Clients", path: "/admin/clients", icon: "🏢", visible: isAdmin },
@@ -238,9 +240,35 @@ export default function App() {
   }
 
   const { org } = authState.authData;
+  const [showDemo, setShowDemo] = useState(false);
+
+  useEffect(() => {
+    // Strategic Onboarding Check
+    const checkDemo = async () => {
+        if (!authState.authData) return;
+        const seenKey = `seen_demo_${authState.authData.user.uid}`;
+        if (!localStorage.getItem(seenKey)) {
+            setShowDemo(true);
+        }
+    };
+    checkDemo();
+  }, [authState.authData]);
+
+  const handleCloseDemo = () => {
+      if (authState.authData) {
+          localStorage.setItem(`seen_demo_${authState.authData.user.uid}`, 'true');
+      }
+      setShowDemo(false);
+  };
 
   return (
     <BrowserRouter>
+      {showDemo && org.type !== 'admin' && (
+          <WelcomeDemo 
+            type={org.type as 'client' | 'vendor'} 
+            onClose={handleCloseDemo} 
+          />
+      )}
       <div className="flex flex-col h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
         <TopBar orgData={org} />
         <div className="flex flex-1 overflow-hidden">
