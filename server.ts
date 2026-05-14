@@ -93,6 +93,29 @@ if (process.env.GEMINI_API_KEY) {
     });
 }
 
+// --- AI Utils ---
+async function withAIRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 2000): Promise<T> {
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const isRetryable = err.status === 503 || 
+                         err.status === 429 || 
+                         (err.message && (err.message.includes("503") || err.message.includes("high demand") || err.message.includes("429")));
+      
+      if (isRetryable && i < maxRetries - 1) {
+        console.log(`[AI RETRY] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 // --- Server Setup ---
 async function startServer() {
   const app = express();
@@ -100,14 +123,21 @@ async function startServer() {
 
   // --- Dependency Onboarding ---
   try {
-    const pp = await import('pdf-parse') as any;
-    pdfParse = pp.default || pp;
-    console.log("[DEP] PDF-Parse loaded (ESM)");
+    // Use require for pdf-parse as it's more reliable for this older package even in ESM
+    const pp = require('pdf-parse');
+    if (typeof pp === 'function') {
+      pdfParse = pp;
+    } else if (pp && typeof pp.default === 'function') {
+      pdfParse = pp.default;
+    } else {
+      pdfParse = pp; // Last resort
+    }
+    console.log("[DEP] PDF-Parse initialized, type:", typeof pdfParse);
   } catch (e) {
+    console.warn("[DEP] PDF-Parse fallback to import...");
     try {
-      const pp = require('pdf-parse');
-      pdfParse = typeof pp === 'function' ? pp : (pp.default || pp);
-      console.log("[DEP] PDF-Parse loaded (CJS)");
+      const pp = await import('pdf-parse') as any;
+      pdfParse = pp.default || pp;
     } catch (e2) {
       console.warn("[DEP] PDF-Parse engine offline");
     }
@@ -115,13 +145,14 @@ async function startServer() {
 
   try {
     // @ts-ignore
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
     pdfjsLib = pdfjs;
-    console.log("[DEP] PDFJS-Dist loaded");
+    console.log("[DEP] PDFJS-Dist initialized");
   } catch (e) {
     try {
-        pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-        console.log("[DEP] PDFJS-Dist loaded (require)");
+        // @ts-ignore
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+        pdfjsLib = pdfjs.default || pdfjs;
     } catch (e2) {
         console.warn("[DEP] PDFJS fallback engine offline");
     }
@@ -224,9 +255,11 @@ async function startServer() {
     
     if (ai) {
        try {
-         const response = await ai.models.generateContent({
-           model: "gemini-3-flash-preview",
-           contents: `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`,
+         const response = await withAIRetry(async () => {
+           return await ai.models.generateContent({
+             model: "gemini-3-flash-preview",
+             contents: `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`
+           });
          });
          analysis = response.text || analysis;
        } catch (err) {
@@ -333,21 +366,23 @@ async function startServer() {
 
     if (ai) {
       try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Analyze this JD and Candidate Profile. Return a JSON object with: 
-          matchScore (number 0-100), 
-          breakdown (object with: skillsScore, experienceScore, domainScore, locationScore, bonusScore, totalScore),
-          summary (string), 
-          strengths (array of strings), 
-          gaps (array of strings), 
-          recruiterAssessment (string),
-          recommendation (one of: STRONG_FIT, CONSIDER, NOT_SUITABLE),
-          nextSteps (string),
-          outreachDrafts (object with keys: founder, professional, executive, warm).
-          JD: ${jd}
-          Profile: ${candidateProfile}`,
-          config: { responseMimeType: "application/json" }
+        const response = await withAIRetry(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Analyze this JD and Candidate Profile. Return a JSON object with: 
+              matchScore (number 0-100), 
+              breakdown (object with: skillsScore, experienceScore, domainScore, locationScore, bonusScore, totalScore),
+              summary (string), 
+              strengths (array of strings), 
+              gaps (array of strings), 
+              recruiterAssessment (string),
+              recommendation (one of: STRONG_FIT, CONSIDER, NOT_SUITABLE),
+              nextSteps (string),
+              outreachDrafts (object with keys: founder, professional, executive, warm).
+              JD: ${jd}
+              Profile: ${candidateProfile}`,
+            config: { responseMimeType: "application/json" }
+          });
         });
         
         if (response.text) {
@@ -376,12 +411,14 @@ async function startServer() {
 
     if (ai && resumeTexts?.length > 0) {
       try {
-         const response = await ai.models.generateContent({
-           model: "gemini-3-flash-preview",
-           contents: `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
-           Resumes: ${JSON.stringify(resumeTexts)}`,
-           config: { responseMimeType: "application/json" }
-         });
+        const response = await withAIRetry(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
+              Resumes: ${JSON.stringify(resumeTexts)}`,
+            config: { responseMimeType: "application/json" }
+          });
+        });
 
         if (response.text) {
           results = JSON.parse(response.text.replace(/```json|```/g, "").trim());
@@ -509,10 +546,12 @@ async function startServer() {
     
     if (ai) {
       try {
-        const response = await ai.models.generateContent({
-           model: "gemini-3-flash-preview",
-           contents: `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`,
-           config: { responseMimeType: "application/json" }
+        const response = await withAIRetry(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`,
+            config: { responseMimeType: "application/json" }
+          });
         });
         
         if (response.text) {
@@ -521,6 +560,38 @@ async function startServer() {
         }
       } catch (err) {
         console.warn("[PARSE-AI] Deferred", err);
+      }
+    }
+    res.json(result);
+  });
+
+  app.post("/api/deal/intelligence", async (req, res) => {
+    const { profile, jd, type } = req.body;
+    let result = { 
+      questions: ["Verify core technical experience", "Ask about recent projects", "Check cultural fit"],
+      starters: ["Hi, I reviewed your profile for the current opening.", "Are you open to a quick technical discussion?"]
+    };
+
+    if (ai) {
+      try {
+        const prompt = type === 'client' 
+          ? `As a technical recruiter, generate 5 deep interview questions for a candidate with this profile: ${JSON.stringify(profile)} applying for this JD: ${jd}. Focus on gaps and specific skills.`
+          : `As a professional recruiter, generate 3 professional conversation starters for this candidate: ${JSON.stringify(profile)}.`;
+
+        const response = await withAIRetry(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+          });
+        });
+        
+        if (response.text) {
+          const lines = response.text.split('\n').filter((l: string) => l.trim().length > 10).map((l: string) => l.replace(/^\d+\.\s*/, '').trim());
+          if (type === 'client') result.questions = lines.slice(0, 5);
+          else result.starters = lines.slice(0, 3);
+        }
+      } catch (err) {
+        console.warn("[DEAL-INTEL] AI Error", err);
       }
     }
     res.json(result);
