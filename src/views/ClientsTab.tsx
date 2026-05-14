@@ -266,17 +266,17 @@ export default function ClientsTab() {
                   jobs.filter(j => j.clientId === selectedClient.id).map(job => (
                     <div 
                       key={job.id} 
-                      onClick={() => job.status === 'PENDING_FINANCIAL_APPROVAL' ? setShowApprovalModal(job) : null}
+                      onClick={() => (job.status === 'PENDING_FINANCIAL_APPROVAL' || job.status === 'DRAFT') ? setShowApprovalModal(job) : null}
                       className={cn(
                         "p-4 rounded-2xl border transition-all shadow-sm group relative cursor-pointer overflow-hidden",
-                        job.status === 'PENDING_FINANCIAL_APPROVAL' 
+                        (job.status === 'PENDING_FINANCIAL_APPROVAL' || job.status === 'DRAFT')
                           ? "border-amber-200 bg-amber-50/30 hover:bg-amber-50 hover:border-amber-300" 
                           : "border-slate-200 bg-white hover:border-indigo-200"
                       )}
                     >
-                      {job.status === 'PENDING_FINANCIAL_APPROVAL' && (
+                      {(job.status === 'PENDING_FINANCIAL_APPROVAL' || job.status === 'DRAFT') && (
                         <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-500 text-[8px] font-black text-white uppercase tracking-widest rounded-bl-lg">
-                          Approval Needed
+                          {job.status === 'DRAFT' ? 'Review Draft' : 'Approval Needed'}
                         </div>
                       )}
                       <div className="flex items-start justify-between">
@@ -285,7 +285,7 @@ export default function ClientsTab() {
                           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
                             <span className={cn(
                               "px-1.5 py-0.5 rounded capitalize",
-                              job.status === 'PENDING_FINANCIAL_APPROVAL' ? "bg-amber-100 text-amber-700" : "bg-slate-100"
+                              (job.status === 'PENDING_FINANCIAL_APPROVAL' || job.status === 'DRAFT') ? "bg-amber-100 text-amber-700" : "bg-slate-100"
                             )}>
                               {String(job.status || '').toLowerCase().replace('_', ' ') || 'Internal'}
                             </span>
@@ -293,7 +293,7 @@ export default function ClientsTab() {
                             <span>{job.submissions || 0} Subs</span>
                           </div>
                         </div>
-                        {job.status === 'PENDING_FINANCIAL_APPROVAL' ? (
+                        {(job.status === 'PENDING_FINANCIAL_APPROVAL' || job.status === 'DRAFT') ? (
                           <div className="p-2 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
                              <ShieldAlert size={14} />
                           </div>
@@ -327,70 +327,121 @@ export default function ClientsTab() {
              Download Quarterly Audit
           </Button>
         </div>
-      )}
-
-      {/* Margin Governance Modal */}
+      )}      {/* Governance & Approval Modal */}
       {showApprovalModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20 animate-in zoom-in-95 duration-200">
             <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Margin Approval</h2>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">REQ-{showApprovalModal.id?.slice(-4)}</p>
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Commercial Governance & Approval</h2>
+                <div className="flex items-center gap-2 mt-1">
+                   <span className="text-[10px] text-slate-400 font-mono">REQ-{showApprovalModal.id?.slice(-4)}</span>
+                   <span className="text-[10px] text-indigo-600 font-black uppercase bg-indigo-50 px-1.5 py-0.5 rounded">
+                     {showApprovalModal.title?.toLowerCase().includes('full time') ? 'Full Time (LPA)' : 'Contract (LPM)'}
+                   </span>
+                </div>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setShowApprovalModal(null)} className="h-8 w-8 rounded-full">
                 <X size={16} />
               </Button>
             </div>
             
-            <div className="p-6 space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Target ($)</label>
-                <div className="relative">
-                  <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input id="actualBudget" type="number" className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
+            <div className="flex flex-col md:flex-row h-[500px]">
+              {/* JD Column */}
+              <div className="w-full md:w-1/2 p-6 border-r border-slate-100 overflow-y-auto bg-slate-50/30">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Job Details & JD</h4>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">{showApprovalModal.title}</h3>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {showApprovalModal.skills?.map((s: string) => (
+                        <span key={s} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-bold text-slate-500">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      {showApprovalModal.description || "No detailed description provided. AI Extraction complete."}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Margin Type</label>
-                  <select id="marginType" className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    <option value="PERCENTAGE">Percent (%)</option>
-                    <option value="FIXED">Flat ($)</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform Take</label>
-                  <input 
-                    id="platformMargin" 
-                    type="number" 
-                    className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-                    defaultValue={showApprovalModal.title?.toLowerCase().includes('full time') ? 8.33 : 15} 
-                  />
+              {/* Approval Column */}
+              <div className="w-full md:w-1/2 p-6 overflow-y-auto">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Financial Configuration</h4>
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Target ($/LPA)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input id="actualBudget" type="number" className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Margin Type</label>
+                      <select id="marginType" className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                        <option value="PERCENTAGE">Percent (%)</option>
+                        <option value="FIXED">Flat ($)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform Take</label>
+                      <input 
+                        id="platformMargin" 
+                        type="number" 
+                        step="0.01"
+                        className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                        defaultValue={showApprovalModal.title?.toLowerCase().includes('full time') ? 8.33 : 15} 
+                      />
+                    </div>
+                  </div>
+
+                  {showApprovalModal.title?.toLowerCase().includes('onsite') && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
+                      <div className="p-2 bg-emerald-500 rounded-lg text-white">
+                        <CheckCircle size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-tight">Onsite Direct Eligible</p>
+                        <p className="text-[9px] text-emerald-600 font-medium">Auto-approval compliance detected.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-xl shadow-slate-100">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Market Visibility</span>
+                      <Eye size={12} className="text-slate-500" />
+                    </div>
+                    <div className="text-xl font-black tracking-tighter">GLOBAL RELEASE</div>
+                    <p className="text-[10px] text-slate-500 mt-2 font-medium italic">"Requirement will be instantly pushed to all qualified vendors."</p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => setShowApprovalModal(null)}
+                      variant="outline"
+                      className="flex-1 border-slate-200 text-slate-500 font-bold h-12 rounded-2xl"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
+                        const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
+                        const type = (document.getElementById('marginType') as HTMLSelectElement).value as any;
+                        handleApproveMargin(showApprovalModal, budget, val, type);
+                      }}
+                      className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black h-12 rounded-2xl shadow-xl shadow-indigo-100 uppercase tracking-widest text-[10px] transition-all active:scale-[0.98]"
+                    >
+                      Approve & Release Requirement
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              <div className="bg-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-indigo-100">
-                 <div className="flex justify-between items-center mb-1">
-                   <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Vendor Approved rate</span>
-                   <Clock size={12} className="text-indigo-300" />
-                 </div>
-                 <div className="text-2xl font-black tracking-tighter">SIMULATED</div>
-                 <p className="text-[10px] text-indigo-300 mt-2 font-medium italic">"Vendor network will see this rate only. Client budget is hidden."</p>
-              </div>
-
-              <Button 
-                onClick={() => {
-                  const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
-                  const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
-                  const type = (document.getElementById('marginType') as HTMLSelectElement).value as any;
-                  handleApproveMargin(showApprovalModal, budget, val, type);
-                }}
-                className="w-full bg-slate-900 hover:bg-black text-white font-black h-14 rounded-2xl shadow-xl shadow-slate-200 uppercase tracking-widest text-[11px] mt-2 transition-all active:scale-[0.98]"
-              >
-                Approve & Release Requirement
-              </Button>
             </div>
           </div>
         </div>

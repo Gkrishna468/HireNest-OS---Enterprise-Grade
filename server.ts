@@ -278,30 +278,36 @@ const dbMock: any = {
   ],
   requirements_public: [
     { 
-      id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], 
+      id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect (Onsite)", skills: ["AWS", "Kubernetes", "Terraform"], 
       status: "PUBLISHED", rate: "$120/hr", submissions: 8, createdAt: new Date().toISOString(),
+      description: "Looking for an experienced Cloud Architect to join our onsite team. Requires deep knowledge of AWS and IAC. Full cycle deployment experience is a must.",
       financials: { clientBudget: 150, platformProfit: 30, vendorPayout: 120, marginConfig: { type: 'FIXED', value: 30 } }
     },
     { 
       id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], 
       status: "PUBLISHED", rate: "$100/hr", submissions: 5, createdAt: new Date().toISOString(),
+      description: "Lead our frontend transformation using React and Tailwind. Remote friendly position with periodic onsite collaboration.",
       financials: { clientBudget: 125, platformProfit: 25, vendorPayout: 100, marginConfig: { type: 'PERCENTAGE', value: 20 } }
     },
     {
-      id: "REQ-003", clientId: "C-8821", title: "Acme Crop Test: Full Time Resource", skills: ["Java", "Spring Boot"],
-      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 140, createdAt: new Date().toISOString()
+      id: "REQ-003", clientId: "C-8821", title: "Acme Crop Test: Full Time Resource (8.33% Commission)", skills: ["Java", "Spring Boot"],
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 140, createdAt: new Date().toISOString(),
+      description: "Critical Full Time hire for our core banking platform. Looking for Spring Boot experts."
     },
     {
-      id: "REQ-004", clientId: "C-8821", title: "Skydio: Senior Python Engineer", skills: ["Python", "FastAPI"],
-      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 120, createdAt: new Date().toISOString()
+      id: "REQ-004", clientId: "C-8821", title: "Skydio: Senior Python Engineer (Onsite Direct)", skills: ["Python", "FastAPI"],
+      status: "DRAFT", clientTargetBudget: 120, createdAt: new Date().toISOString(),
+      description: "Onsite Python role focusing on high-performance FastAPI backends for drone telemetry."
     },
     {
       id: "REQ-005", clientId: "C-8821", title: "LPM Project Manager", skills: ["Agile", "LPM", "Jira"],
-      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 180, createdAt: new Date().toISOString()
+      status: "DRAFT", clientTargetBudget: 180, createdAt: new Date().toISOString(),
+      description: "Manage large scale LPM transition projects. High budget flexibility."
     },
     {
       id: "REQ-006", clientId: "C-8821", title: "Data Scientist (Full Time)", skills: ["ML", "PyTorch"],
-      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 150, createdAt: new Date().toISOString()
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 150, createdAt: new Date().toISOString(),
+      description: "Join our R&D wing to build advanced ML models for crop prediction."
     }
   ],
   candidatePool: [
