@@ -100,7 +100,7 @@ async function startServer() {
 
   // --- Dependency Onboarding ---
   try {
-    const pp = await import('pdf-parse');
+    const pp = await import('pdf-parse') as any;
     pdfParse = pp.default || pp;
     console.log("[DEP] PDF-Parse loaded (ESM)");
   } catch (e) {
@@ -114,11 +114,17 @@ async function startServer() {
   }
 
   try {
+    // @ts-ignore
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
     pdfjsLib = pdfjs;
     console.log("[DEP] PDFJS-Dist loaded");
   } catch (e) {
-    console.warn("[DEP] PDFJS fallback engine offline");
+    try {
+        pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+        console.log("[DEP] PDFJS-Dist loaded (require)");
+    } catch (e2) {
+        console.warn("[DEP] PDFJS fallback engine offline");
+    }
   }
   
   app.use((req, res, next) => {
@@ -241,30 +247,48 @@ async function startServer() {
   });
 
   app.get("/api/user/candidates", (req, res) => {
-    const { orgId } = req.query;
-    console.log(`[CANDIDATES] Fetching for ORG: ${orgId}`);
     try {
-       const filtered = (dbMock.candidatePool || []).filter((c: any) => c.vendorId === orgId);
+       const { orgId } = req.query;
+       console.log(`[CANDIDATES] Fetching for ORG: ${orgId}`);
+       
+       if (!orgId) {
+         return res.json({ candidates: [] });
+       }
+
+       // Ensure candidatePool exists
+       if (!dbMock.candidatePool) {
+         dbMock.candidatePool = [];
+       }
+
+       const filtered = dbMock.candidatePool.filter((c: any) => String(c.vendorId) === String(orgId));
        res.json({ candidates: filtered });
     } catch (e: any) {
+       console.error("[CANDIDATES FETCH ERROR]", e);
        res.status(500).json({ error: "Candidate fetch failed", message: e.message });
     }
   });
 
   app.get("/api/matching/global", (req, res) => {
-    const { requirementId, skills } = req.query;
-    console.log(`[MATCHING] Running global search for REQ: ${requirementId}`);
-    
-    const skillList = String(skills || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-    
-    let matches = dbMock.candidatePool.map((c: any) => {
-      const matchCount = c.skills.filter((cs: string) => skillList.includes(cs.toLowerCase())).length;
-      const score = skillList.length > 0 ? Math.round((matchCount / skillList.length) * 40) + 60 : c.matchScore;
-      return { ...c, matchScore: score, isGlobalMatch: true };
-    });
+    try {
+      const { requirementId, skills } = req.query;
+      console.log(`[MATCHING] Running global search for REQ: ${requirementId}`);
+      
+      const skillList = String(skills || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      const candidates = dbMock.candidatePool || [];
+      
+      let matches = candidates.map((c: any) => {
+        const cSkills = Array.isArray(c.skills) ? c.skills : [];
+        const matchCount = cSkills.filter((cs: string) => skillList.includes(cs.toLowerCase())).length;
+        const score = skillList.length > 0 ? Math.round((matchCount / skillList.length) * 40) + 60 : (c.matchScore || 0);
+        return { ...c, matchScore: score, isGlobalMatch: true };
+      });
 
-    matches = matches.filter((m: any) => m.matchScore > 70);
-    res.json({ matches: matches.sort((a: any, b: any) => b.matchScore - a.matchScore) });
+      matches = matches.filter((m: any) => m.matchScore > 70);
+      res.json({ matches: matches.sort((a: any, b: any) => b.matchScore - a.matchScore) });
+    } catch (err: any) {
+      console.error("[GLOBAL MATCH ERROR]", err);
+      res.status(500).json({ error: "Global matching failed", details: err.message });
+    }
   });
 
   app.post("/api/admin/notify-approval", (req, res) => {
@@ -369,6 +393,8 @@ async function startServer() {
       console.log(`[EXTRACT] Analyzing: ${filename} (Size: ${(anyReq.file.size / 1024).toFixed(2)} KB, Mime: ${mimetype})`);
 
       try {
+          console.log(`[EXTRACT] Engines: pdfParse=${!!pdfParse}, pdfjs=${!!pdfjsLib}`);
+          
           if (mimetype === 'application/pdf' || filename.endsWith(".pdf")) {
             console.log("[EXTRACT] Identifying as PDF...");
             
@@ -379,8 +405,8 @@ async function startServer() {
                 const data = await pdfParse(anyReq.file.buffer);
                 text = data.text || "";
                 console.log(`[EXTRACT] PDF-Parse result length: ${text.length}`);
-              } catch (e) {
-                console.warn("[EXTRACT] PDF-Parse failed", e);
+              } catch (e: any) {
+                console.warn("[EXTRACT] PDF-Parse engine failed:", e.message);
               }
             }
 
@@ -389,41 +415,54 @@ async function startServer() {
               try {
                 console.log("[EXTRACT] Engine: PDFJS-Dist Fallback starting...");
                 const uint8Array = new Uint8Array(anyReq.file.buffer);
+                // Configuration to make it work better in Node
                 const loadingTask = pdfjsLib.getDocument({ 
                   data: uint8Array, 
                   useSystemFonts: true,
                   disableFontFace: true,
-                  isEvalSupported: false 
+                  isEvalSupported: false ,
+                  stopAtErrors: false
                 });
                 const pdfDocument = await loadingTask.promise;
                 let fullText = "";
                 for (let i = 1; i <= pdfDocument.numPages; i++) {
                   const page = await pdfDocument.getPage(i);
                   const textContent = await page.getTextContent();
-                  const pageText = textContent.items.map((item: any) => (item as any).str).join(" ");
+                  const pageText = textContent.items.map((item: any) => (item as any).str || "").join(" ");
                   fullText += pageText + "\n";
                 }
                 text = fullText;
                 console.log(`[EXTRACT] PDFJS-Dist result length: ${text.length}`);
-              } catch (e) {
-                console.error("[EXTRACT] PDFJS-Dist fallback also failed", e);
+              } catch (e: any) {
+                console.error("[EXTRACT] PDFJS-Dist fallback also failed:", e.message);
               }
+            }
+
+            if (!text || text.length < 5) {
+                console.warn("[EXTRACT] All PDF engines failed to yield text. Attempting buffer string conversion.");
+                text = anyReq.file.buffer.toString('utf-8');
             }
           } else if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith(".docx")) {
             console.log("[EXTRACT] Identifying as DOCX...");
-            const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
-            text = result.value || "";
-            console.log(`[EXTRACT] Mammoth result length: ${text.length}`);
+            try {
+              const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
+              text = result.value || "";
+              console.log(`[EXTRACT] Mammoth result length: ${text.length}`);
+            } catch (e: any) {
+              console.error("[EXTRACT] Mammoth failed:", e.message);
+              // Fallback: try to read as plain text if it's actually not a valid docx
+              text = anyReq.file.buffer.toString('utf-8');
+            }
           } else if (mimetype.startsWith('text/') || filename.endsWith(".txt")) {
             text = anyReq.file.buffer.toString('utf-8');
             console.log("[EXTRACT] Identified as Text");
           } else {
-            console.log("[EXTRACT] Unknown format, trying UTF-8 conversion");
+            console.log("[EXTRACT] Unknown format, trying UTF-8 conversion as last resort");
             text = anyReq.file.buffer.toString('utf-8');
           }
       } catch (innerErr: any) {
-          console.error("[EXTRACT] Core engine error", innerErr);
-          throw new Error(`Extraction Engine Failure: ${innerErr.message}`);
+          console.error("[EXTRACT] Core switch-case error:", innerErr);
+          throw new Error(`Extraction core failure: ${innerErr.message}`);
       }
 
       const cleanText = (text || "").replace(/\s+/g, ' ').trim();

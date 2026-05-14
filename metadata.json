@@ -1,6 +1,6 @@
 {
   "name": "HireNest Workforce OS",
-  "description": "Enterprise-grade recruiting workforce orchestration platform with AI-powered matching and global governance.",
+  "description": "The AI-native staffing operations infrastructure for decentralized recruiting networks. Governs workflow, trust, and intelligence enrichment.",
   "requestFramePermissions": [
     "camera",
     "microphone"

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
-import { AlertTriangle, BrainCircuit, Plus, X, Upload, MapPin, Briefcase, Activity, Bot } from "lucide-react";
+import { AlertTriangle, BrainCircuit, Plus, X, Upload, MapPin, Briefcase, Activity, Bot, ShieldCheck } from "lucide-react";
 import { Button } from "../lib/Button";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where } from "firebase/firestore";
@@ -63,25 +63,48 @@ export default function CandidatesTab() {
   }, []);
 
   const handleAddCandidate = async () => {
-    if(!formData.name || !formData.email || !userOrgId) return;
+    if(!formData.name || !formData.email) {
+        alert("Name and Email are required.");
+        return;
+    }
+    if (!userOrgId) {
+        alert("Organization session sync pending. Please try again in a moment.");
+        return;
+    }
+
     setIsSubmitting(true);
     try {
       const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-      await setDoc(doc(db, "candidatePool", candId), {
+      
+      // PERSISTENCE LAYER: Save record immediately
+      const initialCandidate = {
         ...formData,
         candidateId: candId,
         vendorId: userOrgId,
         skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean),
-        matchScore: 85, // Simulated initial matches
+        matchScore: 0, 
         pipelineStage: "Candidate Added",
+        source: "Manual Entry",
+        distillationStatus: formData.resumeText ? "PENDING" : "COMPLETED",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      };
+
+      await setDoc(doc(db, "candidatePool", candId), initialCandidate);
+      
       setIsSubmitting(false);
       setShowAddForm(false);
+      
+      // AI ENRICHMENT: Trigger background processing if intelligence is available via resume text
+      if (formData.resumeText) {
+        enrichCandidate(candId, formData.resumeText);
+      }
+
       setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "" });
-    } catch (e) {
+      alert("Candidate successfully onboarded. Intelligence processing in background.");
+    } catch (e: any) {
       console.error(e);
+      alert("Failed to add candidate: " + e.message);
       setIsSubmitting(false);
     }
   };
@@ -198,21 +221,36 @@ export default function CandidatesTab() {
 
   const enrichCandidate = async (candId: string, text: string) => {
     try {
-        console.log(`[AI ENRICH] Distilling profile for ${candId}...`);
+        console.log(`[OS INTELLIGENCE] Distilling profile for ${candId}...`);
+        const startTime = Date.now();
+        
         const results = await parseBulkResumes([text]);
+        const processingTimeMs = Date.now() - startTime;
+
         if (results && results.length > 0) {
             const profile = results[0];
             await setDoc(doc(db, "candidatePool", candId), {
                 ...profile,
                 distillationStatus: "COMPLETED",
+                distillationMetadata: {
+                    processingTimeMs,
+                    confidence: 0.92, // Simulated high confidence for parsed results
+                    lastDistilledAt: new Date().toISOString()
+                },
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            console.log(`[AI ENRICH] Success for ${candId}`);
+            console.log(`[OS INTELLIGENCE] Successfully distilled ${candId} in ${processingTimeMs}ms`);
+        } else {
+            throw new Error("AI returned empty distilled profile.");
         }
-    } catch (err) {
-        console.warn(`[AI ENRICH] Failed for ${candId}`, err);
+    } catch (err: any) {
+        console.warn(`[OS INTELLIGENCE] Failure for ${candId}`, err);
         await setDoc(doc(db, "candidatePool", candId), {
             distillationStatus: "FAILED",
+            distillationMetadata: {
+                lastError: err.message || "Unknown intelligence error",
+                lastAttemptedAt: new Date().toISOString()
+            },
             updatedAt: serverTimestamp()
         }, { merge: true });
     }
@@ -225,7 +263,9 @@ export default function CandidatesTab() {
           <h1 className="text-sm font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
             <Activity size={16} className="text-indigo-600" /> Intelligence Candidate Pool
           </h1>
-          <p className="text-[10px] text-slate-500 font-mono mt-0.5">Automated screening, duplicate protection, and match orchestration.</p>
+          <p className="text-[10px] text-slate-500 font-mono mt-0.5 max-w-xl">
+            <span className="text-indigo-600 font-bold">STAFFING OS:</span> The operating system for decentralized staffing networks. Automating workflow, trust, and enrichment.
+          </p>
         </div>
         <div className="flex gap-2">
             <Button onClick={() => setShowBulkUpload(true)} variant="outline" size="sm" className="border-slate-300 text-slate-600 flex items-center h-auto py-1.5 px-3 bg-white">
@@ -262,7 +302,12 @@ export default function CandidatesTab() {
                     )}
                     
                     <div className="flex justify-between items-start mb-2">
-                      <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors">{cand.name}</div>
+                      <div className="flex flex-col">
+                        <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors">{cand.name}</div>
+                        <div className="text-[8px] font-mono text-slate-400 flex items-center gap-1">
+                          <ShieldCheck size={8} className="text-emerald-500" /> Trust Score: {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : '85'}%
+                        </div>
+                      </div>
                       <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
                         {cand.matchScore || 'N/A'}%
                       </span>
@@ -274,14 +319,33 @@ export default function CandidatesTab() {
                     </div>
                     
                     <div className="flex flex-wrap gap-1">
-                      {cand.skills?.slice(0,4).map((s: string) => (
+                      {cand.skills?.slice(0,4) ? cand.skills.slice(0,4).map((s: string) => (
                         <span key={s} className="text-[9px] bg-slate-50 text-slate-500 border border-slate-100 rounded px-1 group-hover:border-indigo-200 transition-colors">{s}</span>
-                      ))}
+                      )) : (
+                        <span className="text-[8px] italic text-slate-400">Waiting for intelligence...</span>
+                      )}
                     </div>
+                    
+                    {cand.distillationMetadata?.processingTimeMs && (
+                      <div className="mt-2 text-[7px] text-slate-400 font-mono flex items-center gap-1">
+                        <Activity size={8} /> Distilled in {cand.distillationMetadata.processingTimeMs}ms
+                      </div>
+                    )}
 
                     {cand.distillationStatus === 'FAILED' && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-red-500 text-[8px] font-bold uppercase">
-                            <AlertTriangle size={8} /> AI Distillation Failed
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-1">
+                           <div className="flex items-center gap-1 text-red-500 text-[8px] font-bold uppercase">
+                               <AlertTriangle size={8} /> Distillation Failure
+                           </div>
+                           <button 
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               enrichCandidate(cand.id, cand.resumeText);
+                             }}
+                             className="text-[8px] font-bold text-indigo-600 hover:underline uppercase text-left"
+                           >
+                             Retry Intelligence ↺
+                           </button>
                         </div>
                     )}
                   </div>
@@ -310,6 +374,10 @@ export default function CandidatesTab() {
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Email</label>
                     <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
                  </div>
+              </div>
+              <div>
+                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Skills (Comma separated)</label>
+                 <input type="text" value={formData.skills} onChange={e => setFormData({...formData, skills: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="e.g. React, Node.js, AWS" />
               </div>
               <div>
                  <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Resume Context</label>

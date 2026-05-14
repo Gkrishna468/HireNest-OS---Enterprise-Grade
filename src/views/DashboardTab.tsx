@@ -141,39 +141,51 @@ export default function DashboardTab() {
 
             {/* Sidebar Stats / AI Insight */}
             <div className="space-y-6">
-                <div className="bg-indigo-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Bot size={80} />
-                    </div>
-                    <div className="relative z-10">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-300 mb-4 flex items-center gap-2">
-                             <ShieldCheck size={16} /> AI Executive Summary
-                        </h3>
-                        <div className="space-y-4">
-                            <div className="bg-indigo-800/50 rounded-xl p-4 border border-indigo-700/50 backdrop-blur-sm">
-                                <p className="text-[13px] leading-relaxed font-medium">
-                                    "Platform signals indicate a <span className="text-emerald-400">92.4%</span> match saturation for your active requirements. Current vendor response velocity is <span className="text-indigo-300">Optimal</span>."
-                                </p>
+                    <div className="bg-indigo-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
+                        <div className="absolute bottom-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Activity size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-300 mb-4 flex items-center gap-2 border-b border-indigo-800 pb-2">
+                                <Activity size={14} className="animate-pulse text-emerald-400" /> Infrastructure Health
+                            </h3>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-end border-b border-indigo-800/50 pb-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] text-indigo-400 font-bold uppercase">Node Stability</span>
+                                        <span className="text-sm font-mono font-black">99.98%</span>
+                                    </div>
+                                    <div className="flex flex-col text-right">
+                                        <span className="text-[8px] text-indigo-400 font-bold uppercase">Network Trust</span>
+                                        <span className="text-sm font-mono font-black text-emerald-400">AA+</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between text-[8px] font-bold uppercase text-indigo-300">
+                                            <span>Intelligence Enrichment Throughput</span>
+                                            <span>1.2k req/m</span>
+                                        </div>
+                                        <div className="h-1 bg-indigo-950 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-500 w-[74%] animate-progress" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between text-[8px] font-bold uppercase text-indigo-300">
+                                            <span>Governance Latency</span>
+                                            <span>124ms</span>
+                                        </div>
+                                        <div className="h-1 bg-indigo-950 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-400 w-[12%]" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-lg border border-white/10 italic text-[10px] text-indigo-200">
+                                    "Platform signals indicate high submission liquidity across distributed vendor channels."
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Actionable Insights</p>
-                                <ul className="text-[11px] space-y-3 text-indigo-100">
-                                    <li className="flex gap-2">
-                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
-                                        <span>REQ-402 has reached <strong className="text-white">Tier-1 Scarcity</strong>. High reward bonus recommended.</span>
-                                    </li>
-                                    <li className="flex gap-2">
-                                        <div className="h-1.5 w-1.5 rounded-full bg-amber-400 mt-1 shrink-0" />
-                                        <span>Candidate Identites in <strong className="text-white">DR-9042</strong> are ready for reveal. MSA check pending.</span>
-                                    </li>
-                                </ul>
-                            </div>
-                            <Button className="w-full bg-indigo-500 hover:bg-white hover:text-indigo-900 text-white font-bold h-10 text-[11px] uppercase tracking-widest transition-all rounded-xl mt-2">
-                                Execute Auto-Fill Protocol
-                            </Button>
                         </div>
                     </div>
-                </div>
             </div>
         </div>
       </div>
