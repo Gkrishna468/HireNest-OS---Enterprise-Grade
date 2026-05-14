@@ -18,13 +18,14 @@ const __dirname = path.dirname(__filename);
 // --- Initialization & Error Control ---
 console.log("[SERVER START] Booting HireNest Global OS Intelligence Layer...");
 
-let pdf: any;
+let pdfParser: any = null;
 try {
+  // Using require for older commonjs compatibility in some pdf libs if needed
   const pdfParse = require('pdf-parse');
-  pdf = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+  pdfParser = pdfParse;
   console.log("[DEP] PDF-Parse loaded successfully");
 } catch (e) {
-  console.error("[DEP] PDF-Parse load delayed/failed", e);
+  console.error("[DEP] PDF-Parse load failed, trying dynamic import", e);
 }
 
 // --- Global Mock Database ---
@@ -201,11 +202,11 @@ async function startServer() {
     
     if (ai) {
        try {
-         const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-         const prompt = `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`;
-         const result = await model.generateContent(prompt);
-         const response = await result.response;
-         analysis = response.text() || analysis;
+         const response = await ai.models.generateContent({
+           model: "gemini-3-flash-preview",
+           contents: `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`,
+         });
+         analysis = response.text || analysis;
        } catch (err) {
          console.warn("[STRATEGY] AI deferred", err);
        }
@@ -226,8 +227,12 @@ async function startServer() {
   app.get("/api/user/candidates", (req, res) => {
     const { orgId } = req.query;
     console.log(`[CANDIDATES] Fetching for ORG: ${orgId}`);
-    const filtered = (dbMock.candidatePool || []).filter((c: any) => c.vendorId === orgId);
-    res.json({ candidates: filtered });
+    try {
+       const filtered = (dbMock.candidatePool || []).filter((c: any) => c.vendorId === orgId);
+       res.json({ candidates: filtered });
+    } catch (e: any) {
+       res.status(500).json({ error: "Candidate fetch failed", message: e.message });
+    }
   });
 
   app.get("/api/matching/global", (req, res) => {
@@ -277,18 +282,16 @@ async function startServer() {
 
     if (ai) {
       try {
-        const prompt = `Analyze this JD and Candidate Profile. Return a JSON object with: 
-        matchScore (number 0-100), 
-        summary (string), 
-        strengths (array of strings), 
-        gaps (array of strings), 
-        outreachDrafts (object with keys: founder, professional, executive, warm).
-        JD: ${jd}
-        Profile: ${candidateProfile}`;
-
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
-          contents: prompt,
+          contents: `Analyze this JD and Candidate Profile. Return a JSON object with: 
+          matchScore (number 0-100), 
+          summary (string), 
+          strengths (array of strings), 
+          gaps (array of strings), 
+          outreachDrafts (object with keys: founder, professional, executive, warm).
+          JD: ${jd}
+          Profile: ${candidateProfile}`,
           config: { responseMimeType: "application/json" }
         });
         
@@ -313,16 +316,15 @@ async function startServer() {
 
     if (ai && resumeTexts?.length > 0) {
       try {
-        const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-        const prompt = `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
-        Resumes: ${JSON.stringify(resumeTexts)}`;
+         const response = await ai.models.generateContent({
+           model: "gemini-3-flash-preview",
+           contents: `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
+           Resumes: ${JSON.stringify(resumeTexts)}`,
+           config: { responseMimeType: "application/json" }
+         });
 
-        const genResult = await model.generateContent(prompt);
-        const response = await genResult.response;
-        const text = response.text();
-
-        if (text) {
-          results = JSON.parse(text.replace(/```json|```/g, "").trim());
+        if (response.text) {
+          results = JSON.parse(response.text.replace(/```json|```/g, "").trim());
         }
       } catch (e) {
         console.warn("[AI BULK] Error", e);
@@ -340,23 +342,37 @@ async function startServer() {
       const filename = anyReq.file.originalname.toLowerCase();
       let text = "";
 
-      if (filename.endsWith(".pdf")) {
-        if (typeof pdf === 'function') {
-           const data = await pdf(anyReq.file.buffer);
+      console.log(`[EXTRACT] Processing: ${filename} (${anyReq.file.mimetype})`);
+
+      if (filename.endsWith(".pdf") || anyReq.file.mimetype === 'application/pdf') {
+        if (pdfParser) {
+           const data = await pdfParser(anyReq.file.buffer);
            text = data.text;
+           console.log(`[EXTRACT] PDF parsed successfully, characters: ${text.length}`);
         } else {
-           throw new Error("PDF parser not initialized");
+           throw new Error("PDF parser failed to initialize on startup");
         }
-      } else if (filename.endsWith(".docx")) {
+      } else if (filename.endsWith(".docx") || anyReq.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
         const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
         text = result.value;
+        console.log(`[EXTRACT] DOCX parsed successfully, characters: ${text.length}`);
       } else {
-        text = anyReq.file.buffer.toString();
+        // Fallback for text files or unknown
+        text = anyReq.file.buffer.toString('utf-8');
+        console.log(`[EXTRACT] Text/Other fallback used for ${filename}`);
       }
-      res.json({ text });
+      
+      if (!text || text.trim().length === 0) {
+        throw new Error("Extracted text is empty. The file might be encrypted or scanned (OCR required).");
+      }
+
+      res.status(200).json({ text });
     } catch (err: any) {
       console.error("[EXTRACT ERROR]", err);
-      res.status(500).json({ error: "Extraction Failed", message: err.message });
+      res.status(500).json({ 
+        error: "Extraction Failed", 
+        message: err.message || "An error occurred during file parsing." 
+      });
     }
   });
 
@@ -366,14 +382,14 @@ async function startServer() {
     
     if (ai) {
       try {
-        const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-        const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`;
-        const genResult = await model.generateContent(prompt);
-        const response = await genResult.response;
-        const text = response.text();
+        const response = await ai.models.generateContent({
+           model: "gemini-3-flash-preview",
+           contents: `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`,
+           config: { responseMimeType: "application/json" }
+        });
         
-        if (text) {
-          const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+        if (response.text) {
+          const parsed = JSON.parse(response.text.replace(/```json|```/g, "").trim());
           result = { ...result, ...parsed };
         }
       } catch (err) {
@@ -411,7 +427,7 @@ async function startServer() {
 
   // --- GLOBAL ERROR HANDLER ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error("[FATAL ERROR]", err);
+    console.error("[FATAL GLOBAL ERROR]", err);
     if (!res.headersSent) {
       res.status(500).json({ 
         error: "Internal Server Error", 
@@ -434,3 +450,4 @@ const appPromise = startServer().catch(err => {
 });
 
 export default appPromise;
+
