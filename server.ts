@@ -73,7 +73,13 @@ const dbMock: any = {
       description: "Onsite Python role focusing on high-performance FastAPI backends for drone telemetry."
     }
   ],
-  candidatePool: [],
+  candidatePool: [
+    { id: "CAN-001", name: "Alex Rivera", skills: ["AWS", "Kubernetes", "Terraform", "Go"], experience: "8 years", vendorId: "V-VENDOR-001", matchScore: 94 },
+    { id: "CAN-002", name: "Priya Sharma", skills: ["React", "TypeScript", "Tailwind", "Node.js"], experience: "6 years", vendorId: "V-2048", matchScore: 91 },
+    { id: "CAN-003", name: "David Chen", skills: ["Java", "Spring Boot", "AWS", "SQL"], experience: "10 years", vendorId: "V-VENDOR-001", matchScore: 88 },
+    { id: "CAN-004", name: "Sarah Jenkins", skills: ["Python", "FastAPI", "Docker", "AWS"], experience: "5 years", vendorId: "V-2048", matchScore: 92 },
+    { id: "CAN-005", name: "Michael Scott", skills: ["React", "AWS", "Python"], experience: "4 years", vendorId: "V-VENDOR-001", matchScore: 75 }
+  ],
   submissions: [],
   dealRooms: [],
   messages: [],
@@ -103,6 +109,32 @@ async function startServer() {
   // --- API ROUTES ---
 
   app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString() }));
+
+  app.get("/api/user/context", (req, res) => {
+    const { orgId, role } = req.query;
+    console.log(`[CONTEXT] Syncing state for ${role} in ${orgId}`);
+    
+    // Admin sees everything
+    if (role === 'admin') {
+      return res.json({
+        requirements: dbMock.requirements_public,
+        metrics: dbMock.metrics
+      });
+    }
+
+    // Client sees their own requirements
+    if (String(role).includes('client')) {
+      const filtered = dbMock.requirements_public.filter((r: any) => r.clientId === orgId);
+      return res.json({
+        requirements: filtered,
+        metrics: dbMock.metrics
+      });
+    }
+
+    // Vendor sees published ones
+    const published = dbMock.requirements_public.filter((r: any) => r.visibility === 'VENDOR_NETWORK' || r.status === 'PUBLISHED');
+    res.json({ requirements: published });
+  });
 
   app.get("/api/admin/governance-data", (req, res) => {
     try {
@@ -172,6 +204,75 @@ async function startServer() {
 
   app.get("/api/admin/notifications", (req, res) => res.json(dbMock.systemNotifications || []));
   app.get("/api/status", (req, res) => res.json({ status: "online", version: "4.2.2" }));
+
+  app.get("/api/metrics", (req, res) => {
+    const { type } = req.query;
+    console.log(`[METRICS] Serving ${type} metrics...`);
+    res.json(dbMock.metrics);
+  });
+
+  app.post("/api/admin/notify-approval", (req, res) => {
+    const { jobId, jobTitle, clientName } = req.body;
+    console.log(`[NOTIFICATION] New Approval Request: ${jobTitle} from ${clientName}`);
+    dbMock.systemNotifications.push({
+      id: "NOTIF-" + Date.now(),
+      type: "APPROVAL_REQUEST",
+      title: "Budget Approval Required",
+      message: `${clientName} submitted ${jobTitle} for financial approval.`,
+      jobId,
+      createdAt: new Date().toISOString()
+    });
+    res.json({ success: true });
+  });
+
+  const upload = multer({ storage: multer.memoryStorage() });
+
+  app.post("/api/extract-text", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const filename = req.file.originalname.toLowerCase();
+      let text = "";
+
+      if (filename.endsWith(".pdf")) {
+        const data = await pdf(req.file.buffer);
+        text = data.text;
+      } else if (filename.endsWith(".docx")) {
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        text = result.value;
+      } else {
+        text = req.file.buffer.toString();
+      }
+      res.json({ text });
+    } catch (err: any) {
+      console.error("[EXTRACT ERROR]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/parse-jd", async (req, res) => {
+    const { jdText } = req.body;
+    let result = { title: "New Requirement", skills: [] };
+    
+    if (ai) {
+      try {
+        const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' and 'skills' array. JD: ${jdText}`;
+        const interaction = await ai.interactions.create({
+            model: "gemini-3.1-pro-preview",
+            input: prompt
+        });
+        const output = interaction.outputs.find((o: any) => o.type === 'text');
+        if (output) {
+           const jsonMatch = output.text.match(/\{.*\}/s);
+           if (jsonMatch) {
+             result = { ...result, ...JSON.parse(jsonMatch[0]) };
+           }
+        }
+      } catch (err) {
+        console.warn("[PARSE-AI] Deferred", err);
+      }
+    }
+    res.json(result);
+  });
 
   // --- VITE / SPA FALLBACK ---
   if (process.env.NODE_ENV !== "production") {

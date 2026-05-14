@@ -32,22 +32,24 @@ export default function JobsTab() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
 
+  const isAdmin = userRole === 'admin';
+  const isClient = userRole === 'client' || userRole?.startsWith('client_');
+
   useEffect(() => {
-    // Fetch User Role
     const fetchUser = async () => {
       if (auth.currentUser) {
         try {
           const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
           if (userDoc.exists()) {
-            setUserRole(userDoc.data().role);
-            setOrgId(userDoc.data().organizationId);
+            const data = userDoc.data();
+            setUserRole(data.role);
+            setOrgId(data.organizationId);
           } else {
-             // Heuristic for known admins
-             const knownAdmins = ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'vetAu3RF2qYVmsCuB6cpEz9DDqA2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'];
-             if (knownAdmins.includes(auth.currentUser.uid)) {
-               setUserRole('admin');
-               setOrgId('ORG-GLOBAL-HQ');
-             }
+            const knownAdmins = ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'vetAu3RF2qYVmsCuB6cpEz9DDqA2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'];
+            if (knownAdmins.includes(auth.currentUser.uid)) {
+              setUserRole('admin');
+              setOrgId('ORG-GLOBAL-HQ');
+            }
           }
         } catch (e) {
           console.warn("User fetch failed, using fallback heuristics");
@@ -55,43 +57,49 @@ export default function JobsTab() {
       }
     };
     fetchUser();
+  }, []);
 
-    // Listen to Requirements
+  useEffect(() => {
+    if (!orgId || !userRole) return;
+
+    let unsubscribe: any;
     const loadRequirements = async () => {
-        if (!orgId) return;
-        try {
-            // PROXY FIRST (Filtered by orgId)
-            const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
-            if (response.ok) {
-                const resData = await response.json();
-                if (resData.requirements) {
-                    setJobs(resData.requirements.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-                    return;
-                }
-            }
-        } catch (e) {
-            console.warn("Requirements User Context Proxy failed");
+      try {
+        const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.requirements) {
+            setJobs(resData.requirements.sort((a: any, b: any) => 
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            ));
+          }
         }
+      } catch (e) {
+        console.warn("Requirements Proxy failed");
+      }
 
-        // Fallback to Firestore with Data Isolation
-        let q = collection(db, "requirements_public");
-        
-        // If not admin, restrict to own organization
-        const requirementsQuery = isAdmin ? q : query(q, where("clientId", "==", orgId));
+      // Real-time fallback
+      const q = collection(db, "requirements_public");
+      const requirementsQuery = userRole === 'admin' ? q : query(q, where("clientId", "==", orgId));
 
-        const unsubscribe = onSnapshot(requirementsQuery, (snap) => {
-          const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setJobs(data.sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds));
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, "requirements_public");
-        });
-        return unsubscribe;
+      unsubscribe = onSnapshot(requirementsQuery, (snap) => {
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setJobs(data.sort((a: any, b: any) => {
+           const timeA = a.createdAt?.seconds || new Date(a.createdAt).getTime() / 1000 || 0;
+           const timeB = b.createdAt?.seconds || new Date(b.createdAt).getTime() / 1000 || 0;
+           return timeB - timeA;
+        }));
+      }, (error) => {
+        // Only error if it's not a permission issue (which is expected for cross-org access in some filters)
+        if (!error.message.includes("permission")) {
+            handleFirestoreError(error, OperationType.GET, "requirements_public");
+        }
+      });
     };
 
-    let unsub: any;
-    loadRequirements().then(u => unsub = u);
-    return () => unsub && unsub();
-  }, []);
+    loadRequirements();
+    return () => unsubscribe && unsubscribe();
+  }, [orgId, userRole]);
 
   useEffect(() => {
     if (selectedJob) {
@@ -235,6 +243,7 @@ export default function JobsTab() {
           clientName: orgId || "Target Client"
         })
       });
+      alert("Requirement submitted for financial governance approval.");
     } catch (err) {
       console.error("Failed to submit budget or notify", err);
     }
@@ -251,10 +260,6 @@ export default function JobsTab() {
   };
 
   const [matchingStatus, setMatchingStatus] = useState<string>('idle');
-
-  useEffect(() => {
-    // ... preexisting useEffect logic for user fetch ...
-  }, []);
 
   const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE', curr: string, model: string) => {
     try {
@@ -336,9 +341,6 @@ export default function JobsTab() {
 
     navigate("/deals");
   };
-
-  const isAdmin = userRole === 'admin';
-  const isClient = userRole === 'client' || userRole?.startsWith('client_');
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
@@ -606,7 +608,7 @@ export default function JobsTab() {
                   </Badge>
                 </div>
 
-                {selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' || [...submissions, ...globalMatches].length === 0 ? (
+                {((selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0) ? (
                    <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-4">
                         <Bot size={40} className={`text-indigo-400 ${selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' ? 'animate-bounce' : 'opacity-30'}`} />
