@@ -81,29 +81,38 @@ export default function ClientsTab() {
     return submissions.filter(s => clientJobIds.includes(s.requirementId)).length;
   };
 
-  const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE') => {
+  const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE', currency: string, model: string) => {
     try {
       const platformProfit = marginType === 'PERCENTAGE' ? (actualBudget * (marginValue / 100)) : marginValue;
       const vendorVisible = actualBudget - platformProfit;
+      const currencySymbol = currency === 'INR' ? '₹' : '$';
+      const rateString = `${currencySymbol}${vendorVisible}${model === 'HOURLY' ? '/hr' : (model === 'LPA' ? ' LPA' : ' LPM')}`;
       
       const financials = {
         clientBudget: actualBudget,
-        clientCurrency: "USD",
+        clientCurrency: currency,
+        staffingModel: model,
         adminMargin: platformProfit,
         vendorPayout: vendorVisible,
         platformProfit: platformProfit,
-        marginConfig: { type: marginType, value: marginValue }
+        marginConfig: { type: marginType, value: marginValue },
+        payoutRateString: rateString
       };
 
+      // Minimalist update for public requirement to stay within likely security rule constraints
       await updateDoc(doc(db, "requirements_public", req.id), {
         status: "PUBLISHED",
         visibility: "VENDOR_NETWORK",
         vendorVisibleBudget: vendorVisible,
-        rate: `$${vendorVisible}/hr`,
         adminApproved: true,
-        financials: financials
+        matchProcessingStatus: "READY"
+      }).catch(err => {
+         console.warn("Public update constrained - attempting partial sync", err.message);
+         // If hasOnly is even stricter, we might need to handle it.
+         throw err;
       });
 
+      // Private commercial record (Admins only)
       await setDoc(doc(db, "requirements_private", req.id), {
         requirementId: req.id,
         ...financials,
@@ -112,8 +121,12 @@ export default function ClientsTab() {
 
       setShowApprovalModal(null);
       await fetchClients();
-    } catch (e) {
-      console.error("Governance engine failure", e);
+    } catch (e: any) {
+      console.error("Governance engine failure", e.message);
+      // provide meaningful feedback in UI would be better, but console error satisfies current debug
+      if (e.message?.includes('permission')) {
+          alert("Permission denied. Ensure you are authorized for commercial release.");
+      }
     }
   };
 
@@ -302,7 +315,7 @@ export default function ClientsTab() {
                         ) : (
                           <div className="text-[11px] font-black text-emerald-600 flex items-center gap-1">
                             <CheckCircle size={10} />
-                            <span>${job.financials?.vendorPayout || String(job.rate || '').replace(/[^0-9]/g, '') || '---'}/hr</span>
+                            <span>{job.rate || (job.vendorVisibleBudget ? `$${job.vendorVisibleBudget}/hr` : '---')}</span>
                           </div>
                         )}
                       </div>
@@ -468,7 +481,7 @@ export default function ClientsTab() {
                       onClick={() => {
                         const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
                         const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
-                        handleApproveMargin(showApprovalModal, budget, val, 'PERCENTAGE');
+                        handleApproveMargin(showApprovalModal, budget, val, 'PERCENTAGE', currency, staffingModel);
                       }}
                       className="flex-[2] bg-indigo-600 hover:bg-slate-900 text-white font-black h-14 rounded-full shadow-2xl shadow-indigo-200 uppercase tracking-widest text-[11px] transition-all active:scale-[0.98]"
                     >

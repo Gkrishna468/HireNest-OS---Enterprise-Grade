@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, getDocs, query, limit, doc, setDoc } from "firebase/firestore";
-import { DollarSign, Briefcase, Users, Radio, Activity } from "lucide-react";
+import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { DollarSign, Briefcase, Users, Activity } from "lucide-react";
 import { Badge } from "../lib/Badge";
+import { Button } from "../lib/Button";
+import { useNavigate } from "react-router-dom";
 
 export default function AdminOverview() {
   const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [], submissions: [] });
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Derived Financial Metrics
   const totalBilling = data.requirements.reduce((acc: number, req: any) => acc + (req.financials?.clientBudget || 0), 0);
@@ -20,7 +23,6 @@ export default function AdminOverview() {
     async function fetchData() {
         setLoading(true);
         try {
-            // Priority 1: Administrative HQ Sync Proxy (Bypasses Firestore Rules)
             const response = await fetch('/api/admin/governance-data');
             if (response.ok) {
               const resData = await response.json();
@@ -32,29 +34,25 @@ export default function AdminOverview() {
                   submissions: resData.submissions || []
               });
             } else {
-              console.warn(`Governance API returned ${response.status}, attempting Firestore direct load.`);
-              // Priority 2: Direct Firestore Fallback
+              console.warn(`Governance API returned ${response.status}, attempting Firestore fallback.`);
               const [candSnap, orgSnap, drSnap, reqSnap, subSnap] = await Promise.all([
-                  getDocs(collection(db, "candidatePool")).catch(e => { console.error("candPool fail", e); return {docs: []} as any; }),
-                  getDocs(collection(db, "organizations")).catch(e => { console.error("orgs fail", e); return {docs: []} as any; }),
-                  getDocs(collection(db, "dealRooms")).catch(e => { console.error("rooms fail", e); return {docs: []} as any; }),
-                  getDocs(collection(db, "requirements_public")).catch(e => { console.error("reqs fail", e); return {docs: []} as any; }),
-                  getDocs(collection(db, "submissions")).catch(e => { console.error("subs fail", e); return {docs: []} as any; }),
+                  getDocs(collection(db, "candidatePool")).catch(() => ({docs: []} as any)),
+                  getDocs(collection(db, "organizations")).catch(() => ({docs: []} as any)),
+                  getDocs(collection(db, "dealRooms")).catch(() => ({docs: []} as any)),
+                  getDocs(collection(db, "requirements_public")).catch(() => ({docs: []} as any)),
+                  getDocs(collection(db, "submissions")).catch(() => ({docs: []} as any)),
               ]);
               setData({
-                  candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  submissions: subSnap.docs.map(d => ({id: d.id, ...d.data()}))
+                  candidates: candSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+                  organizations: orgSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+                  dealRooms: drSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+                  requirements: reqSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+                  submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()}))
               });
             }
         } catch (err: any) {
-            console.error("Governance Sync & Firestore fallback failed", err);
-            // We don't throw into handleFirestoreError if we already tried Proxy
-            if (err.name !== 'FirebaseError') {
-               // Likely a network error for the proxy
-            } else {
+            console.error("Governance Sync failed", err);
+            if (err.name === 'FirebaseError') {
                handleFirestoreError(err, OperationType.LIST, "admin_overview_sync");
             }
         } finally {
@@ -80,26 +78,18 @@ export default function AdminOverview() {
       };
 
       for (const [colName, items] of Object.entries(collections)) {
-        if (!items || !Array.isArray(items)) {
-           console.warn(`Collection ${colName} has no items to bootstrap.`);
-           continue;
-        }
+        if (!items || !Array.isArray(items)) continue;
         for (const item of (items as any[])) {
           const { id, ...rest } = item;
           try {
-            // Use doc name from ID if possible, or fallback to auto-id
             const docRef = doc(collection(db, colName), id || undefined);
-            await setDoc(docRef, { 
-              ...rest, 
-              updatedAt: new Date().toISOString(),
-              lastBootstrap: new Date().toISOString()
-            }, { merge: true });
+            await setDoc(docRef, { ...rest, updatedAt: new Date().toISOString() }, { merge: true });
           } catch (writeErr) {
             console.error(`Bootstrap FAILED for ${colName}/${id}:`, writeErr);
           }
         }
       }
-      alert("Marketplace Bootstrapped successfully to Production Firestore!");
+      alert("Marketplace Bootstrapped successfully!");
       window.location.reload();
     } catch (err) {
       console.error("Bootstrap failed", err);
@@ -149,19 +139,26 @@ export default function AdminOverview() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Pending Governance approvals</h3>
+            <Button variant="ghost" className="text-[9px] h-6 uppercase font-bold" onClick={() => navigate('/clients')}>View Hub</Button>
           </div>
           <div className="p-4 space-y-3">
              {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').map((req: any) => (
-               <div key={req.id} className="flex justify-between items-center p-2 border border-slate-100 rounded-lg">
+               <div 
+                  key={req.id} 
+                  onClick={() => navigate('/clients')}
+                  className="flex justify-between items-center p-3 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-slate-50 transition-all cursor-pointer group"
+               >
                   <div>
-                    <div className="text-xs font-bold text-slate-800">{req.title}</div>
-                    <div className="text-[10px] text-slate-400 font-mono italic">Client ID: {req.clientId}</div>
+                    <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">{req.title}</div>
+                    <div className="text-[10px] text-slate-400 font-mono italic">Tenant: {req.clientId} • Target: ${req.clientTargetBudget || '---'}</div>
                   </div>
-                  <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700">Financial Review</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-100">Review Required</Badge>
+                  </div>
                </div>
              ))}
              {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').length === 0 && (
-               <div className="text-center py-8 text-slate-400 text-xs">No pending approvals.</div>
+               <div className="text-center py-8 text-slate-400 text-xs italic">All commercial gates are currently clear.</div>
              )}
           </div>
         </div>

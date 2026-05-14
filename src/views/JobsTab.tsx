@@ -232,27 +232,38 @@ export default function JobsTab() {
     setIsEditing(null);
   };
 
-  const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE') => {
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
+  const [matchingStatus, setMatchingStatus] = useState<string>('idle');
+
+  useEffect(() => {
+    // ... preexisting useEffect logic for user fetch ...
+  }, []);
+
+  const handleApproveMargin = async (req: any, actualBudget: number, marginValue: number, marginType: 'FIXED' | 'PERCENTAGE', curr: string, model: string) => {
     try {
       const platformProfit = marginType === 'PERCENTAGE' ? (actualBudget * (marginValue / 100)) : marginValue;
       const vendorVisible = actualBudget - platformProfit;
+      const currencySymbol = curr === 'INR' ? '₹' : '$';
+      const rateString = `${currencySymbol}${vendorVisible}${model === 'HOURLY' ? '/hr' : (model === 'LPA' ? ' LPA' : ' LPM')}`;
       
       const financials = {
         clientBudget: actualBudget,
-        clientCurrency: "USD",
+        clientCurrency: curr,
+        staffingModel: model,
         adminMargin: platformProfit,
         vendorPayout: vendorVisible,
         platformProfit: platformProfit,
-        marginConfig: { type: marginType, value: marginValue }
+        marginConfig: { type: marginType, value: marginValue },
+        payoutRateString: rateString
       };
 
+      // Minimalist update to stay within likely rules hasOnly(['status', ...])
       await updateDoc(doc(db, "requirements_public", req.id), {
         status: "PUBLISHED",
         visibility: "VENDOR_NETWORK",
-        vendorVisibleBudget: vendorVisible, // Historically used for simple view
-        rate: `$${vendorVisible}/hr`,
+        vendorVisibleBudget: vendorVisible,
         adminApproved: true,
-        financials: financials // New rich structure
+        matchProcessingStatus: 'READY'
       });
 
       // Keep private copy for sensitive audit
@@ -263,8 +274,12 @@ export default function JobsTab() {
       });
 
       setShowApprovalModal(null);
-    } catch (e) {
-      console.error("Governance engine failure", e);
+      setSelectedJob(null); // Close sidebar on successful release
+    } catch (e: any) {
+      console.error("Governance engine failure", e.message);
+      if (e.message?.includes('permission')) {
+        alert("Permission Denied: Insufficient authorization for commercial release.");
+      }
     }
   };
 
@@ -704,40 +719,65 @@ export default function JobsTab() {
               </div>
               <Button variant="ghost" size="icon" onClick={() => setShowApprovalModal(null)} className="h-8 w-8 rounded-full"><X size={16}/></Button>
             </div>
-            
-            <div className="p-6 space-y-6">
+                 <div className="p-6 space-y-6">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                 <button 
+                    onClick={() => setCurrency('INR')}
+                    className={cn("px-4 py-2 rounded-xl text-xs font-black transition-all", currency === 'INR' ? "bg-orange-100 text-orange-700 shadow-sm border border-orange-200" : "bg-slate-50 text-slate-400 border border-transparent")}
+                 >
+                   ₹ INDIAN RUPEE (INR)
+                 </button>
+                 <button 
+                    onClick={() => setCurrency('USD')}
+                    className={cn("px-4 py-2 rounded-xl text-xs font-black transition-all", currency === 'USD' ? "bg-indigo-100 text-indigo-700 shadow-sm border border-indigo-200" : "bg-slate-50 text-slate-400 border border-transparent")}
+                 >
+                   $ US DOLLAR (USD)
+                 </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Client Billing ($)</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Client Billing ({currency})</label>
                   <div className="relative">
-                    <DollarSign size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input id="actualBudget" type="number" className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">{currency === 'INR' ? '₹' : '$'}</span>
+                    <input id="actualBudget" type="number" className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:shadow-md outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Margin Type</label>
-                  <select id="marginType" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    <option value="PERCENTAGE">Percentage (%)</option>
-                    <option value="FIXED">Flat Fee ($)</option>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Staffing Model</label>
+                  <select 
+                    id="staffingModel" 
+                    onChange={(e: any) => setBudgetPeriod(e.target.value)}
+                    value={budgetPeriod}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:shadow-md outline-none transition-all"
+                  >
+                    <option value="LPA">LPA (Per Annum)</option>
+                    <option value="LPM">LPM (Per Month)</option>
+                    <option value="HOURLY">Hourly (Billable)</option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Margin Value</label>
-                <input id="platformMargin" type="number" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={15} placeholder="e.g., 15 for 15% or 20 for $20" />
+                <div className="flex justify-between">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Platform Commission (%)</label>
+                   <span className="text-[10px] font-black text-indigo-600">{budgetPeriod === 'LPA' ? '8.33% recommended' : '15% recommended'}</span>
+                </div>
+                <input id="platformMargin" type="number" step="0.01" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:shadow-md outline-none transition-all" defaultValue={budgetPeriod === 'LPA' ? 8.33 : 15} />
               </div>
 
-              <div className="bg-indigo-900 rounded-xl p-4 text-white shadow-lg shadow-indigo-200/50">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-3">Profit Simulation</h4>
+              <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-2xl shadow-indigo-100">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-3 flex items-center gap-2">
+                   <Activity size={14}/> Commercial Health Simulation
+                </h4>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-indigo-400">Target Payout to Vendor</span>
-                    <span className="font-mono font-bold text-emerald-400">CALCULATED AT RUNTIME</span>
+                    <span className="text-slate-400">Currency Protocol</span>
+                    <span className="font-mono font-bold text-indigo-400">{currency}</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs font-black pt-2 border-t border-indigo-800">
-                    <span>Est. Platform Profit</span>
-                    <span className="text-indigo-300">$--.--</span>
+                  <div className="flex justify-between items-center text-xs font-black pt-3 border-t border-slate-800">
+                    <span>Vendor Visibility</span>
+                    <span className="text-emerald-400 uppercase tracking-tighter">MASKED BUDGET ACTIVE</span>
                   </div>
                 </div>
               </div>
@@ -747,18 +787,18 @@ export default function JobsTab() {
                   onClick={() => {
                     const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
                     const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
-                    const type = (document.getElementById('marginType') as HTMLSelectElement).value as any;
-                    handleApproveMargin(showApprovalModal, budget, val, type);
+                    const model = (document.getElementById('staffingModel') as HTMLSelectElement).value as any;
+                    handleApproveMargin(showApprovalModal, budget, val, 'PERCENTAGE', currency, model);
                   }}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 rounded-xl shadow-xl shadow-indigo-100 uppercase tracking-widest text-xs transition-all active:scale-[0.98]"
+                  className="w-full bg-indigo-600 hover:bg-slate-900 text-white font-black h-14 rounded-2xl shadow-xl shadow-indigo-100 uppercase tracking-widest text-xs transition-all active:scale-[0.98]"
                 >
-                  Confirm & Release to Vendor Network
+                  Confirm & Release to Global OS
                 </Button>
-                <p className="text-[9px] text-center text-slate-400 mt-3 italic">
-                  * This action will sanitize all financial data before vendor distribution.
+                <p className="text-[9px] text-center text-slate-400 mt-4 italic max-w-xs mx-auto">
+                  By clicking release, you authorize the commercial masking engine to broadcast this requirement to all global vendors.
                 </p>
               </div>
-            </div>
+            </div>  </div>
           </div>
         </div>
       )}

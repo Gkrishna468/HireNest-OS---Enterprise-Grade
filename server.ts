@@ -377,28 +377,39 @@ async function startServer() {
   app.get("/api/admin/governance-data", (req, res) => {
     try {
       const timestamp = new Date().toISOString();
+      console.log(`[HQ SYNC HUB] Initiating sync at ${timestamp}`);
       
-      // Deep clone clones with JSON to avoid any reference or circularity issues
-      const dataToSync = JSON.parse(JSON.stringify({
-        organizations: dbMock.organizations || [],
-        requirements_public: dbMock.requirements_public || [],
-        candidatePool: dbMock.candidatePool || [],
-        submissions: dbMock.submissions || [],
-        dealRooms: dbMock.dealRooms || [],
+      // Sanitized check of dbMock structures
+      const organizations = Array.isArray(dbMock.organizations) ? dbMock.organizations : [];
+      const requirements = Array.isArray(dbMock.requirements_public) ? dbMock.requirements_public : [];
+      const candidatePool = Array.isArray(dbMock.candidatePool) ? dbMock.candidatePool : [];
+      const submissions = Array.isArray(dbMock.submissions) ? dbMock.submissions : [];
+      const dealRooms = Array.isArray(dbMock.dealRooms) ? dbMock.dealRooms : [];
+
+      // Avoid potential circularity with a more controlled serialization if needed
+      // but standard JSON.stringify is usually fine for these POJOs
+      const payload = {
+        organizations,
+        requirements_public: requirements,
+        candidatePool,
+        submissions,
+        dealRooms,
         metrics: dbMock.metrics || {},
         lastSync: timestamp
-      }));
+      };
       
-      return res.status(200).json(dataToSync);
+      return res.status(200).json(payload);
     } catch (err: any) {
-      console.error("[HQ SYNC HUB ERROR]", err.message);
+      console.error("[HQ SYNC HUB FATAL ERROR]", err);
+      // Absolute fallback to prevent client-side crashing with a 500
       return res.status(200).json({ 
         organizations: [], 
         requirements_public: [], 
         candidatePool: [], 
         submissions: [], 
         dealRooms: [],
-        error: "System sync deferred due to internal processing error." 
+        metrics: {},
+        error: `System sync deferred: ${err.message}` 
       });
     }
   });

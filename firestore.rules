@@ -100,15 +100,15 @@ service cloud.firestore {
     match /requirements_public/{reqId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidRequirementPublic(incoming());
-      allow update: if (isDynamicAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
-         (isDynamicAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'matchProcessingStatus'])) ||
+      allow update: if (isAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
+         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'matchProcessingStatus', 'rate', 'financials'])) ||
          (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'skills', 'budget', 'workMode', 'matchProcessingStatus']))
       );
     }
 
     match /requirements_private/{reqId} {
-      allow read: if isDynamicAdmin() || (isSignedIn() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
-      allow write: if isDynamicAdmin();
+      allow read: if isAdmin() || (isSignedIn() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isAdmin();
     }
 
     match /compliance_documents/{docId} {
