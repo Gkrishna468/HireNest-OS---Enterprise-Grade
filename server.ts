@@ -188,13 +188,11 @@ async function startServer() {
     
     if (ai) {
        try {
+         const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
          const prompt = `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`;
-         const interaction = await ai.interactions.create({
-           model: "gemini-3.1-pro-preview",
-           input: prompt
-         });
-         const textOutput = interaction.outputs.find((o: any) => o.type === 'text');
-         if (textOutput) analysis = textOutput.text;
+         const result = await model.generateContent(prompt);
+         const response = await result.response;
+         analysis = response.text();
        } catch (err) {
          console.warn("[STRATEGY] AI deferred", err);
        }
@@ -208,7 +206,35 @@ async function startServer() {
   app.get("/api/metrics", (req, res) => {
     const { type } = req.query;
     console.log(`[METRICS] Serving ${type} metrics...`);
+    if (!dbMock.metrics) return res.status(500).json({ error: "Metrics missing" });
     res.json(dbMock.metrics);
+  });
+
+  app.get("/api/user/candidates", (req, res) => {
+    const { orgId } = req.query;
+    console.log(`[CANDIDATES] Fetching for ORG: ${orgId}`);
+    const filtered = (dbMock.candidatePool || []).filter((c: any) => c.vendorId === orgId);
+    res.json({ candidates: filtered });
+  });
+
+  app.get("/api/matching/global", (req, res) => {
+    const { requirementId, skills } = req.query;
+    console.log(`[MATCHING] Running global search for REQ: ${requirementId}`);
+    
+    // In a real app, this searches the cross-vendor pool
+    // We'll simulate by returning candidates from dbMock.candidatePool that have matching skills
+    const skillList = String(skills || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    
+    let matches = dbMock.candidatePool.map((c: any) => {
+      const matchCount = c.skills.filter((cs: string) => skillList.includes(cs.toLowerCase())).length;
+      const score = skillList.length > 0 ? Math.round((matchCount / skillList.length) * 40) + 60 : c.matchScore;
+      return { ...c, matchScore: score, isGlobalMatch: true };
+    });
+
+    // Filter to reasonably high scores
+    matches = matches.filter((m: any) => m.matchScore > 70);
+    
+    res.json({ matches: matches.sort((a: any, b: any) => b.matchScore - a.matchScore) });
   });
 
   app.post("/api/admin/notify-approval", (req, res) => {
@@ -227,20 +253,21 @@ async function startServer() {
 
   const upload = multer({ storage: multer.memoryStorage() });
 
-  app.post("/api/extract-text", upload.single('file'), async (req, res) => {
+  app.post("/api/extract-text", upload.single('file'), async (req: Request, res: Response) => {
     try {
-      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-      const filename = req.file.originalname.toLowerCase();
+      const anyReq = req as any;
+      if (!anyReq.file) return res.status(400).json({ error: "No file uploaded" });
+      const filename = anyReq.file.originalname.toLowerCase();
       let text = "";
 
       if (filename.endsWith(".pdf")) {
-        const data = await pdf(req.file.buffer);
+        const data = await pdf(anyReq.file.buffer);
         text = data.text;
       } else if (filename.endsWith(".docx")) {
-        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
         text = result.value;
       } else {
-        text = req.file.buffer.toString();
+        text = anyReq.file.buffer.toString();
       }
       res.json({ text });
     } catch (err: any) {
@@ -255,17 +282,14 @@ async function startServer() {
     
     if (ai) {
       try {
-        const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' and 'skills' array. JD: ${jdText}`;
-        const interaction = await ai.interactions.create({
-            model: "gemini-3.1-pro-preview",
-            input: prompt
-        });
-        const output = interaction.outputs.find((o: any) => o.type === 'text');
-        if (output) {
-           const jsonMatch = output.text.match(/\{.*\}/s);
-           if (jsonMatch) {
-             result = { ...result, ...JSON.parse(jsonMatch[0]) };
-           }
+        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`;
+        const genResult = await model.generateContent(prompt);
+        const response = await genResult.response;
+        const text = response.text();
+        const jsonMatch = text.match(/\{.*\}/s);
+        if (jsonMatch) {
+            result = { ...result, ...JSON.parse(jsonMatch[0]) };
         }
       } catch (err) {
         console.warn("[PARSE-AI] Deferred", err);

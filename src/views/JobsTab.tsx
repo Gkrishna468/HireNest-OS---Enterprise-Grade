@@ -102,35 +102,35 @@ export default function JobsTab() {
   }, [orgId, userRole]);
 
   useEffect(() => {
-    if (selectedJob) {
+    if (selectedJob && auth.currentUser) {
       // 1. Listen to explicit vendor submissions
       const qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
       const unsubSub = onSnapshot(qSub, (snap) => {
         setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, "submissions");
+        if (!error.message.includes("permission")) {
+            handleFirestoreError(error, OperationType.GET, "submissions");
+        }
       });
 
-      // 2. Cross-Vendor Global Matching
-      // We search the global candidate pool for skills matching this job
-      // In a real app, this would be a high-performance vector search. 
-      // Here we filter by the first 3 skills as a proxy.
-      const topSkills = selectedJob.skills?.slice(0, 3) || [];
-      if (topSkills.length > 0) {
-        const qMatch = query(
-          collection(db, "candidatePool"), 
-          where("skills", "array-contains-any", topSkills)
-        );
-        const unsubMatch = onSnapshot(qMatch, (snap) => {
-          const matched = snap.docs.map(d => ({ id: d.id, ...d.data(), isGlobalMatch: true } as any));
-          setGlobalMatches(matched.filter(m => m.vendorId !== orgId)); // Don't show your own candidates
-        });
-        return () => { unsubSub(); unsubMatch(); };
-      }
+      // 2. Cross-Vendor Global Matching via Secure API
+      const fetchGlobalMatches = async () => {
+        try {
+          const skills = (selectedJob.skills || []).join(",");
+          const res = await fetch(`/api/matching/global?requirementId=${selectedJob.id}&skills=${encodeURIComponent(skills)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setGlobalMatches(data.matches || []);
+          }
+        } catch (e) {
+          console.warn("Global matching API failed, using fallback empty state");
+        }
+      };
 
+      fetchGlobalMatches();
       return () => unsubSub();
     }
-  }, [selectedJob, orgId]);
+  }, [selectedJob, auth.currentUser]);
 
   const handleParseJD = async () => {
     if (!jdText.trim()) return;
@@ -265,9 +265,6 @@ export default function JobsTab() {
     try {
       const platformProfit = marginType === 'PERCENTAGE' ? (actualBudget * (marginValue / 100)) : marginValue;
       const vendorVisible = actualBudget - platformProfit;
-      const currencySymbol = curr === 'INR' ? '₹' : '$';
-      const rateString = `${currencySymbol}${vendorVisible}${model === 'HOURLY' ? '/hr' : (model === 'LPA' ? ' LPA' : ' LPM')}`;
-      
       const financials = {
         clientBudget: actualBudget,
         clientCurrency: curr,
@@ -275,33 +272,23 @@ export default function JobsTab() {
         adminMargin: platformProfit,
         vendorPayout: vendorVisible,
         platformProfit: platformProfit,
-        marginConfig: { type: marginType, value: marginValue },
-        payoutRateString: rateString
+        marginConfig: { type: marginType, value: marginValue }
       };
 
-      // Minimalist update to stay within likely rules hasOnly(['status', ...])
-      await updateDoc(doc(db, "requirements_public", req.id), {
-        status: "PUBLISHED",
-        visibility: "VENDOR_NETWORK",
-        vendorVisibleBudget: vendorVisible,
-        adminApproved: true,
-        matchProcessingStatus: 'READY'
+      // USE SECURE API FOR APPROVAL
+      const res = await fetch("/api/admin/approve-requirement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reqId: req.id, financials })
       });
 
-      // Keep private copy for sensitive audit
-      await setDoc(doc(db, "requirements_private", req.id), {
-        requirementId: req.id,
-        ...financials,
-        updatedAt: serverTimestamp()
-      });
+      if (!res.ok) throw new Error("Approval API failed");
 
       setShowApprovalModal(null);
-      setSelectedJob(null); // Close sidebar on successful release
+      setSelectedJob(null);
     } catch (e: any) {
       console.error("Governance engine failure", e.message);
-      if (e.message?.includes('permission')) {
-        alert("Permission Denied: Insufficient authorization for commercial release.");
-      }
+      alert("Governance Error: " + e.message);
     }
   };
 

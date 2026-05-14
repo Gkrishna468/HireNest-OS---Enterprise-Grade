@@ -19,24 +19,47 @@ export default function CandidatesTab() {
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      if (auth.currentUser) {
+    let unsubscribe: (() => void) | undefined;
+    
+    const init = async () => {
+      if (!auth.currentUser) return;
+      
+      try {
         const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
         if (userDoc.exists()) {
           const orgId = userDoc.data().organizationId;
           setUserOrgId(orgId);
           
+          // Initial load from API
+          try {
+            const res = await fetch(`/api/user/candidates?orgId=${orgId}`);
+            if (res.ok) {
+              const data = await res.json();
+              setCandidates(data.candidates || []);
+            }
+          } catch (e) {
+            console.warn("Initial API load failed");
+          }
+          
+          // Real-time listener
           const q = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
-          const unsubscribe = onSnapshot(q, (snap) => {
+          unsubscribe = onSnapshot(q, (snap) => {
             setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
           }, (error) => {
-            handleFirestoreError(error, OperationType.GET, "candidatePool");
+            if (!error.message.includes("permission")) {
+              handleFirestoreError(error, OperationType.GET, "candidatePool");
+            }
           });
-          return () => unsubscribe();
         }
+      } catch (err) {
+        console.error("Auth init failed", err);
       }
     };
-    fetchUser();
+
+    init();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleAddCandidate = async () => {
