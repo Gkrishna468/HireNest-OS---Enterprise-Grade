@@ -3,7 +3,7 @@ import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Eye, Star, TrendingUp, X, Filter, DollarSign, CheckCircle, ShieldAlert, Clock, Building2 } from "lucide-react";
+import { Eye, Star, TrendingUp, X, Filter, DollarSign, CheckCircle, ShieldAlert, Clock, Building2, Globe2 } from "lucide-react";
 import { updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 export default function ClientsTab() {
@@ -11,6 +11,8 @@ export default function ClientsTab() {
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [showApprovalModal, setShowApprovalModal] = useState<any>(null);
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
+  const [staffingModel, setStaffingModel] = useState<'LPA' | 'LPM' | 'HOURLY'>('LPA');
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -330,15 +332,26 @@ export default function ClientsTab() {
       )}      {/* Governance & Approval Modal */}
       {showApprovalModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-white/20 animate-in zoom-in-95 duration-200">
             <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Commercial Governance & Approval</h2>
                 <div className="flex items-center gap-2 mt-1">
                    <span className="text-[10px] text-slate-400 font-mono">REQ-{showApprovalModal.id?.slice(-4)}</span>
-                   <span className="text-[10px] text-indigo-600 font-black uppercase bg-indigo-50 px-1.5 py-0.5 rounded">
-                     {showApprovalModal.title?.toLowerCase().includes('full time') ? 'Full Time (LPA)' : 'Contract (LPM)'}
-                   </span>
+                   <div className="flex gap-1">
+                     <button 
+                        onClick={() => setCurrency('INR')}
+                        className={cn("text-[9px] font-black px-1.5 py-0.5 rounded transition-all", currency === 'INR' ? "bg-orange-100 text-orange-700 border border-orange-200" : "bg-slate-100 text-slate-400 border border-transparent")}
+                     >
+                       ₹ INR
+                     </button>
+                     <button 
+                        onClick={() => setCurrency('USD')}
+                        className={cn("text-[9px] font-black px-1.5 py-0.5 rounded transition-all", currency === 'USD' ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-100 text-slate-400 border border-transparent")}
+                     >
+                       $ USD
+                     </button>
+                   </div>
                 </div>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setShowApprovalModal(null)} className="h-8 w-8 rounded-full">
@@ -346,21 +359,21 @@ export default function ClientsTab() {
               </Button>
             </div>
             
-            <div className="flex flex-col md:flex-row h-[500px]">
+            <div className="flex flex-col md:flex-row h-[550px]">
               {/* JD Column */}
-              <div className="w-full md:w-1/2 p-6 border-r border-slate-100 overflow-y-auto bg-slate-50/30">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Job Details & JD</h4>
+              <div className="w-full md:w-5/12 p-6 border-r border-slate-100 overflow-y-auto bg-slate-50/20">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Requirement Intelligence</h4>
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-800">{showApprovalModal.title}</h3>
-                    <div className="flex flex-wrap gap-1 mt-2">
+                  <div className="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-800 leading-tight">{showApprovalModal.title}</h3>
+                    <div className="flex flex-wrap gap-1 mt-3">
                       {showApprovalModal.skills?.map((s: string) => (
-                        <span key={s} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-bold text-slate-500">{s}</span>
+                        <span key={s} className="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded text-[9px] font-bold text-slate-500">{s}</span>
                       ))}
                     </div>
                   </div>
-                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  <div className="p-5 bg-white rounded-3xl border border-slate-100">
+                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
                       {showApprovalModal.description || "No detailed description provided. AI Extraction complete."}
                     </p>
                   </div>
@@ -368,76 +381,98 @@ export default function ClientsTab() {
               </div>
 
               {/* Approval Column */}
-              <div className="w-full md:w-1/2 p-6 overflow-y-auto">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Financial Configuration</h4>
-                <div className="space-y-5">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Target ($/LPA)</label>
-                    <div className="relative">
-                      <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input id="actualBudget" type="number" className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={showApprovalModal.clientTargetBudget || 100} />
-                    </div>
+              <div className="w-full md:w-7/12 p-8 overflow-y-auto">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Financial Configuration</h4>
+                  <div className="flex bg-slate-100 p-1 rounded-xl">
+                    {['LPA', 'LPM', 'HOURLY'].map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setStaffingModel(m as any)}
+                        className={cn(
+                          "px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all",
+                          staffingModel === m ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        {m}
+                      </button>
+                    ))}
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Margin Type</label>
-                      <select id="marginType" className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                        <option value="PERCENTAGE">Percent (%)</option>
-                        <option value="FIXED">Flat ($)</option>
-                      </select>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Client Target ({currency === 'INR' ? '₹' : '$'})
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                          {currency === 'INR' ? '₹' : '$'}
+                        </span>
+                        <input 
+                          id="actualBudget" 
+                          type="number" 
+                          className="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                          defaultValue={showApprovalModal.clientTargetBudget || 100} 
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                          {staffingModel}
+                        </span>
+                      </div>
                     </div>
+
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform Take</label>
-                      <input 
-                        id="platformMargin" 
-                        type="number" 
-                        step="0.01"
-                        className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-                        defaultValue={showApprovalModal.title?.toLowerCase().includes('full time') ? 8.33 : 15} 
-                      />
+                      <div className="flex gap-2">
+                         <div className="relative flex-1">
+                            <input 
+                              id="platformMargin" 
+                              type="number" 
+                              step="0.01"
+                              className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                              defaultValue={staffingModel === 'LPA' ? 8.33 : 15} 
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">%</span>
+                         </div>
+                      </div>
                     </div>
                   </div>
 
-                  {showApprovalModal.title?.toLowerCase().includes('onsite') && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
-                      <div className="p-2 bg-emerald-500 rounded-lg text-white">
-                        <CheckCircle size={16} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-tight">Onsite Direct Eligible</p>
-                        <p className="text-[9px] text-emerald-600 font-medium">Auto-approval compliance detected.</p>
-                      </div>
+                  <div className="p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500">
+                      <Globe2 size={80} />
                     </div>
-                  )}
-
-                  <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-xl shadow-slate-100">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Market Visibility</span>
-                      <Eye size={12} className="text-slate-500" />
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Market Status: Global Release</span>
+                      <ShieldAlert size={14} className="text-emerald-400" />
                     </div>
-                    <div className="text-xl font-black tracking-tighter">GLOBAL RELEASE</div>
-                    <p className="text-[10px] text-slate-500 mt-2 font-medium italic">"Requirement will be instantly pushed to all qualified vendors."</p>
+                    <div className="text-2xl font-black tracking-tighter">
+                      {currency === 'INR' ? '₹' : '$'} VISIBILITY
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2 font-medium leading-relaxed max-w-[80%]">
+                      Release approved for {staffingModel} model. Commercial masking active. 
+                      Vendors will see payout in {currency}.
+                    </p>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <Button 
                       onClick={() => setShowApprovalModal(null)}
                       variant="outline"
-                      className="flex-1 border-slate-200 text-slate-500 font-bold h-12 rounded-2xl"
+                      className="flex-1 border-slate-200 text-slate-400 font-black uppercase tracking-widest text-[10px] h-14 rounded-2xl"
                     >
-                      Cancel
+                      Hold Draft
                     </Button>
                     <Button 
                       onClick={() => {
                         const budget = (document.getElementById('actualBudget') as HTMLInputElement).valueAsNumber;
                         const val = (document.getElementById('platformMargin') as HTMLInputElement).valueAsNumber;
-                        const type = (document.getElementById('marginType') as HTMLSelectElement).value as any;
-                        handleApproveMargin(showApprovalModal, budget, val, type);
+                        handleApproveMargin(showApprovalModal, budget, val, 'PERCENTAGE');
                       }}
-                      className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black h-12 rounded-2xl shadow-xl shadow-indigo-100 uppercase tracking-widest text-[10px] transition-all active:scale-[0.98]"
+                      className="flex-[2] bg-indigo-600 hover:bg-slate-900 text-white font-black h-14 rounded-full shadow-2xl shadow-indigo-200 uppercase tracking-widest text-[11px] transition-all active:scale-[0.98]"
                     >
-                      Approve & Release Requirement
+                      Release to Global OS
                     </Button>
                   </div>
                 </div>
