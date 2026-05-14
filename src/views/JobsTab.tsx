@@ -123,23 +123,37 @@ export default function JobsTab() {
   const handleParseJD = async () => {
     if (!jdText.trim()) return;
     setIsParsing(true);
+    
+    // Heuristic Fallback Title
+    const lines = jdText.split("\n").filter(l => l.trim().length > 0);
+    const fallbackTitle = lines.length > 0 ? lines[0].slice(0, 50) : "New Requirement";
+    const manualSkills = mandatorySkills.split(",").map(s => s.trim()).filter(Boolean);
+
     try {
-      const res = await fetch("/api/parse-jd", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jdText })
-      });
-      const parsed = await res.json();
+      let parsed = { title: fallbackTitle, skills: manualSkills };
+      
+      try {
+        const res = await fetch("/api/parse-jd", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jdText })
+        });
+        
+        if (res.ok) {
+          const apiParsed = await res.json();
+          parsed = { ...parsed, ...apiParsed };
+        }
+      } catch (apiErr) {
+        console.warn("AI extraction deferred. Falling back to manual parameters.", apiErr);
+      }
       
       const reqId = "REQ-" + Math.random().toString(36).substr(2, 9);
       const newReq = {
         requirementId: reqId,
         clientId: orgId,
-        title: parsed.title,
-        description: jdText, // Store full original text
-        skills: mandatorySkills.split(',').map(s => s.trim()).filter(Boolean).length > 0 
-                ? mandatorySkills.split(',').map(s => s.trim()).filter(Boolean) 
-                : parsed.skills,
+        title: parsed.title || fallbackTitle,
+        description: jdText,
+        skills: manualSkills.length > 0 ? manualSkills : (parsed.skills || []),
         status: "DRAFT",
         visibility: "INTERNAL",
         budget: { amount: budgetAmount, period: budgetPeriod },
@@ -147,7 +161,7 @@ export default function JobsTab() {
         adminApproved: false,
         ownerId: auth.currentUser?.uid,
         createdAt: serverTimestamp(),
-        matchProcessingStatus: 'pending' // For the "5 minute" wait logic
+        matchProcessingStatus: 'pending'
       };
       
       await setDoc(doc(db, "requirements_public", reqId), newReq);
@@ -155,16 +169,16 @@ export default function JobsTab() {
       setBudgetAmount(0);
       setMandatorySkills("");
 
-      // Simulate the multi-stage processing window
+      // Trigger AI Match Simulation
       setTimeout(async () => {
         await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'processing' });
         setTimeout(async () => {
              await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'completed' });
-        }, 20000); // 20 seconds total for demo
+        }, 20000);
       }, 5000); 
 
     } catch (e) {
-      console.error("Failed to parse JD", e);
+      console.error("Critical submission failure", e);
     }
     setIsParsing(false);
   };

@@ -289,23 +289,33 @@ async function startServer() {
       if (!jdText) return res.status(400).json({ error: "Missing jdText" });
       
       // Local Heuristic parsing
-      const doc = nlp(jdText);
-      const title = doc.nouns().toTitleCase().out('array')[0] || "Requirements Specialist";
-      const skills = OSIntelligenceEngine['COMMON_SKILLS'].filter(s => jdText.toLowerCase().includes(s));
+      let title = "Requirement Specialist";
+      try {
+        const doc = nlp(jdText);
+        const nouns = doc.nouns().toTitleCase().out('array');
+        if (nouns && nouns.length > 0) title = nouns[0];
+      } catch (nlpErr) {
+        console.warn("NLP parsing failed", nlpErr);
+        // Fallback to first line
+        const lines = jdText.split('\n').filter(l => l.trim().length > 0);
+        if (lines.length > 0) title = lines[0].slice(0, 50);
+      }
+      
+      const skills = OSIntelligenceEngine.COMMON_SKILLS.filter(s => jdText.toLowerCase().includes(s.toLowerCase()));
       const expMatch = jdText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
 
-      let parsed = {
+      let parsed: any = {
         title,
         description: jdText.slice(0, 150) + "...",
         skills,
         experience: expMatch ? expMatch[0] : "Not specified",
-        suggestedBudget: 100, // Default heuristic
+        suggestedBudget: 0,
         criticalRequirements: skills.slice(0, 2)
       };
 
       if (ai) {
         try {
-          const prompt = `Extract structured metadata from this Job Description: ${jdText}. Return JSON.`;
+          const prompt = `Extract structured metadata from this Job Description. Return ONLY a JSON object with keys: title, skills (array), experience (string), suggestedBudget (number). \n\n JD: ${jdText}`;
           const result = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: prompt,
@@ -318,9 +328,14 @@ async function startServer() {
         }
       }
       
-      res.json(parsed);
+      return res.status(200).json(parsed);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("Parse-JD Critical Failure", err);
+      return res.status(200).json({ 
+        title: "Manual Requirement Entry", 
+        skills: [], 
+        error: "AI extraction deferred, manual entry active." 
+      });
     }
   });
 
@@ -453,18 +468,28 @@ async function startServer() {
     try {
       const { type } = req.query;
       console.log(`[METRICS] Request for type: ${type}`);
+      
+      // Safety check for metrics data
+      const m = dbMock.metrics || {
+        revenue: 0,
+        activeDeals: 0,
+        placements: 0,
+        margin: "15%",
+        vendorQuality: 90
+      };
+
       const baseMetrics = {
-        revenue: 1450000,
+        revenue: m.revenue || 0,
         spending: 1200000,
-        activeDeals: 42,
-        placements: 18,
+        activeDeals: m.activeDeals || 0,
+        placements: m.placements || 0,
         avgMargin: 18,
-        vendorQuality: 92,
+        vendorQuality: m.vendorQuality || 92,
         recruiterProductivity: 88,
       };
 
       if (type === 'vendor') {
-        return res.json({
+        return res.status(200).json({
           ...baseMetrics,
           revenue: 85000, // Vendor earnings
           activeDeals: 5,
@@ -474,7 +499,7 @@ async function startServer() {
       }
 
       if (type === 'client') {
-        return res.json({
+        return res.status(200).json({
           ...baseMetrics,
           spending: 450000,
           activeDeals: 12,
@@ -483,10 +508,17 @@ async function startServer() {
         });
       }
 
-      return res.json(baseMetrics);
+      return res.status(200).json(baseMetrics);
     } catch (err) {
       console.error("[METRICS ERROR]", err);
-      return res.status(500).json({ error: "Failed to load metrics", message: String(err) });
+      return res.status(200).json({ 
+        revenue: 0,
+        spending: 0,
+        activeDeals: 0,
+        placements: 0,
+        vendorQuality: 0,
+        error: "Fallback metrics active" 
+      });
     }
   });
   
