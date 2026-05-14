@@ -18,14 +18,12 @@ const __dirname = path.dirname(__filename);
 // --- Initialization & Error Control ---
 console.log("[SERVER START] Booting HireNest Global OS Intelligence Layer...");
 
-let pdfParser: any = null;
+let pdfParse: any = null;
 try {
-  // Using require for older commonjs compatibility in some pdf libs if needed
-  const pdfParse = require('pdf-parse');
-  pdfParser = pdfParse;
+  pdfParse = require('pdf-parse');
   console.log("[DEP] PDF-Parse loaded successfully");
 } catch (e) {
-  console.error("[DEP] PDF-Parse load failed, trying dynamic import", e);
+  console.error("[DEP] PDF-Parse load failed", e);
 }
 
 // --- Global Mock Database ---
@@ -345,30 +343,40 @@ async function startServer() {
       console.log(`[EXTRACT] Processing: ${filename} (${anyReq.file.mimetype})`);
 
       if (filename.endsWith(".pdf") || anyReq.file.mimetype === 'application/pdf') {
-        if (pdfParser) {
-           const data = await pdfParser(anyReq.file.buffer);
-           text = data.text;
+        if (!pdfParse) {
+           throw new Error("PDF parsing engine is not available on the server. Please check deployment configuration.");
+        }
+        try {
+           const data = await pdfParse(anyReq.file.buffer);
+           text = data.text || "";
            console.log(`[EXTRACT] PDF parsed successfully, characters: ${text.length}`);
-        } else {
-           throw new Error("PDF parser failed to initialize on startup");
+        } catch (pdfErr: any) {
+           console.error("[EXTRACT] PDF processing internal error", pdfErr);
+           throw new Error(`PDF Parsing Error: ${pdfErr.message || "Unknown PDF parsing issue"}`);
         }
       } else if (filename.endsWith(".docx") || anyReq.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
-        text = result.value;
-        console.log(`[EXTRACT] DOCX parsed successfully, characters: ${text.length}`);
-      } else {
-        // Fallback for text files or unknown
+        try {
+          const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
+          text = result.value || "";
+          console.log(`[EXTRACT] DOCX parsed successfully, characters: ${text.length}`);
+        } catch (docxErr: any) {
+           console.error("[EXTRACT] DOCX processing internal error", docxErr);
+           throw new Error(`DOCX Parsing Error: ${docxErr.message || "Unknown DOCX parsing issue"}`);
+        }
+      } else if (filename.endsWith(".txt") || anyReq.file.mimetype.startsWith('text/')) {
         text = anyReq.file.buffer.toString('utf-8');
-        console.log(`[EXTRACT] Text/Other fallback used for ${filename}`);
+        console.log(`[EXTRACT] Text file parsed, size: ${text.length}`);
+      } else {
+        throw new Error(`Format not supported for intelligence extraction: ${filename}. Use PDF or DOCX.`);
       }
       
-      if (!text || text.trim().length === 0) {
-        throw new Error("Extracted text is empty. The file might be encrypted or scanned (OCR required).");
+      if (!text || text.trim().length < 5) {
+        throw new Error("The document appears to be empty or consists only of images (OCR required).");
       }
 
-      res.status(200).json({ text });
+      res.status(200).json({ text: text.trim() });
     } catch (err: any) {
-      console.error("[EXTRACT ERROR]", err);
+      console.error("[EXTRACT FATAL]", err);
       res.status(500).json({ 
         error: "Extraction Failed", 
         message: err.message || "An error occurred during file parsing." 
