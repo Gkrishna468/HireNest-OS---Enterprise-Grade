@@ -147,5 +147,11 @@ service cloud.firestore {
       allow read: if isDynamicAdmin();
       allow create: if isSignedIn();
     }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.recipientId == request.auth.uid || isOrganizationMember(resource.data.recipientId) || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.recipientId == request.auth.uid || isAdmin());
+    }
   }
 }

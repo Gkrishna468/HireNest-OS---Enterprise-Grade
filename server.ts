@@ -351,8 +351,8 @@ async function startServer() {
         totalScore: 0
       },
       summary: "Detailed matching currently simulated.",
-      strengths: ["Matching skills found"],
-      gaps: ["Verify location"],
+      strengths: [],
+      gaps: [],
       missingSkills: [],
       outreachDrafts: {
         founder: "Hey, I saw your profile and it looks like a great fit for our mission-driven team.",
@@ -369,20 +369,29 @@ async function startServer() {
       try {
         const response = await withAIRetry(async () => {
           return await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `Analyze this JD and Candidate Profile. Return a JSON object with: 
-              matchScore (number 0-100), 
-              breakdown (object with: skillsScore, experienceScore, domainScore, locationScore, bonusScore, totalScore),
-              summary (string), 
-              strengths (array of strings), 
-              gaps (array of strings), 
-              missingSkills (array of strings - specifically technical skills from JD that are NOT in candidate resume),
-              recruiterAssessment (string),
-              recommendation (one of: STRONG_FIT, CONSIDER, NOT_SUITABLE),
-              nextSteps (string),
-              outreachDrafts (object with keys: founder, professional, executive, warm).
-              JD: ${jd}
-              Profile: ${candidateProfile}`,
+            model: "gemini-2.0-flash",
+            contents: `Act as a Senior Executive Recruiter and Technical Lead. Perform a high-fidelity matching analysis between the provided Job Description (JD) and Candidate Profile.
+
+CRITICAL INSTRUCTION FOR SKILL ANALYSIS:
+1. Extract ALL technical requirements from the JD.
+2. Identify which of these are explicitly found in the candidate resume (Strengths).
+3. Identify which are missing but relevant (Gaps).
+4. Identify which are MANDATORY in the JD but COMPLETELY ABSENT in the resume (missingSkills). Do not hallucinate skills.
+
+Return a strictly valid JSON object with: 
+- matchScore (number 0-100, be strict, only 90+ for near-perfect matches)
+- breakdown (object with weights: skillsScore (max 40), experienceScore (max 20), domainScore (max 20), locationScore (max 10), bonusScore (max 10). totalScore is sum)
+- summary (2-3 sentences of executive summary)
+- strengths (array of strings, e.g. "8+ years in AWS/Kubernetes")
+- gaps (array of strings, e.g. "Missing experience with Kafka")
+- missingSkills (array of strings - specifically technical skills from JD that are NOT in candidate resume)
+- recruiterAssessment (A punchy, honest internal note for the CEO/CTO)
+- recommendation (STRONG_FIT, CONSIDER, NOT_SUITABLE)
+- nextSteps (Actionable next step)
+- outreachDrafts (Personalized outreach: keys founder, professional, executive, warm)
+
+JD Context: ${jd}
+Candidate Profile: ${candidateProfile}`,
             config: { responseMimeType: "application/json" }
           });
         });
@@ -415,9 +424,22 @@ async function startServer() {
       try {
         const response = await withAIRetry(async () => {
           return await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
-              Resumes: ${JSON.stringify(resumeTexts)}`,
+            model: "gemini-2.0-flash",
+            contents: `As an expert technical recruiter, perform a production-grade extraction of candidate profiles from these resumes. 
+              Output a strictly valid JSON array of objects, each representing a candidate.
+              
+              Each object MUST have:
+              - name (Full Name)
+              - email (Found email)
+              - phone (Found phone)
+              - linkedin (LinkedIn URL if found)
+              - skills (Array of high-fidelity technical skills extracted)
+              - summary (2-3 sentence professional summary)
+              - experience (Years of experience string)
+              - location (City, State if found)
+              - resumeText (The raw refined text provided)
+              
+              Resumes to Parse: ${JSON.stringify(resumeTexts)}`,
             config: { responseMimeType: "application/json" }
           });
         });
@@ -553,27 +575,30 @@ async function startServer() {
       maxExp: 15,
       location: "Remote",
       responsibilities: [],
-      summary: ""
+      summary: "",
+      jdFullProfile: "" 
     };
     
     if (ai) {
       try {
         const response = await withAIRetry(async () => {
           return await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `As an expert recruiter, parse this Job Description into a structured profile. 
-              Extract: 
-              1. Job Title 
-              2. Mandatory Technical Skills 
-              3. Preferred/Nice-to-have Skills
-              4. Minimum Years of Experience
-              5. Maximum Years of Experience (if mentioned, else 15)
-              6. Location/Work Mode
-              7. Key Responsibilities (top 5)
-              8. High-level Summary (1-2 sentences)
+            model: "gemini-2.0-flash",
+            contents: `As an expert technical recruiter, perform a production-grade parsing of this Job Description. 
+              Do not lose any critical information. Structure it for a high-end staffing OS.
               
-              Return JSON object with keys: title, mandatorySkills, preferredSkills, minExp, maxExp, location, responsibilities, summary.
-              JD: ${jdText}`,
+              Return a JSON object with: 
+              - title (Professional Job Title)
+              - mandatorySkills (Array of critical technical skills)
+              - preferredSkills (Array of nice-to-have skills)
+              - minExp (Number)
+              - maxExp (Number)
+              - location (City, State or Remote/Hybrid)
+              - responsibilities (Array of top 5-7 key duties)
+              - summary (Executive summary of the role)
+              - jdFullProfile (A well-formatted Markdown version of the JD, professionally structured with headers and lists)
+              
+              JD Text: ${jdText}`,
             config: { responseMimeType: "application/json" }
           });
         });

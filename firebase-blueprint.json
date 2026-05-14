@@ -145,6 +145,20 @@
         "ownerId": { "type": "string" }
       },
       "required": ["organizationId", "documentType", "fileUrl", "ownerId"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System notification for a user or organization",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["INFO", "WARNING", "SUCCESS", "URGENT", "DEAL_ROOM"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "title", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -157,6 +171,7 @@
     "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },
     "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "title": "Message", "type": "object", "properties": { "text": { "type": "string" }, "senderId": { "type": "string" }, "timestamp": { "type": "string" } } }, "description": "Messages" },
     "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" },
-    "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" }
+    "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" },
+    "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" }
   }
 }

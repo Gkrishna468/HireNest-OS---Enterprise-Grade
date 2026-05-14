@@ -41,6 +41,8 @@ export default function CandidatesTab() {
           const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
           onSnapshot(jobsQuery, (snap) => {
             setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, "requirements_public_mapping");
           });
 
           // Initial load from API
@@ -59,9 +61,7 @@ export default function CandidatesTab() {
           unsubscribe = onSnapshot(q, (snap) => {
             setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
           }, (error) => {
-            if (!error.message.includes("permission")) {
-              handleFirestoreError(error, OperationType.GET, "candidatePool");
-            }
+            handleFirestoreError(error, OperationType.GET, "candidatePool");
           });
         }
       } catch (err) {
@@ -359,22 +359,35 @@ export default function CandidatesTab() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full p-4 overflow-hidden space-y-4 bg-slate-50">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2 shrink-0">
-        <div>
-          <h1 className="text-sm font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
-            <Activity size={16} className="text-indigo-600" /> Intelligence Candidate Pool
-          </h1>
-          <p className="text-[10px] text-slate-500 font-mono mt-0.5 max-w-xl">
-            <span className="text-indigo-600 font-bold">STAFFING OS:</span> The operating system for decentralized staffing networks. Automating workflow, trust, and enrichment.
-          </p>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+      {/* OS Header */}
+      <div className="p-8 pb-4 flex items-center justify-between bg-white border-b border-slate-100 shrink-0">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+             <div className="h-10 w-10 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl">
+               <Activity size={20} />
+             </div>
+             <div>
+                <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">Candidate Matrix</h1>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                  <span className="text-indigo-600">Unified Global Pool</span> • Real-time Intelligence Processing
+                </p>
+             </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-            <Button onClick={() => setShowBulkUpload(true)} variant="outline" size="sm" className="border-slate-300 text-slate-600 flex items-center h-auto py-1.5 px-3 bg-white">
-                <Upload size={14} className="mr-1" /> <span className="text-[10px] font-bold uppercase tracking-wider">Bulk Upload</span>
+        <div className="flex gap-4">
+            <Button 
+                onClick={() => setShowBulkUpload(true)} 
+                variant="outline" 
+                className="border-slate-200 text-slate-600 h-12 px-6 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all font-black uppercase tracking-widest text-[11px]"
+            >
+                <Upload size={18} className="mr-2" /> Bulk Intelligence
             </Button>
-            <Button onClick={() => setShowAddForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center h-auto py-1.5 px-3">
-                <Plus size={14} className="mr-1" /> <span className="text-[10px] font-bold uppercase tracking-wider">Add Profile</span>
+            <Button 
+                onClick={() => setShowAddForm(true)} 
+                className="bg-indigo-600 hover:bg-slate-900 text-white h-12 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
+            >
+                <Plus size={20} className="mr-2" /> Onboard Profile
             </Button>
         </div>
       </div>
@@ -383,16 +396,25 @@ export default function CandidatesTab() {
         {STAGES.map(stage => {
           const list = candidates.filter(c => c.pipelineStage === stage);
           return (
-            <div key={stage} className={`w-72 flex-shrink-0 bg-slate-100/50 rounded-lg border flex flex-col h-full shadow-sm ${stage === 'Duplicate Review' ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}>
-              <div className={`p-3 border-b flex items-center justify-between shrink-0 rounded-t-lg ${stage === 'Duplicate Review' ? 'bg-amber-100/50 border-amber-200' : 'bg-white border-slate-100'}`}>
-                <h3 className={`font-bold text-[11px] uppercase tracking-wider ${stage === 'Duplicate Review' ? 'text-amber-800' : 'text-slate-700'}`}>
-                  {stage}
-                </h3>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border bg-slate-50 ${stage === 'Duplicate Review' ? 'text-amber-800 border-amber-200' : 'text-slate-600 border-slate-200'}`}>{list.length}</span>
+            <div key={stage} className="w-[340px] flex-shrink-0 flex flex-col h-full bg-slate-100/30 rounded-3xl border border-slate-200 overflow-hidden">
+              <div className="p-5 bg-slate-900 border-b flex items-center justify-between shrink-0 shadow-lg border-white/5">
+                <div className="flex items-center gap-3">
+                   <div className={cn(
+                        "h-2 w-2 rounded-full animate-pulse",
+                        sIdx === 0 ? "bg-slate-500" :
+                        sIdx === 1 ? "bg-amber-500" :
+                        sIdx === 2 ? "bg-indigo-500" :
+                        sIdx === 3 ? "bg-blue-500" : "bg-emerald-500"
+                   )} />
+                   <h3 className="font-black text-[11px] uppercase tracking-[0.2em] text-white">
+                     {stage}
+                   </h3>
+                </div>
+                <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 shadow-inner">{list.length}</span>
               </div>
               
-              <div className="p-2 space-y-2 flex-1 overflow-y-auto">
-                {list.map((cand, idx) => (
+              <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
+                {list.map((cand) => (
                   <div 
                     key={cand.id} 
                     onClick={() => {
@@ -400,59 +422,59 @@ export default function CandidatesTab() {
                         setMappingResult(null);
                         setSelectedJobId(cand.mappedJobId || "");
                     }}
-                    className="group relative bg-white border border-slate-200 rounded p-3 hover:border-indigo-400 transition-all shadow-sm cursor-pointer"
+                    className={cn(
+                        "group relative bg-white border border-slate-100 rounded-2xl p-5 transition-all shadow-sm hover:shadow-xl hover:shadow-slate-200 cursor-pointer overflow-hidden ring-1 ring-slate-100",
+                        selectedCandidate?.id === cand.id && "ring-2 ring-indigo-600 shadow-indigo-50"
+                    )}
                   >
                     {cand.distillationStatus === 'PENDING' && (
-                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded z-10">
-                            <div className="flex flex-col items-center gap-1">
-                                <Activity size={16} className="text-indigo-500 animate-spin" />
-                                <span className="text-[8px] font-bold uppercase tracking-tighter text-indigo-700">OS Intelligence Enriching...</span>
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex items-center justify-center rounded-2xl z-10 transition-opacity">
+                            <div className="flex flex-col items-center gap-3">
+                                <Activity size={20} className="text-indigo-600 animate-spin" />
+                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-700">OS Sync...</span>
                             </div>
                         </div>
                     )}
                     
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex flex-col">
-                        <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors">{cand.name}</div>
-                        <div className="text-[8px] font-mono text-slate-400 flex items-center gap-1">
-                          <ShieldCheck size={8} className="text-emerald-500" /> Trust Score: {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : '85'}%
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex flex-col gap-1">
+                        <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{cand.name}</div>
+                        <div className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5 p-1 bg-slate-50 rounded w-fit">
+                          <ShieldCheck size={10} className="text-emerald-500" /> {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : '85'}% Verified
                         </div>
                       </div>
-                      <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
-                        {cand.matchScore || 'N/A'}%
-                      </span>
+                      <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
+                            {cand.matchScore || '0'}%
+                          </span>
+                      </div>
                     </div>
                     
-                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2 mb-2">
-                        <MapPin size={10} className="text-slate-400" /> {cand.location || 'Remote'} 
-                        {cand.source === 'Bulk Upload' && <span className="text-[8px] px-1 bg-slate-100 rounded text-slate-400">UPLOAD</span>}
+                    <div className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-2 mb-4 bg-slate-50/50 p-2 rounded-lg">
+                        <MapPin size={12} className="text-slate-300" /> {cand.location || 'Global Remote'} 
+                        {cand.source === 'Bulk Upload' && <Badge className="text-[7px] font-black px-1.5 py-0 bg-slate-900 text-white border-none">UPLOAD</Badge>}
                     </div>
                     
-                    <div className="flex flex-wrap gap-1">
-                      {cand.skills?.slice(0,4) ? cand.skills.slice(0,4).map((s: string) => (
-                        <span key={s} className="text-[9px] bg-slate-50 text-slate-500 border border-slate-100 rounded px-1 group-hover:border-indigo-200 transition-colors">{s}</span>
-                      )) : (
-                        <span className="text-[8px] italic text-slate-400">Waiting for intelligence...</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(cand.skills || []).slice(0, 3).map((s: string) => (
+                        <span key={s} className="text-[8px] font-black bg-white text-slate-500 border border-slate-100 rounded-md px-2 py-0.5 uppercase tracking-tighter group-hover:border-indigo-200 transition-colors">{s}</span>
+                      ))}
+                      {(cand.skills || []).length > 3 && (
+                        <span className="text-[8px] font-black text-slate-300">+{ (cand.skills || []).length - 3 } MORE</span>
                       )}
                     </div>
                     
-                    {cand.distillationMetadata?.processingTimeMs && (
-                      <div className="mt-2 text-[7px] text-slate-400 font-mono flex items-center gap-1">
-                        <Activity size={8} /> Distilled in {cand.distillationMetadata.processingTimeMs}ms
-                      </div>
-                    )}
-
                     {cand.distillationStatus === 'FAILED' && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-1">
-                           <div className="flex items-center gap-1 text-red-500 text-[8px] font-bold uppercase">
-                               <AlertTriangle size={8} /> Distillation Failure
+                        <div className="mt-4 pt-4 border-t border-slate-50 flex flex-col gap-2">
+                           <div className="flex items-center gap-2 text-red-500 text-[10px] font-black uppercase tracking-widest">
+                               <AlertTriangle size={12} /> Sync Failed
                            </div>
                            <button 
                              onClick={(e) => {
                                e.stopPropagation();
                                enrichCandidate(cand.id, cand.resumeText);
                              }}
-                             className="text-[8px] font-bold text-indigo-600 hover:underline uppercase text-left"
+                             className="text-[10px] font-black text-indigo-600 hover:text-slate-900 uppercase tracking-widest text-left transition-colors"
                            >
                              Retry Intelligence ↺
                            </button>
@@ -460,6 +482,13 @@ export default function CandidatesTab() {
                     )}
                   </div>
                 ))}
+                
+                {list.length === 0 && (
+                   <div className="py-20 text-center opacity-20 flex flex-col items-center">
+                      <Briefcase size={40} className="mb-4" />
+                      <p className="text-[11px] font-black uppercase tracking-widest">NIL_QUEUE</p>
+                   </div>
+                )}
               </div>
             </div>
           );

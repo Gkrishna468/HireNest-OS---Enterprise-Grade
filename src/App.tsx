@@ -32,41 +32,40 @@ function Sidebar({ org, user }: { org: any, user: any }) {
   const isVendor = org.type === 'vendor';
 
   const navItems = [
-    { name: "Dashboard", path: isAdmin ? "/admin-overview" : (isClient ? "/clients" : "/vendors"), icon: "▤", visible: true },
-    { name: "Jobs Center", path: "/jobs", icon: "⌘", visible: true },
-    { name: "Candidates", path: "/candidates", icon: "👥", visible: isAdmin || isVendor },
-    { name: "Deal Rooms", path: "/deals", icon: "💬", visible: true },
-    { name: "Notifications", path: "/notifications", icon: "🔔", visible: true },
-    { name: "Manage Clients", path: "/admin/clients", icon: "🏢", visible: isAdmin },
-    { name: "Manage Vendors", path: "/admin/vendors", icon: "⛑️", visible: isAdmin },
-    { name: "Platform Analytics", path: "/admin-overview", icon: "📊", visible: isAdmin },
-    { name: "System Settings", path: "/users", icon: "⚙️", visible: isAdmin }
-  ];
-
-  const intelligenceItems = [
-    { name: "Agent HQ", path: "/admin/strategy", icon: "✦", visible: isAdmin },
-    { name: "Margin Control", path: "/admin/strategy", icon: "⚖️", visible: isAdmin || (isClient && user.role === 'client_finance') },
-    { name: "Outreach Bot", path: "/candidates", icon: "⚡", visible: isAdmin || isVendor },
+    { name: "Dashboard", path: isAdmin ? "/admin-overview" : (isClient ? "/clients" : "/vendors"), icon: <Activity size={18} />, visible: true },
+    { name: "Requirements", path: "/jobs", icon: <Briefcase size={18} />, visible: true },
+    { name: "Candidate Pool", path: "/candidates", icon: <Users size={18} />, visible: isAdmin || isVendor },
+    { name: "Deal Rooms", path: "/deals", icon: <MessageSquare size={18} />, visible: true },
+    { name: "Notifications", path: "/notifications", icon: <Bell size={18} />, visible: true },
+    { name: "Manage Clients", path: "/admin/clients", icon: <Building2 size={18} />, visible: isAdmin },
+    { name: "Manage Vendors", path: "/admin/vendors", icon: <Shield size={18} />, visible: isAdmin },
+    { name: "Platform Analytics", path: "/admin-overview", icon: <Database size={18} />, visible: isAdmin },
+    { name: "System Settings", path: "/users", icon: <Settings size={18} />, visible: isAdmin }
   ];
 
   return (
-    <nav className="w-52 bg-white border-r border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
-      <div className="mb-6 pb-4 border-b border-slate-100">
-        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Authenticated Hub</label>
-        <div className="flex items-center gap-2">
+    <nav className="w-64 bg-white border-r border-slate-100 flex flex-col p-6 shrink-0 overflow-y-auto overflow-x-hidden">
+      <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Identity Protocol</label>
+        <div className="flex items-center gap-3">
             <div className={cn(
-                "w-2 h-2 rounded-full",
-                org.type === 'admin' ? "bg-indigo-500" : (org.type === 'client' ? "bg-emerald-500" : "bg-amber-500")
+                "w-3 h-3 rounded-full shadow-sm",
+                org.type === 'admin' ? "bg-indigo-500 shadow-indigo-100" : (org.type === 'client' ? "bg-emerald-500 shadow-emerald-100" : "bg-amber-500 shadow-amber-100")
             )}></div>
             <span className={cn(
-                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border",
-                org.type === 'admin' ? "text-indigo-600 bg-indigo-50 border-indigo-100" : 
-                (org.type === 'client' ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-amber-600 bg-amber-50 border-amber-100")
-            )}>{org.type} OS</span>
+                "text-[10px] font-black uppercase px-2 py-0.5 rounded-lg border",
+                org.type === 'admin' ? "text-indigo-600 bg-white border-indigo-100" : 
+                (org.type === 'client' ? "text-emerald-600 bg-white border-emerald-100" : "text-amber-600 bg-white border-amber-100")
+            )}>{org.type} NODE</span>
+        </div>
+        <div className="mt-3 px-1">
+            <div className="text-xs font-black text-slate-900 truncate uppercase tracking-tighter">{org.companyName}</div>
+            <div className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{user.email}</div>
         </div>
       </div>
-      <div className="space-y-1">
-        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">Operating Layer</div>
+
+      <div className="space-y-1.5 flex-1">
+        <div className="text-[10px] uppercase font-black text-slate-400 mb-3 px-3 tracking-widest opacity-50">Workflow Layers</div>
         {navItems.filter(i => i.visible).map((item) => {
           const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
           return (
@@ -74,42 +73,39 @@ function Sidebar({ org, user }: { org: any, user: any }) {
               key={item.name}
               to={item.path}
               className={cn(
-                "flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium",
+                "group flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-tight transition-all",
                 isActive 
-                  ? "bg-indigo-50 text-indigo-700" 
-                  : "hover:bg-slate-100 text-slate-600"
+                  ? "bg-slate-900 text-white shadow-xl shadow-slate-100" 
+                  : "hover:bg-slate-50 text-slate-500 hover:text-slate-900"
               )}
             >
-              <span className="text-lg leading-none">{item.icon}</span>
+              <div className={cn(
+                "transition-colors",
+                isActive ? "text-indigo-400" : "text-slate-300 group-hover:text-slate-600"
+              )}>
+                {item.icon}
+              </div>
               <span>{item.name}</span>
-              {item.name === "Deal Rooms" && (
-                 <span className="ml-auto bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">4</span>
+              {item.name === "Deal Rooms" && !isActive && (
+                 <span className="ml-auto bg-indigo-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse">4</span>
               )}
             </Link>
           );
         })}
       </div>
       
-      <div className="mt-8 space-y-1">
-        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 px-2">AI Intelligence</div>
-        {intelligenceItems.filter(i => i.visible).map((item) => (
-            <Link
-              key={item.name}
-              to={item.path}
-              className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-slate-100 text-slate-600 text-sm"
-            >
-              <span className="text-lg leading-none">{item.icon}</span> <span>{item.name}</span>
-            </Link>
-        ))}
-      </div>
-
-      <div className="mt-auto pt-6">
-        <div className="p-3 bg-slate-900 rounded-xl">
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-indigo-300 font-bold uppercase">AI Match Engine</span>
-                <span className="text-[10px] text-emerald-400">Online</span>
+      <div className="mt-8 pt-8 border-t border-slate-50">
+        <div className="p-4 bg-indigo-900 rounded-[24px] text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:rotate-12 transition-transform">
+                <ShieldCheck size={40} />
             </div>
-            <p className="text-[10px] text-slate-400 leading-tight">942 resumes parsed in last 24h. Matching precision increased by 4.2%.</p>
+            <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2">
+                    <Activity size={14} className="text-emerald-400 animate-pulse" />
+                    <span className="text-[10px] text-indigo-200 font-black uppercase tracking-widest">Trust Engine</span>
+                </div>
+                <p className="text-[10px] text-indigo-100/70 leading-relaxed font-bold">Matching Matrix v2.4 initialized. All nodes operational.</p>
+            </div>
         </div>
       </div>
     </nav>
