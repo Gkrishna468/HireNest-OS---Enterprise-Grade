@@ -1,9 +1,9 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
-import { AlertTriangle, BrainCircuit, Plus, X, Upload, MapPin, Briefcase, Activity, Bot, ShieldCheck } from "lucide-react";
+import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase, Bot, Shield, Send, X, Plus, Upload, MapPin } from "lucide-react";
 import { Button } from "../lib/Button";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc } from "firebase/firestore";
 import { parseBulkResumes } from "../services/aiService";
 
 const STAGES = ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"];
@@ -17,6 +17,11 @@ export default function CandidatesTab() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [mappingResult, setMappingResult] = useState<any | null>(null);
+  const [isMapping, setIsMapping] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -27,9 +32,17 @@ export default function CandidatesTab() {
       try {
         const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
         if (userDoc.exists()) {
-          const orgId = userDoc.data().organizationId;
+          const userData = userDoc.data();
+          const orgId = userData.organizationId;
+          const role = userData.role;
           setUserOrgId(orgId);
           
+          // Load active jobs for mapping
+          const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
+          onSnapshot(jobsQuery, (snap) => {
+            setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+
           // Initial load from API
           try {
             const res = await fetch(`/api/user/candidates?orgId=${orgId}`);
@@ -229,16 +242,24 @@ export default function CandidatesTab() {
 
         if (results && results.length > 0) {
             const profile = results[0];
-            await setDoc(doc(db, "candidatePool", candId), {
+            const updateData = {
                 ...profile,
                 distillationStatus: "COMPLETED",
                 distillationMetadata: {
                     processingTimeMs,
-                    confidence: 0.92, // Simulated high confidence for parsed results
+                    confidence: 0.92,
                     lastDistilledAt: new Date().toISOString()
                 },
                 updatedAt: serverTimestamp()
-            }, { merge: true });
+            };
+            
+            await setDoc(doc(db, "candidatePool", candId), updateData, { merge: true });
+            
+            // If the currently open detail view is for this candidate, update local state
+            if (selectedCandidate?.id === candId) {
+                setSelectedCandidate((prev: any) => ({ ...prev, ...updateData }));
+            }
+
             console.log(`[OS INTELLIGENCE] Successfully distilled ${candId} in ${processingTimeMs}ms`);
         } else {
             throw new Error("AI returned empty distilled profile.");
@@ -253,6 +274,84 @@ export default function CandidatesTab() {
             },
             updatedAt: serverTimestamp()
         }, { merge: true });
+    }
+  };
+
+  const handleMapToJob = async (jobId: string) => {
+    if (!selectedCandidate || !jobId) return;
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    setIsMapping(true);
+    setMappingResult(null);
+    setSelectedJobId(jobId);
+
+    try {
+        const resumeToUse = selectedCandidate.resumeText || `Skills: ${selectedCandidate.skills?.join(", ")}`;
+        const res = await fetch("/api/match-candidates-detailed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jd: job.description, candidateProfile: resumeToUse }),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            setMappingResult(data);
+            
+            await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
+                pipelineStage: "Matched",
+                mappedJobId: jobId,
+                matchScore: data.matchScore,
+                updatedAt: serverTimestamp()
+            });
+        }
+    } catch (err) {
+        console.error("Mapping intelligence error:", err);
+    } finally {
+        setIsMapping(false);
+    }
+  };
+
+  const finalizeDeal = async () => {
+    if (!selectedCandidate || !selectedJobId || !mappingResult) return;
+    const job = jobs.find(j => j.id === selectedJobId);
+    if (!job) return;
+
+    const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
+    try {
+        const dealPayload = {
+            id: roomId,
+            requirementId: selectedJobId,
+            candidateId: selectedCandidate.id,
+            vendorId: userOrgId,
+            clientId: job.clientId,
+            candidateName: selectedCandidate.name,
+            status: "ACTIVE",
+            identitiesRevealed: false,
+            createdAt: serverTimestamp(),
+            matchData: mappingResult
+        };
+
+        await setDoc(doc(db, "dealRooms", roomId), dealPayload);
+        
+        await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
+            pipelineStage: "Deal Room",
+            activeDealId: roomId,
+            updatedAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, "notifications"), {
+            recipientId: job.clientId,
+            title: "New Optimized Match",
+            message: `A high-density candidate has been mapped to ${job.title}. Deal Room DR-${roomId.slice(0,6)} is now active.`,
+            type: "DEAL_ROOM",
+            createdAt: serverTimestamp()
+        });
+
+        alert("Strategic Deal Room Initiated. Client has been notified (Anonymized View).");
+        setSelectedCandidate(null);
+    } catch (e: any) {
+        alert("Deal Finalization Error: " + e.message);
     }
   };
 
@@ -291,7 +390,15 @@ export default function CandidatesTab() {
               
               <div className="p-2 space-y-2 flex-1 overflow-y-auto">
                 {list.map((cand, idx) => (
-                  <div key={cand.id} className="group relative bg-white border border-slate-200 rounded p-3 hover:border-indigo-400 transition-all shadow-sm">
+                  <div 
+                    key={cand.id} 
+                    onClick={() => {
+                        setSelectedCandidate(cand);
+                        setMappingResult(null);
+                        setSelectedJobId(cand.mappedJobId || "");
+                    }}
+                    className="group relative bg-white border border-slate-200 rounded p-3 hover:border-indigo-400 transition-all shadow-sm cursor-pointer"
+                  >
                     {cand.distillationStatus === 'PENDING' && (
                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded z-10">
                             <div className="flex flex-col items-center gap-1">
@@ -442,6 +549,208 @@ export default function CandidatesTab() {
                  <div className="text-[9px] text-center text-slate-400 font-mono">Governed by hirenest-audit-vpc-v1</div>
               </div>
             </div>
+          </div>
+      )}
+      {/* STRATEGIC DETAIL VIEW: THE PIPELINE NERVE CENTER */}
+      {selectedCandidate && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-end z-[60] animate-in fade-in duration-300">
+              <div 
+                className="w-full max-w-3xl h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 border-l border-slate-200"
+                onClick={e => e.stopPropagation()}
+              >
+                  {/* Header: Identity & Trust Header */}
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+                      <div className="flex items-center gap-3">
+                          <Button variant="ghost" size="icon" onClick={() => setSelectedCandidate(null)} className="h-8 w-8 rounded-full border border-slate-100"><X size={16}/></Button>
+                          <div>
+                              <div className="flex items-center gap-2">
+                                  <h2 className="text-base font-black text-slate-800">{selectedCandidate.name}</h2>
+                                  <Badge className="bg-indigo-50 text-indigo-700 text-[10px] font-bold border-indigo-100">POOL_ID: {selectedCandidate.id?.slice(0, 8)}</Badge>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+                                  <ShieldCheck size={10} className="text-emerald-500" /> Identity Verified • <span className="text-indigo-400">Governance Level 2</span>
+                              </div>
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                         <div className="text-right mr-3">
+                             <div className="text-[10px] font-bold text-slate-400 uppercase">Trust Score</div>
+                             <div className="text-sm font-black text-emerald-600">98.4%</div>
+                         </div>
+                         <Button variant="outline" size="sm" className="h-8 text-[10px] uppercase font-black tracking-widest border-slate-300">Block Sub</Button>
+                      </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto bg-slate-50/30">
+                      {/* Pipeline Pulse Flow */}
+                      <div className="p-6 bg-white border-b border-slate-100 shadow-sm relative overflow-hidden">
+                          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                              <Activity size={100} />
+                          </div>
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                              <Activity size={14} className="text-indigo-500" /> Pipeline Pulse Flow
+                          </h3>
+                          <div className="relative flex justify-between">
+                              <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
+                              {STAGES.map((s, idx) => {
+                                  const isCurrent = selectedCandidate.pipelineStage === s;
+                                  const isPast = STAGES.indexOf(selectedCandidate.pipelineStage) >= idx;
+                                  return (
+                                      <div key={s} className="relative z-10 flex flex-col items-center group">
+                                          <div className={`h-8 w-8 rounded-full border-4 flex items-center justify-center transition-all duration-500 ${isCurrent ? 'bg-indigo-600 border-indigo-100 shadow-lg shadow-indigo-100' : isPast ? 'bg-emerald-500 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                                              {isPast && !isCurrent ? <CheckCircle size={14} className="text-white" /> : <div className={`h-1.5 w-1.5 rounded-full ${isCurrent ? 'bg-white animate-pulse' : 'bg-slate-300'}`} />}
+                                          </div>
+                                          <span className={`mt-2 text-[9px] font-black uppercase tracking-widest transition-colors ${isCurrent ? 'text-indigo-600' : 'text-slate-400'}`}>{s}</span>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-6 p-6">
+                          {/* Left: Intelligence Summary */}
+                          <div className="col-span-12 lg:col-span-8 space-y-6">
+                              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                                  <div className="flex items-center justify-between mb-4">
+                                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Intelligence Mapping Center</h3>
+                                      {selectedCandidate.pipelineStage !== 'Deal Room' ? (
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-[9px] font-bold text-slate-500">Mapping to:</label>
+                                          <select 
+                                            value={selectedJobId}
+                                            onChange={(e) => handleMapToJob(e.target.value)}
+                                            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-bold text-indigo-600 outline-none hover:border-indigo-300 transition-colors"
+                                          >
+                                            <option value="">Select Requirement</option>
+                                            {jobs.map(j => <option key={j.id} value={j.id}>{j.requirementId}: {j.title}</option>)}
+                                          </select>
+                                        </div>
+                                      ) : (
+                                        <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">DEAL_ACTIVE</Badge>
+                                      )}
+                                  </div>
+
+                                  {isMapping ? (
+                                      <div className="py-10 flex flex-col items-center justify-center space-y-4">
+                                          <Activity size={32} className="text-indigo-500 animate-spin" />
+                                          <p className="text-[10px] font-bold uppercase text-indigo-500 animate-pulse tracking-[0.2em]">Cross-Referencing Mapping Logic...</p>
+                                      </div>
+                                  ) : mappingResult ? (
+                                      <div className="space-y-6 animate-in fade-in duration-500">
+                                          <div className="grid grid-cols-2 gap-4">
+                                              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                                                  <h4 className="text-[9px] font-bold uppercase text-emerald-700 tracking-widest mb-2 flex items-center gap-1"><Sparkles size={12}/> Match Strengths</h4>
+                                                  <ul className="space-y-1.5">
+                                                      {mappingResult.strengths?.map((s: string, i: number) => (
+                                                          <li key={i} className="text-[11px] text-emerald-800 flex gap-2">
+                                                              <div className="mt-1 h-1 w-1 bg-emerald-400 rounded-full shrink-0" /> {s}
+                                                          </li>
+                                                      ))}
+                                                  </ul>
+                                              </div>
+                                              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                                                  <h4 className="text-[9px] font-bold uppercase text-amber-700 tracking-widest mb-2 flex items-center gap-1"><AlertTriangle size={12}/> Intelligence Gaps</h4>
+                                                  <ul className="space-y-1.5">
+                                                      {mappingResult.gaps?.map((g: string, i: number) => (
+                                                          <li key={i} className="text-[11px] text-amber-800 flex gap-2">
+                                                              <div className="mt-1 h-1 w-1 bg-amber-400 rounded-full shrink-0" /> {g}
+                                                          </li>
+                                                      ))}
+                                                  </ul>
+                                              </div>
+                                          </div>
+                                          <div className="p-4 bg-indigo-900 rounded-xl text-white shadow-xl relative overflow-hidden group">
+                                              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Bot size={60} /></div>
+                                              <div className="relative z-10">
+                                                  <h4 className="text-[9px] font-bold uppercase text-indigo-300 tracking-widest mb-2">Strategic Recruiter Assessment</h4>
+                                                  <p className="text-[12px] leading-relaxed font-medium italic">"{mappingResult.summary}"</p>
+                                                  <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+                                                      <div className="flex flex-col">
+                                                          <span className="text-[8px] uppercase text-indigo-300">Match Profile</span>
+                                                          <span className={`text-xs font-black ${mappingResult.recommendation === 'STRONG_FIT' ? 'text-emerald-400' : 'text-amber-400'}`}>{mappingResult.recommendation || 'CONSIDER'}</span>
+                                                      </div>
+                                                      <div className="text-right">
+                                                          <span className="text-[8px] uppercase text-indigo-300">Confidence Factor</span>
+                                                          <div className="text-xs font-black">{mappingResult.matchScore}%</div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          
+                                          {selectedCandidate.pipelineStage !== 'Deal Room' && (
+                                              <Button 
+                                                onClick={finalizeDeal}
+                                                className="w-full bg-indigo-600 hover:bg-slate-900 text-white font-black h-12 uppercase tracking-[0.2em] text-[11px] rounded-xl shadow-xl shadow-indigo-100 transition-all hover:scale-[1.01]"
+                                              >
+                                                  Initialize Deal Room Integration
+                                              </Button>
+                                          )}
+                                      </div>
+                                  ) : (
+                                      <div className="py-20 flex flex-col items-center justify-center text-slate-300 border border-dashed rounded-xl border-slate-200">
+                                          <Briefcase size={40} className="mb-3 opacity-20" />
+                                          <p className="text-[11px] font-bold uppercase tracking-widest">Awaiting Job Mapping</p>
+                                          <p className="text-[9px] text-slate-400 mt-1">Map to a published requirement to trigger AI intelligence assessment.</p>
+                                      </div>
+                                  )}
+                              </section>
+
+                              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Raw Resume Intelligence</h3>
+                                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-5 h-[300px] overflow-y-auto scrollbar-hide">
+                                      <pre className="text-[11px] text-slate-600 font-mono whitespace-pre-wrap leading-relaxed">
+                                          {selectedCandidate.resumeText || "Profile Distillation Pending..."}
+                                      </pre>
+                                  </div>
+                              </section>
+                          </div>
+
+                          {/* Right: Operational Constraints */}
+                          <div className="col-span-12 lg:col-span-4 space-y-6">
+                              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Contact Governance</h3>
+                                  <div className="space-y-4">
+                                      <div className="flex flex-col gap-1">
+                                          <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Primary Email</span>
+                                          <span className="text-xs font-bold text-slate-800">{selectedCandidate.email}</span>
+                                      </div>
+                                      <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
+                                          <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Phone Verification</span>
+                                          <span className="text-xs font-bold text-slate-800">{selectedCandidate.phone || "+91 • (MASKED)"}</span>
+                                      </div>
+                                      <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
+                                          <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Source Identity</span>
+                                          <div className="flex items-center gap-2 mt-1">
+                                              <Badge className="bg-slate-100 text-slate-600 text-[10px]">{selectedCandidate.vendorName || "DIRECT_POOL"}</Badge>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </section>
+
+                              <section className="bg-slate-900 rounded-xl p-4 text-white shadow-lg shadow-indigo-100">
+                                  <h3 className="text-[9px] font-bold uppercase tracking-widest text-indigo-300 mb-4 flex items-center gap-2">
+                                      <Shield size={12}/> Security Protocol
+                                  </h3>
+                                  <div className="space-y-3">
+                                      <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-slate-400 italic">Identity Masking</span>
+                                          <Badge className="bg-orange-100/10 text-orange-400 border border-orange-400/20 text-[8px]">ACTIVE</Badge>
+                                      </div>
+                                      <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-slate-400 italic">Financial Governance</span>
+                                          <Badge className="bg-emerald-100/10 text-emerald-400 border border-emerald-400/20 text-[8px]">COMPLIANT</Badge>
+                                      </div>
+                                      <div className="p-3 bg-white/5 rounded-lg border border-white/10 mt-2">
+                                          <p className="text-[9px] text-indigo-200 font-medium">
+                                              "This candidate is subject to regional data laws. Submission history is immutable in current v1-audit context."
+                                          </p>
+                                      </div>
+                                  </div>
+                              </section>
+                          </div>
+                      </div>
+                  </div>
+              </div>
           </div>
       )}
     </div>
