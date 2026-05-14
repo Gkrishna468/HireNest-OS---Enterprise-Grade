@@ -151,6 +151,7 @@ function TopBar({ orgData }: { orgData: any }) {
 
 export default function App() {
   const [authState, setAuthState] = useState<{ loading: boolean, authData: { user: any, org: any } | null }>({ loading: true, authData: null });
+  const [showDemo, setShowDemo] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -228,20 +229,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  if (authState.loading) {
-    return <div className="h-screen flex items-center justify-center bg-slate-50 font-mono text-sm text-slate-500">Initializing HireNestOS SecOps...</div>;
-  }
-
-  if (!authState.authData) {
-    return <Onboarding onComplete={(data) => {
-       currentUserState = data;
-       setAuthState({ loading: false, authData: data });
-    }} />;
-  }
-
-  const { org } = authState.authData;
-  const [showDemo, setShowDemo] = useState(false);
-
   useEffect(() => {
     // Strategic Onboarding Check
     const checkDemo = async () => {
@@ -260,6 +247,19 @@ export default function App() {
       }
       setShowDemo(false);
   };
+
+  if (authState.loading) {
+    return <div className="h-screen flex items-center justify-center bg-slate-50 font-mono text-sm text-slate-500">Initializing HireNestOS SecOps...</div>;
+  }
+
+  if (!authState.authData) {
+    return <Onboarding onComplete={(data) => {
+       currentUserState = data;
+       setAuthState({ loading: false, authData: data });
+    }} />;
+  }
+
+  const { org } = authState.authData;
 
   return (
     <BrowserRouter>

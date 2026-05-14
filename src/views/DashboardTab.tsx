@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Activity, ShieldCheck, Cpu } from "lucide-react";
+import { Activity, ShieldCheck, Bot } from "lucide-react";
 import { currentUserState } from "../App";
 import { Badge } from "../lib/Badge";
+import { Button } from "../lib/Button";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
