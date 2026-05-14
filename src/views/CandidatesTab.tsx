@@ -127,6 +127,8 @@ export default function CandidatesTab() {
 
     setIsBulkProcessing(true);
     let cumulativeText = bulkText;
+    let successCount = 0;
+    let failCount = 0;
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -138,17 +140,31 @@ export default function CandidatesTab() {
                 method: "POST",
                 body: formData
             });
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server error ${res.status}`);
+            }
+
             const data = await res.json();
             if (data.text) {
                 cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
+                successCount++;
+            } else {
+                failCount++;
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to parse file", file.name, err);
+            failCount++;
         }
     }
 
     setBulkText(cumulativeText);
     setIsBulkProcessing(false);
+    
+    if (failCount > 0) {
+        alert(`${successCount} files extracted successfully. ${failCount} files failed to process.`);
+    }
   };
 
   return (

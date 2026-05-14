@@ -120,26 +120,33 @@ async function startServer() {
     const { orgId, role } = req.query;
     console.log(`[CONTEXT] Syncing state for ${role} in ${orgId}`);
     
-    // Admin sees everything
-    if (role === 'admin') {
-      return res.json({
-        requirements: dbMock.requirements_public,
-        metrics: dbMock.metrics
-      });
-    }
+    try {
+      const metrics = dbMock.metrics || { revenue: 0, activeDeals: 0, placements: 0, margin: "0%", vendorQuality: 0, recruiterProductivity: 0 };
+      
+      // Admin sees everything
+      if (role === 'admin') {
+        return res.json({
+          requirements: dbMock.requirements_public || [],
+          metrics: metrics
+        });
+      }
 
-    // Client sees their own requirements
-    if (String(role).includes('client')) {
-      const filtered = dbMock.requirements_public.filter((r: any) => r.clientId === orgId);
-      return res.json({
-        requirements: filtered,
-        metrics: dbMock.metrics
-      });
-    }
+      // Client sees their own requirements
+      if (String(role).includes('client')) {
+        const filtered = (dbMock.requirements_public || []).filter((r: any) => r.clientId === orgId);
+        return res.json({
+          requirements: filtered,
+          metrics: metrics
+        });
+      }
 
-    // Vendor sees published ones
-    const published = dbMock.requirements_public.filter((r: any) => r.visibility === 'VENDOR_NETWORK' || r.status === 'PUBLISHED');
-    res.json({ requirements: published });
+      // Vendor sees published ones
+      const published = (dbMock.requirements_public || []).filter((r: any) => r.visibility === 'VENDOR_NETWORK' || r.status === 'PUBLISHED');
+      res.json({ requirements: published, metrics: metrics });
+    } catch (err: any) {
+      console.error("[CONTEXT ERROR]", err);
+      res.status(500).json({ error: "Context sync failed", message: err.message });
+    }
   });
 
   app.get("/api/admin/governance-data", (req, res) => {
@@ -194,12 +201,11 @@ async function startServer() {
     
     if (ai) {
        try {
+         const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
          const prompt = `Act as Chief Strategy Officer. Active Jobs: ${JSON.stringify(requirements || [])}. Metrics: ${JSON.stringify(metrics || {})}. Provide a brief strategic analysis.`;
-         const response = await ai.models.generateContent({
-           model: "gemini-3-flash-preview",
-           contents: prompt
-         });
-         analysis = response.text || analysis;
+         const result = await model.generateContent(prompt);
+         const response = await result.response;
+         analysis = response.text() || analysis;
        } catch (err) {
          console.warn("[STRATEGY] AI deferred", err);
        }
@@ -307,17 +313,16 @@ async function startServer() {
 
     if (ai && resumeTexts?.length > 0) {
       try {
+        const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
         const prompt = `Extract structured profile information for these resumes. Return an array of objects, each with: name, email, phone, linkedin, skills (array), and resumeText (truncated if long).
         Resumes: ${JSON.stringify(resumeTexts)}`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-          config: { responseMimeType: "application/json" }
-        });
+        const genResult = await model.generateContent(prompt);
+        const response = await genResult.response;
+        const text = response.text();
 
-        if (response.text) {
-          results = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+        if (text) {
+          results = JSON.parse(text.replace(/```json|```/g, "").trim());
         }
       } catch (e) {
         console.warn("[AI BULK] Error", e);
@@ -361,14 +366,14 @@ async function startServer() {
     
     if (ai) {
       try {
+        const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
         const prompt = `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`;
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-          config: { responseMimeType: "application/json" }
-        });
-        if (response.text) {
-          const parsed = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+        const genResult = await model.generateContent(prompt);
+        const response = await genResult.response;
+        const text = response.text();
+        
+        if (text) {
+          const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
           result = { ...result, ...parsed };
         }
       } catch (err) {
