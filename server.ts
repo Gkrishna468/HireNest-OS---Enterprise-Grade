@@ -353,6 +353,7 @@ async function startServer() {
       summary: "Detailed matching currently simulated.",
       strengths: ["Matching skills found"],
       gaps: ["Verify location"],
+      missingSkills: [],
       outreachDrafts: {
         founder: "Hey, I saw your profile and it looks like a great fit for our mission-driven team.",
         professional: "Dear Candidate, we believe your background aligns well with our current requirements.",
@@ -375,6 +376,7 @@ async function startServer() {
               summary (string), 
               strengths (array of strings), 
               gaps (array of strings), 
+              missingSkills (array of strings - specifically technical skills from JD that are NOT in candidate resume),
               recruiterAssessment (string),
               recommendation (one of: STRONG_FIT, CONSIDER, NOT_SUITABLE),
               nextSteps (string),
@@ -542,14 +544,36 @@ async function startServer() {
 
   app.post("/api/parse-jd", async (req, res) => {
     const { jdText } = req.body;
-    let result = { title: "New Requirement", skills: [] };
+    let result = { 
+      title: "New Requirement", 
+      skills: [],
+      mandatorySkills: [],
+      preferredSkills: [],
+      minExp: 0,
+      maxExp: 15,
+      location: "Remote",
+      responsibilities: [],
+      summary: ""
+    };
     
     if (ai) {
       try {
         const response = await withAIRetry(async () => {
           return await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `Extract Job Title and top 5 Technical Skills from this JD. Return JSON with 'title' (string) and 'skills' (array of strings). JD: ${jdText}`,
+            contents: `As an expert recruiter, parse this Job Description into a structured profile. 
+              Extract: 
+              1. Job Title 
+              2. Mandatory Technical Skills 
+              3. Preferred/Nice-to-have Skills
+              4. Minimum Years of Experience
+              5. Maximum Years of Experience (if mentioned, else 15)
+              6. Location/Work Mode
+              7. Key Responsibilities (top 5)
+              8. High-level Summary (1-2 sentences)
+              
+              Return JSON object with keys: title, mandatorySkills, preferredSkills, minExp, maxExp, location, responsibilities, summary.
+              JD: ${jdText}`,
             config: { responseMimeType: "application/json" }
           });
         });
@@ -557,6 +581,8 @@ async function startServer() {
         if (response.text) {
           const parsed = JSON.parse(response.text.replace(/```json|```/g, "").trim());
           result = { ...result, ...parsed };
+          // Ensure 'skills' key exists for backward compatibility if needed by frontend
+          (result as any).skills = [...(result.mandatorySkills || []), ...(result.preferredSkills || [])];
         }
       } catch (err) {
         console.warn("[PARSE-AI] Deferred", err);
@@ -566,6 +592,7 @@ async function startServer() {
   });
 
   app.post("/api/deal/intelligence", async (req, res) => {
+    console.log("[DEAL-INTEL] Incoming request body keys:", Object.keys(req.body));
     const { profile, jd, type } = req.body;
     let result = { 
       questions: ["Verify core technical experience", "Ask about recent projects", "Check cultural fit"],
@@ -574,6 +601,7 @@ async function startServer() {
 
     if (ai) {
       try {
+        console.log(`[DEAL-INTEL] AI call triggered for ${type}`);
         const prompt = type === 'client' 
           ? `As a technical recruiter, generate 5 deep interview questions for a candidate with this profile: ${JSON.stringify(profile)} applying for this JD: ${jd}. Focus on gaps and specific skills.`
           : `As a professional recruiter, generate 3 professional conversation starters for this candidate: ${JSON.stringify(profile)}.`;
@@ -586,13 +614,16 @@ async function startServer() {
         });
         
         if (response.text) {
+          console.log("[DEAL-INTEL] AI response received successfully");
           const lines = response.text.split('\n').filter((l: string) => l.trim().length > 10).map((l: string) => l.replace(/^\d+\.\s*/, '').trim());
           if (type === 'client') result.questions = lines.slice(0, 5);
           else result.starters = lines.slice(0, 3);
         }
-      } catch (err) {
-        console.warn("[DEAL-INTEL] AI Error", err);
+      } catch (err: any) {
+        console.error("[DEAL-INTEL] AI Error:", err.message || err);
       }
+    } else {
+      console.warn("[DEAL-INTEL] AI client NOT initialized (missing key?)");
     }
     res.json(result);
   });

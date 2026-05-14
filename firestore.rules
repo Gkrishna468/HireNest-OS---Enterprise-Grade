@@ -76,6 +76,9 @@ service cloud.firestore {
              (data.get('workMode', null) == null || data.workMode is string) &&
              (data.get('matchProcessingStatus', null) == null || data.matchProcessingStatus is string) &&
              (data.get('skills', null) == null || data.skills is list) &&
+             (data.get('minExp', null) == null || data.minExp is number) &&
+             (data.get('maxExp', null) == null || data.maxExp is number) &&
+             (data.get('experience', null) == null || data.experience is string) &&
              (data.get('adminApproved', null) == null || data.adminApproved is bool);
     }
 
@@ -132,7 +135,8 @@ service cloud.firestore {
     match /dealRooms/{roomId} {
       allow list: if isSignedIn();
       allow get: if isSignedIn() && (isDynamicAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId));
-      allow write: if isDynamicAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)));
+      allow create: if isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId));
+      allow update: if isDynamicAdmin() || (isSignedIn() && (isOrganizationMember(existing().clientId) || isOrganizationMember(existing().vendorId)));
     }
 
     match /dealRooms/{roomId}/messages/{msgId} {

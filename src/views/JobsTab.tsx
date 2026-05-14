@@ -2,7 +2,7 @@ import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload } from "lucide-react";
+import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
 import { analyzeCandidateMatch } from "../services/aiService";
@@ -142,8 +142,12 @@ export default function JobsTab() {
     setIsParsing(true);
     
     // Heuristic Fallback Title
+    const manualTitle = (document.getElementById('new_job_title') as HTMLInputElement)?.value;
+    const minExp = (document.getElementById('min_exp') as HTMLInputElement)?.value;
+    const maxExp = (document.getElementById('max_exp') as HTMLInputElement)?.value;
+    
     const lines = jdText.split("\n").filter(l => l.trim().length > 0);
-    const fallbackTitle = lines.length > 0 ? lines[0].slice(0, 50) : "New Requirement";
+    const fallbackTitle = manualTitle || (lines.length > 0 ? lines[0].slice(0, 50) : "New Requirement");
     const manualSkills = mandatorySkills.split(",").map(s => s.trim()).filter(Boolean);
 
     try {
@@ -168,7 +172,10 @@ export default function JobsTab() {
       const newReq = {
         requirementId: reqId,
         clientId: orgId,
-        title: parsed.title || fallbackTitle,
+        title: manualTitle || parsed.title || fallbackTitle,
+        experience: minExp && maxExp ? `${minExp}-${maxExp} Yrs` : (minExp ? `${minExp}+ Yrs` : "Not Specified"),
+        minExp: minExp ? parseInt(minExp) : 0,
+        maxExp: maxExp ? parseInt(maxExp) : 20,
         description: jdText,
         skills: manualSkills.length > 0 ? manualSkills : (parsed.skills || []),
         status: "DRAFT",
@@ -185,6 +192,9 @@ export default function JobsTab() {
       setJdText("");
       setBudgetAmount(0);
       setMandatorySkills("");
+      if (document.getElementById('new_job_title')) (document.getElementById('new_job_title') as HTMLInputElement).value = "";
+      if (document.getElementById('min_exp')) (document.getElementById('min_exp') as HTMLInputElement).value = "";
+      if (document.getElementById('max_exp')) (document.getElementById('max_exp') as HTMLInputElement).value = "";
 
       // Trigger AI Match Simulation
       setTimeout(async () => {
@@ -327,8 +337,11 @@ export default function JobsTab() {
       submissionId: sub.id,
       clientId: selectedJob.clientId,
       vendorId: sub.vendorId,
-      candidateName: sub.candidateName,
+      candidateName: sub.candidateName || sub.name,
+      jobTitle: selectedJob.title || "Strategic Role",
+      experience: selectedJob.experience || "8+ YRS",
       status: "ACTIVE",
+      currentStage: "Interview Scheduled",
       identitiesRevealed: false,
       createdAt: serverTimestamp()
     });
@@ -372,9 +385,18 @@ export default function JobsTab() {
                 </div>
               </div>
               <div className="p-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Work Mode & Engagement</label>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Requirement Title</label>
+                      <input 
+                         type="text"
+                         placeholder="e.g. Senior Backend Engineer"
+                         id="new_job_title"
+                         className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Work Mode</label>
                       <select 
                         value={workMode}
                         onChange={(e: any) => setWorkMode(e.target.value)}
@@ -386,6 +408,23 @@ export default function JobsTab() {
                         <option value="C2H">Contract to Hire (C2H)</option>
                         <option value="Permanent">Permanent Role</option>
                       </select>
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Exp Range (Yrs)</label>
+                      <div className="flex gap-2">
+                        <input 
+                           type="number" 
+                           placeholder="Min"
+                           id="min_exp"
+                           className="w-1/2 bg-slate-50 border border-slate-200 rounded p-2 text-xs outline-none"
+                        />
+                        <input 
+                           type="number" 
+                           placeholder="Max"
+                           id="max_exp"
+                           className="w-1/2 bg-slate-50 border border-slate-200 rounded p-2 text-xs outline-none"
+                        />
+                      </div>
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Financial Parameters</label>
@@ -415,16 +454,19 @@ export default function JobsTab() {
                         </select>
                       </div>
                    </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Mandatory Tech Skills</label>
-                      <input 
-                         type="text"
-                         placeholder="React, AWS, Node.js..."
-                         value={mandatorySkills}
-                         onChange={(e) => setMandatorySkills(e.target.value)}
-                         className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Mandatory Tech Skills</label>
+                    <input 
+                        type="text"
+                        placeholder="React, AWS, Node.js..."
+                        value={mandatorySkills}
+                        onChange={(e) => setMandatorySkills(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -508,7 +550,7 @@ export default function JobsTab() {
         </div>
 
         {/* Selected Job & Candidate Intelligence Sidebar */}
-        {selectedJob && (
+        {selectedJob && 
           <div className="w-1/2 border-l border-slate-200 bg-white flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
               <div className="flex items-center gap-2">
@@ -561,12 +603,90 @@ export default function JobsTab() {
                         </div>
                     </div>
                 ) : (
-                    <div>
+                    <div className="space-y-4">
                         <div className="flex justify-between items-start">
-                          <h4 className="text-sm font-bold mb-1">{selectedJob.title}</h4>
-                          <Badge variant="outline" className="text-[9px]">{selectedJob.status}</Badge>
+                          <div className="flex-1">
+                            <h4 className="text-sm font-black text-slate-900 leading-tight">{selectedJob.title}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+                                <Clock size={10} /> {selectedJob.experience}
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold border-l pl-2">
+                                <MapPin size={10} /> {selectedJob.location || selectedJob.workMode}
+                              </div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-[9px] font-black tracking-widest">{selectedJob.status}</Badge>
                         </div>
-                        <p className="text-[11px] text-slate-600 line-clamp-3 mb-2">{selectedJob.description}</p>
+
+                        {selectedJob.summary && (
+                          <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-100">
+                             <p className="text-[11px] text-indigo-900 font-medium leading-relaxed italic">
+                               "{selectedJob.summary}"
+                             </p>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <h5 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                <ListChecks size={12} className="text-emerald-500" /> Mandatory Skills
+                              </h5>
+                              <div className="flex flex-wrap gap-1">
+                                {(selectedJob.mandatorySkills || selectedJob.skills || []).map((s: string) => (
+                                  <Badge key={s} className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[8px] font-bold">
+                                    {s}
+                                  </Badge>
+                                ))}
+                              </div>
+                           </div>
+                           <div className="space-y-2">
+                              <h5 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                <Sparkles size={12} className="text-amber-500" /> Nice to Have
+                              </h5>
+                              <div className="flex flex-wrap gap-1">
+                                {(selectedJob.preferredSkills || []).map((s: string) => (
+                                  <Badge key={s} className="bg-amber-50 text-amber-700 border-amber-200 text-[8px] font-bold">
+                                    {s}
+                                  </Badge>
+                                ))}
+                              </div>
+                           </div>
+                        </div>
+
+                        {selectedJob.responsibilities && selectedJob.responsibilities.length > 0 && (
+                          <div className="space-y-2">
+                            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Responsibilities</h5>
+                            <ul className="space-y-1.5">
+                              {selectedJob.responsibilities.map((r: string, i: number) => (
+                                <li key={i} className="flex gap-2 text-[11px] text-slate-600 leading-snug">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-slate-300 mt-1 shrink-0" />
+                                  {r}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Original Context</h5>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => {
+                                const el = document.getElementById('jd-full-text');
+                                if (el) el.classList.toggle('line-clamp-3');
+                              }}
+                              className="text-[9px] h-4 text-indigo-600 font-bold"
+                            >
+                                Toggle Context
+                            </Button>
+                          </div>
+                          <p id="jd-full-text" className="text-[11px] text-slate-500 font-mono bg-slate-50 p-2 rounded line-clamp-3">
+                            {selectedJob.description}
+                          </p>
+                        </div>
                         
                         {isClient && selectedJob.status === 'DRAFT' && (
                           <div className="mt-2 pt-2 border-t flex flex-col gap-2">
@@ -600,17 +720,20 @@ export default function JobsTab() {
               </div>
 
               {/* Matched Candidates List */}
-              <div className="p-4 flex-1">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
-                      <BrainCircuit size={12} className="text-indigo-500" /> AI-Native Intelligence
-                  </h3>
-                  <Badge className="bg-indigo-50 text-indigo-600 border-indigo-200 text-[8px] uppercase">
-                    Cross-Vendor Search
+              <div className="p-4 flex-1 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                        <Cpu size={14} className="text-indigo-600" /> AI Matched Candidates
+                    </h3>
+                    <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Pool: 70% - 100% Match Accuracy</p>
+                  </div>
+                  <Badge className="bg-indigo-600 text-white border-none text-[9px] py-1 shadow-lg shadow-indigo-100">
+                    {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 70)).length} High Potential
                   </Badge>
                 </div>
 
-                {((selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0) ? (
+                { (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0 && (
                    <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-4">
                         <Bot size={40} className={`text-indigo-400 ${selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' ? 'animate-bounce' : 'opacity-30'}`} />
@@ -630,42 +753,55 @@ export default function JobsTab() {
                           ? "Our AI Agents are currently scanning verified vendor pools for mandatory skills and budget alignment." 
                           : "Your requirement is active. We are prioritizing candidates that meet 90%+ of your technical criteria."}
                       </p>
-                      {(selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && (
-                        <div className="mt-4 w-full bg-slate-200 h-1 rounded-full overflow-hidden">
-                            <div className="bg-indigo-600 h-full animate-progress" style={{ width: '40%' }}></div>
-                        </div>
-                      )}
                    </div>
-                ) : (
+                )}
+
+                { !((selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0) && (
                   <div className="space-y-3">
                     <div className="space-y-3">
-                        {[...submissions, ...globalMatches].map(sub => (
+                        {[...submissions, ...globalMatches]
+                          .filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)
+                          .map(sub => (
                             <div 
                                 key={sub.id} 
-                                className={`border rounded-lg p-3 transition-all cursor-pointer ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300'}`}
+                                className={`group border rounded-xl p-4 transition-all cursor-pointer relative overflow-hidden ${selectedSubmission?.id === sub.id ? 'border-indigo-500 bg-indigo-50/40 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-slate-100 bg-white'}`}
                                 onClick={() => handleRunAiMatch(sub)}
                             >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 font-bold text-xs uppercase">
+                                {selectedSubmission?.id === sub.id && (
+                                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600" />
+                                )}
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm group-hover:scale-110 transition-transform">
                                             {sub.candidateName?.slice(0, 2) || sub.name?.slice(0, 2)}
                                         </div>
                                         <div>
-                                            <div className="text-xs font-bold text-slate-900">{sub.candidateName || sub.name}</div>
-                                            <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
-                                                <ShieldAlert size={10} /> {sub.isGlobalMatch ? "Pre-Screened Match" : sub.vendorName || "Active Vendor"}
+                                            <div className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{sub.candidateName || sub.name}</div>
+                                            <div className="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
+                                                <Target size={12} className="text-slate-400" /> {sub.experience || 'Not Specified'} • {sub.isGlobalMatch ? "Pre-Screened" : sub.vendorName || "Active Vendor"}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        {sub.isGlobalMatch && <Badge className="text-[7px] py-0 bg-amber-100 text-amber-700 border-amber-200">MARKET MATCH</Badge>}
-                                        <div className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
-                                            {sub.matchScore ? `${sub.matchScore}% FIT` : "PENDING AI"}
+                                        <div className={`text-xs font-black px-2 py-1 rounded-lg border ${
+                                          (sub.matchScore || 0) >= 90 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                                          (sub.matchScore || 0) >= 80 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                          'bg-amber-50 text-amber-700 border-amber-200'
+                                        }`}>
+                                            {sub.matchScore ? `${sub.matchScore}%` : "CALC"}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-[10px] text-slate-500 line-clamp-2">
-                                    Top Skills: {sub.skills?.join(", ")}
+
+                                <div className="flex flex-wrap gap-1.5">
+                                    {(sub.skills || []).slice(0, 5).map((s: string) => (
+                                      <span key={s} className="text-[9px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                                        {s}
+                                      </span>
+                                    ))}
+                                    {(sub.skills || []).length > 5 && (
+                                      <span className="text-[9px] font-bold text-slate-300">+{sub.skills.length - 5} MORE</span>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -676,7 +812,7 @@ export default function JobsTab() {
             </div>
 
             {/* AI Analysis Side Panel (Layered) */}
-            {selectedSubmission && (
+            {selectedSubmission && 
                 <div className="absolute right-0 top-14 bottom-0 w-96 bg-slate-50 text-slate-800 shadow-2xl z-20 flex flex-col border-l border-slate-200 animate-in slide-in-from-right">
                     <div className="p-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
                         <div className="flex items-center gap-2">
@@ -732,10 +868,10 @@ export default function JobsTab() {
                         )}
                     </div>
                 </div>
-            )}
-          </div>
-        )}
-      </div>
+              }
+            </div>
+          }
+        </div>
 
       {/* Approval Modal (Margin Governance) */}
       {showApprovalModal && (

@@ -12,7 +12,7 @@ export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "", experience: "" });
   const [bulkText, setBulkText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -113,7 +113,7 @@ export default function CandidatesTab() {
         enrichCandidate(candId, formData.resumeText);
       }
 
-      setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "" });
+      setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "", experience: "" });
       alert("Candidate successfully onboarded. Intelligence processing in background.");
     } catch (e: any) {
       console.error(e);
@@ -326,7 +326,10 @@ export default function CandidatesTab() {
             vendorId: userOrgId,
             clientId: job.clientId,
             candidateName: selectedCandidate.name,
+            jobTitle: job.title || "Strategic Role",
+            experience: selectedCandidate.experience || "Not Specified",
             status: "ACTIVE",
+            currentStage: "Deal Room Active",
             identitiesRevealed: false,
             createdAt: serverTimestamp(),
             matchData: mappingResult
@@ -485,6 +488,10 @@ export default function CandidatesTab() {
               <div>
                  <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Skills (Comma separated)</label>
                  <input type="text" value={formData.skills} onChange={e => setFormData({...formData, skills: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="e.g. React, Node.js, AWS" />
+              </div>
+              <div>
+                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Total Experience (Years)</label>
+                 <input type="text" value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="e.g. 5+ Yrs" />
               </div>
               <div>
                  <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Resume Context</label>

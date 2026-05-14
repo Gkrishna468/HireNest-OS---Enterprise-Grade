@@ -89,7 +89,28 @@ export default function DealRoomsTab() {
   useEffect(() => {
     if (selectedRoom) {
       setAiIntelligence(null); // Reset when switching rooms
-      // ... existing message loading ...
+      
+      // Auto-Fix Metadata for legacy rooms
+      const fixMetadata = async () => {
+        if (!selectedRoom.jobTitle || selectedRoom.jobTitle === "Strategic Role" || !selectedRoom.experience) {
+          if (selectedRoom.requirementId) {
+            try {
+              const reqDoc = await getDoc(doc(db, "requirements_public", selectedRoom.requirementId));
+              if (reqDoc.exists()) {
+                const reqData = reqDoc.data();
+                await updateDoc(doc(db, "dealRooms", selectedRoom.id), {
+                  jobTitle: reqData.title || selectedRoom.jobTitle || "Strategic Role",
+                  experience: reqData.experience || selectedRoom.experience || "8+ YRS"
+                });
+              }
+            } catch (e) {
+              console.warn("Metadata auto-fix failed", e);
+            }
+          }
+        }
+      };
+      fixMetadata();
+
       const loadMessages = async () => {
         try {
            // Try Proxy for messages first if available in the sync payload
@@ -145,7 +166,10 @@ export default function DealRoomsTab() {
     try {
       const response = await fetch('/api/deal/intelligence', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({
           profile: selectedRoom.candidateName || "Candidate Profile",
           jd: selectedRoom.jobTitle || "Job Description",
@@ -154,9 +178,14 @@ export default function DealRoomsTab() {
       });
       if (response.ok) {
         setAiIntelligence(await response.json());
+      } else {
+        const errText = await response.text();
+        console.error(`AI Intelligence fetch failed with status ${response.status}: ${errText}`);
       }
-    } catch (e) {
-      console.error("AI Intelligence fetch failed", e);
+    } catch (e: any) {
+      console.error("AI Intelligence network error:", e.message || e);
+      // Fallback for UI feedback
+      alert(`Network connectivity issue: ${e.message || "Failed to reach intelligence layer"}`);
     } finally {
       setIsAiLoading(false);
     }
@@ -164,9 +193,11 @@ export default function DealRoomsTab() {
 
   const updateStage = async (stageId: string) => {
     if (!selectedRoom || !stageId) return;
+    const isFinalStage = stageId === 'hired';
     try {
       await updateDoc(doc(db, "dealRooms", selectedRoom.id), {
         currentStage: stageId,
+        status: isFinalStage ? "CLOSED" : selectedRoom.status,
         updatedAt: serverTimestamp()
       });
       
@@ -178,6 +209,25 @@ export default function DealRoomsTab() {
         type: "system",
         timestamp: serverTimestamp()
       });
+
+      if (isFinalStage) {
+        // Simulate Match Email
+        await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
+          senderRole: "System Admin",
+          senderId: "Admin",
+          text: `🎉 MATCH FINALIZED! Sending confirmation email to Admin HQ. (Linked: Vendor ID: ${selectedRoom.vendorId} matched with ${selectedRoom.clientName || 'Client'} for candidate ${selectedRoom.candidateName}).`,
+          type: "system",
+          timestamp: serverTimestamp()
+        });
+        
+        // Final "Happy Onboarding" message
+        await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
+          senderRole: "AI Copilot",
+          senderId: "system",
+          text: `🏆 Deal Closed. Happy Onboarding! Please contact global_admin@hirenestos.com for the final contract signing and billing reconciliation.`,
+          timestamp: serverTimestamp()
+        });
+      }
     } catch (e) {
       console.error("Stage update failed", e);
     }
@@ -307,6 +357,19 @@ export default function DealRoomsTab() {
 
             {/* Pipeline Tracker */}
             <div className="bg-white border-b border-slate-100 px-4 py-3 shrink-0 overflow-x-auto">
+                <div className="mb-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                    {STAGES.map((s, i) => {
+                         const currentIdx = STAGES.findIndex(st => st.id === (selectedRoom.currentStage || 'shortlisted'));
+                         return (
+                            <motion.div 
+                              key={s.id}
+                              initial={{ width: 0 }}
+                              animate={{ width: '100%' }}
+                              className={`h-full border-r border-white/20 ${i <= currentIdx ? (selectedRoom.status === 'CLOSED' ? 'bg-emerald-500' : 'bg-indigo-600') : 'bg-transparent'}`}
+                            />
+                         );
+                    })}
+                </div>
                 <div className="flex items-center justify-between min-w-[600px]">
                     {STAGES.map((stage, idx) => {
                         const isCurrent = selectedRoom.currentStage === stage.id || (!selectedRoom.currentStage && stage.id === 'shortlisted');
@@ -383,6 +446,41 @@ export default function DealRoomsTab() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {selectedRoom.status === "CLOSED" && (
+                <div className="mb-6 animate-in zoom-in-95 duration-500">
+                    <div className="bg-gradient-to-br from-indigo-500 to-indigo-900 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                            <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-full blur-2xl animate-pulse" />
+                            <div className="absolute bottom-10 right-10 w-32 h-32 bg-white rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                        </div>
+                        <div className="relative z-10 space-y-4">
+                            <div className="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center mx-auto mb-4 border border-white/30">
+                                <Sparkles className="text-white w-10 h-10" />
+                            </div>
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tight">Happy Onboarding!</h2>
+                            <p className="text-indigo-100 text-sm max-w-md mx-auto leading-relaxed">
+                                Strategy finalized. We have successfully matched <b>{selectedRoom.candidateName}</b> with <b>{selectedRoom.identitiesRevealed ? selectedRoom.clientName : "the client"}</b>.
+                            </p>
+                            <div className="flex gap-3 justify-center pt-4">
+                               <div className="px-4 py-2 bg-white/10 rounded-xl border border-white/20 text-white text-[10px] font-black uppercase tracking-widest">
+                                   Deal Finalized
+                               </div>
+                               <div className="px-4 py-2 bg-emerald-500 rounded-xl text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                   <CheckCircle2 size={12} /> Compliance Verified
+                               </div>
+                            </div>
+                            <div className="pt-6">
+                                <p className="text-white/60 text-[10px] italic">Contact Admin HQ for subsequent workflow documentation.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 my-8 text-slate-300">
+                        <div className="flex-1 h-[1px] bg-slate-200" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Archived Conversation History</span>
+                        <div className="flex-1 h-[1px] bg-slate-200" />
+                    </div>
+                </div>
+              )}
               {messages.map(msg => {
                 const isAI = msg.senderRole === "AI Copilot";
                 const isMe = msg.senderId === auth.currentUser?.uid;
@@ -417,13 +515,19 @@ export default function DealRoomsTab() {
               <div className="flex gap-2">
                 <input 
                   type="text" 
+                  disabled={selectedRoom.status === "CLOSED"}
                   value={inputText}
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
                   onChange={e => setInputText(e.target.value)}
-                  placeholder="Message this deal room securely..."
-                  className="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 bg-slate-50/50"
+                  placeholder={selectedRoom.status === "CLOSED" ? "This room is finalized and read-only." : "Message this deal room securely..."}
+                  className="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 bg-slate-50/50 disabled:bg-slate-100 disabled:italic"
                 />
-                <Button onClick={handleSend} size="sm" className="bg-indigo-600 hover:bg-slate-900 text-white flex-shrink-0 h-auto py-2 px-6 font-black text-[10px] tracking-widest">
+                <Button 
+                  onClick={handleSend} 
+                  disabled={selectedRoom.status === "CLOSED" || !inputText.trim()}
+                  size="sm" 
+                  className="bg-indigo-600 hover:bg-slate-900 text-white flex-shrink-0 h-auto py-2 px-6 font-black text-[10px] tracking-widest"
+                >
                   SEND
                 </Button>
               </div>

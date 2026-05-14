@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, AlertCircle, XCircle, ChevronDown, ChevronUp, Cpu, Target, Scale, MapPin } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, ChevronDown, ChevronUp, Cpu, Target, Scale, MapPin, ShieldAlert } from 'lucide-react';
 import { Badge } from '../lib/Badge';
 import { HybridMatchResult } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -96,6 +96,25 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                   </ul>
                 </div>
               </div>
+
+              {/* Missing Skills Section */}
+              {result.missingSkills && result.missingSkills.length > 0 && (
+                <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-xl">
+                  <h5 className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <ShieldAlert size={14} className="animate-pulse" /> Critical Missing Skills (JD vs Resume)
+                  </h5>
+                  <div className="flex flex-wrap gap-2">
+                    {result.missingSkills.map((s, i) => (
+                      <Badge key={i} className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] font-mono">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-3 italic">
+                    Note: These specific technical requirements from the JD were not implicitly found in the parsed profile.
+                  </p>
+                </div>
+              )}
 
               {/* Score Breakdown */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">

@@ -47,6 +47,7 @@ export interface HybridMatchResult {
   summary: string;
   strengths: string[];
   gaps: string[];
+  missingSkills?: string[];
   recruiterAssessment: string;
   recommendation: 'STRONG_FIT' | 'CONSIDER' | 'NOT_SUITABLE';
   nextSteps: string;
