@@ -11,7 +11,24 @@ export default function DashboardTab() {
 
   useEffect(() => {
     if (org) {
-      fetch(`/api/metrics?type=${org.type}`).then(res => res.json()).then(setMetrics);
+      fetch(`/api/metrics?type=${org.type}`)
+        .then(res => {
+          if (!res.ok) throw new Error("Metadata sync failed");
+          return res.json();
+        })
+        .then(setMetrics)
+        .catch(err => {
+          console.warn("Metrics fetch failed, using local fallback", err);
+          setMetrics({
+            revenue: 0,
+            spending: 0,
+            activeDeals: 0,
+            placements: 0,
+            avgMargin: 15,
+            vendorQuality: 90,
+            recruiterProductivity: 85
+          });
+        });
     }
   }, [org]);
 
