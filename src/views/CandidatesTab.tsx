@@ -134,6 +134,8 @@ export default function CandidatesTab() {
         const file = files[i];
         const formData = new FormData();
         formData.append('file', file);
+        
+        console.log(`[PIPELINE] Starting extraction for ${file.name}...`);
 
         try {
             const res = await fetch("/api/extract-text", {
@@ -143,63 +145,76 @@ export default function CandidatesTab() {
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error ${res.status}`);
+                throw new Error(errorData.message || `Server error during extraction (${res.status})`);
             }
 
             const data = await res.json();
             if (data.text) {
+                // STEP: Save initial candidate with raw text immediately to prevent data loss
+                const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+                const tempName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
+                
+                await setDoc(doc(db, "candidatePool", candId), {
+                    name: tempName,
+                    email: "pending@extraction.io",
+                    resumeText: data.text,
+                    candidateId: candId,
+                    vendorId: userOrgId,
+                    pipelineStage: "Candidate Added",
+                    source: "Bulk Upload",
+                    fileName: file.name,
+                    distillationStatus: "PENDING",
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+
                 cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
                 successCount++;
+                
+                // Trigger background enrichment for THIS specific candidate
+                enrichCandidate(candId, data.text);
             } else {
                 failCount++;
             }
         } catch (err: any) {
-            console.error("Failed to parse file", file.name, err);
+            console.error("Pipeline failure for file:", file.name, err);
             failCount++;
         }
     }
 
     setBulkText(cumulativeText);
-    
-    if (successCount > 0) {
-        // Automatically trigger AI distillation for the newly added text
-        console.log(`[AUTO-PROCESS] Extracted ${successCount} files, triggering intelligence layer...`);
-        const splitResumes = cumulativeText.split('---').map(r => r.trim()).filter(r => r.length > 10);
-        
-        try {
-            const parsedProfiles = await parseBulkResumes(splitResumes);
-            if (!parsedProfiles || parsedProfiles.length === 0) {
-                throw new Error("Intelligence layer could not distill candidate profiles from the text.");
-            }
-
-            let onboardCount = 0;
-            for (const profile of parsedProfiles) {
-                const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-                await setDoc(doc(db, "candidatePool", candId), {
-                    ...profile,
-                    candidateId: candId,
-                    vendorId: userOrgId,
-                    matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
-                    pipelineStage: "Candidate Added",
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
-                onboardCount++;
-            }
-            
-            setBulkText("");
-            setShowBulkUpload(false);
-            alert(`Intelligence Success: ${onboardCount} profiles distilled and added to your OS.`);
-        } catch (aiErr: any) {
-            console.error("Auto-distillation failed", aiErr);
-            alert("File extraction succeeded, but AI distillation failed. You can manually process the text in the buffer.");
-        }
-    }
-
     setIsBulkProcessing(false);
     
+    if (successCount > 0) {
+        alert(`Success: ${successCount} candidates onboarded. AI intelligence layer is now enriching profiles in the background.`);
+        setShowBulkUpload(false);
+        setBulkText("");
+    }
+    
     if (failCount > 0) {
-        alert(`${successCount} files extracted successfully. ${failCount} files failed to process.`);
+        alert(`Warning: ${failCount} files failed to process. Check console logs for details.`);
+    }
+  };
+
+  const enrichCandidate = async (candId: string, text: string) => {
+    try {
+        console.log(`[AI ENRICH] Distilling profile for ${candId}...`);
+        const results = await parseBulkResumes([text]);
+        if (results && results.length > 0) {
+            const profile = results[0];
+            await setDoc(doc(db, "candidatePool", candId), {
+                ...profile,
+                distillationStatus: "COMPLETED",
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            console.log(`[AI ENRICH] Success for ${candId}`);
+        }
+    } catch (err) {
+        console.warn(`[AI ENRICH] Failed for ${candId}`, err);
+        await setDoc(doc(db, "candidatePool", candId), {
+            distillationStatus: "FAILED",
+            updatedAt: serverTimestamp()
+        }, { merge: true });
     }
   };
 
@@ -235,22 +250,40 @@ export default function CandidatesTab() {
               </div>
               
               <div className="p-2 space-y-2 flex-1 overflow-y-auto">
-                {list.map(cand => (
-                  <div key={cand.id} className="bg-white border border-slate-200 rounded p-3 hover:border-indigo-400 transition-all shadow-sm">
+                {list.map((cand, idx) => (
+                  <div key={cand.id} className="group relative bg-white border border-slate-200 rounded p-3 hover:border-indigo-400 transition-all shadow-sm">
+                    {cand.distillationStatus === 'PENDING' && (
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center rounded z-10">
+                            <div className="flex flex-col items-center gap-1">
+                                <Activity size={16} className="text-indigo-500 animate-spin" />
+                                <span className="text-[8px] font-bold uppercase tracking-tighter text-indigo-700">OS Intelligence Enriching...</span>
+                            </div>
+                        </div>
+                    )}
+                    
                     <div className="flex justify-between items-start mb-2">
-                      <div className="font-bold text-xs text-slate-900">{cand.name}</div>
-                      <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100">
-                        {cand.matchScore}%
+                      <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors">{cand.name}</div>
+                      <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
+                        {cand.matchScore || 'N/A'}%
                       </span>
                     </div>
+                    
                     <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2 mb-2">
-                        <MapPin size={10} /> {cand.location || 'Remote'}
+                        <MapPin size={10} className="text-slate-400" /> {cand.location || 'Remote'} 
+                        {cand.source === 'Bulk Upload' && <span className="text-[8px] px-1 bg-slate-100 rounded text-slate-400">UPLOAD</span>}
                     </div>
+                    
                     <div className="flex flex-wrap gap-1">
-                      {cand.skills?.slice(0,3).map((s: string) => (
-                        <span key={s} className="text-[9px] bg-slate-50 text-slate-500 border rounded px-1">{s}</span>
+                      {cand.skills?.slice(0,4).map((s: string) => (
+                        <span key={s} className="text-[9px] bg-slate-50 text-slate-500 border border-slate-100 rounded px-1 group-hover:border-indigo-200 transition-colors">{s}</span>
                       ))}
                     </div>
+
+                    {cand.distillationStatus === 'FAILED' && (
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-red-500 text-[8px] font-bold uppercase">
+                            <AlertTriangle size={8} /> AI Distillation Failed
+                        </div>
+                    )}
                   </div>
                 ))}
               </div>
