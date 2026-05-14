@@ -18,10 +18,20 @@ const __dirname = path.dirname(__filename);
 // --- Initialization & Error Control ---
 console.log("[SERVER START] Booting HireNest Global OS Intelligence Layer...");
 
+// Use pdfjs-dist as primary for robustness in node
+let pdfjsLib: any = null;
+try {
+  pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+  console.log("[DEP] pdfjs-dist (legacy) loaded successfully, type:", typeof pdfjsLib);
+} catch (e) {
+  console.error("[DEP] pdfjs-dist load failed", e);
+}
+
 let pdfParse: any = null;
 try {
-  pdfParse = require('pdf-parse');
-  console.log("[DEP] PDF-Parse loaded successfully");
+  const pp = require('pdf-parse');
+  pdfParse = typeof pp === 'function' ? pp : (pp.default || pp);
+  console.log("[DEP] PDF-Parse loaded, type:", typeof pdfParse);
 } catch (e) {
   console.error("[DEP] PDF-Parse load failed", e);
 }
@@ -340,41 +350,58 @@ async function startServer() {
       const filename = anyReq.file.originalname.toLowerCase();
       let text = "";
 
-      console.log(`[EXTRACT] Processing: ${filename} (${anyReq.file.mimetype})`);
+      console.log(`[EXTRACT] Intelligence check for: ${filename} (${anyReq.file.mimetype})`);
 
       if (filename.endsWith(".pdf") || anyReq.file.mimetype === 'application/pdf') {
-        if (!pdfParse) {
-           throw new Error("PDF parsing engine is not available on the server. Please check deployment configuration.");
-        }
         try {
-           const data = await pdfParse(anyReq.file.buffer);
-           text = data.text || "";
-           console.log(`[EXTRACT] PDF parsed successfully, characters: ${text.length}`);
+          if (pdfjsLib) {
+             console.log("[EXTRACT] Using pdfjs-dist...");
+             const uint8Array = new Uint8Array(anyReq.file.buffer);
+             const loadingTask = pdfjsLib.getDocument({ data: uint8Array, useSystemFonts: true });
+             const pdfDocument = await loadingTask.promise;
+             let fullText = "";
+             for (let i = 1; i <= pdfDocument.numPages; i++) {
+               const page = await pdfDocument.getPage(i);
+               const textContent = await page.getTextContent();
+               const pageText = textContent.items.map((item: any) => item.str).join(" ");
+               fullText += pageText + "\n";
+             }
+             text = fullText;
+          } else if (pdfParse) {
+             console.log("[EXTRACT] Using pdf-parse fallback...");
+             const data = await pdfParse(anyReq.file.buffer);
+             text = data.text || "";
+          } else {
+             throw new Error("No PDF extraction engine ready.");
+          }
+          console.log(`[EXTRACT] PDF parsed, length: ${text.length}`);
         } catch (pdfErr: any) {
-           console.error("[EXTRACT] PDF processing internal error", pdfErr);
-           throw new Error(`PDF Parsing Error: ${pdfErr.message || "Unknown PDF parsing issue"}`);
+           console.error("[EXTRACT] PDF error details:", pdfErr);
+           throw new Error(`PDF Intelligent extraction failed: ${pdfErr.message}`);
         }
       } else if (filename.endsWith(".docx") || anyReq.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
         try {
           const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
           text = result.value || "";
-          console.log(`[EXTRACT] DOCX parsed successfully, characters: ${text.length}`);
+          console.log(`[EXTRACT] DOCX parsed, size: ${text.length}`);
         } catch (docxErr: any) {
-           console.error("[EXTRACT] DOCX processing internal error", docxErr);
-           throw new Error(`DOCX Parsing Error: ${docxErr.message || "Unknown DOCX parsing issue"}`);
+           console.error("[EXTRACT] DOCX error", docxErr);
+           throw new Error(`Failed to extract text from DOCX: ${docxErr.message}`);
         }
       } else if (filename.endsWith(".txt") || anyReq.file.mimetype.startsWith('text/')) {
         text = anyReq.file.buffer.toString('utf-8');
-        console.log(`[EXTRACT] Text file parsed, size: ${text.length}`);
+        console.log(`[EXTRACT] Text file parsed`);
       } else {
-        throw new Error(`Format not supported for intelligence extraction: ${filename}. Use PDF or DOCX.`);
+        throw new Error(`The format of ${filename} is not currently supported by OS Intelligence. Use PDF or DOCX.`);
       }
       
-      if (!text || text.trim().length < 5) {
-        throw new Error("The document appears to be empty or consists only of images (OCR required).");
+      if (!text || text.trim().length < 10) {
+        throw new Error("The intelligence layer returned zero text. This likely means the document is a scanned image or empty.");
       }
 
-      res.status(200).json({ text: text.trim() });
+      // Cleanup and Normalize
+      const cleanText = text.replace(/\s+/g, ' ').trim();
+      res.status(200).json({ text: cleanText });
     } catch (err: any) {
       console.error("[EXTRACT FATAL]", err);
       res.status(500).json({ 

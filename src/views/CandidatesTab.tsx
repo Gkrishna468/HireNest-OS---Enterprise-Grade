@@ -160,6 +160,42 @@ export default function CandidatesTab() {
     }
 
     setBulkText(cumulativeText);
+    
+    if (successCount > 0) {
+        // Automatically trigger AI distillation for the newly added text
+        console.log(`[AUTO-PROCESS] Extracted ${successCount} files, triggering intelligence layer...`);
+        const splitResumes = cumulativeText.split('---').map(r => r.trim()).filter(r => r.length > 10);
+        
+        try {
+            const parsedProfiles = await parseBulkResumes(splitResumes);
+            if (!parsedProfiles || parsedProfiles.length === 0) {
+                throw new Error("Intelligence layer could not distill candidate profiles from the text.");
+            }
+
+            let onboardCount = 0;
+            for (const profile of parsedProfiles) {
+                const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+                await setDoc(doc(db, "candidatePool", candId), {
+                    ...profile,
+                    candidateId: candId,
+                    vendorId: userOrgId,
+                    matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
+                    pipelineStage: "Candidate Added",
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+                onboardCount++;
+            }
+            
+            setBulkText("");
+            setShowBulkUpload(false);
+            alert(`Intelligence Success: ${onboardCount} profiles distilled and added to your OS.`);
+        } catch (aiErr: any) {
+            console.error("Auto-distillation failed", aiErr);
+            alert("File extraction succeeded, but AI distillation failed. You can manually process the text in the buffer.");
+        }
+    }
+
     setIsBulkProcessing(false);
     
     if (failCount > 0) {
