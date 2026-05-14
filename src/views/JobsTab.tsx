@@ -9,6 +9,10 @@ import { analyzeCandidateMatch, CandidateMatchResult } from "../services/aiServi
 export default function JobsTab() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [jdText, setJdText] = useState("");
+  const [budgetAmount, setBudgetAmount] = useState<number>(0);
+  const [budgetPeriod, setBudgetPeriod] = useState<"LPA" | "LPM">("LPA");
+  const [workMode, setWorkMode] = useState<"Onsite" | "Remote" | "C2C" | "C2H" | "Permanent">("Remote");
+  const [mandatorySkills, setMandatorySkills] = useState<string>("");
   const [isParsing, setIsParsing] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -124,12 +128,14 @@ export default function JobsTab() {
         requirementId: reqId,
         clientId: orgId,
         title: parsed.title,
-        description: parsed.description,
-        skills: parsed.skills,
-        status: "DRAFT", // Start as DRAFT
+        description: jdText, // Store full original text
+        skills: mandatorySkills.split(',').map(s => s.trim()).filter(Boolean).length > 0 
+                ? mandatorySkills.split(',').map(s => s.trim()).filter(Boolean) 
+                : parsed.skills,
+        status: "DRAFT",
         visibility: "INTERNAL",
-        vendorVisibleBudget: 0,
-        currency: "USD",
+        budget: { amount: budgetAmount, period: budgetPeriod },
+        workMode: workMode,
         adminApproved: false,
         ownerId: auth.currentUser?.uid,
         createdAt: serverTimestamp(),
@@ -138,11 +144,16 @@ export default function JobsTab() {
       
       await setDoc(doc(db, "requirements_public", reqId), newReq);
       setJdText("");
+      setBudgetAmount(0);
+      setMandatorySkills("");
 
-      // Simulate the 5-minute processing window
+      // Simulate the multi-stage processing window
       setTimeout(async () => {
-        await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'completed' });
-      }, 5000); // 5 seconds for demo, but represents the 5 mins
+        await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'processing' });
+        setTimeout(async () => {
+             await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'completed' });
+        }, 20000); // 20 seconds total for demo
+      }, 5000); 
 
     } catch (e) {
       console.error("Failed to parse JD", e);
@@ -253,7 +264,7 @@ export default function JobsTab() {
   };
 
   const isAdmin = userRole === 'admin';
-  const isClient = userRole?.startsWith('client_');
+  const isClient = currentUserState?.org?.type === 'client' || userRole === 'client';
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
@@ -268,31 +279,92 @@ export default function JobsTab() {
           </div>
 
           {(isAdmin || isClient) && !selectedJob && (
-            <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden shrink-0">
+            <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden shrink-0 animate-in fade-in slide-in-from-top duration-500">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Intake New Requirement</label>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">New Requirement Intake</label>
+                  <p className="text-[9px] text-slate-400 font-mono">Senior recruiting mode active. Optimized for high-density placement.</p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer group flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded hover:border-indigo-400 transition-all">
+                  <label className="cursor-pointer group flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded hover:border-indigo-400 transition-all shadow-sm">
                     <Upload size={12} className="text-slate-400 group-hover:text-indigo-600" />
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">Upload PDF/DOCX</span>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">Extract from Document</span>
                     <input type="file" multiple accept=".pdf,.doc,.docx" className="hidden" onChange={handleJobFileChange} />
                   </label>
                 </div>
               </div>
-              <div className="p-3">
-                <textarea 
-                  className="w-full h-24 p-2 border border-slate-300 rounded shadow-sm text-xs font-mono text-slate-700 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                  placeholder="Paste Job Description here or upload files. Use '---' to separate multiple jobs if pasting bulk text."
-                  value={jdText}
-                  onChange={(e) => setJdText(e.target.value)}
-                />
-                <div className="mt-2 flex justify-end items-center gap-3">
-                  <p className="text-[8px] text-slate-400 uppercase font-bold italic">
-                    {isParsing && <Activity size={10} className="inline mr-1 animate-spin" />}
-                    Powered by Gemini 2.0 Flash Extraction
-                  </p>
-                  <Button onClick={handleParseJD} disabled={isParsing || !jdText.trim()} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold tracking-wider text-[10px] uppercase h-auto py-1.5 px-3">
-                    {isParsing ? "Extraction Active..." : "Parse & Submit"}
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Work Mode & Engagement</label>
+                      <select 
+                        value={workMode}
+                        onChange={(e: any) => setWorkMode(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="Onsite">Onsite</option>
+                        <option value="Remote">Remote</option>
+                        <option value="C2C">Contract (C2C)</option>
+                        <option value="C2H">Contract to Hire (C2H)</option>
+                        <option value="Permanent">Permanent Role</option>
+                      </select>
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Financial Parameters</label>
+                      <div className="flex">
+                        <input 
+                           type="number" 
+                           placeholder="Budget Amount"
+                           value={budgetAmount || ""}
+                           onChange={(e) => setBudgetAmount(e.target.valueAsNumber)}
+                           className="flex-1 bg-slate-50 border border-slate-200 rounded-l p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                        <select 
+                           value={budgetPeriod}
+                           onChange={(e: any) => setBudgetPeriod(e.target.value)}
+                           className="bg-slate-100 border-y border-r border-slate-200 rounded-r px-2 text-[10px] font-bold text-slate-600 outline-none"
+                        >
+                           <option value="LPA">LPA</option>
+                           <option value="LPM">LPM</option>
+                        </select>
+                      </div>
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Mandatory Tech Skills</label>
+                      <input 
+                         type="text"
+                         placeholder="React, AWS, Node.js..."
+                         value={mandatorySkills}
+                         onChange={(e) => setMandatorySkills(e.target.value)}
+                         className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Job Scope & Technical Requirements</label>
+                   <textarea 
+                     className="w-full h-32 p-3 border border-slate-200 rounded shadow-sm text-[11px] font-sans text-slate-700 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-slate-50/50"
+                     placeholder="Paste detailed Job Description. AI will automatically extract title, experience requirements, and core responsibilities."
+                     value={jdText}
+                     onChange={(e) => setJdText(e.target.value)}
+                   />
+                </div>
+
+                <div className="flex justify-between items-center bg-indigo-50/50 -mx-4 -mb-4 p-3 border-t border-indigo-100">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit size={16} className="text-indigo-500" />
+                    <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-tighter">
+                      AI Matching Engine Online
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleParseJD} 
+                    disabled={isParsing || !jdText.trim()} 
+                    size="sm" 
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold tracking-widest text-[11px] uppercase py-2 px-6 shadow-md transition-all hover:scale-[1.02]"
+                  >
+                    {isParsing ? "Initiating Protocol..." : "Finalize & Submit Requirement"}
                   </Button>
                 </div>
               </div>
@@ -319,10 +391,19 @@ export default function JobsTab() {
                 <div className="col-span-8">
                   <div className="flex items-center space-x-2">
                     <h3 className="text-sm font-bold text-slate-900">{job.title}</h3>
-                    <Badge variant="outline" className="text-[8px] py-0">{job.status}</Badge>
+                    <Badge variant="outline" className={`text-[8px] py-0 ${job.adminApproved ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {job.status}
+                    </Badge>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {job.skills?.slice(0, 4).map((s: string) => <span key={s} className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded">{s}</span>)}
+                  <div className="mt-1 flex items-center gap-3">
+                    <div className="flex flex-wrap gap-1">
+                      {job.skills?.slice(0, 4).map((s: string) => <span key={s} className="text-[9px] bg-slate-100 text-slate-600 px-1.5 rounded font-medium border border-slate-200">{s}</span>)}
+                    </div>
+                    {job.budget && (
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 border-l border-slate-200 pl-2">
+                        <DollarSign size={10} /> {job.budget.amount}{job.budget.period} • {job.workMode}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -443,14 +524,31 @@ export default function JobsTab() {
                   </Badge>
                 </div>
 
-                {selectedJob.matchProcessingStatus === 'pending' || [...submissions, ...globalMatches].length === 0 ? (
-                   <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20">
-                      <Bot size={32} className="mb-2 text-indigo-300 opacity-30" />
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">
-                        {selectedJob.matchProcessingStatus === 'pending' ? "Scanning Vendor Networks..." : "Awaiting Fresh Matches"}
+                {selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' || [...submissions, ...globalMatches].length === 0 ? (
+                   <div className="py-12 flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-indigo-50/20 px-6 text-center">
+                      <div className="relative mb-4">
+                        <Bot size={40} className={`text-indigo-400 ${selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' ? 'animate-bounce' : 'opacity-30'}`} />
+                        {(selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && (
+                            <div className="absolute -top-1 -right-1">
+                                <Activity size={16} className="text-emerald-500 animate-spin" />
+                            </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] uppercase font-bold tracking-widest text-indigo-600 mb-1">
+                        {selectedJob.matchProcessingStatus === 'pending' ? "Synchronizing Vendor Networks..." : 
+                         selectedJob.matchProcessingStatus === 'processing' ? "Executing High-Density AI Match..." :
+                         "Still looking for better candidates to match"}
                       </p>
-                      <p className="text-[8px] mt-1 text-slate-400 uppercase font-bold">Please check in sometime</p>
-                      {selectedJob.matchProcessingStatus === 'pending' && <p className="text-[7px] mt-2 text-slate-300">(Processing window: 5 minutes)</p>}
+                      <p className="text-[9px] text-slate-500 font-medium">
+                        {selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' 
+                          ? "Our AI Agents are currently scanning verified vendor pools for mandatory skills and budget alignment." 
+                          : "Your requirement is active. We are prioritizing candidates that meet 90%+ of your technical criteria."}
+                      </p>
+                      {(selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && (
+                        <div className="mt-4 w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                            <div className="bg-indigo-600 h-full animate-progress" style={{ width: '40%' }}></div>
+                        </div>
+                      )}
                    </div>
                 ) : (
                   <div className="space-y-3">
