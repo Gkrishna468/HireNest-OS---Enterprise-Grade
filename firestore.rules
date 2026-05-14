@@ -65,14 +65,16 @@ service cloud.firestore {
     }
 
     function isValidRequirementPublic(data) {
-      return data.keys().hasAll(['requirementId', 'clientId', 'title', 'description', 'skills', 'status', 'visibility', 'vendorVisibleBudget', 'currency', 'adminApproved', 'ownerId', 'createdAt']) &&
+      return data.keys().hasAll(['requirementId', 'clientId', 'title', 'description', 'status', 'visibility', 'ownerId', 'createdAt']) &&
              data.requirementId is string &&
              data.clientId is string &&
              data.title is string && data.title.size() <= 200 &&
-             data.skills is list && data.skills.size() <= 100 &&
              data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'] &&
              data.visibility in ['INTERNAL', 'VENDOR_NETWORK'] &&
-             data.ownerId == request.auth.uid;
+             data.ownerId == request.auth.uid &&
+             (data.get('budget', null) == null || data.budget is map) &&
+             (data.get('workMode', null) == null || data.workMode is string) &&
+             (data.get('matchProcessingStatus', null) == null || data.matchProcessingStatus is string);
     }
 
     match /users/{userId} {
@@ -95,10 +97,10 @@ service cloud.firestore {
 
     match /requirements_public/{reqId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidRequirementPublic(incoming()) && (isOrganizationMember(incoming().clientId) || isDynamicAdmin());
+      allow create: if isSignedIn() && isValidRequirementPublic(incoming());
       allow update: if (isDynamicAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
-         (isDynamicAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility'])) ||
-         (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills']))
+         (isDynamicAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'matchProcessingStatus'])) ||
+         (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'skills', 'budget', 'workMode', 'matchProcessingStatus']))
       );
     }
 
