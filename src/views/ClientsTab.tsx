@@ -268,7 +268,7 @@ export default function ClientsTab() {
                         <div className="space-y-1">
                           <h5 className="text-xs font-black text-slate-800 line-clamp-1">{job.title}</h5>
                           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                            <span className="px-1.5 py-0.5 bg-slate-100 rounded capitalize">{job.status?.toLowerCase().replace('_', ' ')}</span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 rounded capitalize">{String(job.status || '').toLowerCase().replace('_', ' ') || 'Internal'}</span>
                             <span>•</span>
                             <span>{job.submissions || 0} Subs</span>
                           </div>
@@ -283,7 +283,7 @@ export default function ClientsTab() {
                         ) : (
                           <div className="text-[11px] font-black text-emerald-600 flex items-center gap-1">
                             <CheckCircle size={10} />
-                            <span>${job.financials?.vendorPayout || job.rate.replace(/[^0-9]/g, '')}/hr</span>
+                            <span>${job.financials?.vendorPayout || String(job.rate || '').replace(/[^0-9]/g, '') || '---'}/hr</span>
                           </div>
                         )}
                       </div>
