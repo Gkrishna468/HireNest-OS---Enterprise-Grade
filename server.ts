@@ -309,6 +309,14 @@ async function startServer() {
     const { jd, candidateProfile } = req.body;
     let result = {
       matchScore: 0,
+      breakdown: {
+        skillsScore: 0,
+        experienceScore: 0,
+        domainScore: 0,
+        locationScore: 0,
+        bonusScore: 0,
+        totalScore: 0
+      },
       summary: "Detailed matching currently simulated.",
       strengths: ["Matching skills found"],
       gaps: ["Verify location"],
@@ -317,7 +325,10 @@ async function startServer() {
         professional: "Dear Candidate, we believe your background aligns well with our current requirements.",
         executive: "We have an opening for a senior role that fits your leadership profile.",
         warm: "Hi! Loved your recent projects. Let's talk about how you can contribute here."
-      }
+      },
+      recruiterAssessment: "Manual review recommended.",
+      recommendation: "CONSIDER",
+      nextSteps: "Conduct technical interview."
     };
 
     if (ai) {
@@ -326,9 +337,13 @@ async function startServer() {
           model: "gemini-3-flash-preview",
           contents: `Analyze this JD and Candidate Profile. Return a JSON object with: 
           matchScore (number 0-100), 
+          breakdown (object with: skillsScore, experienceScore, domainScore, locationScore, bonusScore, totalScore),
           summary (string), 
           strengths (array of strings), 
           gaps (array of strings), 
+          recruiterAssessment (string),
+          recommendation (one of: STRONG_FIT, CONSIDER, NOT_SUITABLE),
+          nextSteps (string),
           outreachDrafts (object with keys: founder, professional, executive, warm).
           JD: ${jd}
           Profile: ${candidateProfile}`,
@@ -336,7 +351,12 @@ async function startServer() {
         });
         
         if (response.text) {
-          result = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+          const parsed = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+          // Merge with defaults to ensure all required fields are present
+          result = { ...result, ...parsed };
+          if (parsed.breakdown) {
+            result.breakdown = { ...result.breakdown, ...parsed.breakdown };
+          }
         }
       } catch (e) {
         console.warn("[AI MATCH] Error", e);

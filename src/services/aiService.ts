@@ -3,9 +3,20 @@
 
 export interface CandidateMatchResult {
   matchScore: number;
+  breakdown?: {
+    skillsScore: number;
+    experienceScore: number;
+    domainScore: number;
+    locationScore: number;
+    bonusScore: number;
+    totalScore: number;
+  };
   summary: string;
   strengths: string[];
   gaps: string[];
+  recruiterAssessment?: string;
+  recommendation?: 'STRONG_FIT' | 'CONSIDER' | 'NOT_SUITABLE';
+  nextSteps?: string;
   outreachDrafts: {
     founder: string;
     professional: string;

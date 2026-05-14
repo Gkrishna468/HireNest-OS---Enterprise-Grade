@@ -49,7 +49,7 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
             <div className="flex gap-2 mt-1">
               {getBadge()}
               <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                {result.breakdown.totalScore} pts
+                {result.breakdown?.totalScore || result.score || 0} pts
               </Badge>
             </div>
           </div>
@@ -104,22 +104,22 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                   <div className="text-center">
                     <Cpu size={14} className="mx-auto text-indigo-500 mb-1" />
                     <div className="text-[9px] text-slate-400 font-bold">Skills</div>
-                    <div className="text-xs font-black">{result.breakdown.skillsScore}%</div>
+                    <div className="text-xs font-black">{result.breakdown?.skillsScore || 0}%</div>
                   </div>
                   <div className="text-center">
                     <Target size={14} className="mx-auto text-emerald-500 mb-1" />
                     <div className="text-[9px] text-slate-400 font-bold">Exp</div>
-                    <div className="text-xs font-black">{result.breakdown.experienceScore}%</div>
+                    <div className="text-xs font-black">{result.breakdown?.experienceScore || 0}%</div>
                   </div>
                   <div className="text-center">
                     <Scale size={14} className="mx-auto text-amber-500 mb-1" />
                     <div className="text-[9px] text-slate-400 font-bold">Domain</div>
-                    <div className="text-xs font-black">{result.breakdown.domainScore}%</div>
+                    <div className="text-xs font-black">{result.breakdown?.domainScore || 0}%</div>
                   </div>
                   <div className="text-center">
                     <MapPin size={14} className="mx-auto text-rose-500 mb-1" />
                     <div className="text-[9px] text-slate-400 font-bold">Loc</div>
-                    <div className="text-xs font-black">{result.breakdown.locationScore}%</div>
+                    <div className="text-xs font-black">{result.breakdown?.locationScore || 0}%</div>
                   </div>
                 </div>
               </div>
