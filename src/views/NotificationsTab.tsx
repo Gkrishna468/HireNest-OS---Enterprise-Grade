@@ -141,7 +141,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                       {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                     {n.actionUrl && (
-                      <Button variant="link" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 p-0 h-fit flex items-center gap-1">
+                      <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 p-0 h-fit flex items-center gap-1 hover:bg-transparent">
                         View Details <ArrowRight size={10} />
                       </Button>
                     )}

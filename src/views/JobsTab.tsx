@@ -1,6 +1,7 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
+import { cn } from "../lib/utils";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
@@ -16,6 +17,7 @@ export default function JobsTab() {
   const [jdText, setJdText] = useState("");
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
   const [budgetPeriod, setBudgetPeriod] = useState<"LPA" | "LPM">("LPA");
+  const [currency, setCurrency] = useState<"INR" | "USD">("INR");
   const [workMode, setWorkMode] = useState<"Onsite" | "Remote" | "C2C" | "C2H" | "Permanent">("Remote");
   const [mandatorySkills, setMandatorySkills] = useState<string>("");
   const [isParsing, setIsParsing] = useState(false);
@@ -158,7 +160,7 @@ export default function JobsTab() {
         skills: manualSkills.length > 0 ? manualSkills : (parsed.skills || []),
         status: "DRAFT",
         visibility: "INTERNAL",
-        budget: { amount: budgetAmount, period: budgetPeriod },
+        budget: { amount: budgetAmount, period: budgetPeriod, currency: currency },
         workMode: workMode,
         adminApproved: false,
         ownerId: auth.currentUser?.uid,
@@ -216,10 +218,26 @@ export default function JobsTab() {
   };
 
   const handleSubmitBudget = async (jobId: string, budget: number) => {
-    await updateDoc(doc(db, "requirements_public", jobId), {
-      status: "PENDING_FINANCIAL_APPROVAL",
-      clientTargetBudget: budget
-    });
+    try {
+      await updateDoc(doc(db, "requirements_public", jobId), {
+        status: "PENDING_FINANCIAL_APPROVAL",
+        clientTargetBudget: budget
+      });
+      
+      const job = jobs.find(j => j.id === jobId);
+      // Trigger Admin Notification
+      await fetch("/api/admin/notify-approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          jobId, 
+          jobTitle: job?.title || "New Job", 
+          clientName: orgId || "Target Client"
+        })
+      });
+    } catch (err) {
+      console.error("Failed to submit budget or notify", err);
+    }
   };
 
 
@@ -232,7 +250,6 @@ export default function JobsTab() {
     setIsEditing(null);
   };
 
-  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
   const [matchingStatus, setMatchingStatus] = useState<string>('idle');
 
   useEffect(() => {
@@ -288,7 +305,7 @@ export default function JobsTab() {
     setSelectedSubmission(sub);
     try {
       const result = await analyzeCandidateMatch(selectedJob.description, sub.resumeText || "Skills: " + (sub.skills || []).join(", "));
-      setAiAnalysis(result);
+      setAiAnalysis(result as any);
     } catch (err) {
       console.error("Match Engine V2 failed", err);
     }
@@ -368,13 +385,21 @@ export default function JobsTab() {
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Financial Parameters</label>
-                      <div className="flex">
+                      <div className="flex gap-1">
+                        <select 
+                           value={currency}
+                           onChange={(e: any) => setCurrency(e.target.value)}
+                           className="bg-slate-100 border border-slate-200 rounded-l px-2 text-[10px] font-bold text-slate-600 outline-none"
+                        >
+                           <option value="INR">₹ INR</option>
+                           <option value="USD">$ USD</option>
+                        </select>
                         <input 
                            type="number" 
-                           placeholder="Budget Amount"
+                           placeholder="Budget"
                            value={budgetAmount || ""}
                            onChange={(e) => setBudgetAmount(e.target.valueAsNumber)}
-                           className="flex-1 bg-slate-50 border border-slate-200 rounded-l p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                           className="flex-1 bg-slate-50 border-y border-slate-200 p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
                         />
                         <select 
                            value={budgetPeriod}
@@ -676,7 +701,7 @@ export default function JobsTab() {
                                               onClick={() => handleCreateDealRoom(selectedSubmission)}
                                               className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-indigo-100"
                                             >
-                                              {aiAnalysis.recommendation === 'STRONG_FIT' ? 'Fast-Track Immediate Deal' : 'Initialize Deal Room Flow'}
+                                              {(aiAnalysis as any).recommendation === 'STRONG_FIT' ? 'Fast-Track Immediate Deal' : 'Initialize Deal Room Flow'}
                                             </Button>
                                             <Button variant="outline" className="w-full border-slate-200 text-slate-400 h-10 text-[9px] uppercase font-bold rounded-xl">
                                               Archive for Future Req
@@ -692,7 +717,7 @@ export default function JobsTab() {
                                             {['Founder', 'Professional', 'Executive', 'Warm'].map(tone => (
                                                 <div key={tone} className="bg-white rounded p-3 border border-slate-200 shadow-sm">
                                                     <div className="text-[8px] font-bold uppercase mb-1 text-indigo-600">{tone} Tone</div>
-                                                    <p className="text-[10px] text-slate-600 leading-relaxed italic">{(aiAnalysis?.outreachDrafts as any)?.[tone.toLowerCase()]}</p>
+                                                    <p className="text-[10px] text-slate-600 leading-relaxed italic">{(aiAnalysis as any)?.outreachDrafts?.[tone.toLowerCase()]}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -798,7 +823,7 @@ export default function JobsTab() {
                   By clicking release, you authorize the commercial masking engine to broadcast this requirement to all global vendors.
                 </p>
               </div>
-            </div>  </div>
+            </div>
           </div>
         </div>
       )}

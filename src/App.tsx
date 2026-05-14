@@ -16,6 +16,7 @@ import AdminOverview from "./views/AdminOverview";
 import ClientsTab from "./views/ClientsTab";
 import VendorsTab from "./views/VendorsTab";
 import NotificationsTab from "./views/NotificationsTab";
+import AgentHQ from "./views/AgentHQ";
 
 import WelcomeDemo from "./components/WelcomeDemo";
 
@@ -43,9 +44,9 @@ function Sidebar({ org, user }: { org: any, user: any }) {
   ];
 
   const intelligenceItems = [
-    { name: "Agent Flows", path: "#", icon: "✦", visible: isAdmin || isClient },
-    { name: "Margin Control", path: "#", icon: "⚖️", visible: isAdmin || (isClient && user.role === 'client_finance') },
-    { name: "Outreach Bot", path: "#", icon: "⚡", visible: isAdmin || isVendor },
+    { name: "Agent HQ", path: "/admin/strategy", icon: "✦", visible: isAdmin },
+    { name: "Margin Control", path: "/admin/strategy", icon: "⚖️", visible: isAdmin || (isClient && user.role === 'client_finance') },
+    { name: "Outreach Bot", path: "/candidates", icon: "⚡", visible: isAdmin || isVendor },
   ];
 
   return (
@@ -296,6 +297,7 @@ export default function App() {
                 <>
                   <Route path="/admin/clients" element={<ClientsTab />} />
                   <Route path="/admin/vendors" element={<VendorsTab />} />
+                  <Route path="/admin/strategy" element={<AgentHQ />} />
                   <Route path="/admin-overview" element={<AdminOverview />} />
                   <Route path="/users" element={<AdminUsersManager orgData={org} />} />
                 </>
