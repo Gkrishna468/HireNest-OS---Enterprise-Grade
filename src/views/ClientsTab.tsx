@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { Button } from "../lib/Button";
+import { cn } from "../lib/utils";
 import { Eye, Star, TrendingUp, X, Filter, DollarSign, CheckCircle, ShieldAlert, Clock, Building2 } from "lucide-react";
 import { updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
@@ -263,23 +264,39 @@ export default function ClientsTab() {
                   </div>
                 ) : (
                   jobs.filter(j => j.clientId === selectedClient.id).map(job => (
-                    <div key={job.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 transition-all shadow-sm group">
+                    <div 
+                      key={job.id} 
+                      onClick={() => job.status === 'PENDING_FINANCIAL_APPROVAL' ? setShowApprovalModal(job) : null}
+                      className={cn(
+                        "p-4 rounded-2xl border transition-all shadow-sm group relative cursor-pointer overflow-hidden",
+                        job.status === 'PENDING_FINANCIAL_APPROVAL' 
+                          ? "border-amber-200 bg-amber-50/30 hover:bg-amber-50 hover:border-amber-300" 
+                          : "border-slate-200 bg-white hover:border-indigo-200"
+                      )}
+                    >
+                      {job.status === 'PENDING_FINANCIAL_APPROVAL' && (
+                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-500 text-[8px] font-black text-white uppercase tracking-widest rounded-bl-lg">
+                          Approval Needed
+                        </div>
+                      )}
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <h5 className="text-xs font-black text-slate-800 line-clamp-1">{job.title}</h5>
                           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                            <span className="px-1.5 py-0.5 bg-slate-100 rounded capitalize">{String(job.status || '').toLowerCase().replace('_', ' ') || 'Internal'}</span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded capitalize",
+                              job.status === 'PENDING_FINANCIAL_APPROVAL' ? "bg-amber-100 text-amber-700" : "bg-slate-100"
+                            )}>
+                              {String(job.status || '').toLowerCase().replace('_', ' ') || 'Internal'}
+                            </span>
                             <span>•</span>
                             <span>{job.submissions || 0} Subs</span>
                           </div>
                         </div>
                         {job.status === 'PENDING_FINANCIAL_APPROVAL' ? (
-                          <Button 
-                            onClick={() => setShowApprovalModal(job)}
-                            className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-1 h-fit shadow-lg shadow-amber-100 animate-pulse"
-                          >
-                            Set Margin
-                          </Button>
+                          <div className="p-2 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
+                             <ShieldAlert size={14} />
+                          </div>
                         ) : (
                           <div className="text-[11px] font-black text-emerald-600 flex items-center gap-1">
                             <CheckCircle size={10} />
@@ -345,7 +362,12 @@ export default function ClientsTab() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform Take</label>
-                  <input id="platformMargin" type="number" className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" defaultValue={15} />
+                  <input 
+                    id="platformMargin" 
+                    type="number" 
+                    className="w-full px-3 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                    defaultValue={showApprovalModal.title?.toLowerCase().includes('full time') ? 8.33 : 15} 
+                  />
                 </div>
               </div>
 

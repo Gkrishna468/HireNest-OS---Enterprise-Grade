@@ -140,6 +140,7 @@ class OSIntelligenceEngine {
     // Extract Skills - Case insensitive and word boundary aware
     const lowerText = text.toLowerCase();
     const skills = this.COMMON_SKILLS.filter(skill => {
+      if (!skill || typeof skill !== 'string') return false;
       const regex = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       return regex.test(lowerText);
     });
@@ -287,8 +288,20 @@ const dbMock: any = {
       financials: { clientBudget: 125, platformProfit: 25, vendorPayout: 100, marginConfig: { type: 'PERCENTAGE', value: 20 } }
     },
     {
-      id: "REQ-003", clientId: "C-CLIENT-001", title: "DevOps Engineer", skills: ["Docker", "Jenkins"],
+      id: "REQ-003", clientId: "C-8821", title: "Acme Crop Test: Full Time Resource", skills: ["Java", "Spring Boot"],
       status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 140, createdAt: new Date().toISOString()
+    },
+    {
+      id: "REQ-004", clientId: "C-8821", title: "Skydio: Senior Python Engineer", skills: ["Python", "FastAPI"],
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 120, createdAt: new Date().toISOString()
+    },
+    {
+      id: "REQ-005", clientId: "C-8821", title: "LPM Project Manager", skills: ["Agile", "LPM", "Jira"],
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 180, createdAt: new Date().toISOString()
+    },
+    {
+      id: "REQ-006", clientId: "C-8821", title: "Data Scientist (Full Time)", skills: ["ML", "PyTorch"],
+      status: "PENDING_FINANCIAL_APPROVAL", clientTargetBudget: 150, createdAt: new Date().toISOString()
     }
   ],
   candidatePool: [
@@ -356,44 +369,30 @@ async function startServer() {
 
   // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
   app.get("/api/admin/governance-data", (req, res) => {
-    const timestamp = new Date().toISOString();
-    const sourceIp = req.header('x-forwarded-for') || req.socket.remoteAddress || 'unknown';
-    console.log(`[${timestamp}] [HQ SYNC HUB] Authorized sync request from ${sourceIp}`);
-    
     try {
-      if (!dbMock) {
-        console.error("[HQ SYNC HUB] dbMock is undefined!");
-        return res.status(200).json({ organizations: [], requirements_public: [], candidatePool: [], submissions: [], dealRooms: [] });
-      }
-
-      // Explicit deep clone pattern to ensure thread safety during simulation
-      const safeOrganizations = (dbMock.organizations || []).map((o: any) => ({ ...o }));
-      const safeRequirements = (dbMock.requirements_public || []).map((r: any) => ({ ...r }));
-      const safeSubmissions = (dbMock.submissions || []).map((s: any) => ({ ...s }));
-      const safeCandidates = (dbMock.candidatePool || []).map((c: any) => ({ ...c }));
-      const safeDealRooms = (dbMock.dealRooms || []).map((dr: any) => ({ ...dr }));
-
-      const dataToSync = {
-        organizations: safeOrganizations,
-        requirements_public: safeRequirements,
-        candidatePool: safeCandidates,
-        submissions: safeSubmissions,
-        dealRooms: safeDealRooms,
-        metrics: dbMock.metrics ? { ...dbMock.metrics } : {},
+      const timestamp = new Date().toISOString();
+      
+      // Deep clone clones with JSON to avoid any reference or circularity issues
+      const dataToSync = JSON.parse(JSON.stringify({
+        organizations: dbMock.organizations || [],
+        requirements_public: dbMock.requirements_public || [],
+        candidatePool: dbMock.candidatePool || [],
+        submissions: dbMock.submissions || [],
+        dealRooms: dbMock.dealRooms || [],
+        metrics: dbMock.metrics || {},
         lastSync: timestamp
-      };
+      }));
       
       return res.status(200).json(dataToSync);
-    } catch (err) {
-      console.error("[HQ SYNC HUB ERROR]", err);
-      // Fallback to empty data instead of 500 to keep the UI responsive
+    } catch (err: any) {
+      console.error("[HQ SYNC HUB ERROR]", err.message);
       return res.status(200).json({ 
         organizations: [], 
         requirements_public: [], 
         candidatePool: [], 
         submissions: [], 
         dealRooms: [],
-        error: "System sync deferred." 
+        error: "System sync deferred due to internal processing error." 
       });
     }
   });

@@ -15,6 +15,7 @@ import AdminUsersManager from "./views/AdminUsersManager";
 import AdminOverview from "./views/AdminOverview";
 import ClientsTab from "./views/ClientsTab";
 import VendorsTab from "./views/VendorsTab";
+import NotificationsTab from "./views/NotificationsTab";
 
 import WelcomeDemo from "./components/WelcomeDemo";
 
@@ -34,6 +35,7 @@ function Sidebar({ org, user }: { org: any, user: any }) {
     { name: "Jobs Center", path: "/jobs", icon: "⌘", visible: true },
     { name: "Candidates", path: "/candidates", icon: "👥", visible: isAdmin || isVendor },
     { name: "Deal Rooms", path: "/deals", icon: "💬", visible: true },
+    { name: "Notifications", path: "/notifications", icon: "🔔", visible: true },
     { name: "Manage Clients", path: "/admin/clients", icon: "🏢", visible: isAdmin },
     { name: "Manage Vendors", path: "/admin/vendors", icon: "⛑️", visible: isAdmin },
     { name: "Platform Analytics", path: "/admin-overview", icon: "📊", visible: isAdmin },
@@ -288,6 +290,7 @@ export default function App() {
               <Route path="/jobs" element={<JobsTab />} />
               <Route path="/candidates" element={<CandidatesTab />} />
               <Route path="/deals" element={<DealRoomsTab />} />
+              <Route path="/notifications" element={<NotificationsTab org={org} />} />
               
               {org.type === 'admin' && (
                 <>
