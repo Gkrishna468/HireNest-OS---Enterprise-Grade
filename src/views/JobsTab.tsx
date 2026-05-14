@@ -32,7 +32,7 @@ export default function JobsTab() {
             setOrgId(userDoc.data().organizationId);
           } else {
              // Heuristic for known admins
-             const knownAdmins = ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'];
+             const knownAdmins = ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'vetAu3RF2qYVmsCuB6cpEz9DDqA2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'];
              if (knownAdmins.includes(auth.currentUser.uid)) {
                setUserRole('admin');
                setOrgId('ORG-GLOBAL-HQ');

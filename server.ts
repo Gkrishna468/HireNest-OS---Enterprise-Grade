@@ -153,6 +153,47 @@ if (process.env.GEMINI_API_KEY) {
   });
 }
 
+// --- Global Mock Database (Module Level for Persistence) ---
+const dbMock: any = {
+  metrics: {
+    revenue: 1450000,
+    activeDeals: 42,
+    placements: 18,
+    margin: "18%",
+    vendorQuality: 92,
+    recruiterProductivity: 88,
+  },
+  organizations: [
+    { id: "ORG-GLOBAL-HQ", name: "HireNest Global HQ", type: "admin", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0, status: "approved" },
+    { id: "C-CLIENT-001", name: "HireNest Client A", type: "client", companyName: "Enterprise Solutions Inc", msaUploaded: true, ndaUploaded: true, rating: 4.8, status: "approved" },
+    { id: "V-VENDOR-001", name: "HireNest Vendor B", type: "vendor", companyName: "Elite Staffing Group", msaUploaded: true, ndaUploaded: true, rating: 4.6, status: "approved" },
+    { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2, status: "approved" },
+    { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5, status: "approved" }
+  ],
+  users: [
+    { id: "vetAu3RF2qYVmsCuB6cpEz9DDqA2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+    { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+    { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
+  ],
+  requirements_public: [
+    { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
+    { id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], status: "PUBLISHED", rate: "$120/hr", submissions: 5, createdAt: new Date().toISOString() }
+  ],
+  candidatePool: [
+    { id: "CAND-001", vendorId: "V-VENDOR-001", name: "John Smith", skills: ["Go", "Kubernetes"], matchScore: 95, pipelineStage: "Interviewing", email: "jsmith@example.com", createdAt: new Date().toISOString() },
+    { id: "CAND-002", vendorId: "V-2048", name: "Sarah Connor", skills: ["React", "Node.js"], matchScore: 92, pipelineStage: "Screening", email: "sconnor@example.com", createdAt: new Date().toISOString() }
+  ],
+  submissions: [
+      { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-001", status: "submitted", vendorId: "V-VENDOR-001" }
+  ],
+  dealRooms: [
+    { id: "DR-501", requirementId: "REQ-001", clientId: "C-8821", vendorId: "V-2048", candidateId: "CAND-001", candidateName: "John Smith", status: "Active", identitiesRevealed: false },
+  ],
+  messages: [
+    { id: "M-001", dealRoomId: "DR-501", senderRole: "Client", senderId: "C-8821", text: "Candidate resume looks strong.", timestamp: new Date(Date.now() - 3600000).toISOString() }
+  ]
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -166,66 +207,31 @@ async function startServer() {
   // IMPORTANT: middleware for parsing JSON must come before routes
   app.use(express.json({ limit: '50mb' }));
 
-  // --- Mock Database (Source of Truth for Admin Proxy & Legacy API) ---
-  const db: any = {
-    metrics: {
-      revenue: 1450000,
-      activeDeals: 42,
-      placements: 18,
-      margin: "18%",
-      vendorQuality: 92,
-      recruiterProductivity: 88,
-    },
-    organizations: [
-      { id: "ORG-GLOBAL-HQ", name: "HireNest Global HQ", type: "admin", companyName: "HireNest Global", msaUploaded: true, ndaUploaded: true, rating: 5.0, status: "approved" },
-      { id: "C-CLIENT-001", name: "HireNest Client A", type: "client", companyName: "Enterprise Solutions Inc", msaUploaded: true, ndaUploaded: true, rating: 4.8, status: "approved" },
-      { id: "V-VENDOR-001", name: "HireNest Vendor B", type: "vendor", companyName: "Elite Staffing Group", msaUploaded: true, ndaUploaded: true, rating: 4.6, status: "approved" },
-      { id: "C-8821", name: "Acme Corp", type: "client", companyName: "Acme Corp", msaUploaded: true, ndaUploaded: false, rating: 4.2, status: "approved" },
-      { id: "V-2048", name: "ABC Staffing", type: "vendor", companyName: "ABC Staffing", msaUploaded: true, ndaUploaded: true, rating: 4.5, status: "approved" }
-    ],
-    users: [
-      { id: "vetAu3RF2qYVmsCuB6cpEz9DDqA2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-      { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-      { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
-    ],
-    requirements_public: [
-      { id: "REQ-001", clientId: "C-CLIENT-001", title: "Senior Cloud Architect", skills: ["AWS", "Kubernetes", "Terraform"], status: "PUBLISHED", rate: "$150/hr", submissions: 8, createdAt: new Date().toISOString() },
-      { id: "REQ-002", clientId: "C-8821", title: "Frontend Lead (React)", skills: ["React", "TypeScript", "Tailwind"], status: "PUBLISHED", rate: "$120/hr", submissions: 5, createdAt: new Date().toISOString() }
-    ],
-    candidatePool: [
-      { id: "CAND-001", vendorId: "V-VENDOR-001", name: "John Smith", skills: ["Go", "Kubernetes"], matchScore: 95, pipelineStage: "Interviewing", email: "jsmith@example.com", createdAt: new Date().toISOString() },
-      { id: "CAND-002", vendorId: "V-2048", name: "Sarah Connor", skills: ["React", "Node.js"], matchScore: 92, pipelineStage: "Screening", email: "sconnor@example.com", createdAt: new Date().toISOString() }
-    ],
-    submissions: [
-        { id: "SUB-001", requirementId: "REQ-001", candidateId: "CAND-001", status: "submitted", vendorId: "V-VENDOR-001" }
-    ],
-    dealRooms: [
-      { id: "DR-501", requirementId: "REQ-001", clientId: "C-8821", vendorId: "V-2048", candidateId: "CAND-001", candidateName: "John Smith", status: "Active", identitiesRevealed: false },
-    ],
-    messages: [
-      { id: "M-001", dealRoomId: "DR-501", senderRole: "Client", senderId: "C-8821", text: "Candidate resume looks strong.", timestamp: new Date(Date.now() - 3600000).toISOString() }
-    ]
-  };
-
   // --- CORE CONSOLIDATED API HUB (Highest Priority) ---
   app.get("/api/admin/governance-data", (req, res) => {
     const timestamp = new Date().toISOString();
-    const sourceIp = req.ip || req.headers['x-forwarded-for'] || 'unknown-ip';
-    console.log(`[${timestamp}] [HQ SYNC HUB V2] Authorized sync request from ${sourceIp}`);
+    const sourceIp = req.header('x-forwarded-for') || req.socket.remoteAddress || 'unknown';
+    console.log(`[${timestamp}] [HQ SYNC HUB] Authorized sync request from ${sourceIp}`);
     
     try {
-      // Ensure db exists in scope
+      if (!dbMock) {
+        console.error("[HQ SYNC HUB] dbMock is undefined!");
+        throw new Error("Internal data store missing");
+      }
+
+      // Ensure we have a clone to avoid any serialization issues with shared state
       const dataToSync = {
-        organizations: db.organizations || [],
-        users: db.users || [],
-        candidatePool: db.candidatePool || [],
-        requirements_public: db.requirements_public || [],
-        submissions: db.submissions || [],
-        dealRooms: db.dealRooms || [],
-        metrics: db.metrics || {},
+        organizations: dbMock.organizations || [],
+        users: dbMock.users || [],
+        candidatePool: dbMock.candidatePool || [],
+        requirements_public: dbMock.requirements_public || [],
+        submissions: dbMock.submissions || [],
+        dealRooms: dbMock.dealRooms || [],
+        metrics: dbMock.metrics || {},
         lastSync: timestamp
       };
       
+      console.log(`[HQ SYNC HUB] Dispatching ${dataToSync.organizations.length} organizations to ${sourceIp}`);
       return res.status(200).json(dataToSync);
     } catch (err) {
       console.error("[HQ SYNC HUB ERROR]", err);
@@ -448,9 +454,9 @@ async function startServer() {
     res.json(baseMetrics);
   });
   
-  app.get("/api/jobs", (req, res) => res.json(db.requirements_public));
+  app.get("/api/jobs", (req, res) => res.json(dbMock.requirements_public || []));
   
-  app.get("/api/candidates", (req, res) => res.json(db.candidatePool));
+  app.get("/api/candidates", (req, res) => res.json(dbMock.candidatePool || []));
   app.post("/api/candidates", async (req, res) => {
     const newCandData = req.body;
     let highestDuplicateScore = 0;
@@ -458,7 +464,7 @@ async function startServer() {
     let duplicateReason = "";
 
     // 1. Exact Match Checking
-    const candidatesToSearch = db.candidatePool || [];
+    const candidatesToSearch = dbMock.candidatePool || [];
     for (const cand of candidatesToSearch) {
       if (cand.email && newCandData.email && cand.email.toLowerCase() === newCandData.email.toLowerCase()) {
          highestDuplicateScore = 100;
@@ -514,13 +520,13 @@ async function startServer() {
       duplicateReason,
       ...req.body
     };
-    if (!db.candidatePool) db.candidatePool = [];
-    db.candidatePool.push(newCand);
+    if (!dbMock.candidatePool) dbMock.candidatePool = [];
+    dbMock.candidatePool.push(newCand);
     res.json(newCand);
   });
   
   app.put("/api/candidates/:id", (req, res) => {
-    const list = db.candidatePool || [];
+    const list = dbMock.candidatePool || [];
     const idx = list.findIndex((c: any) => c.id === req.params.id);
     if (idx !== -1) {
       list[idx] = { ...list[idx], ...req.body };
@@ -530,9 +536,9 @@ async function startServer() {
     }
   });
 
-  app.get("/api/dealrooms", (req, res) => res.json(db.dealRooms));
+  app.get("/api/dealrooms", (req, res) => res.json(dbMock.dealRooms || []));
   app.get("/api/dealrooms/:id/messages", (req, res) => {
-    res.json(db.messages.filter(m => m.dealRoomId === req.params.id));
+    res.json((dbMock.messages || []).filter((m: any) => m.dealRoomId === req.params.id));
   });
   app.post("/api/dealrooms/:id/messages", (req, res) => {
     const newMessage = {
@@ -541,12 +547,13 @@ async function startServer() {
       ...req.body, // can contain type: 'text' | 'document' and fileUrl
       timestamp: new Date().toISOString()
     };
-    db.messages.push(newMessage);
+    if (!dbMock.messages) dbMock.messages = [];
+    dbMock.messages.push(newMessage);
     res.json(newMessage);
   });
   
   app.post("/api/dealrooms/:id/reveal", (req, res) => {
-    const room = db.dealRooms.find(r => r.id === req.params.id);
+    const room = (dbMock.dealRooms || []).find((r: any) => r.id === req.params.id);
     if(room) {
       room.identitiesRevealed = true;
       const revealMsg = {
@@ -558,7 +565,8 @@ async function startServer() {
         type: "system",
         timestamp: new Date().toISOString()
       };
-      db.messages.push(revealMsg);
+      if (!dbMock.messages) dbMock.messages = [];
+      dbMock.messages.push(revealMsg);
       res.json(room);
     } else {
       res.status(404).json({error: "Room not found"});

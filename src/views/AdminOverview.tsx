@@ -26,18 +26,19 @@ export default function AdminOverview() {
             } else {
               console.warn(`Governance API returned ${response.status}, attempting Firestore direct load.`);
               // Priority 2: Direct Firestore Fallback
-              const [candSnap, orgSnap, drSnap, reqSnap] = await Promise.all([
-                  getDocs(collection(db, "candidatePool")),
-                  getDocs(collection(db, "organizations")),
-                  getDocs(collection(db, "dealRooms")),
-                  getDocs(collection(db, "requirements_public")),
+              const [candSnap, orgSnap, drSnap, reqSnap, subSnap] = await Promise.all([
+                  getDocs(collection(db, "candidatePool")).catch(e => { console.error("candPool fail", e); return {docs: []} as any; }),
+                  getDocs(collection(db, "organizations")).catch(e => { console.error("orgs fail", e); return {docs: []} as any; }),
+                  getDocs(collection(db, "dealRooms")).catch(e => { console.error("rooms fail", e); return {docs: []} as any; }),
+                  getDocs(collection(db, "requirements_public")).catch(e => { console.error("reqs fail", e); return {docs: []} as any; }),
+                  getDocs(collection(db, "submissions")).catch(e => { console.error("subs fail", e); return {docs: []} as any; }),
               ]);
               setData({
                   candidates: candSnap.docs.map(d => ({id: d.id, ...d.data()})),
                   organizations: orgSnap.docs.map(d => ({id: d.id, ...d.data()})),
                   dealRooms: drSnap.docs.map(d => ({id: d.id, ...d.data()})),
                   requirements: reqSnap.docs.map(d => ({id: d.id, ...d.data()})),
-                  submissions: []
+                  submissions: subSnap.docs.map(d => ({id: d.id, ...d.data()}))
               });
             }
         } catch (err: any) {
@@ -46,7 +47,7 @@ export default function AdminOverview() {
             if (err.name !== 'FirebaseError') {
                // Likely a network error for the proxy
             } else {
-               handleFirestoreError(err, OperationType.LIST, "admin_overview_collections");
+               handleFirestoreError(err, OperationType.LIST, "admin_overview_sync");
             }
         } finally {
           setLoading(false);
