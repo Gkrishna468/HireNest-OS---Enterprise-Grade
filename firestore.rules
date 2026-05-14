@@ -74,7 +74,9 @@ service cloud.firestore {
              data.ownerId == request.auth.uid &&
              (data.get('budget', null) == null || data.budget is map) &&
              (data.get('workMode', null) == null || data.workMode is string) &&
-             (data.get('matchProcessingStatus', null) == null || data.matchProcessingStatus is string);
+             (data.get('matchProcessingStatus', null) == null || data.matchProcessingStatus is string) &&
+             (data.get('skills', null) == null || data.skills is list) &&
+             (data.get('adminApproved', null) == null || data.adminApproved is bool);
     }
 
     match /users/{userId} {

@@ -30,6 +30,27 @@ import natural from 'natural';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- Matching Intelligence V2 ---
+const MATCH_SYSTEM_PROMPT = `As a Senior Executive Recruiter with 20 years of experience in Pan-India and US IT Staffing, your goal is to provide a brutal, precise, and strategic assessment of a candidate.
+
+Return your assessment in the following JSON format:
+{
+  "score": number (0-100),
+  "breakdown": {
+    "skillsScore": number,
+    "experienceScore": number,
+    "domainScore": number,
+    "locationScore": number,
+    "bonusScore": number
+  },
+  "summary": "Brief 1-sentence summary",
+  "strengths": ["string"],
+  "gaps": ["string"],
+  "recruiterAssessment": "Detailed reasoning paragraph",
+  "recommendation": "STRONG_FIT" | "CONSIDER" | "NOT_SUITABLE",
+  "nextSteps": "Concrete recruiter action item"
+}`;
+
 // --- Local OS Intelligence Engine ---
 class OSIntelligenceEngine {
   public static COMMON_SKILLS = [
@@ -125,6 +146,44 @@ class OSIntelligenceEngine {
       strengths: intersection,
       gaps: jdSkills.filter(s => !profileSkills.includes(s)),
       summary: score > 70 ? "Strong technical alignment with requirements." : (score > 40 ? "Partial match with some skill gaps." : "Low technical alignment."),
+    };
+  }
+
+  static calculateMatchV2(jd: string, profileText: string) {
+    const jdLower = jd.toLowerCase();
+    const profileLower = profileText.toLowerCase();
+    
+    const jdSkills = this.COMMON_SKILLS.filter(s => jdLower.includes(s.toLowerCase()));
+    const matchedSkills = jdSkills.filter(s => profileLower.includes(s.toLowerCase()));
+    const missingSkills = jdSkills.filter(s => !profileLower.includes(s.toLowerCase()));
+    
+    const skillsScore = jdSkills.length > 0 ? (matchedSkills.length / jdSkills.length) * 100 : 0;
+    
+    const expMatch = profileText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+    const expValue = expMatch ? parseInt(expMatch[1]) : 0;
+    const jdExpMatch = jd.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+    const jdExpValue = jdExpMatch ? parseInt(jdExpMatch[1]) : 0;
+    
+    const experienceScore = expValue >= jdExpValue ? 100 : (expValue / Math.max(1, jdExpValue)) * 100;
+    const locationScore = 80; // Heuristic
+    const totalScore = Math.round((skillsScore * 0.5) + (experienceScore * 0.3) + (locationScore * 0.2));
+    
+    return {
+      score: totalScore,
+      breakdown: {
+        skillsScore: Math.round(skillsScore),
+        experienceScore: Math.round(experienceScore),
+        domainScore: 70,
+        locationScore,
+        bonusScore: 0,
+        totalScore
+      },
+      summary: `Candidate matches ${matchedSkills.length} core technical requirements.`,
+      strengths: matchedSkills.slice(0, 5),
+      gaps: missingSkills.slice(0, 3).map(s => `Missing ${s}`),
+      recruiterAssessment: `Based on technical overlap, the candidate shows ${totalScore}% alignment. Key strengths in ${matchedSkills.slice(0,3).join(', ')}.`,
+      recommendation: totalScore >= 80 ? "STRONG_FIT" : totalScore >= 60 ? "CONSIDER" : "NOT_SUITABLE",
+      nextSteps: totalScore >= 80 ? "Schedule technical screening" : "Review secondary profile"
     };
   }
 
@@ -315,14 +374,15 @@ async function startServer() {
 
       if (ai) {
         try {
+          const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
           const prompt = `Extract structured metadata from this Job Description. Return ONLY a JSON object with keys: title, skills (array), experience (string), suggestedBudget (number). \n\n JD: ${jdText}`;
-          const result = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: { responseMimeType: "application/json" }
-          });
-          const refined = JSON.parse(result.text || "{}");
-          parsed = { ...parsed, ...refined };
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const aiData = JSON.parse(jsonMatch[0]);
+            parsed = { ...parsed, ...aiData };
+          }
         } catch (e) {
           console.warn("AI JD enhancement failed, using local result.");
         }
@@ -384,50 +444,57 @@ async function startServer() {
 
   // Server-side detailed candidate analysis
   app.post("/api/match-candidates-detailed", async (req, res) => {
-    const { jd, candidateProfile } = req.body;
-    
-    // Core Local Intelligence
-    const localResult = OSIntelligenceEngine.calculateMatch(jd, candidateProfile);
-    const doc = nlp(candidateProfile);
-    const name = doc.people().out('array')[0] || "Candidate";
-    const titleMatch = jd.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:Developer|Engineer|Manager|Lead)/);
-    const title = titleMatch ? titleMatch[0] : "Target Role";
-    
-    const outreach = OSIntelligenceEngine.generateOutreach(title, name, localResult.strengths);
+    try {
+      const { jd, candidateProfile } = req.body;
+      if (!jd || !candidateProfile) return res.status(400).json({ error: "Missing inputs" });
 
-    // If Gemini is available, we use it to "Refine" the summary and drafts
-    if (ai) {
-      try {
-        const prompt = `Refine this matching assessment for clarity. Keep JSON format.
-        JD: ${jd}
-        Candidate: ${candidateProfile}
-        Current Score: ${localResult.matchScore}`;
-        
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-          config: { 
-            responseMimeType: "application/json",
-            responseSchema: {
-               type: Type.OBJECT,
-               properties: {
-                 refinedSummary: { type: Type.STRING },
-                 premiumDrafts: { type: Type.OBJECT, properties: { professional: { type: Type.STRING } } }
-               }
-            }
+      console.log("[MATCH-ENGINE V2] Initiating high-density match protocol...");
+
+      let matchResult: any = OSIntelligenceEngine.calculateMatchV2(jd, candidateProfile);
+
+      if (ai) {
+        try {
+          const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+          const runtimePrompt = `
+            ${MATCH_SYSTEM_PROMPT}
+
+            Job Description:
+            ${jd}
+
+            Candidate Resume:
+            ${candidateProfile}
+
+            Compare the JD and Resume. Identify exactly which mandatory skills are missing. 
+            Score the candidate based on India/US market standards (0-100%).
+            Exclude 'budget' factor from matching score.
+          `;
+          const result = await model.generateContent(runtimePrompt);
+          const text = result.response.text();
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+             const aiMatch = JSON.parse(jsonMatch[0]);
+             matchResult = { ...matchResult, ...aiMatch };
           }
-        });
-        const refined = JSON.parse(response.text || "{}");
-        if (refined.refinedSummary) localResult.summary = refined.refinedSummary;
-      } catch (e) {
-        console.warn("AI Refinement skipped", e);
+        } catch (aiErr) {
+          console.warn("Match AI failed, using fallback", aiErr);
+        }
       }
-    }
 
-    res.json({
-      ...localResult,
-      outreachDrafts: outreach
-    });
+      const doc = nlp(candidateProfile);
+      const name = doc.people().out('array')[0] || "Candidate";
+      const titleMatch = jd.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:Developer|Engineer|Manager|Lead)/);
+      const title = titleMatch ? titleMatch[0] : "Target Role";
+      
+      const outreach = OSIntelligenceEngine.generateOutreach(title, name, matchResult.strengths || []);
+
+      res.json({
+        ...matchResult,
+        outreachDrafts: outreach
+      });
+    } catch (err) {
+      console.error("[MATCH-V2 ERROR]", err);
+      res.status(500).json({ error: "Match engine failure" });
+    }
   });
 
   // Server-side bulk resume parsing

@@ -4,7 +4,9 @@ import { Button } from "../lib/Button";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
-import { analyzeCandidateMatch, CandidateMatchResult } from "../services/aiService";
+import { analyzeCandidateMatch } from "../services/aiService";
+import { AIMatching } from "../components/AIMatching";
+import { HybridMatchResult } from "../types";
 
 import { useNavigate } from "react-router-dom";
 
@@ -23,7 +25,7 @@ export default function JobsTab() {
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<CandidateMatchResult | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<HybridMatchResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
@@ -255,8 +257,12 @@ export default function JobsTab() {
   const handleRunAiMatch = async (sub: any) => {
     setIsAnalyzing(true);
     setSelectedSubmission(sub);
-    const result = await analyzeCandidateMatch(selectedJob.description, sub.resumeText || "Skills: " + sub.skills?.join(", "));
-    setAiAnalysis(result);
+    try {
+      const result = await analyzeCandidateMatch(selectedJob.description, sub.resumeText || "Skills: " + (sub.skills || []).join(", "));
+      setAiAnalysis(result);
+    } catch (err) {
+      console.error("Match Engine V2 failed", err);
+    }
     setIsAnalyzing(false);
   };
 
@@ -613,68 +619,57 @@ export default function JobsTab() {
 
             {/* AI Analysis Side Panel (Layered) */}
             {selectedSubmission && (
-                <div className="absolute right-0 top-14 bottom-0 w-80 bg-slate-900 text-white shadow-2xl z-20 flex flex-col border-l border-slate-700 animate-in slide-in-from-right">
-                    <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="absolute right-0 top-14 bottom-0 w-96 bg-slate-50 text-slate-800 shadow-2xl z-20 flex flex-col border-l border-slate-200 animate-in slide-in-from-right">
+                    <div className="p-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
                         <div className="flex items-center gap-2">
-                            <Bot size={16} className="text-indigo-400" />
-                            <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-300">AI Analysis Flow</h3>
+                            <Bot size={16} className="text-indigo-600" />
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-800">Recruiter Match OS V2</h3>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => setSelectedSubmission(null)} className="h-6 w-6 text-slate-500 hover:text-white"><X size={14}/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setSelectedSubmission(null)} className="h-6 w-6 text-slate-400 hover:text-slate-800"><X size={14}/></Button>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
                         {isAnalyzing ? (
                             <div className="h-full flex flex-col items-center justify-center space-y-4 py-20">
                                 <Activity size={32} className="text-indigo-500 animate-spin" />
-                                <p className="text-[10px] font-bold uppercase text-indigo-300 animate-pulse tracking-widest">Synchronizing Matched Logic...</p>
+                                <p className="text-[10px] font-bold uppercase text-indigo-500 animate-pulse tracking-widest">Processing High-Density Match Logic...</p>
                             </div>
                         ) : (
                             <>
-                                <div className="space-y-2">
-                                    <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Match Summary</h4>
-                                    <div className="bg-slate-800 border border-slate-700 rounded p-3 text-[11px] text-slate-300 leading-relaxed italic">
-                                        "{aiAnalysis?.summary}"
-                                    </div>
-                                </div>
+                                {aiAnalysis && (
+                                   <div className="space-y-6">
+                                      <AIMatching result={aiAnalysis as any} candidateName={selectedSubmission?.candidateName || selectedSubmission?.name || "Candidate"} />
+                                      
+                                      <div className="space-y-3">
+                                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Engagement Protocol</h4>
+                                         <div className="grid grid-cols-1 gap-2">
+                                            <Button 
+                                              onClick={() => handleCreateDealRoom(selectedSubmission)}
+                                              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-indigo-100"
+                                            >
+                                              {aiAnalysis.recommendation === 'STRONG_FIT' ? 'Fast-Track Immediate Deal' : 'Initialize Deal Room Flow'}
+                                            </Button>
+                                            <Button variant="outline" className="w-full border-slate-200 text-slate-400 h-10 text-[9px] uppercase font-bold rounded-xl">
+                                              Archive for Future Req
+                                            </Button>
+                                         </div>
+                                      </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] uppercase font-bold text-emerald-500 tracking-widest">Strengths</h4>
-                                        <ul className="text-[10px] space-y-1">
-                                            {aiAnalysis?.strengths.map(s => <li key={s} className="flex gap-2"><span>+</span> {s}</li>)}
-                                        </ul>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] uppercase font-bold text-amber-500 tracking-widest">Gaps</h4>
-                                        <ul className="text-[10px] space-y-1">
-                                            {aiAnalysis?.gaps.map(g => <li key={g} className="flex gap-2"><span>-</span> {g}</li>)}
-                                        </ul>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">
-                                        <MessageSquare size={12} /> Multi-Tone Outreach Drafts
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {['Founder', 'Professional', 'Executive', 'Warm'].map(tone => (
-                                            <div key={tone} className="bg-slate-800 rounded p-2 border border-slate-750">
-                                                <div className="text-[8px] font-bold uppercase mb-1 text-slate-500">{tone} Tone</div>
-                                                <p className="text-[9px] text-slate-400 line-clamp-2">{(aiAnalysis?.outreachDrafts as any)?.[tone.toLowerCase()]}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 border-t border-slate-800">
-                                    <Button 
-                                        onClick={() => handleCreateDealRoom(selectedSubmission)}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10 text-[10px] uppercase tracking-widest"
-                                    >
-                                        Collaborate & Open Deal Room
-                                    </Button>
-                                    <p className="text-[8px] text-slate-500 mt-2 text-center">Identity revealing requires Admin approval after MSA/NDA validation.</p>
-                                </div>
+                                      <div className="space-y-3">
+                                        <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">
+                                            <MessageSquare size={12} /> Outreach Drafts (AI-V2)
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {['Founder', 'Professional', 'Executive', 'Warm'].map(tone => (
+                                                <div key={tone} className="bg-white rounded p-3 border border-slate-200 shadow-sm">
+                                                    <div className="text-[8px] font-bold uppercase mb-1 text-indigo-600">{tone} Tone</div>
+                                                    <p className="text-[10px] text-slate-600 leading-relaxed italic">{(aiAnalysis?.outreachDrafts as any)?.[tone.toLowerCase()]}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                      </div>
+                                   </div>
+                                )}
                             </>
                         )}
                     </div>
