@@ -121,9 +121,9 @@ export default function AdminOverview() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Active Reqs", value: data.requirements.length, icon: Briefcase, color: "text-blue-600" },
-          { label: "Est. Margin ($)", value: `$${Math.round(totalMargin / 1000)}k`, icon: DollarSign, color: "text-emerald-600" },
+          { label: "Est. Margin (₹)", value: `₹${Math.round((totalMargin * 83) / 1000)}k`, icon: DollarSign, color: "text-emerald-600" },
           { label: "Avg Margin %", value: `${avgMarginPercent.toFixed(1)}%`, icon: Activity, color: "text-amber-600" },
-          { label: "Pending Budget", value: `$${Math.round(pendingExposure / 1000)}k`, icon: Users, color: "text-indigo-600" }
+          { label: "Pending Budget", value: `₹${Math.round((pendingExposure * 83) / 1000)}k`, icon: Users, color: "text-indigo-600" }
         ].map((stat) => (
           <div key={stat.label} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
              <div className="flex items-center justify-between mb-2">
@@ -150,7 +150,7 @@ export default function AdminOverview() {
                >
                   <div>
                     <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">{req.title}</div>
-                    <div className="text-[10px] text-slate-400 font-mono italic">Tenant: {req.clientId} • Target: ${req.clientTargetBudget || '---'}</div>
+                    <div className="text-[10px] text-slate-400 font-mono italic">Tenant: {req.clientId} • Target: ₹{(req.clientTargetBudget * 83).toLocaleString()}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-100">Review Required</Badge>

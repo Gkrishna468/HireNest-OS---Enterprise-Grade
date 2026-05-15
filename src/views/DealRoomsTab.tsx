@@ -224,7 +224,7 @@ export default function DealRoomsTab() {
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
           senderRole: "AI Copilot",
           senderId: "system",
-          text: `🏆 Deal Closed. Happy Onboarding! Please contact global_admin@hirenestos.com for the final contract signing and billing reconciliation.`,
+          text: `🏆 Deal Closed. Happy Onboarding! Please contact global_admin@hirenestworkforce.com for the final contract signing and billing reconciliation.`,
           timestamp: serverTimestamp()
         });
       }

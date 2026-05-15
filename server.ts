@@ -170,7 +170,6 @@ async function startServer() {
   }
   
   app.use((req, res, next) => {
-    console.log(`[REQ] ${req.method} ${req.path}`);
     next();
   });
 
@@ -183,8 +182,6 @@ async function startServer() {
 
   app.get("/api/user/context", (req, res) => {
     const { orgId, role } = req.query;
-    console.log(`[CONTEXT] Syncing state for ${role} in ${orgId}`);
-    
     try {
       const metrics = dbMock.metrics || { revenue: 0, activeDeals: 0, placements: 0, margin: "0%", vendorQuality: 0, recruiterProductivity: 0 };
       
@@ -216,7 +213,6 @@ async function startServer() {
 
   app.get("/api/admin/governance-data", (req, res) => {
     try {
-      console.log("[HQ SYNC] Fetching global state...");
       const payload = {
         organizations: dbMock.organizations || [],
         requirements_public: dbMock.requirements_public || [],
@@ -236,7 +232,6 @@ async function startServer() {
   app.post("/api/admin/approve-requirement", (req, res) => {
     try {
       const { reqId, financials } = req.body;
-      console.log(`[APPROVAL] Releasing REQ ${reqId} to Global OS...`);
       
       const idx = dbMock.requirements_public.findIndex((r: any) => r.id === reqId);
       if (idx !== -1) {
@@ -263,7 +258,6 @@ async function startServer() {
   app.post("/api/admin/update-user", async (req, res) => {
     try {
       const { uid, email, password, companyName, role, organizationId } = req.body;
-      console.log(`[UPDATE USER] Synchronizing identity for ${uid}...`);
       
       // Update Auth
       const updateData: any = {};

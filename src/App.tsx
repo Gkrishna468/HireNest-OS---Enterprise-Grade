@@ -15,7 +15,8 @@ import {
   Shield, 
   Database, 
   Settings, 
-  ShieldCheck 
+  ShieldCheck,
+  Bot
 } from "lucide-react";
 import Onboarding from "./views/Onboarding";
 
@@ -51,7 +52,7 @@ function Sidebar({ org, user }: { org: any, user: any }) {
     { name: "Notifications", path: "/notifications", icon: <Bell size={18} />, visible: true },
     { name: "Manage Clients", path: "/admin/clients", icon: <Building2 size={18} />, visible: isAdmin },
     { name: "Manage Vendors", path: "/admin/vendors", icon: <Shield size={18} />, visible: isAdmin },
-    { name: "Platform Analytics", path: "/admin-overview", icon: <Database size={18} />, visible: isAdmin },
+    { name: "Strategic Agent HQ", path: "/admin/strategy", icon: <Bot size={18} />, visible: isAdmin },
     { name: "System Settings", path: "/users", icon: <Settings size={18} />, visible: isAdmin }
   ];
 
