@@ -67,8 +67,7 @@ service cloud.firestore {
     // --- Hardened Rules ---
 
     match /users/{userId} {
-      allow list: if isAdmin();
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if isValidUser(incoming()) && (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
         (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'updatedAt']) && isAdmin()) ||
@@ -77,8 +76,7 @@ service cloud.firestore {
     }
 
     match /organizations/{orgId} {
-      allow list: if isAdmin();
-      allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin());
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidOrganization(incoming());
       allow update: if isValidOrganization(incoming()) && (isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'updatedAt'])));
     }

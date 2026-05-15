@@ -61,7 +61,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         }).filter((u: any) => !u.deleted));
       } catch (fErr: any) {
         console.error("Firestore fallback also failed", fErr);
-        setError("Network desync: Could not establish secure handshake with nodes.");
+        const errorMessage = fErr.message || "Unknown desync error";
+        if (errorMessage.includes("insufficient permissions")) {
+           setError(`DESYNC ERROR: Access Denied. Your identity [${orgData?.email}] may lack Admin Node authorization.`);
+        } else {
+           setError(`NETWORK DESYNC: Secure handshake unstable. Details: ${errorMessage}`);
+        }
       }
     } finally {
       setLoading(false);

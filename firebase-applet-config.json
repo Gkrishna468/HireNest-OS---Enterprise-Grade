@@ -1,10 +1,10 @@
 {
-  "projectId": "hirenest-os",
-  "appId": "1:733294346096:web:5238d121705916dd7e99b5",
-  "apiKey": "AIzaSyDX9AgMptq0az4UjCI1DGE2VvGR2YCUIwg",
-  "authDomain": "hirenest-os.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "hirenest-os.firebasestorage.app",
-  "messagingSenderId": "733294346096",
+  "projectId": "gen-lang-client-0383522542",
+  "appId": "1:782955441078:web:21ba38eef6a6c03d64ef17",
+  "apiKey": "AIzaSyC7_tGsw7oVAiu6vgAwrmwqeff8c99G8XE",
+  "authDomain": "gen-lang-client-0383522542.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-bc0522d4-73db-4bf6-8860-5df422bc15f8",
+  "storageBucket": "gen-lang-client-0383522542.firebasestorage.app",
+  "messagingSenderId": "782955441078",
   "measurementId": ""
 }
