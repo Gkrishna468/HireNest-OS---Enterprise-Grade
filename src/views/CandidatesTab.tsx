@@ -2,6 +2,7 @@ import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase, Bot, Shield, Send, X, Plus, Upload, MapPin } from "lucide-react";
 import { Button } from "../lib/Button";
+import { cn } from "../lib/utils";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc } from "firebase/firestore";
 import { parseBulkResumes } from "../services/aiService";

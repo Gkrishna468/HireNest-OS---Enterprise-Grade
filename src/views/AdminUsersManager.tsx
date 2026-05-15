@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "firebase/auth";
-import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Button } from "../lib/Button";
+import { cn } from "../lib/utils";
+import { Edit, Trash2, X, Check, Save } from "lucide-react";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
@@ -17,6 +19,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [role, setRole] = useState<"client" | "vendor" | "admin">("client");
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -54,10 +57,61 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         }).filter((u: any) => !u.deleted));
       } catch (fErr) {
         console.error("Firestore fallback also failed", fErr);
-        // We don't throw here to ensure finally block runs and UI doesn't hang
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEditUser = (u: any) => {
+    setEditingUser(u);
+    setEmail(u.email);
+    setPassword(""); // Keep blank to not change password unless typed
+    setRole(u.role);
+    setCompanyName(u.org?.companyName || "");
+    setError("");
+  };
+
+  const cancelEdit = () => {
+    setEditingUser(null);
+    setEmail("");
+    setPassword("");
+    setRole("client");
+    setCompanyName("");
+    setError("");
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch('/api/admin/update-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: editingUser.uid || editingUser.id,
+          email,
+          password: password || undefined,
+          role,
+          companyName,
+          organizationId: editingUser.organizationId
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Update failed");
+      }
+
+      await fetchUsers();
+      cancelEdit();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -81,7 +135,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
       const newOrgData = {
         organizationId: orgId,
-        type: role === "client" ? "client" : role === "vendor" ? "vendor" : "admin",
+        type: role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client",
         companyName: companyName,
         status: "approved",
         adminApproved: true,
@@ -128,158 +182,203 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       alert("Error: No user ID found for deletion.");
       return;
     }
-    if (!window.confirm("Are you sure you want to permanently remove this user and their organization?")) return;
+    if (!window.confirm("Are you sure you want to permanently remove this user and their organization? This will also remove their Firebase Auth identity.")) return;
     try {
-      // Hard delete: remove user and organization documents
-      await deleteDoc(doc(db, "users", userId));
-      await deleteDoc(doc(db, "organizations", organizationId));
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: userId, organizationId })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Deletion failed");
+      }
       
       await fetchUsers();
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+      setError(err.message);
     }
   };
 
   if (orgData.type !== 'admin') {
-    return <div className="p-8 text-red-500">Access Denied. Global HQ only.</div>;
+    return <div className="p-8 text-red-500 font-bold uppercase tracking-tight">Access Denied. Global HQ Node Only.</div>;
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Access Management</h1>
-        <p className="text-slate-500 mt-1">Global HQ Admin portal to invite and manage tenants and users.</p>
+    <div className="p-8 max-w-7xl mx-auto">
+      <div className="mb-12 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Identity Matrix</h1>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
+            <span className="text-indigo-600">Global Node Authority</span> • Platform Governance & Lifecycle
+          </p>
+        </div>
+        <div className="flex bg-slate-900 p-1 rounded-xl">
+           <div className="px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Auth Layer Operational
+           </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 border border-slate-200 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-6">Create New Access</h2>
-          {error && <div className="mb-4 text-xs bg-red-50 text-red-600 p-3 rounded">{error}</div>}
-          
-          <form onSubmit={handleCreateUser} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                required
-                className="w-full border border-slate-300 rounded p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                placeholder="e.g. Acme Corp"
-              />
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="lg:col-span-1">
+          <div className={`border-2 rounded-[32px] p-8 transition-all ${editingUser ? 'border-amber-500 shadow-2xl shadow-amber-50 bg-white' : 'border-slate-100 bg-white'}`}>
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-8 flex items-center gap-2">
+               {editingUser ? <Edit size={14} className="text-amber-500" /> : <Save size={14} className="text-indigo-600" />}
+               {editingUser ? 'Update Protocol' : 'Onboard New Identity'}
+            </h2>
             
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full border border-slate-300 rounded p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                placeholder="user@example.com"
-              />
-            </div>
+            {error && <div className="mb-6 text-[10px] font-black uppercase tracking-widest bg-red-50 text-red-600 p-4 rounded-2xl border border-red-100">{error}</div>}
+            
+            <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Target Entity Name</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  required
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
+                  placeholder="e.g. Acme Corp"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Identity Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
+                  placeholder="user@example.com"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Initial Password</label>
-              <input
-                type="text" // using text so admin can see what they generate
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full border border-slate-300 rounded p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                placeholder="Secure password"
-              />
-            </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                  {editingUser ? 'Change Access Key (Optional)' : 'Initial Access Key'}
+                </label>
+                <input
+                  type="text" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={!editingUser}
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
+                  placeholder={editingUser ? "Leave blank to ignore" : "Secure key"}
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Platform Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full border border-slate-300 rounded p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-              >
-                <option value="client">Client (Hiring)</option>
-                <option value="vendor">Vendor (Recruiting)</option>
-                <option value="admin">Global HQ Admin</option>
-              </select>
-            </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Core Component Role</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as any)}
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none appearance-none"
+                >
+                  <option value="client">Client Node</option>
+                  <option value="vendor">Vendor Node</option>
+                  <option value="admin">Platform Authority</option>
+                </select>
+              </div>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700">
-              {isSubmitting ? "Creating..." : "Create Account & Org"}
-            </Button>
-          </form>
+              <div className="pt-4 flex flex-col gap-3">
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className={cn(
+                    "w-full h-14 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] transition-all shadow-xl",
+                    editingUser ? "bg-amber-500 hover:bg-slate-900 shadow-amber-100" : "bg-indigo-600 hover:bg-slate-900 shadow-indigo-100"
+                  )}
+                >
+                  {isSubmitting ? "Syncing..." : (editingUser ? "Update Identity" : "Onboard Identity")}
+                </Button>
+                
+                {editingUser && (
+                   <Button 
+                    type="button" 
+                    onClick={cancelEdit}
+                    className="w-full h-14 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] shadow-sm"
+                   >
+                     Cancel Edit
+                   </Button>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
 
-        <div className="md:col-span-2 border border-slate-200 bg-white rounded-xl shadow-sm p-6 overflow-hidden flex flex-col">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-6">Registered Users</h2>
-          
-          <div className="overflow-auto max-h-[500px]">
-            {loading ? (
-              <div className="py-20 flex flex-col items-center justify-center border border-slate-100 rounded-xl bg-slate-50/50">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
-                <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">Link established. Syncing identity data...</div>
-              </div>
-            ) : (
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs text-slate-500">
-                    <th className="pb-3 font-medium">Email / User</th>
-                    <th className="pb-3 font-medium">Role</th>
-                    <th className="pb-3 font-medium">Compliance (MSA/NDA)</th>
-                    <th className="pb-3 font-medium text-right">Created</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white border-2 border-slate-50 rounded-[40px] p-10 shadow-sm border-t-8 border-t-slate-100">
+            <h2 className="text-sm font-black uppercase tracking-[0.3em] text-slate-900 mb-10">Active Node Inventory</h2>
+            
+            <div className="overflow-auto custom-scrollbar pr-2">
+              {loading ? (
+                <div className="py-32 flex flex-col items-center justify-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <div className="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">Synapsing Network Nodes...</div>
+                </div>
+              ) : (
+                <div className="space-y-4">
                   {users.map(u => (
-                    <tr key={u.id || u.uid} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3">
-                        <div className="font-bold text-slate-800">{u.email}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">Org: {u.org?.companyName || u.organizationId || 'N/A'}</div>
-                      </td>
-                      <td className="py-3">
-                        <span className={`px-2 py-1 text-[10px] rounded uppercase font-bold tracking-wider ${
-                          u.role === 'admin' ? 'bg-indigo-100 border border-indigo-200 text-indigo-700' 
-                          : u.role === 'client' ? 'bg-emerald-100 border border-emerald-200 text-emerald-700' 
-                          : 'bg-amber-100 border border-amber-200 text-amber-800'
-                        }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                         <div className="flex items-center space-x-2">
-                            <span className={`text-[10px] px-1 rounded border ${u.org?.msaUploaded ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>MSA</span>
-                            <span className={`text-[10px] px-1 rounded border ${u.org?.ndaUploaded ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>NDA</span>
-                            {(!u.org?.msaUploaded || !u.org?.ndaUploaded) && (
-                              <button 
-                                onClick={() => alert(`Reminder sent to ${u.email}`)}
-                                className="text-[9px] text-indigo-600 hover:underline font-bold uppercase"
-                              >
-                                Send Reminder
-                              </button>
-                            )}
-                         </div>
-                      </td>
-                      <td className="py-3 text-right text-slate-400 text-xs">
-                        {new Date(u.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 text-right">
-                        <Button onClick={() => handleDeleteUser(u.id, u.organizationId)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-widest">Terminate</Button>
-                      </td>
-                    </tr>
+                    <div key={u.id || u.uid} className={cn(
+                        "group flex items-center justify-between p-6 bg-white border-2 rounded-[28px] transition-all hover:shadow-xl hover:shadow-slate-50",
+                        editingUser?.id === u.id ? 'border-amber-200 bg-amber-50/20' : 'border-slate-50 hover:border-indigo-100'
+                    )}>
+                      <div className="flex items-center gap-6">
+                        <div className={cn(
+                            "h-12 w-12 rounded-2xl flex items-center justify-center font-black transition-colors",
+                            u.role === 'admin' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' :
+                            u.role === 'client' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' :
+                            'bg-amber-600 text-white shadow-lg shadow-amber-100'
+                        )}>
+                          {u.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                            {u.email}
+                            {u.role === 'admin' && <Check size={12} className="text-indigo-600" />}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                             {u.org?.companyName || 'Unmapped Entity'} • Created {new Date(u.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="hidden sm:flex items-center gap-2 pr-6 border-r border-slate-50">
+                            <div className={`h-2 w-2 rounded-full ${u.org?.msaUploaded ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">MSA</span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => startEditUser(u)}
+                                className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                            >
+                                <Edit size={16} />
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteUser(u.id, u.organizationId)}
+                                className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
+                  
                   {users.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-6 text-center text-slate-500 bg-slate-50 rounded-lg italic">
-                        No users provisioned yet.
-                      </td>
-                    </tr>
+                    <div className="py-20 text-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100">
+                      <p className="text-[12px] font-black text-slate-300 uppercase tracking-[0.4em]">Zero Provisioned Nodes</p>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

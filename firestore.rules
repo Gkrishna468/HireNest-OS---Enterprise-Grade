@@ -53,14 +53,14 @@ service cloud.firestore {
              data.type in ['vendor', 'client', 'admin'] &&
              data.companyName is string && data.companyName.size() <= 200 &&
              data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending'] &&
-             data.ownerId == request.auth.uid;
+             (data.ownerId == request.auth.uid || isStaticAdmin());
     }
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt']) &&
-             data.uid == request.auth.uid &&
+             (data.uid == request.auth.uid || isStaticAdmin()) &&
              data.email is string &&
-             data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer'] &&
+             data.role in ['admin', 'client', 'vendor', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer'] &&
              data.organizationId is string && data.organizationId.size() <= 128;
     }
 
@@ -91,6 +91,7 @@ service cloud.firestore {
         isDynamicAdmin() || 
         (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().size() == 0)
       );
+      allow delete: if isStaticAdmin();
     }
 
     match /organizations/{orgId} {
@@ -98,6 +99,7 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin() || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
       allow create: if isSignedIn() && isValidOrganization(incoming());
       allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'status']));
+      allow delete: if isStaticAdmin();
     }
 
     match /requirements_public/{reqId} {

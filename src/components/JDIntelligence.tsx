@@ -1,5 +1,4 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from '../lib/Badge';
 import { Clock, MapPin, ListChecks, Sparkles, FileText, ChevronDown, ChevronUp, Quote } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';

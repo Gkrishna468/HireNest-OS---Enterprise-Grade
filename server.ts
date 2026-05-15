@@ -10,8 +10,19 @@ import { createRequire } from 'module';
 import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
+import admin from 'firebase-admin';
 
 const require = createRequire(import.meta.url);
+
+// Initialize Firebase Admin
+try {
+  admin.initializeApp({
+    projectId: "hirenest-os"
+  });
+  console.log("[DEP] Firebase Admin initialized");
+} catch (e) {
+  console.warn("[DEP] Firebase Admin initialization failed - some admin features may be disabled", e);
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -245,6 +256,64 @@ async function startServer() {
       }
     } catch (err: any) {
       console.error("[APPROVAL ERROR]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/admin/update-user", async (req, res) => {
+    try {
+      const { uid, email, password, companyName, role, organizationId } = req.body;
+      console.log(`[UPDATE USER] Synchronizing identity for ${uid}...`);
+      
+      // Update Auth
+      const updateData: any = {};
+      if (email) updateData.email = email;
+      if (password) updateData.password = password;
+      
+      if (Object.keys(updateData).length > 0) {
+        await admin.auth().updateUser(uid, updateData);
+      }
+      
+      // Update Firestore
+      const db = admin.firestore();
+      
+      const userUpdate: any = { updatedAt: new Date().toISOString() };
+      if (email) userUpdate.email = email;
+      if (role) userUpdate.role = role || (role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client");
+      
+      await db.collection("users").doc(uid).update(userUpdate);
+      
+      if (organizationId) {
+        const orgUpdate: any = { updatedAt: new Date().toISOString() };
+        if (companyName) orgUpdate.companyName = companyName;
+        if (role) orgUpdate.type = role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client";
+        await db.collection("organizations").doc(organizationId).update(orgUpdate);
+      }
+      
+      console.log("[UPDATE USER SUCCESS] Identity synchronized.");
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[UPDATE USER ERROR]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/admin/delete-user", async (req, res) => {
+    try {
+      const { uid, organizationId } = req.body;
+      console.log(`[DELETE USER] Purging identity ${uid}...`);
+      
+      await admin.auth().deleteUser(uid);
+      const db = admin.firestore();
+      await db.collection("users").doc(uid).delete();
+      if (organizationId) {
+        await db.collection("organizations").doc(organizationId).delete();
+      }
+      
+      console.log("[DELETE USER SUCCESS] Identity purged.");
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[DELETE USER ERROR]", err);
       res.status(500).json({ error: err.message });
     }
   });
