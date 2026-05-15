@@ -348,23 +348,31 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                       </div>
                       
                       <div className="flex items-center gap-4">
-                        <div className="hidden sm:flex items-center gap-2 pr-6 border-r border-slate-50">
-                            <div className={`h-2 w-2 rounded-full ${u.org?.msaUploaded ? 'bg-indigo-500' : 'bg-slate-200'}`} />
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">MSA</span>
+                        <div className="hidden sm:flex items-center gap-4 pr-6 border-r border-slate-50">
+                            <div className="flex flex-col items-center gap-1">
+                                <div className={`h-2 w-2 rounded-full ${u.org?.msaUploaded ? 'bg-indigo-500 shadow-sm shadow-indigo-200' : 'bg-slate-200'}`} />
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">MSA</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1">
+                                <div className={`h-2 w-2 rounded-full ${u.org?.ndaUploaded ? 'bg-indigo-500 shadow-sm shadow-indigo-200' : 'bg-slate-200'}`} />
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">NDA</span>
+                            </div>
                         </div>
                         
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => startEditUser(u)}
-                                className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                                className="h-10 px-4 flex items-center justify-center gap-2 rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm group/btn"
                             >
-                                <Edit size={16} />
+                                <Edit size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Configure</span>
                             </button>
                             <button 
                                 onClick={() => handleDeleteUser(u.id, u.organizationId)}
-                                className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                className="h-10 px-4 flex items-center justify-center gap-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm group/btn"
                             >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Terminate</span>
                             </button>
                         </div>
                       </div>

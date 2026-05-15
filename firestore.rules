@@ -67,6 +67,7 @@ service cloud.firestore {
     // --- Hardened Rules ---
 
     match /users/{userId} {
+      allow list: if isAdmin();
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if isValidUser(incoming()) && (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (

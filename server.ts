@@ -54,8 +54,10 @@ const dbMock: any = {
   ],
   users: [
     { id: "vetAu3RF2qYVmsCuB6cpEz9DDqA2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-    { id: "0xpXdzSQE6V92xbnCkiczPHexiU2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-    { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() }
+    { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
+    { id: "user-client-1", email: "client@example.com", role: "client", organizationId: "C-CLIENT-001", createdAt: new Date().toISOString() },
+    { id: "user-vendor-1", email: "vendor@example.com", role: "vendor", organizationId: "V-VENDOR-001", createdAt: new Date().toISOString() },
+    { id: "user-acme", email: "admin@acme.com", role: "client", organizationId: "C-8821", createdAt: new Date().toISOString() }
   ],
   requirements_public: [
     { 
@@ -214,10 +216,22 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/governance-data", (req, res) => {
+  app.get("/api/admin/governance-data", async (req, res) => {
     try {
+      const db = admin.firestore();
+      
+      // Fetch real data from Firestore
+      const [usersSnap, orgsSnap] = await Promise.all([
+        db.collection("users").get(),
+        db.collection("organizations").get()
+      ]);
+
+      const users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
       const payload = {
-        organizations: dbMock.organizations || [],
+        organizations: organizations.length > 0 ? organizations : dbMock.organizations,
+        users: users.length > 0 ? users : dbMock.users,
         requirements_public: dbMock.requirements_public || [],
         candidatePool: dbMock.candidatePool || [],
         submissions: dbMock.submissions || [],
@@ -228,7 +242,13 @@ async function startServer() {
       res.status(200).json(payload);
     } catch (err: any) {
       console.error("[HQ SYNC ERROR]", err);
-      res.status(500).json({ error: "Governance sync failure", details: err.message });
+      // Fallback to mock on error but log it
+      res.status(200).json({
+        organizations: dbMock.organizations,
+        users: dbMock.users,
+        requirements_public: dbMock.requirements_public,
+        error: err.message
+      });
     }
   });
 
