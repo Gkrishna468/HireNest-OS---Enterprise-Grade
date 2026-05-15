@@ -17,14 +17,22 @@ const require = createRequire(import.meta.url);
 // Initialize Firebase Admin
 try {
   if (admin.apps.length === 0) {
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || "hirenest-os";
-    admin.initializeApp({
-      projectId: projectId
-    });
-    console.log(`[DEP] Firebase Admin initialized with project: ${projectId}`);
+    // Attempt standard auto-init first (best for GCP environments)
+    try {
+      admin.initializeApp();
+      console.log("[DEP] Firebase Admin auto-initialized");
+    } catch (autoErr) {
+      console.warn("[DEP] Firebase Admin auto-init failed, trying config", autoErr);
+      const firebaseConfig = require('./firebase-applet-config.json');
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId,
+        credential: admin.credential.applicationDefault()
+      });
+      console.log(`[DEP] Firebase Admin initialized with specific projectId: ${firebaseConfig.projectId}`);
+    }
   }
-} catch (e) {
-  console.warn("[DEP] Firebase Admin initialization failed", e);
+} catch (e: any) {
+  console.error("[DEP] Fatal Firebase Admin initialization error", e.message);
 }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -220,35 +228,96 @@ async function startServer() {
     try {
       const db = admin.firestore();
       
-      // Fetch real data from Firestore
-      const [usersSnap, orgsSnap] = await Promise.all([
-        db.collection("users").get(),
-        db.collection("organizations").get()
-      ]);
+      // Try to fetch real data but don't crash if it fails
+      let users: any[] = [];
+      let organizations: any[] = [];
+      
+      try {
+        const [usersSnap, orgsSnap] = await Promise.all([
+          db.collection("users").get(),
+          db.collection("organizations").get()
+        ]);
+        users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (dbErr: any) {
+        console.warn("[HQ DB WARN] Could not fetch real data, using mock fallback:", dbErr.message);
+        users = dbMock.users;
+        organizations = dbMock.organizations;
+      }
 
-      const users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // If database is effectively empty, use mock for demo/visual consistency
+      if (users.length === 0 && organizations.length === 0) {
+         users = dbMock.users;
+         organizations = dbMock.organizations;
+      }
 
       const payload = {
-        organizations: organizations.length > 0 ? organizations : dbMock.organizations,
-        users: users.length > 0 ? users : dbMock.users,
+        organizations,
+        users,
         requirements_public: dbMock.requirements_public || [],
         candidatePool: dbMock.candidatePool || [],
         submissions: dbMock.submissions || [],
         dealRooms: dbMock.dealRooms || [],
         metrics: dbMock.metrics || {},
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        isMock: users === dbMock.users
       };
       res.status(200).json(payload);
     } catch (err: any) {
-      console.error("[HQ SYNC ERROR]", err);
-      // Fallback to mock on error but log it
+      console.error("[HQ SYNC FATAL]", err);
       res.status(200).json({
         organizations: dbMock.organizations,
         users: dbMock.users,
         requirements_public: dbMock.requirements_public,
-        error: err.message
+        metrics: dbMock.metrics,
+        error: err.message,
+        isMock: true
       });
+    }
+  });
+
+  app.post("/api/admin/onboard-node", async (req, res) => {
+    const { email, password, role, companyName } = req.body;
+    try {
+      const auth = admin.auth();
+      const db = admin.firestore();
+
+      // 1. Create Auth User
+      const userRecord = await auth.createUser({
+        email,
+        password,
+        displayName: companyName
+      });
+
+      const uid = userRecord.uid;
+      const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
+
+      // 2. Create Organization Doc
+      await db.collection("organizations").doc(orgId).set({
+        organizationId: orgId,
+        type: role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client",
+        companyName,
+        status: "approved",
+        adminApproved: true,
+        ndaUploaded: false,
+        msaUploaded: false,
+        ownerId: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 3. Create User Doc
+      await db.collection("users").doc(uid).set({
+        uid,
+        email,
+        role,
+        organizationId: orgId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      res.status(200).json({ success: true, uid, orgId });
+    } catch (err: any) {
+      console.error("[ONBOARD ERROR]", err);
+      res.status(500).json({ error: err.message });
     }
   });
 

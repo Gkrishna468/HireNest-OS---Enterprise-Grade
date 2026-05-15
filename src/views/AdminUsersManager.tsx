@@ -121,42 +121,21 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setError("");
 
     try {
-      // Create a secondary app to use auth without signing out the current admin
-      const secondaryApp = getApps().find(app => app.name === "SecondaryApp") 
-                            || initializeApp(firebaseConfig, "SecondaryApp");
-      const secondaryAuth = getAuth(secondaryApp);
+      const response = await fetch('/api/admin/onboard-node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          role,
+          companyName
+        })
+      });
 
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-      const newUid = userCredential.user.uid;
-      
-      await signOutSecondary(secondaryAuth); // Sign out from secondary auth immediately
-
-      // Create Organization
-      const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
-      const newOrgData = {
-        organizationId: orgId,
-        type: role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client",
-        companyName: companyName,
-        status: "approved",
-        adminApproved: true,
-        ndaUploaded: false,
-        msaUploaded: false,
-        ownerId: newUid,
-        createdAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, "organizations", orgId), newOrgData);
-
-      // Create User mapped to Organization
-      const newUserData = {
-        uid: newUid,
-        email: email,
-        role: role,
-        organizationId: orgId,
-        createdAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, "users", newUid), newUserData);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Onboarding failed");
+      }
 
       // Reset form and reload list
       setEmail("");
@@ -165,13 +144,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       await fetchUsers();
       
     } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError("Email/Password auth is not enabled. Please go to your Firebase Console -> Authentication -> Sign-in method and enable 'Email/Password'.");
-      } else if (err.code?.startsWith('auth/')) {
-         setError(err.message || "Auth error");
-      } else {
-         handleFirestoreError(err, OperationType.WRITE, "onboarding_new_user");
-      }
+       setError(err.message || "An unexpected error occurred during onboarding.");
+       console.error("Onboarding logic failure:", err);
     } finally {
       setIsSubmitting(false);
     }
