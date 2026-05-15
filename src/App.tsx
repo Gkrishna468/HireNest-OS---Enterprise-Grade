@@ -5,6 +5,18 @@ import { auth, db } from "./lib/firebase";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { handleFirestoreError, OperationType } from "./lib/firebase";
+import { 
+  Activity, 
+  Briefcase, 
+  Users, 
+  MessageSquare, 
+  Bell, 
+  Building2, 
+  Shield, 
+  Database, 
+  Settings, 
+  ShieldCheck 
+} from "lucide-react";
 import Onboarding from "./views/Onboarding";
 
 import DashboardTab from "./views/DashboardTab";

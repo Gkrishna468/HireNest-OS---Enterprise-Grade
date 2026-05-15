@@ -393,7 +393,7 @@ export default function CandidatesTab() {
       </div>
 
       <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2">
-        {STAGES.map(stage => {
+        {STAGES.map((stage, sIdx) => {
           const list = candidates.filter(c => c.pipelineStage === stage);
           return (
             <div key={stage} className="w-[340px] flex-shrink-0 flex flex-col h-full bg-slate-100/30 rounded-3xl border border-slate-200 overflow-hidden">

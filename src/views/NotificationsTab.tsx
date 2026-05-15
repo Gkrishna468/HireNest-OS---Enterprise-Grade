@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Bell, Info, AlertTriangle, CheckCircle, Clock, Trash2, ArrowRight } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore";
 
 interface Notification {
   id: string;
@@ -16,55 +18,62 @@ interface Notification {
 
 export default function NotificationsTab({ org }: { org: any }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulated notification stream based on role
-    const mockNotifications: Notification[] = [
-      {
-        id: "1",
-        title: "New Requirement Awaiting Approval",
-        message: "Enterprise Solutions Inc has posted a 'Senior DevOps Engineer' role. Margin governance is pending.",
-        type: 'urgent',
-        timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        read: false,
-        actionUrl: "/admin/clients"
-      },
-      {
-        id: "2",
-        title: "Candidate Submission Received",
-        message: "Sarah Connor has been submitted for 'Frontend Lead' by Elite Staffing Group.",
-        type: 'info',
-        timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-        read: true,
-        actionUrl: "/deals"
-      },
-      {
-        id: "3",
-        title: "Margin Approved",
-        message: "Commercial governance for 'Cloud Architect' role was approved at 15% fixed margin.",
-        type: 'success',
-        timestamp: new Date(Date.now() - 1000 * 3600 * 4).toISOString(),
-        read: true
-      },
-      {
-        id: "4",
-        title: "SLA Warning",
-        message: "Requirement REQ-002 has been open for 48 hours without a submission. Review vendor outreach.",
-        type: 'warning',
-        timestamp: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-        read: false
-      }
-    ];
+    if (!auth.currentUser || !org) return;
 
-    setNotifications(mockNotifications);
+    // Listen to personal and organization-level notifications
+    const q = query(
+      collection(db, "notifications"), 
+      where("recipientId", "in", [auth.currentUser.uid, org.organizationId]),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => {
+        const docData = d.data();
+        return {
+          id: d.id,
+          title: docData.title,
+          message: docData.message,
+          type: (docData.type || 'info').toLowerCase(),
+          timestamp: docData.createdAt?.seconds ? new Date(docData.createdAt.seconds * 1000).toISOString() : new Date().toISOString(),
+          read: docData.read || false,
+          actionUrl: docData.actionUrl
+        } as Notification;
+      });
+      setNotifications(data);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "notifications");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [org]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAsRead = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "notifications", id), { read: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `notifications/${id}`);
+    }
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    for (const n of unread) {
+      await markAsRead(n.id);
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "notifications", id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `notifications/${id}`);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -90,7 +99,7 @@ export default function NotificationsTab({ org }: { org: any }) {
         </div>
         <Button 
           variant="outline" 
-          onClick={() => setNotifications(notifications.map(n => ({...n, read: true})))}
+          onClick={markAllAsRead}
           className="rounded-xl border-slate-200 text-xs font-black uppercase tracking-widest text-slate-500 h-10"
         >
           Mark all as read
