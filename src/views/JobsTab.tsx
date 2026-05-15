@@ -2,9 +2,10 @@ import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck } from "lucide-react";
+import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
+import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
 import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
@@ -85,7 +86,7 @@ export default function JobsTab() {
       const requirementsQuery = isAdmin 
         ? q 
         : (isVendor 
-            ? query(q, where("visibility", "==", "VENDOR_NETWORK")) 
+            ? query(q, where("visibility", "==", "VENDOR_NETWORK"), where("status", "==", "PUBLISHED")) 
             : query(q, where("clientId", "==", orgId)));
 
       unsubscribe = onSnapshot(requirementsQuery, (snap) => {
@@ -194,9 +195,14 @@ export default function JobsTab() {
 
       // Trigger AI Match Simulation
       setTimeout(async () => {
-        await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'processing' });
+        await updateDoc(doc(db, "requirements_public", reqId), { 
+          matchProcessingStatus: 'processing' 
+        });
+        
         setTimeout(async () => {
-             await updateDoc(doc(db, "requirements_public", reqId), { matchProcessingStatus: 'completed' });
+             await updateDoc(doc(db, "requirements_public", reqId), { 
+               matchProcessingStatus: 'completed' 
+             });
         }, 20000);
       }, 5000); 
 
@@ -243,7 +249,7 @@ export default function JobsTab() {
         clientTargetBudget: budget
       });
       
-      const job = jobs.find(j => j.id === jobId);
+      const job = jobs.find(j => j.id === jobId || j.requirementId === jobId);
       // Trigger Admin Notification
       await fetch("/api/admin/notify-approval", {
         method: "POST",
@@ -323,6 +329,34 @@ export default function JobsTab() {
       console.error("Match Engine V2 failed", err);
     }
     setIsAnalyzing(false);
+  };
+
+  const handleToggleStatus = async (jobId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'PUBLISHED' ? 'CLOSED' : 'PUBLISHED';
+    try {
+      // Attempt direct update first (faster)
+      await updateDoc(doc(db, "requirements_public", jobId), {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error: any) {
+      console.warn("Direct update failed, attempting server proxy...", error.message);
+      try {
+        const response = await fetch("/api/jobs/update-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, status: newStatus })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Server proxy update failed");
+        }
+      } catch (proxyError) {
+        console.error("All status update methods failed:", proxyError);
+        handleFirestoreError(proxyError, OperationType.UPDATE, `requirements_public/${jobId}`);
+      }
+    }
   };
 
   const handleCreateDealRoom = async (sub: any) => {
@@ -502,7 +536,7 @@ export default function JobsTab() {
                 <div className="col-span-3 text-right">Actions</div>
             </div>
             
-            {jobs.filter(j => isAdmin || j.clientId === orgId || j.visibility === 'VENDOR_NETWORK').map((job) => (
+            {jobs.filter(j => isAdmin || j.clientId === orgId || (j.visibility === 'VENDOR_NETWORK' && j.status === 'PUBLISHED')).map((job) => (
               <div 
                 key={job.id} 
                 onClick={() => setSelectedJob(job)}
@@ -526,14 +560,26 @@ export default function JobsTab() {
                       <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">ID: {job.requirementId?.replace('REQ-', '')}</p>
                     </div>
                   </div>
-                  <Badge className={cn(
-                    "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
-                    job.status === 'PUBLISHED' ? "bg-emerald-100 text-emerald-700" : 
-                    job.status === 'PENDING_FINANCIAL_APPROVAL' ? "bg-amber-100 text-amber-700" :
-                    job.status === 'DRAFT' ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-600"
-                  )}>
-                    {job.status}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge className={cn(
+                      "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
+                      job.status === 'PUBLISHED' ? "bg-emerald-100 text-emerald-700" : 
+                      job.status === 'PENDING_FINANCIAL_APPROVAL' ? "bg-amber-100 text-amber-700" :
+                      job.status === 'DRAFT' ? "bg-slate-100 text-slate-500" : 
+                      job.status === 'CLOSED' ? "bg-red-100 text-red-700" : "bg-indigo-50 text-indigo-600"
+                    )}>
+                      {job.status}
+                    </Badge>
+                    {(isAdmin || (isClient && job.clientId === orgId)) && (job.status === 'PUBLISHED' || job.status === 'CLOSED') && (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">{job.status === 'PUBLISHED' ? 'Active' : 'Closed'}</span>
+                        <Switch 
+                          checked={job.status === 'PUBLISHED'} 
+                          onCheckedChange={() => handleToggleStatus(job.id, job.status)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">

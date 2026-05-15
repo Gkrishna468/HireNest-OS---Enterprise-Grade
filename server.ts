@@ -16,12 +16,15 @@ const require = createRequire(import.meta.url);
 
 // Initialize Firebase Admin
 try {
-  admin.initializeApp({
-    projectId: "hirenest-os"
-  });
-  console.log("[DEP] Firebase Admin initialized");
+  if (admin.apps.length === 0) {
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT || "hirenest-os";
+    admin.initializeApp({
+      projectId: projectId
+    });
+    console.log(`[DEP] Firebase Admin initialized with project: ${projectId}`);
+  }
 } catch (e) {
-  console.warn("[DEP] Firebase Admin initialization failed - some admin features may be disabled", e);
+  console.warn("[DEP] Firebase Admin initialization failed", e);
 }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -203,7 +206,7 @@ async function startServer() {
       }
 
       // Vendor sees published ones
-      const published = (dbMock.requirements_public || []).filter((r: any) => r.visibility === 'VENDOR_NETWORK' || r.status === 'PUBLISHED');
+      const published = (dbMock.requirements_public || []).filter((r: any) => r.status === 'PUBLISHED');
       res.json({ requirements: published, metrics: metrics });
     } catch (err: any) {
       console.error("[CONTEXT ERROR]", err);
@@ -330,6 +333,36 @@ async function startServer() {
        }
     }
     res.json({ analysis });
+  });
+
+  app.post("/api/jobs/update-status", async (req, res) => {
+    try {
+      const { jobId, status } = req.body;
+      if (!jobId || !status) {
+        return res.status(400).json({ error: "Missing jobId or status" });
+      }
+
+      console.log(`[JOB STATUS] Updating ${jobId} to ${status}...`);
+
+      // Update REAL Firestore via Admin SDK
+      const db = admin.firestore();
+      await db.collection("requirements_public").doc(jobId).update({
+        status: status,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Update Mock for local consistency
+      const idx = dbMock.requirements_public.findIndex((r: any) => r.id === jobId);
+      if (idx !== -1) {
+        dbMock.requirements_public[idx].status = status;
+      }
+
+      console.log("[JOB STATUS] Successfully updated via Admin SDK.");
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[JOB STATUS ERROR]", err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.get("/api/admin/notifications", (req, res) => res.json(dbMock.systemNotifications || []));

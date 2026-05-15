@@ -15,10 +15,12 @@ service cloud.firestore {
     
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
+      let email = request.auth.token.email;
       return isSignedIn() && (
-        request.auth.token.get('email', '') in ['gopalkrishna0046@gmail.com', 'gopal@hirenestworkforce.com'] ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        email == 'gopalkrishna0046@gmail.com' || 
+        email == 'gopal@hirenestworkforce.com' ||
+        request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' ||
+        request.auth.token.get('email', '') == 'gopal@hirenestworkforce.com'
       );
     }
 
@@ -29,51 +31,37 @@ service cloud.firestore {
     function isOrganizationMember(orgId) {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData().organizationId == orgId;
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
     }
 
-    // --- Entity Validation Blueprints (Phase 4) ---
-
     function isValidOrganization(data) {
-      return data.keys().hasAll(['organizationId', 'type', 'companyName', 'status', 'ownerId', 'createdAt']) &&
-             data.keys().size() <= 12 &&
-             data.organizationId is string && data.organizationId.size() <= 64 &&
-             data.type in ['vendor', 'client', 'admin'] &&
-             data.companyName is string && data.companyName.size() >= 2 && data.companyName.size() <= 200 &&
-             data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending'] &&
-             (data.ownerId == request.auth.uid || isAdmin()) &&
-             // Use request.time for temporal integrity if creating
-             (request.method == 'create' ? data.createdAt == request.time : true);
+      return (!data.keys().hasAny(['organizationId']) || data.organizationId is string) &&
+             (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin']) &&
+             (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending']);
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role', 'organizationId', 'createdAt']) &&
-             data.keys().size() <= 10 &&
-             (data.uid == request.auth.uid || isAdmin()) &&
-             (data.email == request.auth.token.email || isAdmin()) &&
-             data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer'] &&
-             data.organizationId is string && data.organizationId.size() <= 64 &&
-             (request.method == 'create' ? data.createdAt == request.time : true);
+      return (!data.keys().hasAny(['uid']) || data.uid is string) &&
+             (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer']);
     }
 
     function isValidRequirementPublic(data) {
-      return data.keys().hasAll(['requirementId', 'clientId', 'title', 'description', 'status', 'visibility', 'ownerId', 'createdAt']) &&
-             data.requirementId is string &&
-             data.clientId is string &&
-             data.title is string && data.title.size() <= 200 &&
-             data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'] &&
-             data.visibility in ['INTERNAL', 'VENDOR_NETWORK'] &&
-             (data.ownerId == request.auth.uid || isAdmin()) &&
-             (request.method == 'create' ? data.createdAt == request.time : true);
+      return (!data.keys().hasAny(['requirementId']) || (data.requirementId is string && data.requirementId.size() <= 64)) &&
+             (!data.keys().hasAny(['clientId']) || (data.clientId is string && data.clientId.size() <= 64)) &&
+             (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200)) &&
+             (!data.keys().hasAny(['status']) || (data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'])) &&
+             (!data.keys().hasAny(['visibility']) || (data.visibility in ['INTERNAL', 'VENDOR_NETWORK'])) &&
+             (!data.keys().hasAny(['ownerId']) || (data.ownerId is string && (data.ownerId == request.auth.uid || isAdmin())));
     }
 
     function isValidCandidate(data) {
-      return data.keys().hasAll(['candidateId', 'vendorId', 'name', 'ownerId', 'createdAt']) &&
-             data.candidateId is string &&
-             data.vendorId is string &&
-             data.name is string && data.name.size() <= 200 &&
-             (data.ownerId == request.auth.uid || isAdmin()) &&
-             (request.method == 'create' ? data.createdAt == request.time : true);
+      let isCreate = request.method == 'create';
+      return (isCreate ? (data.keys().hasAll(['candidateId', 'vendorId', 'name', 'ownerId', 'createdAt']) && data.keys().size() == 5) : true) &&
+             (!data.keys().hasAny(['candidateId']) || (data.candidateId is string)) &&
+             (!data.keys().hasAny(['vendorId']) || (data.vendorId is string)) &&
+             (!data.keys().hasAny(['name']) || (data.name is string && data.name.size() <= 200)) &&
+             (!data.keys().hasAny(['ownerId']) || (data.ownerId is string && (data.ownerId == request.auth.uid || isAdmin()))) &&
+             (!isCreate || data.createdAt == request.time);
     }
 
     // --- Hardened Rules ---
@@ -81,7 +69,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
-      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
+      allow update: if isValidUser(incoming()) && (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
         (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'updatedAt']) && isAdmin()) ||
         (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt']))
       );
@@ -91,15 +79,15 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (isOrganizationMember(orgId) || isAdmin());
       allow create: if isSignedIn() && isValidOrganization(incoming());
-      allow update: if isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'updatedAt']));
+      allow update: if isValidOrganization(incoming()) && (isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'updatedAt'])));
     }
 
     match /requirements_public/{reqId} {
       allow read: if isSignedIn(); // Public requirements are visible to all authenticated users for matching
       allow create: if isSignedIn() && isValidRequirementPublic(incoming()) && isOrganizationMember(incoming().clientId);
-      allow update: if (isAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
-         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials'])) ||
-         (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'skills', 'updatedAt']))
+      allow update: if isValidRequirementPublic(incoming()) && (isAdmin() || (isSignedIn() && isOrganizationMember(existing().clientId))) && (
+         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials', 'matchProcessingStatus', 'clientTargetBudget', 'title', 'description', 'skills', 'experience', 'minExp', 'maxExp', 'budget', 'workMode'])) ||
+         (isOrganizationMember(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills', 'updatedAt', 'status', 'clientTargetBudget', 'experience', 'minExp', 'maxExp', 'budget', 'workMode', 'matchProcessingStatus']))
       );
     }
 
@@ -118,14 +106,20 @@ service cloud.firestore {
       allow list: if isSignedIn() && (isAdmin() || resource.data.vendorId == getUserData().organizationId);
       allow get: if isSignedIn() && (isAdmin() || resource.data.vendorId == getUserData().organizationId);
       allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId) && isValidCandidate(incoming());
-      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+      allow update: if isValidCandidate(incoming()) && (isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId))) && (
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['pipelineStage', 'matchScore', 'mappedJobId', 'activeDealId', 'distillationStatus', 'distillationMetadata', 'updatedAt', 'name', 'email', 'phone', 'linkedin', 'skills', 'experience', 'resumeText'])) ||
+        (isOrganizationMember(existing().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['pipelineStage', 'matchScore', 'mappedJobId', 'activeDealId', 'distillationStatus', 'distillationMetadata', 'updatedAt', 'name', 'email', 'phone', 'linkedin', 'skills', 'experience', 'resumeText']))
+      );
     }
 
     match /submissions/{subId} {
       allow list: if isSignedIn() && (isAdmin() || resource.data.vendorId == getUserData().organizationId);
       allow get: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.vendorId) || isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(resource.data.requirementId)).data.clientId));
       allow create: if isSignedIn() && isOrganizationMember(incoming().vendorId);
-      allow update: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
+      allow update: if (isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId))) && (
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'feedback', 'updatedAt'])) ||
+        (isOrganizationMember(existing().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
     }
 
     match /dealRooms/{roomId} {
