@@ -11,6 +11,7 @@ import firebaseConfig from "../../firebase-applet-config.json";
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncMode, setSyncMode] = useState<string>("INITIALIZING");
   const [error, setError] = useState("");
   
   // Form state
@@ -34,16 +35,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         const data = await response.json();
         const orgs = data.organizations || [];
         const remoteUsers = data.users || [];
+        setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
         
         setUsers(remoteUsers.map((u: any) => {
-          const org = orgs.find((o: any) => o.id === (u.organizationId || u.orgId));
-          return { ...u, id: u.uid || u.id, org };
+          const orgId = u.organizationId || u.orgId || (u.org && u.org.id);
+          const org = orgs.find((o: any) => o.id === orgId || o.organizationId === orgId);
+          return { ...u, id: u.uid || u.id, uid: u.uid || u.id, org };
         }).filter((u: any) => !u.deleted));
       } else {
         throw new Error(`Governance API returned ${response.status}`);
       }
     } catch (err: any) {
       console.warn("Governance API failed, attempting Firestore fallback", err);
+      setSyncMode("FS_FALLBACK");
       try {
         const [userSnap, orgSnap] = await Promise.all([
           getDocs(collection(db, "users")),
@@ -53,10 +57,11 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         setUsers(userSnap.docs.map(d => {
           const u = d.data() as any;
           const org = orgs.find(o => o.id === u.organizationId);
-          return { id: d.id, ...u, org };
+          return { id: d.id, uid: d.id, ...u, org };
         }).filter((u: any) => !u.deleted));
-      } catch (fErr) {
+      } catch (fErr: any) {
         console.error("Firestore fallback also failed", fErr);
+        setError("Network desync: Could not establish secure handshake with nodes.");
       }
     } finally {
       setLoading(false);
@@ -188,11 +193,23 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
             <span className="text-indigo-600">Global Node Authority</span> • Platform Governance & Lifecycle
           </p>
         </div>
-        <div className="flex bg-slate-900 p-1 rounded-xl">
-           <div className="px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Auth Layer Operational
+        <div className="flex flex-col items-end gap-2">
+           <div className="flex bg-slate-900 p-1 rounded-xl">
+              <div className="px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                 <div className={cn(
+                    "h-2 w-2 rounded-full animate-pulse",
+                    syncMode === 'LIVE' ? 'bg-emerald-500' : 
+                    syncMode === 'HYBRID_MOCK' ? 'bg-amber-500' : 'bg-red-500'
+                 )} />
+                 Node Sync: {syncMode}
+              </div>
            </div>
+           <button 
+             onClick={() => fetchUsers()}
+             className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+           >
+             Manual Resync
+           </button>
         </div>
       </div>
 

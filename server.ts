@@ -17,18 +17,26 @@ const require = createRequire(import.meta.url);
 // Initialize Firebase Admin
 try {
   if (admin.apps.length === 0) {
-    // Attempt standard auto-init first (best for GCP environments)
+    const firebaseConfig = require('./firebase-applet-config.json');
+    // Priority 1: Environment Project ID (most accurate for Cloud Run)
+    // Priority 2: Config Project ID
+    const activeProjectId = process.env.GOOGLE_CLOUD_PROJECT || firebaseConfig.projectId;
+    
+    console.log(`[DEP] Firebase Admin bootstrapping for project: ${activeProjectId}`);
+    
     try {
-      admin.initializeApp();
-      console.log("[DEP] Firebase Admin auto-initialized");
-    } catch (autoErr) {
-      console.warn("[DEP] Firebase Admin auto-init failed, trying config", autoErr);
-      const firebaseConfig = require('./firebase-applet-config.json');
+      // Direct init often works best with Cloud Run default credentials
       admin.initializeApp({
-        projectId: firebaseConfig.projectId,
+        projectId: activeProjectId
+      });
+      console.log("[DEP] Firebase Admin initialized (Standard Init)");
+    } catch (directErr) {
+      console.warn("[DEP] Direct Admin init failed, trying ADC config", directErr);
+      admin.initializeApp({
+        projectId: activeProjectId,
         credential: admin.credential.applicationDefault()
       });
-      console.log(`[DEP] Firebase Admin initialized with specific projectId: ${firebaseConfig.projectId}`);
+      console.log("[DEP] Firebase Admin initialized (Credential Init)");
     }
   }
 } catch (e: any) {
@@ -231,24 +239,37 @@ async function startServer() {
       // Try to fetch real data but don't crash if it fails
       let users: any[] = [];
       let organizations: any[] = [];
+      let mode = "LIVE";
       
       try {
+        console.log(`[HQ SYNC] Attempting real-time sync from Firestore...`);
         const [usersSnap, orgsSnap] = await Promise.all([
           db.collection("users").get(),
           db.collection("organizations").get()
         ]);
+        
         users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log(`[HQ SYNC] Live data retrieved. Users: ${users.length}, Orgs: ${organizations.length}`);
       } catch (dbErr: any) {
-        console.warn("[HQ DB WARN] Could not fetch real data, using mock fallback:", dbErr.message);
+        console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
         users = dbMock.users;
         organizations = dbMock.organizations;
+        mode = "FALLBACK";
       }
 
       // If database is effectively empty, use mock for demo/visual consistency
-      if (users.length === 0 && organizations.length === 0) {
+      if (users.length === 0) {
+         console.warn("[HQ SYNC] User list empty, seeding mock identities.");
          users = dbMock.users;
+         if (mode === "LIVE") mode = "HYBRID_MOCK";
+      }
+
+      if (organizations.length === 0) {
+         console.warn("[HQ SYNC] Organization list empty, seeding mock entities.");
          organizations = dbMock.organizations;
+         if (mode === "LIVE") mode = "HYBRID_MOCK";
       }
 
       const payload = {
@@ -260,18 +281,20 @@ async function startServer() {
         dealRooms: dbMock.dealRooms || [],
         metrics: dbMock.metrics || {},
         lastSync: new Date().toISOString(),
-        isMock: users === dbMock.users
+        isMock: mode !== "LIVE",
+        mode
       };
       res.status(200).json(payload);
     } catch (err: any) {
-      console.error("[HQ SYNC FATAL]", err);
+      console.error("[HQ SYNC FATAL] Integrity breach:", err);
       res.status(200).json({
         organizations: dbMock.organizations,
         users: dbMock.users,
-        requirements_public: dbMock.requirements_public,
-        metrics: dbMock.metrics,
+        requirements_public: dbMock.requirements_public || [],
+        metrics: dbMock.metrics || {},
         error: err.message,
-        isMock: true
+        isMock: true,
+        mode: "FATAL_FALLBACK"
       });
     }
   });
