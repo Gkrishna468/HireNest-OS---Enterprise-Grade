@@ -17,10 +17,24 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"client" | "vendor" | "admin">("client");
+  const [role, setRole] = useState<any>("client_hm");
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+
+  const VerificationBadge = ({ verification }: { verification: any, role: string }) => {
+    if (!verification) return <span className="text-[8px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded">UNVERIFIED</span>;
+    
+    return (
+      <div className="flex items-center gap-1">
+        {verification.emailVerified && <span className="text-[8px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black">EMAIL</span>}
+        {verification.identityVerified && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded font-black">IDENTITY</span>}
+        {verification.businessVerified && <span className="text-[8px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-black">BUSINESS</span>}
+        {verification.aadhaarVerified && <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded font-black">AADHAAR</span>}
+        <span className="text-[10px] font-black text-indigo-600 ml-2">SCORE: {verification.trustScore || 0}</span>
+      </div>
+    );
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -284,15 +298,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Core Component Role</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none appearance-none"
-                >
-                  <option value="client">Client Node</option>
-                  <option value="vendor">Vendor Node</option>
-                  <option value="admin">Platform Authority</option>
-                </select>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as any)}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none appearance-none"
+                  >
+                    <option value="client_hm">Client (Hiring Manager)</option>
+                    <option value="vendor_recruiter">Vendor (Recruiter)</option>
+                    <option value="freelancer">Freelancer</option>
+                    <option value="independent_recruiter">Independent Recruiter</option>
+                    <option value="admin">Platform Authority</option>
+                  </select>
               </div>
 
               <div className="pt-4 flex flex-col gap-3">
@@ -353,7 +369,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                             {u.role === 'admin' && <Check size={12} className="text-indigo-600" />}
                           </div>
                           <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                             {u.org?.companyName || 'Unmapped Entity'} • Created {new Date(u.createdAt).toLocaleDateString()}
+                             {u.org?.companyName || 'Unmapped Entity'} • Role: {u.role}
+                          </div>
+                          <div className="mt-2">
+                             <VerificationBadge verification={u.verification} role={u.role} />
                           </div>
                         </div>
                       </div>

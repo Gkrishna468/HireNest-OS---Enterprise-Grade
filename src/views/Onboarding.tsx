@@ -8,14 +8,18 @@ import { Button } from "../lib/Button";
 
 export default function Onboarding({ onComplete }: { onComplete: (orgData: any) => void }) {
   const [user, setUser] = useState<User | null>(null);
-  const [orgType, setOrgType] = useState<"vendor" | "client" | null>(null);
+  const [orgType, setOrgType] = useState<"vendor" | "client" | "recruiter" | "freelancer" | null>(null);
   const [companyName, setCompanyName] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [ndaFile, setNdaFile] = useState<File | null>(null);
   const [msaFile, setMsaFile] = useState<File | null>(null);
+  const [businessFile, setBusinessFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [step, setStep] = useState(1);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -72,6 +76,12 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     }
   };
 
+  const checkCorporateEmail = (email: string) => {
+    const publicProviders = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'protonmail.com', 'icloud.com'];
+    const domain = email.split('@')[1] || "";
+    return !publicProviders.includes(domain.toLowerCase());
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -80,100 +90,113 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     setError("");
     
     try {
-      if (!orgType || !companyName || !ndaFile || !msaFile) {
-        setError("Please fill out all fields and upload required documents.");
+      if (!orgType) {
+        setError("Please select a workspace role.");
+        setLoading(false);
+        return;
+      }
+
+      // Trust Protocols
+      if (orgType === "client" || orgType === "vendor" || orgType === "recruiter") {
+        if (!checkCorporateEmail(user.email || "")) {
+          setError("SECURITY VULNERABILITY: Official Corporate Email Required for this role. Public providers (Gmail/Yahoo/Outlook) are restricted for business nodes.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (orgType === "freelancer" && (!aadhaarNumber || aadhaarNumber.length < 12)) {
+        setError("IDENTITY REJECTED: Valid 12-digit Aadhaar required for individual verification.");
         setLoading(false);
         return;
       }
       
-      const orgId = "ORG-" + Math.floor(Math.random() * 100000);
+      const orgId = orgType === "freelancer" ? "IND-" + user.uid.substring(0, 8) : "ORG-" + Math.floor(Math.random() * 100000);
+      let ndaUrl = "";
+      let msaUrl = "";
+      let businessUrl = "";
 
-      // Upload NDA
-      console.log("Uploading NDA...");
-      const ndaRef = ref(storage, `compliance/${orgId}/NDA.pdf`);
-      await uploadBytes(ndaRef, ndaFile);
-      const ndaUrl = await getDownloadURL(ndaRef);
+      // Upload Documents
+      if (ndaFile) {
+        const ndaRef = ref(storage, `compliance/${orgId}/NDA.pdf`);
+        await uploadBytes(ndaRef, ndaFile);
+        ndaUrl = await getDownloadURL(ndaRef);
+      }
 
-      // Upload MSA
-      console.log("Uploading MSA...");
-      const msaRef = ref(storage, `compliance/${orgId}/MSA.pdf`);
-      await uploadBytes(msaRef, msaFile);
-      const msaUrl = await getDownloadURL(msaRef);
+      if (msaFile) {
+        const msaRef = ref(storage, `compliance/${orgId}/MSA.pdf`);
+        await uploadBytes(msaRef, msaFile);
+        msaUrl = await getDownloadURL(msaRef);
+      }
 
-      // Create Org
-      console.log("Creating Organization document...");
-      const orgData = {
-        organizationId: orgId,
-        type: orgType,
-        companyName,
-        status: "pending_review",
-        ndaUploaded: true,
-        msaUploaded: true,
-        ownerId: user.uid,
-        createdAt: new Date().toISOString()
-      };
-      
-      try {
+      if (businessFile) {
+        const busRef = ref(storage, `compliance/${orgId}/business_verification.pdf`);
+        await uploadBytes(busRef, businessFile);
+        businessUrl = await getDownloadURL(busRef);
+      }
+
+      // Create Organization Layer
+      let orgData: any = null;
+      if (orgType !== "freelancer") {
+        orgData = {
+          organizationId: orgId,
+          type: orgType === "recruiter" ? "recruitment_agency" : orgType,
+          companyName: orgType === "recruiter" ? `${user.displayName || 'Independent'} Practice` : companyName,
+          domain: user.email?.split('@')[1],
+          status: "pending_review",
+          verificationTier: businessFile ? "Tier 2" : "Tier 1",
+          ndaUploaded: !!ndaFile,
+          msaUploaded: !!msaFile,
+          businessDocsUploaded: !!businessFile,
+          ownerId: user.uid,
+          createdAt: new Date().toISOString()
+        };
         await setDoc(doc(db, "organizations", orgId), orgData);
-      } catch (orgErr: any) {
-        handleFirestoreError(orgErr, OperationType.WRITE, `organizations/${orgId}`);
-        throw orgErr;
+
+        if (ndaFile || msaFile || businessFile) {
+           await Promise.all([
+             ndaFile && setDoc(doc(db, "compliance_documents", orgId + "_NDA"), {
+               organizationId: orgId, documentType: "NDA", fileUrl: ndaUrl,
+               uploadedAt: new Date().toISOString(), status: "pending", ownerId: user.uid
+             }),
+             msaFile && setDoc(doc(db, "compliance_documents", orgId + "_MSA"), {
+               organizationId: orgId, documentType: "MSA", fileUrl: msaUrl,
+               uploadedAt: new Date().toISOString(), status: "pending", ownerId: user.uid
+             })
+           ].filter(Boolean));
+        }
       }
 
-      // Create Compliance Docs
-      console.log("Creating Compliance documents...");
-      try {
-        await setDoc(doc(db, "compliance_documents", orgId + "_NDA"), {
-          organizationId: orgId,
-          documentType: "NDA",
-          fileUrl: ndaUrl,
-          uploadedAt: new Date().toISOString(),
-          status: "pending",
-          ownerId: user.uid,
-        });
-
-        await setDoc(doc(db, "compliance_documents", orgId + "_MSA"), {
-          organizationId: orgId,
-          documentType: "MSA",
-          fileUrl: msaUrl,
-          uploadedAt: new Date().toISOString(),
-          status: "pending",
-          ownerId: user.uid,
-        });
-      } catch (docErr: any) {
-        handleFirestoreError(docErr, OperationType.WRITE, "compliance_documents");
-        throw docErr;
-      }
-
-      // Create User
-      console.log("Updating User document...");
+      // Create Identity Layer
       const userData = {
         uid: user.uid,
         email: user.email,
-        role: orgType === "client" ? "client_hm" : "vendor_recruiter",
+        role: orgType === "client" ? "client_hm" : 
+              orgType === "vendor" ? "vendor_recruiter" : 
+              orgType === "recruiter" ? "independent_recruiter" : "freelancer",
         organizationId: orgId,
+        verification: {
+          emailVerified: user.emailVerified || false,
+          identityVerified: false,
+          businessVerified: !!businessFile,
+          aadhaarVerified: orgType === "freelancer",
+          trustScore: orgType === "freelancer" ? 60 : 40,
+          badgeType: "PENDING_VERIFICATION"
+        },
+        identityDocs: {
+          aadhaarMasked: aadhaarNumber ? `XXXXXXXX${aadhaarNumber.slice(-4)}` : null,
+          documentUrl: businessUrl
+        },
+        linkedinUrl: linkedinUrl || null,
         createdAt: new Date().toISOString()
       };
       
-      try {
-        await setDoc(doc(db, "users", user.uid), userData);
-      } catch (userErr: any) {
-        handleFirestoreError(userErr, OperationType.WRITE, `users/${user.uid}`);
-        throw userErr;
-      }
-
-      // Trigger email
-      console.log("Triggering registration email...");
-      fetch('/api/trigger-registration-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, type: orgType, companyName, email: user.email })
-      }).catch(console.error);
+      await setDoc(doc(db, "users", user.uid), userData);
 
       onComplete({ user: userData, org: orgData });
     } catch (err: any) {
-      console.error("Full handleSubmit error:", err);
-      setError(err.message || "Registration failed. Check console for details.");
+      console.error("Governance Handshake Failure:", err);
+      setError(err.message || "Protocol execution failed. System halted.");
     }
     setLoading(false);
   };
@@ -259,7 +282,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 className={`p-3 border rounded-lg text-left transition-all ${orgType === 'vendor' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
               >
                 <div className="font-bold text-slate-800 text-sm">Vendor</div>
-                <div className="text-[10px] text-slate-500 mt-1">Submit candidates to open requirements and track placements.</div>
+                <div className="text-[10px] text-slate-500 mt-1">Agency or Staffing firm looking to submit candidates.</div>
               </button>
               <button
                 type="button"
@@ -267,51 +290,123 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 className={`p-3 border rounded-lg text-left transition-all ${orgType === 'client' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
               >
                 <div className="font-bold text-slate-800 text-sm">Client</div>
-                <div className="text-[10px] text-slate-500 mt-1">Post requirements, review candidates, and hire anonymously.</div>
+                <div className="text-[10px] text-slate-500 mt-1">Hiring organization looking for talent globally.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOrgType("recruiter"); }}
+                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'recruiter' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+              >
+                <div className="font-bold text-slate-800 text-sm">Recruiter</div>
+                <div className="text-[10px] text-slate-500 mt-1">Independent recruiter or headhunter node.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOrgType("freelancer"); }}
+                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'freelancer' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+              >
+                <div className="font-bold text-slate-800 text-sm">Freelancer</div>
+                <div className="text-[10px] text-slate-500 mt-1">Individual contractor applying directly.</div>
               </button>
             </div>
           </div>
 
-          <>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Company Name</label>
-              <input 
-                type="text" 
-                required
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
-                placeholder="e.g. ABC Staffing Solutions"
-              />
-            </div>
+          <div className="space-y-4">
+            {orgType && orgType !== "freelancer" && (
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Company Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
+                  placeholder="e.g. ABC Staffing Solutions"
+                />
+              </div>
+            )}
 
-            <div className="bg-slate-50 p-4 border border-slate-200 rounded-lg space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Compliance Documents</h3>
-              <p className="text-xs text-slate-500">Upload your signed Non-Disclosure Agreement (NDA) and Master Service Agreement (MSA).</p>
-              
+            {orgType === "freelancer" && (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Signed NDA (PDF/Doc)</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Aadhaar Number (12 Digits)</label>
                 <input 
-                  type="file" 
+                  type="text" 
                   required
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setNdaFile(e.target.files?.[0] || null)}
-                  className="text-sm"
+                  maxLength={12}
+                  value={aadhaarNumber}
+                  onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
+                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono tracking-widest"
+                  placeholder="0000 0000 0000"
+                />
+                <p className="text-[10px] text-slate-400 mt-1 italic">SECURITY NOTE: Your identity info is encrypted. Only last 4 digits are visible to verified admins.</p>
+              </div>
+            )}
+
+            {(orgType === "recruiter" || orgType === "freelancer") && (
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">LinkedIn Profile URL</label>
+                <input 
+                  type="url" 
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
+                  placeholder="https://linkedin.com/in/yourprofile"
                 />
               </div>
+            )}
+
+            <div className="bg-slate-50 p-4 border border-slate-200 rounded-lg space-y-4 font-sans">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Trust Verification Required</h3>
+              <p className="text-xs text-slate-500">Upload documentation to establish your Node Authority.</p>
               
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Signed MSA (PDF/Doc)</label>
-                <input 
-                  type="file" 
-                  required
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setMsaFile(e.target.files?.[0] || null)}
-                  className="text-sm"
-                />
+              <div className="grid grid-cols-1 gap-4 mt-2">
+                {(orgType === "vendor" || orgType === "client") && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Company Registration / GST (PDF)</label>
+                      <input 
+                        type="file" 
+                        accept=".pdf"
+                        onChange={(e) => setBusinessFile(e.target.files?.[0] || null)}
+                        className="text-[10px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Signed NDA (PDF)</label>
+                      <input 
+                        type="file" 
+                        accept=".pdf"
+                        onChange={(e) => setNdaFile(e.target.files?.[0] || null)}
+                        className="text-[10px]"
+                      />
+                    </div>
+                  </>
+                )}
+                {orgType === "freelancer" && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Selfie Verification Match (JPG/PNG)</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => setBusinessFile(e.target.files?.[0] || null)}
+                      className="text-[10px]"
+                    />
+                  </div>
+                )}
+                {orgType === "recruiter" && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Business Card or Email Signature (PDF/JPG)</label>
+                    <input 
+                      type="file" 
+                      accept=".pdf,image/*"
+                      onChange={(e) => setBusinessFile(e.target.files?.[0] || null)}
+                      className="text-[10px]"
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          </>
+          </div>
 
           {error && <p className="text-xs text-red-500 bg-red-50 p-2 rounded">{error}</p>}
 

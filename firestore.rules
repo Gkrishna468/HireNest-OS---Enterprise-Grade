@@ -37,13 +37,16 @@ service cloud.firestore {
 
     function isValidOrganization(data) {
       return (!data.keys().hasAny(['organizationId']) || data.organizationId is string) &&
-             (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin']) &&
-             (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending']);
+             (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency']) &&
+             (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending']) &&
+             (!data.keys().hasAny(['verificationTier']) || data.verificationTier in ['Tier 1', 'Tier 2', 'Tier 3']);
     }
 
     function isValidUser(data) {
       return (!data.keys().hasAny(['uid']) || data.uid is string) &&
-             (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer']);
+             (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer', 'freelancer', 'independent_recruiter']) &&
+             (!data.keys().hasAny(['verification']) || (data.verification is map)) &&
+             (!data.keys().hasAny(['identityDocs']) || (data.identityDocs is map));
     }
 
     function isValidRequirementPublic(data) {
@@ -83,15 +86,15 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if isValidUser(incoming()) && (isAdmin() || (isSignedIn() && request.auth.uid == userId)) && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'updatedAt']) && isAdmin()) ||
-        (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt']))
+        (incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'verification', 'updatedAt']) && isAdmin()) ||
+        (request.auth.uid == userId && !isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'linkedinUrl', 'identityDocs']))
       );
     }
 
     match /organizations/{orgId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidOrganization(incoming());
-      allow update: if isValidOrganization(incoming()) && (isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'complianceStatus', 'updatedAt'])));
+      allow update: if isValidOrganization(incoming()) && (isAdmin() || (isOrganizationMember(orgId) && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'businessDocsUploaded', 'updatedAt'])));
     }
 
     match /requirements_public/{reqId} {
