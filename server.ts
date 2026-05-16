@@ -231,6 +231,7 @@ async function startServer() {
       
       try {
         const db = admin.firestore();
+        console.log(`[HQ SYNC] Handshake initiated with Node: ${db.projectId}`);
         const [usersSnap, orgsSnap] = await Promise.all([
           db.collection("users").get(),
           db.collection("organizations").get()
@@ -239,9 +240,13 @@ async function startServer() {
         users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        console.log(`[HQ SYNC] Handshake successful. Identities: ${users.length}, Nodes: ${organizations.length}`);
+        console.log(`[HQ SYNC] Intelligence retrieval successful. Identities: ${users.length}, Nodes: ${organizations.length}`);
       } catch (dbErr: any) {
-        console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
+        if (dbErr.message.includes('PERMISSION_DENIED') || String(dbErr.code) === '7') {
+          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${admin.app().options.projectId}. Ensure Service Account has 'Cloud Datastore User' role.`);
+        } else {
+          console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
+        }
         users = dbMock.users;
         organizations = dbMock.organizations;
         mode = "FALLBACK";

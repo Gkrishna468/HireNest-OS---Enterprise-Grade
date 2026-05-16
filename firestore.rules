@@ -55,13 +55,25 @@ service cloud.firestore {
     }
 
     function isValidCandidate(data) {
-      let isCreate = request.method == 'create';
-      return (isCreate ? (data.keys().hasAll(['candidateId', 'vendorId', 'name', 'ownerId', 'createdAt']) && data.keys().size() == 5) : true) &&
-             (!data.keys().hasAny(['candidateId']) || (data.candidateId is string)) &&
+      return (!data.keys().hasAny(['candidateId']) || (data.candidateId is string)) &&
              (!data.keys().hasAny(['vendorId']) || (data.vendorId is string)) &&
              (!data.keys().hasAny(['name']) || (data.name is string && data.name.size() <= 200)) &&
-             (!data.keys().hasAny(['ownerId']) || (data.ownerId is string && (data.ownerId == request.auth.uid || isAdmin()))) &&
-             (!isCreate || data.createdAt == request.time);
+             (!data.keys().hasAny(['matchScore']) || (data.matchScore is number)) &&
+             (!data.keys().hasAny(['pipelineStage']) || (data.pipelineStage in ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"])) &&
+             (!data.keys().hasAny(['distillationStatus']) || (data.distillationStatus in ["PENDING", "COMPLETED", "FAILED"]));
+    }
+
+    function isValidDealRoom(data) {
+      return (!data.keys().hasAny(['requirementId']) || data.requirementId is string) &&
+             (!data.keys().hasAny(['clientId']) || data.clientId is string) &&
+             (!data.keys().hasAny(['vendorId']) || data.vendorId is string) &&
+             (!data.keys().hasAny(['status']) || data.status in ['ACTIVE', 'CLOSED']);
+    }
+
+    function isValidMessage(data) {
+      return (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 5000)) &&
+             (!data.keys().hasAny(['senderId']) || data.senderId is string) &&
+             (!data.keys().hasAny(['type']) || data.type in ['text', 'system']);
     }
 
     // --- Hardened Rules ---
@@ -124,12 +136,16 @@ service cloud.firestore {
     match /dealRooms/{roomId} {
       allow list: if isSignedIn() && (isAdmin() || resource.data.clientId == getUserData().organizationId || resource.data.vendorId == getUserData().organizationId);
       allow get: if isSignedIn() && (isAdmin() || isOrganizationMember(resource.data.clientId) || isOrganizationMember(resource.data.vendorId));
-      allow write: if isAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)));
+      allow create: if (isAdmin() || (isSignedIn() && (isOrganizationMember(incoming().clientId) || isOrganizationMember(incoming().vendorId)))) && isValidDealRoom(incoming());
+      allow update: if (isAdmin() || (isSignedIn() && (isOrganizationMember(existing().clientId) || isOrganizationMember(existing().vendorId)))) && isValidDealRoom(incoming()) && (
+        isAdmin() || 
+        incoming().diff(existing()).affectedKeys().hasOnly(['currentStage', 'status', 'identitiesRevealed', 'updatedAt', 'matchData', 'jobTitle', 'experience'])
+      );
     }
 
     match /dealRooms/{roomId}/messages/{msgId} {
       allow read: if isSignedIn() && (isAdmin() || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
-      allow create: if isSignedIn() && (isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId));
+      allow create: if isSignedIn() && (isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId) || isOrganizationMember(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId)) && isValidMessage(incoming());
     }
 
     match /auditLogs/{logId} {

@@ -75,14 +75,25 @@
         "vendorId": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "linkedin": { "type": "string" },
         "skills": { "type": "array", "items": { "type": "string" } },
         "experience": { "type": "string" },
+        "resumeText": { "type": "string" },
         "resumeUrl": { "type": "string" },
         "matchScore": { "type": "number" },
+        "pipelineStage": { "type": "string", "enum": ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"] },
+        "source": { "type": "string" },
+        "distillationStatus": { "type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"] },
+        "distillationMetadata": { "type": "object" },
+        "fileName": { "type": "string" },
+        "location": { "type": "string" },
+        "mappedJobId": { "type": "string" },
+        "activeDealId": { "type": "string" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["candidateId", "vendorId", "name", "ownerId", "createdAt"]
+      "required": ["candidateId", "vendorId", "name", "createdAt"]
     },
     "Submission": {
       "title": "Submission",
@@ -115,9 +126,24 @@
         "identitiesRevealed": { "type": "boolean" },
         "adminAuthorized": { "type": "boolean" },
         "status": { "type": "string", "enum": ["ACTIVE", "CLOSED"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "matchData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["submissionId", "requirementId", "clientId", "vendorId", "identitiesRevealed", "status", "createdAt"]
+      "required": ["submissionId", "requirementId", "clientId", "vendorId", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a deal room",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "system"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["text", "senderId", "timestamp"]
     },
     "AuditLog": {
       "title": "AuditLog",
@@ -169,7 +195,7 @@
     "candidatePool/{candidateId}": { "schema": { "$ref": "Candidate" }, "description": "Global candidate database" },
     "submissions/{submissionId}": { "schema": { "$ref": "Submission" }, "description": "Vendor submissions" },
     "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },
-    "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "title": "Message", "type": "object", "properties": { "text": { "type": "string" }, "senderId": { "type": "string" }, "timestamp": { "type": "string" } } }, "description": "Messages" },
+    "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "$ref": "Message" }, "description": "Messages" },
     "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" },
     "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" },
     "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" }

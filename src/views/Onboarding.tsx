@@ -65,7 +65,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/unauthorized-domain') {
-        setError(`Domain not authorized: ${window.location.hostname}. Please ensure this domain is added to the "Authorized domains" list in your Firebase Console -> Authentication -> Settings.`);
+        setError(`SECURITY PROTOCOL: The domain [${window.location.hostname}] is not yet authorized for this Node. Action Required: Add this domain to the "Authorized domains" list in your Firebase Console -> Authentication -> Settings.`);
       } else {
         setError(err.message || "Failed to sign in with Google.");
       }
