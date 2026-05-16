@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary, onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
@@ -22,45 +22,64 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
 
-  const VerificationBadge = ({ verification }: { verification: any, role: string }) => {
-    if (!verification) return <span className="text-[8px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded">UNVERIFIED</span>;
+  const VerificationBadge = ({ verification, role }: { verification: any, role: string }) => {
+    const trustScore = verification?.trustScore || 0;
+    if (!verification) return <span className="text-[8px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black uppercase tracking-widest">Unverified node</span>;
     
     return (
       <div className="flex items-center gap-1">
-        {verification.emailVerified && <span className="text-[8px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black">EMAIL</span>}
-        {verification.identityVerified && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded font-black">IDENTITY</span>}
-        {verification.businessVerified && <span className="text-[8px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-black">BUSINESS</span>}
-        {verification.aadhaarVerified && <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded font-black">AADHAAR</span>}
-        <span className="text-[10px] font-black text-indigo-600 ml-2">SCORE: {verification.trustScore || 0}</span>
+        {verification.emailVerified && <span className="text-[8px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black uppercase">Email</span>}
+        {verification.identityVerified && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded font-black uppercase">Identity</span>}
+        {verification.businessVerified && <span className="text-[8px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-black uppercase">Business</span>}
+        {verification.aadhaarVerified && <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded font-black uppercase">Aadhaar</span>}
+        <span className="text-[10px] font-black text-indigo-600 ml-2 whitespace-nowrap">TRUST: {trustScore}</span>
       </div>
     );
   };
 
   useEffect(() => {
-    fetchUsers();
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchUsers();
+      } else {
+        setLoading(false);
+        setError("IDENTITY_REQUIRED: Please sign in with an authorized Global HQ node account.");
+      }
+    });
+    return () => unsub();
   }, []);
 
   const fetchUsers = async () => {
     setLoading(true);
+    setError("");
     try {
       // Use administrative proxy for Global HQ
-      const token = await auth.currentUser?.getIdToken();
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("No active identity found. Access Denied.");
+      }
+      
+      const token = await user.getIdToken();
       const response = await fetch('/api/admin/governance-data', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+
       if (response.ok) {
         const data = await response.json();
         const orgs = data.organizations || [];
         const remoteUsers = data.users || [];
         setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
         
-        setUsers(remoteUsers.map((u: any) => {
+        const mappedUsers = remoteUsers.map((u: any) => {
           const orgId = u.organizationId || u.orgId || (u.org && u.org.id);
           const org = orgs.find((o: any) => o.id === orgId || o.organizationId === orgId);
           return { ...u, id: u.uid || u.id, uid: u.uid || u.id, org };
-        }).filter((u: any) => !u.deleted));
+        }).filter((u: any) => !u.deleted);
+
+        setUsers(mappedUsers);
       } else {
-        throw new Error(`Governance API returned ${response.status}`);
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Governance API returned ${response.status}`);
       }
     } catch (err: any) {
       console.warn("Governance API failed, attempting Firestore fallback", err);
@@ -79,8 +98,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       } catch (fErr: any) {
         console.error("Firestore fallback also failed", fErr);
         const errorMessage = fErr.message || "Unknown desync error";
-        if (errorMessage.includes("insufficient permissions")) {
-           setError(`DESYNC ERROR: Access Denied. Your identity [${orgData?.email}] may lack Admin Node authorization.`);
+        const identity = auth.currentUser?.email || "Unknown Identity";
+        if (errorMessage.toLowerCase().includes("insufficient permissions") || errorMessage.includes("permission-denied")) {
+           setError(`DESYNC ERROR: Access Denied. Your identity [${identity}] lacks Admin Node authorization in the cloud layer.`);
         } else {
            setError(`NETWORK DESYNC: Secure handshake unstable. Details: ${errorMessage}`);
         }

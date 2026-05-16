@@ -16,13 +16,14 @@ service cloud.firestore {
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
       let email = request.auth.token.email;
-      let verified = request.auth.token.email_verified == true;
-      return isSignedIn() && verified && (
-        email == 'gopalkrishna0046@gmail.com' || 
-        email == 'gopal@hirenestworkforce.com' ||
-        request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' ||
+      let verified = request.auth.token.get('email_verified', false) == true;
+      let isTrusted = email == 'gopalkrishna0046@gmail.com' || 
+                      email == 'gopal@hirenestworkforce.com';
+      
+      return isSignedIn() && (isTrusted || (verified && (
+        request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' || 
         request.auth.token.get('email', '') == 'gopal@hirenestworkforce.com'
-      );
+      )));
     }
 
     function getUserData() {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { DollarSign, Briefcase, Users, Activity } from "lucide-react";
@@ -20,56 +21,75 @@ export default function AdminOverview() {
     .reduce((acc: number, req: any) => acc + (req.clientTargetBudget || 0), 0);
 
   useEffect(() => {
-    async function fetchData() {
-        setLoading(true);
-        try {
-            const token = await auth.currentUser?.getIdToken();
-            const response = await fetch('/api/admin/governance-data', {
-              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-            });
-            if (response.ok) {
-              const resData = await response.json();
-              setData({
-                  candidates: resData.candidatePool || [],
-                  organizations: resData.organizations || [],
-                  dealRooms: resData.dealRooms || [],
-                  requirements: resData.requirements_public || [],
-                  submissions: resData.submissions || []
-              });
-            } else {
-              console.warn(`Governance API returned ${response.status}, attempting Firestore fallback.`);
-              const [candSnap, orgSnap, drSnap, reqSnap, subSnap] = await Promise.all([
-                  getDocs(collection(db, "candidatePool")).catch(() => ({docs: []} as any)),
-                  getDocs(collection(db, "organizations")).catch(() => ({docs: []} as any)),
-                  getDocs(collection(db, "dealRooms")).catch(() => ({docs: []} as any)),
-                  getDocs(collection(db, "requirements_public")).catch(() => ({docs: []} as any)),
-                  getDocs(collection(db, "submissions")).catch(() => ({docs: []} as any)),
-              ]);
-              setData({
-                  candidates: candSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-                  organizations: orgSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-                  dealRooms: drSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-                  requirements: reqSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-                  submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()}))
-              });
-            }
-        } catch (err: any) {
-            console.error("Governance Sync failed", err);
-            if (err.name === 'FirebaseError') {
-               handleFirestoreError(err, OperationType.LIST, "admin_overview_sync");
-            }
-        } finally {
-          setLoading(false);
-        }
-    }
-    fetchData();
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchData();
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsub();
   }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/governance-data', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          setData({
+              candidates: resData.candidatePool || [],
+              organizations: resData.organizations || [],
+              dealRooms: resData.dealRooms || [],
+              requirements: resData.requirements_public || [],
+              submissions: resData.submissions || []
+          });
+        } else {
+          console.warn(`Governance API returned ${response.status}, attempting Firestore fallback.`);
+          const [candSnap, orgSnap, drSnap, reqSnap, subSnap] = await Promise.all([
+              getDocs(collection(db, "candidatePool")).catch(() => ({docs: []} as any)),
+              getDocs(collection(db, "organizations")).catch(() => ({docs: []} as any)),
+              getDocs(collection(db, "dealRooms")).catch(() => ({docs: []} as any)),
+              getDocs(collection(db, "requirements_public")).catch(() => ({docs: []} as any)),
+              getDocs(collection(db, "submissions")).catch(() => ({docs: []} as any)),
+          ]);
+          setData({
+              candidates: candSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              organizations: orgSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              dealRooms: drSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              requirements: reqSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()}))
+          });
+        }
+    } catch (err: any) {
+        console.error("Governance Sync failed", err);
+        if (err.name === 'FirebaseError') {
+           handleFirestoreError(err, OperationType.LIST, "admin_overview_sync");
+        }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleBootstrap = async () => {
     if (!window.confirm("This will overwrite/populate your real Firestore with mock Marketplace data. Proceed?")) return;
     try {
-      const response = await fetch('/api/admin/governance-data');
-      if (!response.ok) throw new Error("Could not fetch mock data from server");
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Authentication required for bootstrap protocol.");
+        return;
+      }
+      const token = await user.getIdToken();
+      const response = await fetch('/api/admin/governance-data', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error("Could not fetch mock data from server. Authority rejected.");
       const resData = await response.json();
       
       const collections = {
