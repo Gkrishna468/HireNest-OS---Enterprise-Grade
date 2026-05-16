@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from "firebase/auth";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { Edit, Trash2, X, Check, Save } from "lucide-react";
@@ -30,7 +30,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setLoading(true);
     try {
       // Use administrative proxy for Global HQ
-      const response = await fetch('/api/admin/governance-data');
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/governance-data', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         const orgs = data.organizations || [];
@@ -98,9 +101,13 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setError("");
 
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/admin/update-user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({
           uid: editingUser.uid || editingUser.id,
           email,
@@ -131,9 +138,13 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setError("");
 
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/admin/onboard-node', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({
           email,
           password,
@@ -168,9 +179,13 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     }
     if (!window.confirm("Are you sure you want to permanently remove this user and their organization? This will also remove their Firebase Auth identity.")) return;
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/admin/delete-user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ uid: userId, organizationId })
       });
 

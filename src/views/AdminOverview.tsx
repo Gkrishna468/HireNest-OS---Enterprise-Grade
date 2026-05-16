@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { DollarSign, Briefcase, Users, Activity } from "lucide-react";
 import { Badge } from "../lib/Badge";
@@ -23,7 +23,10 @@ export default function AdminOverview() {
     async function fetchData() {
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/governance-data');
+            const token = await auth.currentUser?.getIdToken();
+            const response = await fetch('/api/admin/governance-data', {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (response.ok) {
               const resData = await response.json();
               setData({

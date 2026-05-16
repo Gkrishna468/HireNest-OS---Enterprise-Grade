@@ -16,7 +16,8 @@ service cloud.firestore {
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
       let email = request.auth.token.email;
-      return isSignedIn() && (
+      let verified = request.auth.token.email_verified == true;
+      return isSignedIn() && verified && (
         email == 'gopalkrishna0046@gmail.com' || 
         email == 'gopal@hirenestworkforce.com' ||
         request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' ||

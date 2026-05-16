@@ -185,6 +185,37 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // --- AUTH MIDDLEWARE ---
+  async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol" });
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const email = decodedToken.email;
+      const verified = decodedToken.email_verified === true;
+      
+      const isAdmin = verified && (
+        email === 'gopalkrishna0046@gmail.com' || 
+        email === 'gopal@hirenestworkforce.com'
+      );
+
+      if (!isAdmin) {
+        console.warn(`[SECURITY BREACH] Unauthorized access attempt by ${email}`);
+        return res.status(403).json({ error: "Access Denied: Insufficient Node Authority" });
+      }
+
+      (req as any).user = decodedToken;
+      next();
+    } catch (err: any) {
+      console.error("[AUTH VULNERABILITY] Token verification failed:", err.message);
+      res.status(401).json({ error: "Identity Verification Failed", details: err.message });
+    }
+  }
+
   // --- API ROUTES ---
 
   app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString() }));
@@ -220,7 +251,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/governance-data", async (req, res) => {
+  app.get("/api/admin/governance-data", verifyAdmin, async (req, res) => {
     try {
       const db = admin.firestore();
       
@@ -231,7 +262,8 @@ async function startServer() {
       
       try {
         const db = admin.firestore();
-        console.log(`[HQ SYNC] Handshake initiated with Node: ${db.projectId}`);
+        const activeProjectId = admin.app().options.projectId;
+        console.log(`[HQ SYNC] Handshake initiated with Node: ${activeProjectId}`);
         const [usersSnap, orgsSnap] = await Promise.all([
           db.collection("users").get(),
           db.collection("organizations").get()
@@ -292,7 +324,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/onboard-node", async (req, res) => {
+  app.post("/api/admin/onboard-node", verifyAdmin, async (req, res) => {
     const { email, password, role, companyName } = req.body;
     try {
       const auth = admin.auth();
@@ -337,7 +369,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/approve-requirement", (req, res) => {
+  app.post("/api/admin/approve-requirement", verifyAdmin, (req, res) => {
     try {
       const { reqId, financials } = req.body;
       
@@ -363,7 +395,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/update-user", async (req, res) => {
+  app.post("/api/admin/update-user", verifyAdmin, async (req, res) => {
     try {
       const { uid, email, password, companyName, role, organizationId } = req.body;
       
@@ -400,7 +432,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/delete-user", async (req, res) => {
+  app.post("/api/admin/delete-user", verifyAdmin, async (req, res) => {
     try {
       const { uid, organizationId } = req.body;
       console.log(`[DELETE USER] Purging identity ${uid}...`);
@@ -525,7 +557,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/notify-approval", (req, res) => {
+  app.post("/api/admin/notify-approval", verifyAdmin, (req, res) => {
     const { jobId, jobTitle, clientName } = req.body;
     console.log(`[NOTIFICATION] New Approval Request: ${jobTitle} from ${clientName}`);
     dbMock.systemNotifications.push({
