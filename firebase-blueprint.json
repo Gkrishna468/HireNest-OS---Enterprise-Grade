@@ -228,6 +228,106 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "category", "title", "status", "priority", "createdAt"]
+    },
+    "ExecutionEvent": {
+      "title": "Execution Event",
+      "description": "An immutable record of a lifecycle action in the system",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "eventType": { "type": "string", "enum": ["JD_CREATED", "VENDOR_ASSIGNED", "SUBMISSION_RECEIVED", "INTERVIEW_SCHEDULED", "SLA_BREACHED", "OFFER_ISSUED", "PLACEMENT_CLOSED", "PAYMENT_TRIGGERED"] },
+        "actorId": { "type": "string" },
+        "actorType": { "type": "string", "enum": ["system", "admin", "client", "vendor", "recruiter"] },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["requirement", "candidate", "deal_room", "user", "organization"] },
+        "requirementId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "eventType", "actorId", "timestamp"]
+    },
+    "TrustMetric": {
+      "title": "Trust Metric",
+      "description": "Reputation data for a network entity",
+      "type": "object",
+      "properties": {
+        "nodeId": { "type": "string" },
+        "nodeType": { "type": "string", "enum": ["organization", "user"] },
+        "score": { "type": "number" },
+        "totalClosures": { "type": "number" },
+        "avgResponseTime": { "type": "number" },
+        "interviewRate": { "type": "number" },
+        "spamScore": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nodeId", "score"]
+    },
+    "SLATracker": {
+      "title": "SLA Tracker",
+      "description": "Operational deadline tracking",
+      "type": "object",
+      "properties": {
+        "requirementId": { "type": "string" },
+        "dealId": { "type": "string" },
+        "type": { "type": "string", "enum": ["SUBMISSION", "FEEDBACK", "INTERVIEW", "OFFER"] },
+        "deadline": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["OK", "WARNING", "BREACHED"] },
+        "breachTriggered": { "type": "boolean" }
+      },
+      "required": ["requirementId", "type", "deadline", "status"]
+    },
+    "Thread": {
+      "title": "Communication Thread",
+      "description": "A container for messages related to an entity",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "messages": { "type": "array", "items": { "$ref": "Message" } }
+      },
+      "required": ["entityId"]
+    },
+    "RiskAssessment": {
+      "title": "Risk Assessment",
+      "description": "AI-detected risks for an entity (Candidate/Vendor/Requirement)",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "riskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "riskScore": { "type": "number" },
+        "signals": { "type": "array", "items": { "type": "string" } },
+        "aiJustification": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityId", "riskLevel", "riskScore"]
+    },
+    "Prediction": {
+      "title": "Operational Prediction",
+      "description": "AI-driven forecasts for execution outcomes",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "predictionType": { "type": "string", "enum": ["CLOSURE_PROBABILITY", "TIME_TO_FILL", "GHOSTING_RISK", "VENDOR_DELIVERY"] },
+        "value": { "type": "number" },
+        "confidence": { "type": "number" },
+        "lastModelRun": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityId", "predictionType", "value"]
+    },
+    "AgentActivity": {
+      "title": "Agent Activity",
+      "description": "Autonomous actions taken by v5.0 AI Agents",
+      "type": "object",
+      "properties": {
+        "agentType": { "type": "string", "enum": ["VENDOR_OPTIMIZATION", "FRAUD_SENTINEL", "REVENUE_GUARDIAN", "EXECUTION_MOMENTUM"] },
+        "action": { "type": "string" },
+        "targetId": { "type": "string" },
+        "impactLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["agentType", "action", "impactLevel", "timestamp"]
     }
   },
   "firestore": {
@@ -242,6 +342,13 @@
     "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" },
     "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" },
     "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" },
-    "execution_tracker/{itemId}": { "schema": { "$ref": "ExecutionTrackerItem" }, "description": "Master execution tracking items" }
+    "execution_tracker/{itemId}": { "schema": { "$ref": "ExecutionTrackerItem" }, "description": "Master execution tracking items" },
+    "execution_events/{eventId}": { "schema": { "$ref": "ExecutionEvent" }, "description": "System-wide immutable execution event logs" },
+    "trust_metrics/{nodeId}": { "schema": { "$ref": "TrustMetric" }, "description": "Accumulated reputation data for network nodes (Org/User)" },
+    "slas/{slaId}": { "schema": { "$ref": "SLATracker" }, "description": "SLA performance monitoring" },
+    "communication_threads/{threadId}": { "schema": { "$ref": "Thread" }, "description": "Unified communication feeds across requirements and deals" },
+    "risk_assessments/{assessmentId}": { "schema": { "$ref": "RiskAssessment" }, "description": "AI-driven risk scoring" },
+    "predictions/{predictionId}": { "schema": { "$ref": "Prediction" }, "description": "High-fidelity operational forecasts" },
+    "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" }
   }
 }

@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock } from "lucide-react";
+import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock, Zap, Activity } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, orderBy, updateDoc } from "firebase/firestore";
+import { logExecutionEvent, ExecutionEventType, createSLA } from "../lib/infrastructureService";
+import { ExecutionFeed } from "../components/ExecutionFeed";
 import { motion, AnimatePresence } from "motion/react";
 
 const STAGES = [
@@ -200,6 +202,19 @@ export default function DealRoomsTab() {
         status: isFinalStage ? "CLOSED" : selectedRoom.status,
         updatedAt: serverTimestamp()
       });
+
+      // Log to Execution Bus
+      await logExecutionEvent(
+        isFinalStage ? ExecutionEventType.PLACEMENT_CLOSED : ExecutionEventType.INTERVIEW_SCHEDULED,
+        selectedRoom.id,
+        "deal_room",
+        { 
+          stage: STAGES.find(s => s.id === stageId)?.label, 
+          candidateName: selectedRoom.candidateName,
+          organizationId: orgId
+        },
+        selectedRoom.requirementId
+      );
       
       // Auto-message for stage update
       await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
@@ -235,6 +250,10 @@ export default function DealRoomsTab() {
 
   const handleScheduleInvite = async () => {
     if (!selectedRoom) return;
+    
+    // Create SLA for Interview Setup (48h)
+    await createSLA(selectedRoom.id, "INTERVIEW", 48);
+
     // Simulate scheduling logic
     await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
       senderRole: userRole || "User",
@@ -381,7 +400,7 @@ export default function DealRoomsTab() {
                                   disabled={!isClient && !isAdmin}
                                   onClick={() => updateStage(stage.id)}
                                   className={cn(
-                                    "flex flex-col items-center gap-1.5 transition-all",
+                                    "flex flex-col items-center gap-1.5 transition-all text-center",
                                     isCurrent ? "scale-110" : "opacity-60 hover:opacity-100"
                                   )}
                                 >
@@ -393,17 +412,43 @@ export default function DealRoomsTab() {
                                         {isPast ? <CheckCircle2 size={12} /> : <div className="text-[9px] font-black">{idx + 1}</div>}
                                     </div>
                                     <span className={cn(
-                                        "text-[9px] font-black uppercase tracking-tighter",
+                                        "text-[9px] font-black uppercase tracking-tighter w-14",
                                         isCurrent ? "text-indigo-600" : "text-slate-400"
                                     )}>{stage.label}</span>
                                 </button>
                                 {idx < STAGES.length - 1 && (
-                                    <div className="w-12 h-[1px] bg-slate-100 mx-2 mt-[-14px]" />
+                                    <div className="w-12 h-[px] bg-slate-100 mx-2 mt-[-14px]" />
                                 )}
                             </div>
                         )
                     })}
                 </div>
+            </div>
+
+            {/* Execution Milestones (Network Specific) */}
+            <div className="px-4 py-3 bg-slate-900 flex items-center justify-between gap-4 shrink-0 overflow-x-auto">
+                {[
+                    { label: "MSA/NDA EXECUTION", status: selectedRoom.identitiesRevealed ? 'COMPLETED' : 'IN_PROGRESS' },
+                    { label: "CLIENT INTERVIEW", status: STAGES.findIndex(s => s.id === selectedRoom.currentStage) >= 2 ? 'COMPLETED' : 'PENDING' },
+                    { label: "OFFER ISSUANCE", status: selectedRoom.currentStage === 'offer' ? 'IN_PROGRESS' : (selectedRoom.currentStage === 'hired' ? 'COMPLETED' : 'LOCKED') },
+                    { label: "BILLING TRIGGER", status: selectedRoom.status === 'CLOSED' ? 'READY' : 'LOCKED' }
+                ].map((m, i) => (
+                    <div key={i} className="flex flex-col min-w-[120px]">
+                        <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">{m.label}</div>
+                        <div className="flex items-center gap-2">
+                            <div className={cn(
+                                "w-2 h-2 rounded-full",
+                                m.status === 'COMPLETED' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : 
+                                m.status === 'IN_PROGRESS' ? "bg-indigo-500 animate-pulse" : 
+                                m.status === 'READY' ? "bg-amber-500" : "bg-slate-700"
+                            )} />
+                            <span className={cn(
+                                "text-[10px] font-black uppercase tracking-tight",
+                                m.status === 'COMPLETED' ? "text-white" : "text-slate-400"
+                            )}>{m.status.replace('_', ' ')}</span>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* AI Intelligence Quick Tools */}
@@ -542,6 +587,43 @@ export default function DealRoomsTab() {
                   </h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                
+                  {/* Performance Indicators (SLA Monitor) */}
+                  <div className="bg-slate-900 rounded-2xl p-4 border border-white/10 shadow-2xl overflow-hidden relative group">
+                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                         <Zap size={60} />
+                      </div>
+                      <div className="relative z-10">
+                          <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-3 flex items-center gap-2">
+                              <Activity size={12}/> Operational Health
+                          </h4>
+                          <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                                 <span className="text-[10px] text-slate-400 font-bold uppercase">Feedback SLA</span>
+                                 <div className="flex items-center gap-2">
+                                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]" />
+                                     <span className="text-[10px] font-black text-emerald-400">08h 12m</span>
+                                 </div>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                                 <span className="text-[10px] text-slate-400 font-bold uppercase">Closure Prob.</span>
+                                 <div className="flex items-center gap-2">
+                                     <span className="text-[10px] font-black text-indigo-400">84% CONFIDENT</span>
+                                 </div>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                                 <span className="text-[10px] text-slate-400 font-bold uppercase">Network Trust</span>
+                                 <span className="text-[10px] font-black text-indigo-400">92% SECURE</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Operational Timeline Feed */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                      <ExecutionFeed dealId={selectedRoom.id} requirementId={selectedRoom.requirementId} />
+                  </div>
+
                   <div>
                       <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Counterparties</h4>
                       <div className="space-y-3">

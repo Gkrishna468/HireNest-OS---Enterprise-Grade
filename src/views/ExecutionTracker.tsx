@@ -17,9 +17,20 @@ import {
   LayoutGrid,
   ListTodo,
   FileText,
-  Settings
+  Settings,
+  Activity,
+  Zap,
+  Cpu,
+  Verified,
+  DollarSign,
+  ShieldAlert,
+  AlertTriangle,
+  BrainCircuit,
+  Lock,
+  EyeOff
 } from "lucide-react";
 import { Button } from "../lib/Button";
+import { Badge } from "../lib/Badge";
 import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { 
@@ -30,11 +41,12 @@ import {
   updateDoc, 
   doc, 
   deleteDoc, 
-  Timestamp,
-  orderBy
+  orderBy,
+  limit
 } from "firebase/firestore";
+import { runawayAgentCheck } from "../services/agentService";
 
-type Category = "daily" | "client" | "vendor" | "recruiter" | "candidate" | "partnership" | "product" | "sales" | "review" | "scoreboard" | "rules" | "ceo";
+type Category = "daily" | "orchestration" | "economics" | "events" | "trust" | "risk" | "briefing" | "client" | "vendor" | "recruiter" | "candidate" | "partnership" | "product" | "sales" | "review" | "scoreboard" | "rules" | "ceo" | "agents";
 
 export default function ExecutionTracker() {
   const [activeCategory, setActiveCategory] = useState<Category>("daily");
@@ -45,6 +57,13 @@ export default function ExecutionTracker() {
 
   const categories = [
     { id: "daily", label: "Daily Dashboard", icon: <CheckSquare size={16} /> },
+    { id: "orchestration", label: "Orchestration Hub", icon: <Cpu size={16} /> },
+    { id: "agents", label: "AI Agents (Cortex)", icon: <BrainCircuit size={16} /> },
+    { id: "economics", label: "Economic HQ", icon: <DollarSign size={16} /> },
+    { id: "events", label: "Global Event Bus", icon: <Activity size={16} /> },
+    { id: "trust", label: "Trust Index", icon: <ShieldCheck size={16} /> },
+    { id: "risk", label: "Risk Center", icon: <ShieldAlert size={16} /> },
+    { id: "briefing", label: "AI Briefings", icon: <Zap size={16} /> },
     { id: "client", label: "Client Follow-up", icon: <UserPlus size={16} /> },
     { id: "vendor", label: "Vendor Verification", icon: <ShieldCheck size={16} /> },
     { id: "recruiter", label: "Recruiter Ops", icon: <ListTodo size={16} /> },
@@ -63,6 +82,10 @@ export default function ExecutionTracker() {
       setItems(data);
       setLoading(false);
     });
+
+    // v5.0 Autonomous trigger
+    runawayAgentCheck();
+    
     return () => unsub();
   }, []);
 
@@ -240,6 +263,20 @@ export default function ExecutionTracker() {
                     <ReviewSystemView />
                 ) : activeCategory === 'ceo' ? (
                     <CEOOpsView />
+                ) : activeCategory === 'orchestration' ? (
+                    <OrchestrationHubView />
+                ) : activeCategory === 'agents' ? (
+                    <AgentOrchestrationView />
+                ) : activeCategory === 'economics' ? (
+                    <EconomicHQView />
+                ) : activeCategory === 'events' ? (
+                    <EventBusView />
+                ) : activeCategory === 'trust' ? (
+                    <TrustIndexView />
+                ) : activeCategory === 'risk' ? (
+                    <RiskCenterView />
+                ) : activeCategory === 'briefing' ? (
+                    <AIBriefingView />
                 ) : (
                     <table className="w-full text-left border-collapse">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur z-10 border-b border-slate-100">
@@ -331,8 +368,8 @@ export default function ExecutionTracker() {
       </div>
 
       {showAddModal && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-              <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
                 <div className="p-8 bg-slate-900 text-white">
                     <h2 className="text-xl font-black italic tracking-tighter">NEW EXECUTION PULSE</h2>
                     <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Global Authority Dispatch</p>
@@ -431,6 +468,592 @@ function ReviewSystemView() {
     );
 }
 
+function EventBusView() {
+    const [events, setEvents] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const q = query(collection(db, "execution_events"), orderBy("timestamp", "desc"));
+        return onSnapshot(q, (snap) => {
+            setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setLoading(false);
+        });
+    }, []);
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="p-8 border-b border-slate-50 bg-slate-50/50">
+               <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-2">Immutable Execution Log</h2>
+               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-loose">
+                   Every operational event captured in the nervous system of HireNestOS.
+               </p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+                <div className="divide-y divide-slate-50">
+                    {events.map((event) => (
+                        <div key={event.id} className="p-4 hover:bg-slate-50 flex items-center gap-6 group transition-colors">
+                            <div className="w-12 text-[10px] font-black text-slate-300 font-mono">
+                                {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </div>
+                            <div className="flex items-center gap-3 min-w-[140px]">
+                                <div className={cn(
+                                    "p-2 rounded-lg",
+                                    event.eventType.includes('BREACHED') ? 'bg-rose-50 text-rose-500' : 
+                                    event.eventType.includes('CREATED') ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-50 text-slate-500'
+                                )}>
+                                    <Zap size={14} />
+                                </div>
+                                <span className={cn(
+                                    "text-[10px] font-black uppercase tracking-tight",
+                                    event.eventType.includes('BREACHED') ? 'text-rose-600' : 'text-slate-900'
+                                )}>
+                                    {event.eventType.replace('_', ' ')}
+                                </span>
+                            </div>
+                            <div className="flex-1">
+                                <span className="text-[10px] font-bold text-slate-500 truncate block">
+                                    {event.targetType.toUpperCase()}: {event.targetId} • {event.metadata?.title || "No Title"}
+                                </span>
+                            </div>
+                            <div className="text-[9px] font-black uppercase text-indigo-600 italic px-2 py-1 bg-indigo-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                Actor: {event.actorType}@{event.actorId.slice(0, 5)}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function RiskCenterView() {
+    const [risks, setRisks] = useState<any[]>([]);
+
+    useEffect(() => {
+        return onSnapshot(collection(db, "risk_assessments"), (snap) => {
+            setRisks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+    }, []);
+
+    return (
+        <div className="h-full flex flex-col p-8 bg-rose-50/20">
+            <div className="mb-8">
+               <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2">
+                   <ShieldAlert className="text-rose-500" /> Operational Risk Center
+               </h2>
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">AI-Powered Fraud, Duplicate, & Ghosting Detection</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+                {risks.map((risk) => (
+                    <div key={risk.id} className="bg-white rounded-3xl border border-rose-100 p-6 flex items-start gap-6 shadow-sm">
+                        <div className={cn(
+                            "p-4 rounded-2xl",
+                            risk.riskLevel === 'Critical' ? 'bg-rose-500 text-white' :
+                            risk.riskLevel === 'High' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500'
+                        )}>
+                            <AlertTriangle size={24} />
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                                    {risk.entityType.toUpperCase()} Detected: {risk.entityId}
+                                </h3>
+                                <span className={cn(
+                                    "px-3 py-1 rounded-full text-[10px] font-black uppercase",
+                                    risk.riskLevel === 'Critical' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'
+                                )}>
+                                    {risk.riskLevel} IMPACT
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 font-medium mb-4 leading-relaxed">
+                                {risk.aiJustification}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {risk.signals?.map((s: string, i: number) => (
+                                    <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[9px] font-bold text-slate-400 uppercase">
+                                        SIGNAL: {s}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        <Button variant="outline" className="text-[10px] h-8 font-black uppercase tracking-widest text-rose-600 border-rose-100 hover:bg-rose-50">
+                            QUARANTINE
+                        </Button>
+                    </div>
+                ))}
+
+                {risks.length === 0 && (
+                    <div className="flex-1 flex flex-col items-center justify-center py-20 opacity-30">
+                        <ShieldCheck size={80} className="text-emerald-500 mb-4" />
+                        <p className="text-sm font-black uppercase tracking-widest text-emerald-900">System Secure • 0 Critical Risks Detected</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function AIBriefingView() {
+    return (
+        <div className="h-full flex flex-col p-12 bg-slate-900 text-white overflow-y-auto">
+            <div className="max-w-4xl mx-auto w-full">
+                <div className="flex items-center gap-4 mb-12">
+                    <div className="p-4 bg-indigo-500 rounded-3xl animate-pulse">
+                        <BrainCircuit size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black tracking-tighter uppercase">Intelligence Briefing</h2>
+                        <p className="text-xs font-bold text-indigo-400 uppercase tracking-[0.2em]">Operational Narrative • Generated {new Date().toLocaleDateString()}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-12">
+                    <section>
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 py-2 border-b border-white/10">Active Predictions</h3>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="bg-white/5 border border-white/10 p-8 rounded-[40px] hover:bg-white/10 transition-colors cursor-pointer group">
+                                <div className="text-[10px] font-black text-indigo-400 uppercase mb-4">Closure Probability</div>
+                                <div className="text-4xl font-black mb-2">78.4%</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Confidence: 0.92 (High)</div>
+                                <div className="mt-6 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                                     <div className="h-full bg-indigo-500 w-[78%] group-hover:animate-pulse"></div>
+                                </div>
+                            </div>
+                            <div className="bg-white/5 border border-white/10 p-8 rounded-[40px] hover:bg-white/10 transition-colors cursor-pointer group">
+                                <div className="text-[10px] font-black text-rose-400 uppercase mb-4">Avg Ghosting Risk</div>
+                                <div className="text-4xl font-black mb-2 text-rose-400">12.5%</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Trend: ↓ 4% from last week</div>
+                                <div className="mt-6 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                                     <div className="h-full bg-rose-500 w-[12%]"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="bg-indigo-600 rounded-[50px] p-12 flex items-center justify-between gap-12">
+                         <div className="flex-1">
+                             <h4 className="text-2xl font-black uppercase tracking-tight mb-4">Dynamic Routing Recommendation</h4>
+                             <p className="text-sm font-medium leading-loose opacity-80 mb-8">
+                                 AI Analysis Suggests: Requirement <span className="font-bold underline text-white">TECH-SR-039</span> should be prioritized to <span className="font-bold underline text-white">Vendor Alpha-1</span>. 
+                                 Historical match accuracy is 92% higher for this specific JD cluster.
+                             </p>
+                             <Button className="bg-white text-indigo-600 hover:bg-slate-50 font-black uppercase tracking-widest text-[10px] h-12 px-8 rounded-2xl">
+                                 AUTO-ORCHESTRATE EXECUTION
+                             </Button>
+                         </div>
+                         <div className="w-48 h-48 bg-white/10 rounded-full flex items-center justify-center border border-white/20">
+                              <Target size={80} className="text-white/20" />
+                         </div>
+                    </section>
+
+                    <section>
+                         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 py-2 border-b border-white/10">Strategic Insights</h3>
+                         <div className="space-y-4">
+                             {[
+                                 { icon: <DollarSign />, title: "Margin Leakage Detected", body: "Vendor B-9 markup is consistently 4% higher than equilibrium. Negotiate payout cap.", color: "text-amber-400" },
+                                 { icon: <Activity />, title: "Escalation Momentum", body: "SLA response time for Feedback in Dept-Finance is improving. Bottleneck moved to Interview Scheduling.", color: "text-emerald-400" },
+                                 { icon: <Verified />, title: "Trust Gain", body: "Recruiter Janet D. reached 100% first-pass verification rate this month. Upgrade to Senior Node status.", color: "text-indigo-400" }
+                             ].map((insight, i) => (
+                                 <div key={i} className="flex gap-6 p-6 border-b border-white/5 hover:bg-white/5 transition-colors">
+                                     <div className={cn("shrink-0", insight.color)}>
+                                         {insight.icon}
+                                     </div>
+                                     <div>
+                                         <div className="text-sm font-black uppercase tracking-tight mb-1">{insight.title}</div>
+                                         <p className="text-xs text-slate-400 leading-relaxed font-medium">{insight.body}</p>
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function TrustIndexView() {
+    const [metrics, setMetrics] = useState<any[]>([]);
+    
+    useEffect(() => {
+        return onSnapshot(collection(db, "trust_metrics"), (snap) => {
+            setMetrics(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+    }, []);
+
+    const calculateGrade = (score: number) => {
+        if (score >= 95) return { label: "AAA", color: "text-emerald-600 bg-emerald-50 border-emerald-100" };
+        if (score >= 85) return { label: "AA", color: "text-indigo-600 bg-indigo-50 border-indigo-100" };
+        if (score >= 70) return { label: "A", color: "text-slate-600 bg-slate-50 border-slate-100" };
+        return { label: "B", color: "text-amber-600 bg-amber-50 border-amber-100" };
+    };
+
+    return (
+        <div className="h-full flex flex-col p-8">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                   <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Network Trust Memory</h2>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Algorithmic Reputation Layer • Score = Execution Accuracy + Speed</p>
+                </div>
+                <div className="flex gap-4">
+                    <div className="bg-slate-900 rounded-3xl p-6 text-white min-w-[200px]">
+                        <div className="text-[10px] font-black uppercase opacity-40 mb-1">Total Verified Nodes</div>
+                        <div className="text-2xl font-black text-emerald-400">{metrics.length}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+                {metrics.map((m) => {
+                    const grade = calculateGrade(m.score);
+                    return (
+                        <div key={m.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-100/50 hover:scale-[1.02] transition-transform flex flex-col gap-6 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-8">
+                               <Verified size={40} className="text-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                           </div>
+                           <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                     <div className="h-14 w-14 rounded-2xl bg-slate-900 flex items-center justify-center text-white font-black text-xl">
+                                         {m.nodeId?.slice(0, 2).toUpperCase()}
+                                     </div>
+                                     <div>
+                                         <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{m.companyName || "Organization"}</div>
+                                         <div className="text-[10px] font-bold text-slate-400 font-mono mt-1">ID: {m.nodeId}</div>
+                                     </div>
+                                </div>
+                                <div className={cn("px-4 py-2 rounded-2xl font-black text-lg border", grade.color)}>
+                                    {grade.label}
+                                </div>
+                           </div>
+
+                           <div className="grid grid-cols-3 gap-4">
+                               <div className="bg-slate-50 p-4 rounded-2xl">
+                                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Trust Score</div>
+                                    <div className="text-xl font-black text-indigo-600">{m.score}%</div>
+                               </div>
+                               <div className="bg-slate-50 p-4 rounded-2xl">
+                                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Closures</div>
+                                    <div className="text-xl font-black text-emerald-600">{m.totalClosures || 0}</div>
+                               </div>
+                               <div className="bg-slate-50 p-4 rounded-2xl">
+                                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Events Logged</div>
+                                    <div className="text-xl font-black text-slate-900">{m.eventsProcessed || 0}</div>
+                               </div>
+                           </div>
+
+                           <div className="flex items-center gap-2 pt-4 border-t border-slate-50">
+                               <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                   <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${m.score}%` }}></div>
+                               </div>
+                               <span className="text-[9px] font-black text-slate-400 uppercase">Resilience Index</span>
+                           </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function OrchestrationHubView() {
+    const [requirements, setRequirements] = useState<any[]>([]);
+    
+    useEffect(() => {
+        return onSnapshot(collection(db, "requirements_public"), (snap) => {
+            setRequirements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+    }, []);
+
+    return (
+        <div className="h-full flex flex-col p-8 bg-indigo-50/10 overflow-y-auto">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Autonomous Orchestration Hub</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Algorithmic Requirement Routing & Node Recommendation</p>
+                </div>
+                <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center gap-4">
+                    <div className="text-center">
+                        <div className="text-[8px] font-black opacity-40 uppercase">Active Nodes</div>
+                        <div className="text-sm font-black">42 Verified</div>
+                    </div>
+                    <div className="h-8 w-px bg-white/10" />
+                    <div className="text-center">
+                        <div className="text-[8px] font-black opacity-40 uppercase">Orchestration Rate</div>
+                        <div className="text-sm font-black">94.2% Auto</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-8">
+                {/* Routing Feed */}
+                <div className="col-span-12 lg:col-span-8 space-y-6">
+                    {requirements.filter(r => r.status === 'PUBLISHED').map((req) => (
+                        <div key={req.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex items-center gap-8 group hover:border-indigo-200 transition-all">
+                            <div className="h-20 w-20 rounded-3xl bg-indigo-600 flex flex-col items-center justify-center text-white relative shrink-0">
+                                <div className="text-[xs] font-black uppercase tracking-tighter">Prob.</div>
+                                <div className="text-2xl font-black italic">84%</div>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{req.title}</h3>
+                                    <Badge variant="outline" className="text-[9px] font-black">AUTO_ROUTED</Badge>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-4">
+                                    <span>Budget: ₹{(req.clientTargetBudget * 83).toLocaleString()}</span>
+                                    <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                    <span>Urgency: {req.urgency || "NORMAL"}</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <Button className="bg-indigo-600 hover:bg-slate-900 text-white font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl">
+                                    Optimize Route
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Knowledge Graph Card */}
+                <div className="col-span-12 lg:col-span-4 space-y-6">
+                    <div className="bg-slate-900 rounded-[40px] p-8 text-white">
+                        <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-6">Staffing Knowledge Graph</h3>
+                        <div className="relative h-64 flex items-center justify-center mb-8">
+                             {/* Abstract Graph Visualization */}
+                             <div className="absolute inset-0 flex items-center justify-center">
+                                 <div className="w-16 h-16 bg-indigo-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                             </div>
+                             <div className="grid grid-cols-3 gap-8 relative z-10">
+                                 {[1,2,3,4,5,6].map(i => (
+                                     <div key={i} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 group cursor-pointer hover:bg-indigo-500 hover:text-white transition-all">
+                                         <Cpu size={20} />
+                                         <div className="absolute -top-12 scale-0 group-hover:scale-100 bg-white text-slate-900 text-[10px] font-black px-3 py-1 rounded shadow-xl transition-all">
+                                             NODE_ALPHA_{i}
+                                         </div>
+                                     </div>
+                                 ))}
+                             </div>
+                             {/* SVG Connectors (Simplified) */}
+                             <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+                                 <line x1="20%" y1="20%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
+                                 <line x1="80%" y1="20%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
+                                 <line x1="20%" y1="80%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
+                                 <line x1="80%" y1="80%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
+                             </svg>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                <span className="text-slate-500 font-bold uppercase">Strongest Cluster</span>
+                                <span className="font-black text-indigo-400">FINTECH / HYDERABAD</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                <span className="text-slate-500 font-bold uppercase">Node Density</span>
+                                <span className="font-black text-indigo-400">HIGH (42 Active)</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] py-1">
+                                <span className="text-slate-500 font-bold uppercase">Match Accuracy</span>
+                                <span className="font-black text-indigo-400">92.4%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm">
+                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Autonomous Policy</h3>
+                         <div className="space-y-3">
+                             {[
+                                 { label: "AAA Priority", status: "ENABLED" },
+                                 { label: "SLA Scaling", status: "DYNAMIC" },
+                                 { label: "Risk Mitigation", status: "AGGRESSIVE" }
+                             ].map((policy, i) => (
+                                 <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                     <span className="text-[10px] font-black text-slate-800">{policy.label}</span>
+                                     <span className="text-[8px] font-black text-indigo-600 bg-white px-2 py-1 rounded shadow-sm">{policy.status}</span>
+                                 </div>
+                             ))}
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function EconomicHQView() {
+    return (
+        <div className="h-full flex flex-col p-12 bg-white overflow-y-auto">
+            <div className="max-w-5xl mx-auto w-full">
+                <div className="flex items-end justify-between mb-12">
+                    <div>
+                        <h2 className="text-4xl font-black tracking-tighter italic uppercase text-slate-900 leading-none">Economic <br/> Sovereignty HQ</h2>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Revenue Realization & Margin Infrastructure</p>
+                    </div>
+                    <div className="flex gap-4">
+                        <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[32px] min-w-[180px]">
+                            <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Locked Value</div>
+                            <div className="text-2xl font-black text-slate-900">₹8,42,000</div>
+                        </div>
+                        <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-[32px] min-w-[180px]">
+                            <div className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-1">Expected Realization</div>
+                            <div className="text-2xl font-black text-slate-900">82.4%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-8 mb-12">
+                    {[
+                        { label: "Margin Leakage Risk", val: "2.4%", status: "LOW", color: "text-emerald-500" },
+                        { label: "Pending Collections", val: "₹1,24,000", status: "STABLE", color: "text-indigo-500" },
+                        { label: "Payout Efficiency", val: "94.2%", status: "EXCELLENT", color: "text-emerald-500" }
+                    ].map((stat, i) => (
+                        <div key={i} className="p-8 bg-slate-50 rounded-[40px] border border-slate-100">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{stat.label}</div>
+                            <div className={cn("text-3xl font-black tracking-tighter mb-2", stat.color)}>{stat.val}</div>
+                            <Badge className="text-[8px] font-black uppercase tracking-widest">{stat.status}</Badge>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 mb-12">
+                    <div className="bg-slate-900 rounded-[50px] p-10 text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-10 opacity-5">
+                            <TrendingUp size={160} />
+                        </div>
+                        <div className="relative z-10">
+                            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-6">Revenue Realization Forecast (Next 30d)</h4>
+                            <div className="flex items-end gap-2 h-40 mb-8 px-4">
+                                {[45, 67, 89, 100, 78, 92, 54, 88, 76, 95].map((h, i) => (
+                                    <div key={i} className="flex-1 bg-white/10 hover:bg-indigo-500 transition-all rounded-t-lg" style={{ height: `${h}%` }}></div>
+                                ))}
+                            </div>
+                            <div className="flex justify-between items-center py-6 border-t border-white/10">
+                                <div>
+                                    <div className="text-xs font-black uppercase italic">Pipeline Enterprise Value</div>
+                                    <div className="text-2xl font-black text-indigo-400">₹42.5 Lacs <span className="text-[10px] text-white/40 uppercase not-italic">Weighted</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 rounded-[50px] p-10 flex flex-col justify-between">
+                         <div>
+                            <div className="flex items-center gap-2 mb-6">
+                                <Lock size={16} className="text-indigo-600" />
+                                <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Settlement & Escrow Engine</h4>
+                            </div>
+                            <div className="space-y-4">
+                                {[
+                                    { node: "Vendor Alpha-1", amt: "₹1,24,000", status: "VERIFIED", date: "May 25" },
+                                    { node: "Recruiter Node 42", amt: "₹45,000", status: "PENDING_SLA", date: "May 28" },
+                                    { node: "Partner Global", amt: "₹5,00,000", status: "ESCROW_LOCKED", date: "Jun 01" }
+                                ].map((s, i) => (
+                                    <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100">
+                                        <div>
+                                            <div className="text-[10px] font-black text-slate-900">{s.node}</div>
+                                            <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">{s.date}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[11px] font-black text-slate-900">{s.amt}</div>
+                                            <div className="text-[7px] font-black text-indigo-600 uppercase">{s.status}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                         </div>
+                         <Button variant="outline" className="w-full mt-6 rounded-2xl h-12 border-2 border-slate-200 font-black uppercase text-[10px] tracking-widest">
+                             View Transaction Ledger
+                         </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function AgentOrchestrationView() {
+    const [activities, setActivities] = useState<any[]>([]);
+    
+    useEffect(() => {
+        const q = query(collection(db, "agent_activities"), orderBy("timestamp", "desc"), limit(20));
+        return onSnapshot(q, (snap) => {
+            setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+    }, []);
+
+    const agents = [
+        { type: "VENDOR_OPTIMIZATION", name: "Optimization Agent", color: "bg-indigo-500", desc: "Routes execution flows based on trust & latency." },
+        { type: "FRAUD_SENTINEL", name: "Fraud Sentinel", color: "bg-rose-500", desc: "Monitors network for duplicate or suspicious patterns." },
+        { type: "REVENUE_GUARDIAN", name: "Revenue Guardian", color: "bg-emerald-500", desc: "Protects margin integrity and realization rates." },
+        { type: "EXECUTION_MOMENTUM", name: "Momentum Agent", color: "bg-amber-500", desc: "Detects stall events and triggers follow-ups." }
+    ];
+
+    return (
+        <div className="h-full flex flex-col p-8 bg-slate-50/50">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                   <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Multi-Agent Orchestration Layer</h2>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Autonomous Coordination Engines • Cortex v5.0 Active</p>
+                </div>
+                <Button className="bg-slate-900 text-white rounded-2xl h-10 px-6 font-black uppercase text-[10px] tracking-widest">
+                   Force System Sync
+                </Button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-6 mb-8">
+                {agents.map((agent) => (
+                    <div key={agent.type} className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm">
+                        <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center text-white mb-4", agent.color)}>
+                            <Cpu size={20} />
+                        </div>
+                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-tight mb-2">{agent.name}</h3>
+                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{agent.desc}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex-1 bg-white rounded-[40px] border border-slate-200 overflow-hidden flex flex-col shadow-2xl">
+                 <div className="px-8 py-4 border-b border-slate-100 bg-slate-50/50">
+                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agent Activity Event Bus</h4>
+                 </div>
+                 <div className="flex-1 overflow-y-auto">
+                    {activities.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center opacity-30 italic font-black uppercase text-[10px] text-slate-400">
+                             Listening for agent telemetry...
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-50">
+                            {activities.map((act) => (
+                                <div key={act.id} className="p-6 hover:bg-slate-50 transition-colors flex items-center gap-6 group">
+                                    <div className="w-16 text-[10px] font-black text-slate-300 font-mono">
+                                        {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                    <div className="flex items-center gap-3 min-w-[200px]">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full",
+                                            act.agentType === 'FRAUD_SENTINEL' ? 'bg-rose-500' : 
+                                            act.agentType === 'REVENUE_GUARDIAN' ? 'bg-emerald-500' : 
+                                            act.agentType === 'VENDOR_OPTIMIZATION' ? 'bg-indigo-500' : 'bg-amber-500'
+                                        )} />
+                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{act.agentType.replace('_', ' ')}</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <span className="text-xs font-bold text-slate-600">{act.action}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant={act.impactLevel === 'CRITICAL' || act.impactLevel === 'HIGH' ? 'destructive' : 'secondary'} className="text-[8px] font-black uppercase">
+                                            {act.impactLevel}
+                                        </Badge>
+                                        <ChevronRight size={14} className="text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                 </div>
+            </div>
+        </div>
+    );
+}
+
 function CEOOpsView() {
     return (
         <div className="p-8 h-full overflow-y-auto">
@@ -466,26 +1089,37 @@ function CEOOpsView() {
                         </div>
                     </div>
 
-                    <div className="bg-emerald-50 rounded-[40px] p-10 border border-emerald-100 flex flex-col gap-6">
-                        <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
-                             <AlertCircle size={16} className="text-emerald-500" /> Daily Leadership Inquiries
-                        </h3>
-                        <div className="grid grid-cols-2 gap-6">
-                            {[
-                                "What is currently blocked?",
-                                "What can we automate right now?",
-                                "Which follow-up creates revenue?",
-                                "Execution gaps hurting scale?",
-                                "Partnership leverage points?",
-                                "Delayed critical modules?"
-                            ].map((q, i) => (
-                                <div key={i} className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm group hover:scale-[1.02] transition-transform">
-                                    <p className="text-xs font-black text-slate-900 leading-relaxed mb-4">{q}</p>
-                                    <div className="w-full h-1.5 bg-emerald-50 rounded-full overflow-hidden">
-                                        <div className="w-0 h-full bg-emerald-400 group-hover:w-full transition-all duration-1000"></div>
-                                    </div>
-                                </div>
-                            ))}
+                    <div className="grid grid-cols-2 gap-8">
+                        <div className="bg-emerald-50 rounded-[40px] p-10 border border-emerald-100 flex flex-col gap-6">
+                            <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                                <DollarSign size={16} className="text-emerald-500" /> Revenue Infrastructure
+                            </h3>
+                            <div className="space-y-4">
+                               <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Locked Gross Margin</div>
+                                   <div className="text-2xl font-black text-slate-900">$142,500 <span className="text-xs text-emerald-500 ml-1">↑ 12%</span></div>
+                               </div>
+                               <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
+                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pipeline Enterprise Value</div>
+                                   <div className="text-2xl font-black text-slate-900">$2.4M <span className="text-[10px] text-slate-400 font-bold ml-1">EST</span></div>
+                               </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-indigo-50 rounded-[40px] p-10 border border-indigo-100 flex flex-col gap-6">
+                            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                                <Activity size={16} className="text-indigo-500" /> SLA Governance
+                            </h3>
+                            <div className="space-y-4">
+                               <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm">
+                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Avg response time</div>
+                                   <div className="text-2xl font-black text-slate-900">4.2 <span className="text-xs text-indigo-500 ml-1">HRS</span></div>
+                               </div>
+                               <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm">
+                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active SLAs</div>
+                                   <div className="text-2xl font-black text-slate-900">28 <span className="text-[10px] text-emerald-500 font-bold ml-1">0 BREACHED</span></div>
+                               </div>
+                            </div>
                         </div>
                     </div>
                 </div>

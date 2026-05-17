@@ -1,6 +1,6 @@
 {
-  "name": "HireNest Workforce OS",
-  "description": "The AI-native staffing operations infrastructure for decentralized recruiting networks. Governs workflow, trust, and intelligence enrichment.",
+  "name": "HireNest OS v5.0 (Cortex)",
+  "description": "Autonomous Workforce Coordination Infrastructure. Self-regulating trust network with multi-agent orchestration and programmable economics.",
   "requestFramePermissions": [
     "camera",
     "microphone"
@@ -8,6 +8,6 @@
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ],
-  "lastUpdate": "2026-05-13T15:28:00Z",
-  "version": "2.4.15-FIREBASE-STABLE"
+  "lastUpdate": "2026-05-18T10:00:00Z",
+  "version": "5.0.0-CORTEX-ORCHESTRATION"
 }

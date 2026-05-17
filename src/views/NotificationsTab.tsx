@@ -26,8 +26,8 @@ export default function NotificationsTab({ org }: { org: any }) {
     // Listen to personal and organization-level notifications
     const q = query(
       collection(db, "notifications"), 
-      where("recipientId", "in", [auth.currentUser.uid, org.organizationId]),
-      orderBy("createdAt", "desc")
+      where("recipientId", "in", [auth.currentUser.uid, org.organizationId])
+      // removed orderBy created at to avoid index error, will sort in-memory
     );
 
     const unsubscribe = onSnapshot(q, (snap) => {
@@ -40,10 +40,15 @@ export default function NotificationsTab({ org }: { org: any }) {
           type: (docData.type || 'info').toLowerCase(),
           timestamp: docData.createdAt?.seconds ? new Date(docData.createdAt.seconds * 1000).toISOString() : new Date().toISOString(),
           read: docData.read || false,
-          actionUrl: docData.actionUrl
-        } as Notification;
+          actionUrl: docData.actionUrl,
+          createdAt: docData.createdAt // keeping raw for sorting
+        } as Notification & { createdAt: any };
+      }).sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
       });
-      setNotifications(data);
+      setNotifications(data as Notification[]);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, "notifications");

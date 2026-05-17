@@ -5,6 +5,7 @@ import { cn } from "../lib/utils";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
+import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
 import { AIMatching } from "../components/AIMatching";
@@ -186,6 +187,16 @@ export default function JobsTab() {
       };
       
       await setDoc(doc(db, "requirements_public", reqId), newReq);
+      
+      // Log Execution Event
+      await logExecutionEvent(
+        ExecutionEventType.JD_CREATED, 
+        reqId, 
+        "requirement", 
+        { title: newReq.title, organizationId: orgId },
+        reqId
+      );
+
       setJdText("");
       setBudgetAmount(0);
       setMandatorySkills("");
@@ -426,17 +437,14 @@ export default function JobsTab() {
                       />
                    </div>
                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Work Mode</label>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Urgency Layer</label>
                       <select 
-                        value={workMode}
-                        onChange={(e: any) => setWorkMode(e.target.value)}
+                        id="urgency"
                         className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
                       >
-                        <option value="Onsite">Onsite</option>
-                        <option value="Remote">Remote</option>
-                        <option value="C2C">Contract (C2C)</option>
-                        <option value="C2H">Contract to Hire (C2H)</option>
-                        <option value="Permanent">Permanent Role</option>
+                        <option value="NORMAL">Standard Execution</option>
+                        <option value="HIGH">High Priority (SLA 48h)</option>
+                        <option value="CRITICAL">Critical Path (SLA 24h)</option>
                       </select>
                    </div>
                    <div className="space-y-1.5">
@@ -665,22 +673,48 @@ export default function JobsTab() {
                 )}
 
                 {/* Matched Candidates SECTION */}
-                <div className="mt-16 pt-12 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-10">
-                    <div className="flex flex-col">
-                      <h3 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                          <Zap size={28} className="text-indigo-600 fill-indigo-600" /> 
-                          High-Density Global Matches
-                      </h3>
-                      <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <ShieldCheck size={14} className="text-emerald-500" /> 
-                        Verified Scoring Architecture (70% - 100%)
-                      </p>
-                    </div>
-                    <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl">
-                      {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 70)).length} QUALIFIED PROFILES
-                    </Badge>
+                  <div className="bg-indigo-600 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all group-hover:scale-110">
+                         <BrainCircuit size={80} />
+                      </div>
+                      <div className="relative z-10">
+                          <div className="text-[9px] font-black uppercase text-indigo-200 tracking-widest mb-4">Orchestration Intelligence</div>
+                          <div className="flex items-end gap-2 mb-6">
+                              <span className="text-4xl font-black italic">84%</span>
+                              <span className="text-[10px] font-black text-indigo-300 uppercase mb-2">Closure Prob.</span>
+                          </div>
+                          
+                          <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
+                                      <div className="text-[8px] font-black text-indigo-200 uppercase mb-1">Time-to-fill</div>
+                                      <div className="text-xs font-black">4.2 Days</div>
+                                  </div>
+                                  <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
+                                      <div className="text-[8px] font-black text-indigo-200 uppercase mb-1">Revenue at Risk</div>
+                                      <div className="text-xs font-black text-rose-400">₹4.2L</div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
                   </div>
+
+                  <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm">
+                      <div className="flex items-center justify-between mb-10">
+                        <div className="flex flex-col">
+                          <h3 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-3 uppercase italic">
+                              <Target size={28} className="text-indigo-600" /> 
+                              Strategic Routing & High-Density Matches
+                          </h3>
+                          <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <ShieldCheck size={14} className="text-emerald-500" /> 
+                            Verified Scoring Architecture (70% - 100%)
+                          </p>
+                        </div>
+                        <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl">
+                          {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 70)).length} QUALIFIED PROFILES
+                        </Badge>
+                      </div>
 
                   { (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0 ? (
                      <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">

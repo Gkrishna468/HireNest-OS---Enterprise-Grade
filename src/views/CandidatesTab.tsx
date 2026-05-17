@@ -1,6 +1,6 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
-import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase, Bot, Shield, Send, X, Plus, Upload, MapPin } from "lucide-react";
+import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase, Bot, Shield, Send, X, Plus, Upload, MapPin, ShieldAlert } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
@@ -745,6 +745,44 @@ export default function CandidatesTab() {
                           {/* Right: Operational Constraints */}
                           <div className="col-span-12 lg:col-span-4 space-y-6">
                               <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                  {/* AI Risk Intelligence */}
+                                  <section className={cn(
+                                      "rounded-xl border p-4 shadow-sm mb-6",
+                                      selectedCandidate.isRisky ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"
+                                  )}>
+                                      <div className="flex items-center justify-between mb-3">
+                                          <h3 className={cn(
+                                              "text-[10px] font-black uppercase tracking-widest",
+                                              selectedCandidate.isRisky ? "text-rose-700" : "text-emerald-700"
+                                          )}>AI Risk Intelligence</h3>
+                                          {selectedCandidate.isRisky ? <ShieldAlert size={16} className="text-rose-500" /> : <ShieldCheck size={16} className="text-emerald-500" />}
+                                      </div>
+                                      <div className="flex items-center gap-2 mb-4">
+                                          <div className={cn(
+                                              "text-2xl font-black",
+                                              selectedCandidate.isRisky ? "text-rose-600" : "text-emerald-600"
+                                          )}>
+                                              {selectedCandidate.riskScore || 0}%
+                                          </div>
+                                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Risk Factor</span>
+                                      </div>
+                                      {selectedCandidate.isRisky ? (
+                                          <div className="space-y-2">
+                                              <p className="text-[10px] font-medium text-rose-800 leading-relaxed italic">
+                                                   "Suspicious patterns detected: common phrases found in high-entropy resume generation tools."
+                                              </p>
+                                              <div className="bg-white/50 rounded-lg p-2 border border-rose-100 flex flex-wrap gap-1">
+                                                   <span className="text-[8px] font-black text-rose-600 uppercase">SIGNAL: SYNT_GEN</span>
+                                                   <span className="text-[8px] font-black text-rose-600 uppercase">SIGNAL: DUPE_ID</span>
+                                              </div>
+                                          </div>
+                                      ) : (
+                                          <p className="text-[10px] font-medium text-emerald-800 leading-relaxed italic">
+                                              "Verified profile. No cross-network duplicate signals found."
+                                          </p>
+                                      )}
+                                  </section>
+
                                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Contact Governance</h3>
                                   <div className="space-y-4">
                                       <div className="flex flex-col gap-1">
