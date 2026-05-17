@@ -14,18 +14,32 @@ import admin from 'firebase-admin';
 
 const require = createRequire(import.meta.url);
 
+// --- Global Configuration ---
+let globalProjectId = "unknown-project";
+
 // Initialize Firebase Admin
 try {
-  if (admin.apps.length === 0) {
-    const firebaseConfig = require('./firebase-applet-config.json');
-    console.log(`[HQ CORE] Initializing Global Authority Node: ${firebaseConfig.projectId}`);
+  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(firebaseConfigPath)) {
+    const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+    globalProjectId = firebaseConfig.projectId;
     
-    // Standard initialization for AI Studio managed projects
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId,
-      credential: admin.credential.applicationDefault()
-    });
-    console.log("[HQ CORE] Handshake complete. Governance layer established.");
+    if (admin.apps.length === 0) {
+      console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
+      admin.initializeApp({
+        projectId: globalProjectId,
+        credential: admin.credential.applicationDefault()
+      });
+      console.log("[HQ CORE] Handshake complete. Governance layer established.");
+    }
+  } else {
+    console.warn("[HQ CORE] firebase-applet-config.json not found. Using discovery mode.");
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault()
+      });
+    }
+    globalProjectId = admin.app().options.projectId || "discovered-project";
   }
 } catch (e: any) {
   console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
@@ -272,7 +286,7 @@ async function startServer() {
       let mode = "LIVE";
       
       try {
-        const activeProjectId = admin.app().options.projectId;
+        const activeProjectId = globalProjectId;
         console.log(`[HQ SYNC] Handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
         
         const [usersSnap, orgsSnap] = await Promise.all([
@@ -286,7 +300,7 @@ async function startServer() {
         console.log(`[HQ SYNC] Intelligence retrieval successful. Identities: ${users.length}, Nodes: ${organizations.length}`);
       } catch (dbErr: any) {
         if (dbErr.message.includes('PERMISSION_DENIED') || String(dbErr.code) === '7') {
-          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${admin.app().options.projectId}. Ensure Service Account has 'Cloud Datastore User' role.`);
+          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${globalProjectId}. Ensure Service Account has 'Cloud Datastore User' role.`);
         } else {
           console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
         }
@@ -330,16 +344,22 @@ async function startServer() {
         users: dbMock.users,
         requirements_public: dbMock.requirements_public || [],
         metrics: dbMock.metrics || {},
-        error: err.message,
+        error: err?.message || "Unknown retrieval error",
         isMock: true,
+        nodeId: globalProjectId,
         mode: "FATAL_FALLBACK"
       });
     }
   });
 
   app.post("/api/admin/onboard-node", verifyAdmin, async (req, res) => {
-    const { email, password, role, companyName } = req.body;
     try {
+      const { email, password, role, companyName } = req.body;
+      
+      if (!email || !password || !role || !companyName) {
+        return res.status(400).json({ error: "VALIDATION_FAILED: All node parameters (email, password, role, companyName) are required." });
+      }
+
       const auth = admin.auth();
       const db = admin.firestore();
 
@@ -354,15 +374,20 @@ async function startServer() {
           displayName: companyName
         });
       } catch (authErr: any) {
-        if (authErr.message.includes("identitytoolkit.googleapis.com") || authErr.code === 'auth/internal-error') {
+        const errMsg = authErr?.message || "Unknown Auth Error";
+        const errCode = authErr?.code || "auth/unknown";
+        
+        if (errMsg.includes("identitytoolkit.googleapis.com") || errCode === 'auth/internal-error') {
           console.error("[ONBOARD FATAL] Identity Toolkit API not enabled in GCP Console.");
           return res.status(500).json({ 
             error: "INFRASTRUCTURE_FAILURE: Identity Toolkit API is disabled.", 
-            details: "Please enable it at: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=" + admin.app().options.projectId,
+            details: `Please enable it at: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${globalProjectId}`,
             code: "API_DISABLED"
           });
         }
-        throw authErr;
+        
+        console.error("[ONBOARD AUTH FAIL]", errMsg);
+        return res.status(400).json({ error: `AUTH_FAILURE: ${errMsg}`, code: errCode });
       }
 
       const uid = userRecord.uid;
@@ -370,39 +395,51 @@ async function startServer() {
       
       console.log(`[ONBOARD] Auth created. Provisioning records for UID: ${uid}`);
 
-      // 2. Create Organization Doc
-      await db.collection("organizations").doc(orgId).set({
-        organizationId: orgId,
-        type: role === "admin" ? "admin" : (role === "vendor_agency" || role === "independent_vendor" ? "vendor" : "client"),
-        companyName,
-        status: "approved",
-        adminApproved: true,
-        ndaUploaded: false,
-        msaUploaded: false,
-        ownerId: uid,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      try {
+        // 2. Create Organization Doc
+        await db.collection("organizations").doc(orgId).set({
+          organizationId: orgId,
+          type: role === "admin" ? "admin" : (role === "vendor_agency" || role === "independent_vendor" ? "vendor" : "client"),
+          companyName,
+          status: "approved",
+          adminApproved: true,
+          ndaUploaded: false,
+          msaUploaded: false,
+          ownerId: uid,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-      // 3. Create User Doc
-      await db.collection("users").doc(uid).set({
-        uid,
-        email,
-        role,
-        organizationId: orgId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        verification: {
-          emailVerified: false,
-          identityVerified: false,
-          businessVerified: true,
-          trustScore: 40
-        }
-      });
+        // 3. Create User Doc
+        await db.collection("users").doc(uid).set({
+          uid,
+          email,
+          role,
+          organizationId: orgId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          verification: {
+            emailVerified: false,
+            identityVerified: false,
+            businessVerified: true,
+            trustScore: 40
+          }
+        });
 
-      console.log(`[ONBOARD SUCCESS] Node [${email}] provisioned correctly.`);
-      res.status(200).json({ success: true, uid, orgId });
+        console.log(`[ONBOARD SUCCESS] Node [${email}] provisioned correctly.`);
+        return res.status(200).json({ success: true, uid, orgId });
+      } catch (dbErr: any) {
+        console.error("[ONBOARD DB FAIL]", dbErr);
+        // We already created the auth user, but DB failed. This is an inconsistent state.
+        return res.status(500).json({ 
+          error: "DATABASE_PROVISIONING_FAILED", 
+          details: dbErr.message,
+          uid // Providing UID so admin knows user was created in Auth
+        });
+      }
     } catch (err: any) {
-      console.error("[ONBOARD ERROR]", err);
-      res.status(500).json({ error: err.message });
+      console.error("[ONBOARD UNCAUGHT ERROR]", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err?.message || "A fatal error occurred during provisioning." });
+      }
     }
   });
 
@@ -967,6 +1004,15 @@ Candidate Profile: ${candidateProfile}`,
 
   return app;
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception thrown:', err);
+  // Optional: process.exit(1) if you want to force a restart
+});
 
 const appPromise = startServer().catch(err => {
   console.error("[STARTUP FATAL]", err);
