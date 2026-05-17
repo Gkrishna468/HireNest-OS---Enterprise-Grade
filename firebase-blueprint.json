@@ -207,6 +207,27 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["recipientId", "title", "message", "createdAt"]
+    },
+    "ExecutionTrackerItem": {
+      "title": "Execution Tracker Item",
+      "description": "A task or follow-up item in the master execution system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string", "enum": ["daily", "client", "vendor", "recruiter", "candidate", "partnership", "product", "sales"] },
+        "title": { "type": "string" },
+        "owner": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "notes": { "type": "string" },
+        "nextAction": { "type": "string" },
+        "relatedEntityId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "title", "status", "priority", "createdAt"]
     }
   },
   "firestore": {
@@ -220,6 +241,7 @@
     "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "$ref": "Message" }, "description": "Messages" },
     "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Audit trail" },
     "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" },
-    "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" }
+    "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" },
+    "execution_tracker/{itemId}": { "schema": { "$ref": "ExecutionTrackerItem" }, "description": "Master execution tracking items" }
   }
 }
