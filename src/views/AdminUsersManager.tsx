@@ -212,7 +212,26 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                onboard new node
             </h2>
             
-            {error && <div className="mb-6 text-[10px] font-black lowercase tracking-widest bg-red-50 text-red-600 p-4 rounded-2xl border border-red-100">{error}</div>}
+            {error && (
+              <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4">
+                <p className="text-[10px] font-black lowercase tracking-widest text-red-600 mb-2">{error}</p>
+                {error.includes("API_DISABLED") || error.includes("infrastructure_failure") ? (
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-red-500 font-bold leading-relaxed">
+                      critical: identity protocol requires "identity toolkit api" to be enabled in google cloud console.
+                    </p>
+                    <a 
+                      href={`https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${nodeId || '375081910602'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block bg-red-600 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
+                    >
+                      Enable API in GCP Console
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            )}
             
             <form onSubmit={handleCreateUser} className="space-y-6">
               <div>

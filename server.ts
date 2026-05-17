@@ -197,9 +197,10 @@ async function startServer() {
     const token = authHeader.split('Bearer ')[1];
     try {
       const decodedToken = await admin.auth().verifyIdToken(token);
-      const email = decodedToken.email?.toLowerCase();
+      const email = decodedToken.email?.toLowerCase().trim();
+      const uid = decodedToken.uid;
       
-      console.log(`[HQ SECURITY] Handshake received from: ${email}`);
+      console.log(`[HQ SECURITY] Handshake received from: ${email} (UID: ${uid})`);
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -209,18 +210,19 @@ async function startServer() {
       const isTrustedEmail = email && trustedNodes.includes(email);
 
       if (!isTrustedEmail) {
-        console.warn(`[SECURITY BREACH] Non-trusted node attempt: ${email}`);
+        console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
         return res.status(403).json({ 
-          error: `Access Denied: Node Identity [${email}] is not recognized as a Global Authority.`,
-          identity: email
+          error: `ACCESS_DENIED: Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
+          identity: email,
+          details: "Contact HireNest HQ to whitelist this node."
         });
       }
 
       (req as any).user = decodedToken;
       next();
     } catch (err: any) {
-      console.error("[AUTH VULNERABILITY] Token verification failed:", err.message);
-      res.status(401).json({ error: "Identity Verification Failed", details: err.message });
+      console.error("[AUTH ERROR] Verification Failed:", err.message);
+      res.status(401).json({ error: "IDENTITY_VERIFICATION_FAILED", details: err.message });
     }
   }
 
@@ -262,6 +264,7 @@ async function startServer() {
   app.get("/api/admin/governance-data", verifyAdmin, async (req, res) => {
     try {
       const db = admin.firestore();
+      const currentAdminEmail = (req as any).user?.email?.toLowerCase().trim();
       
       // Try to fetch real data but don't crash if it fails
       let users: any[] = [];
@@ -270,7 +273,7 @@ async function startServer() {
       
       try {
         const activeProjectId = admin.app().options.projectId;
-        console.log(`[HQ SYNC] Handshake initiated with Node: ${activeProjectId}`);
+        console.log(`[HQ SYNC] Handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
         
         const [usersSnap, orgsSnap] = await Promise.all([
           db.collection("users").get(),
@@ -340,20 +343,37 @@ async function startServer() {
       const auth = admin.auth();
       const db = admin.firestore();
 
+      console.log(`[ONBOARD] Attempting to provision new node [${email}]...`);
+
       // 1. Create Auth User
-      const userRecord = await auth.createUser({
-        email,
-        password,
-        displayName: companyName
-      });
+      let userRecord;
+      try {
+        userRecord = await auth.createUser({
+          email,
+          password,
+          displayName: companyName
+        });
+      } catch (authErr: any) {
+        if (authErr.message.includes("identitytoolkit.googleapis.com") || authErr.code === 'auth/internal-error') {
+          console.error("[ONBOARD FATAL] Identity Toolkit API not enabled in GCP Console.");
+          return res.status(500).json({ 
+            error: "INFRASTRUCTURE_FAILURE: Identity Toolkit API is disabled.", 
+            details: "Please enable it at: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=" + admin.app().options.projectId,
+            code: "API_DISABLED"
+          });
+        }
+        throw authErr;
+      }
 
       const uid = userRecord.uid;
       const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
+      
+      console.log(`[ONBOARD] Auth created. Provisioning records for UID: ${uid}`);
 
       // 2. Create Organization Doc
       await db.collection("organizations").doc(orgId).set({
         organizationId: orgId,
-        type: role === "admin" ? "admin" : role === "vendor" ? "vendor" : "client",
+        type: role === "admin" ? "admin" : (role === "vendor_agency" || role === "independent_vendor" ? "vendor" : "client"),
         companyName,
         status: "approved",
         adminApproved: true,
@@ -369,9 +389,16 @@ async function startServer() {
         email,
         role,
         organizationId: orgId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        verification: {
+          emailVerified: false,
+          identityVerified: false,
+          businessVerified: true,
+          trustScore: 40
+        }
       });
 
+      console.log(`[ONBOARD SUCCESS] Node [${email}] provisioned correctly.`);
       res.status(200).json({ success: true, uid, orgId });
     } catch (err: any) {
       console.error("[ONBOARD ERROR]", err);
