@@ -202,6 +202,11 @@ async function startServer() {
 
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+    if (globalProjectId === "unknown-project") {
+      console.error("[HQ SECURITY] Critical Infrastructure Failure: Node identity not established.");
+      return res.status(500).json({ error: "HQ_INFRASTRUCTURE_OFFLINE", details: "Global node authority has not been matched with a valid GCP project." });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.warn("[AUTH] Missing or malformed Authorization header");
@@ -290,8 +295,8 @@ async function startServer() {
         console.log(`[HQ SYNC] Handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
         
         const [usersSnap, orgsSnap] = await Promise.all([
-          db.collection("users").get(),
-          db.collection("organizations").get()
+          db.collection("users").limit(100).get(),
+          db.collection("organizations").limit(100).get()
         ]);
         
         users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -352,7 +357,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/onboard-node", verifyAdmin, async (req, res) => {
+  app.post("/api/admin/onboard-node", verifyAdmin, async (req: Request, res: Response) => {
     try {
       const { email, password, role, companyName } = req.body;
       
@@ -360,10 +365,10 @@ async function startServer() {
         return res.status(400).json({ error: "VALIDATION_FAILED: All node parameters (email, password, role, companyName) are required." });
       }
 
+      console.log(`[ONBOARD] Attempting to provision new node [${email}] under authority [${(req as any).user?.email}]`);
+
       const auth = admin.auth();
       const db = admin.firestore();
-
-      console.log(`[ONBOARD] Attempting to provision new node [${email}]...`);
 
       // 1. Create Auth User
       let userRecord;
@@ -371,33 +376,36 @@ async function startServer() {
         userRecord = await auth.createUser({
           email,
           password,
-          displayName: companyName
+          displayName: companyName || "New Node Agent"
         });
       } catch (authErr: any) {
-        const errMsg = authErr?.message || "Unknown Auth Error";
-        const errCode = authErr?.code || "auth/unknown";
+        const errMsg = authErr?.message || "Internal Node Authority Failure";
+        const errCode = authErr?.code || "auth/internal-error";
         
-        if (errMsg.includes("identitytoolkit.googleapis.com") || errCode === 'auth/internal-error') {
-          console.error("[ONBOARD FATAL] Identity Toolkit API not enabled in GCP Console.");
+        console.error(`[ONBOARD AUTH FAIL] ${email}:`, errMsg);
+
+        if (errMsg.includes("identitytoolkit.googleapis.com") || errCode === 'auth/internal-error' || errCode === 'auth/project-not-found') {
           return res.status(500).json({ 
-            error: "INFRASTRUCTURE_FAILURE: Identity Toolkit API is disabled.", 
-            details: `Please enable it at: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${globalProjectId}`,
+            error: "INFRASTRUCTURE_FAILURE", 
+            details: `Identity Protocol Layer is disabled or misconfigured. Enable Identity Toolkit API for project: ${globalProjectId}`,
             code: "API_DISABLED"
           });
         }
         
-        console.error("[ONBOARD AUTH FAIL]", errMsg);
-        return res.status(400).json({ error: `AUTH_FAILURE: ${errMsg}`, code: errCode });
+        return res.status(400).json({ error: `IDENTITY_PROVISIONING_FAILED: ${errMsg}`, code: errCode });
       }
 
       const uid = userRecord.uid;
-      const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
+      const orgId = "NODE-" + Math.random().toString(36).substring(2, 11).toUpperCase();
       
-      console.log(`[ONBOARD] Auth created. Provisioning records for UID: ${uid}`);
+      console.log(`[ONBOARD] Auth created [${uid}]. Provisioning database synchronization...`);
 
       try {
-        // 2. Create Organization Doc
-        await db.collection("organizations").doc(orgId).set({
+        const batch = db.batch();
+
+        // 2. Organization Record
+        const orgRef = db.collection("organizations").doc(orgId);
+        batch.set(orgRef, {
           organizationId: orgId,
           type: role === "admin" ? "admin" : (role === "vendor_agency" || role === "independent_vendor" ? "vendor" : "client"),
           companyName,
@@ -409,8 +417,9 @@ async function startServer() {
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // 3. Create User Doc
-        await db.collection("users").doc(uid).set({
+        // 3. User Identity Record
+        const userRef = db.collection("users").doc(uid);
+        batch.set(userRef, {
           uid,
           email,
           role,
@@ -424,21 +433,22 @@ async function startServer() {
           }
         });
 
-        console.log(`[ONBOARD SUCCESS] Node [${email}] provisioned correctly.`);
+        await batch.commit();
+        console.log(`[ONBOARD SUCCESS] Identity matched: ${email} (UID: ${uid}, Node: ${orgId})`);
         return res.status(200).json({ success: true, uid, orgId });
       } catch (dbErr: any) {
-        console.error("[ONBOARD DB FAIL]", dbErr);
-        // We already created the auth user, but DB failed. This is an inconsistent state.
+        console.error("[ONBOARD DB FAIL] Reverting or flagging inconsistent state:", dbErr.message);
+        // Clean up auth user to prevent orphaned identities? Actually safer to return error.
         return res.status(500).json({ 
-          error: "DATABASE_PROVISIONING_FAILED", 
+          error: "DATABASE_SYNCHRONIZATION_FAILED", 
           details: dbErr.message,
-          uid // Providing UID so admin knows user was created in Auth
+          uid 
         });
       }
     } catch (err: any) {
-      console.error("[ONBOARD UNCAUGHT ERROR]", err);
+      console.error("[ONBOARD CRITICAL_FAILURE]", err);
       if (!res.headersSent) {
-        res.status(500).json({ error: err?.message || "A fatal error occurred during provisioning." });
+        res.status(500).json({ error: "INTERNAL_PROTOCOL_ERROR", details: err?.message || "An unhandled exception occurred in the governance layer." });
       }
     }
   });
