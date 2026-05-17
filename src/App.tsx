@@ -42,7 +42,7 @@ function Sidebar({ org, user }: { org: any, user: any }) {
   
   const isAdmin = org.type === 'admin';
   const isClient = org.type === 'client';
-  const isVendor = org.type === 'vendor';
+  const isVendor = ['vendor', 'vendor_agency', 'independent_vendor', 'independent_recruiter', 'freelancer_recruiter', 'recruitment_agency'].includes(org.type);
 
   const navItems = [
     { name: "Dashboard", path: isAdmin ? "/admin-overview" : (isClient ? "/clients" : "/vendors"), icon: <Activity size={18} />, visible: true },

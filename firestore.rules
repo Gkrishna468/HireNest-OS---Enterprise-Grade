@@ -16,14 +16,10 @@ service cloud.firestore {
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
       let email = request.auth.token.email;
-      let verified = request.auth.token.get('email_verified', false) == true;
       let isTrusted = email == 'gopalkrishna0046@gmail.com' || 
                       email == 'gopal@hirenestworkforce.com';
       
-      return isSignedIn() && (isTrusted || (verified && (
-        request.auth.token.get('email', '') == 'gopalkrishna0046@gmail.com' || 
-        request.auth.token.get('email', '') == 'gopal@hirenestworkforce.com'
-      )));
+      return isSignedIn() && isTrusted;
     }
 
     function getUserData() {
@@ -38,14 +34,14 @@ service cloud.firestore {
 
     function isValidOrganization(data) {
       return (!data.keys().hasAny(['organizationId']) || data.organizationId is string) &&
-             (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency']) &&
+             (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency', 'independent_vendor', 'freelancer']) &&
              (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending']) &&
              (!data.keys().hasAny(['verificationTier']) || data.verificationTier in ['Tier 1', 'Tier 2', 'Tier 3']);
     }
 
     function isValidUser(data) {
       return (!data.keys().hasAny(['uid']) || data.uid is string) &&
-             (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_recruiter', 'vendor_sourcer', 'freelancer', 'independent_recruiter']) &&
+             (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor']) &&
              (!data.keys().hasAny(['verification']) || (data.verification is map)) &&
              (!data.keys().hasAny(['identityDocs']) || (data.identityDocs is map));
     }

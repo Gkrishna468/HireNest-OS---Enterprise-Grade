@@ -124,19 +124,19 @@ export default function AdminOverview() {
     <div className="flex-1 overflow-auto p-6 space-y-6 bg-slate-50">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 uppercase tracking-widest">Global Governance Control</h1>
-          <p className="text-xs text-slate-500 font-mono">Platform-wide visibility across Marketplace and ERP layers.</p>
+          <h1 className="text-xl font-bold text-slate-800 lowercase tracking-widest">global governance control</h1>
+          <p className="text-xs text-slate-500 font-mono lowercase">platform-wide visibility across marketplace and erp layers.</p>
         </div>
         <div className="flex items-center space-x-3">
            <button 
              onClick={handleBootstrap}
-             className="text-[10px] font-bold uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-1.5 rounded-md shadow-sm transition-all"
+             className="text-[10px] font-bold lowercase text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-1.5 rounded-md shadow-sm transition-all"
            >
-             Bootstrap Marketplace to Prod
+             bootstrap marketplace to prod
            </button>
-           <div className="flex items-center space-x-2 text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
+           <div className="flex items-center space-x-2 text-[10px] font-bold lowercase text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
               <Activity size={12} />
-              <span>System Healthy</span>
+              <span>system healthy</span>
            </div>
         </div>
       </div>
@@ -161,8 +161,8 @@ export default function AdminOverview() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Pending Governance approvals</h3>
-            <Button variant="ghost" className="text-[9px] h-6 uppercase font-bold" onClick={() => navigate('/clients')}>View Hub</Button>
+            <h3 className="text-[10px] font-bold lowercase tracking-widest text-slate-600">pending governance approvals</h3>
+            <Button variant="ghost" className="text-[9px] h-6 lowercase font-bold" onClick={() => navigate('/clients')}>view hub</Button>
           </div>
           <div className="p-4 space-y-3">
              {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').map((req: any) => (
@@ -188,7 +188,7 @@ export default function AdminOverview() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
            <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Platform Profit vs Scaling</h3>
+            <h3 className="text-[10px] font-bold lowercase tracking-widest text-slate-600">platform profit vs scaling</h3>
           </div>
           <div className="p-4 space-y-4">
              <div className="flex items-end justify-between h-24 space-x-2">

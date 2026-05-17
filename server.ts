@@ -197,19 +197,16 @@ async function startServer() {
     try {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const email = decodedToken.email;
-      const verified = decodedToken.email_verified === true;
       
-      console.log(`[AUTH] Verifying authority for: ${email} (Verified: ${verified})`);
+      console.log(`[HQ SECURITY] Handshake received from: ${email}`);
       
-      // In development/preview environments, email_verified can sometimes be inconsistent.
-      // We prioritize the hardcoded trusted emails.
       const isTrustedEmail = 
         email === 'gopalkrishna0046@gmail.com' || 
         email === 'gopal@hirenestworkforce.com';
 
       if (!isTrustedEmail) {
-        console.warn(`[SECURITY BREACH] Non-trusted email access attempt: ${email}`);
-        return res.status(403).json({ error: `Access Denied: Node Authority [${email}] is not authorized for Global HQ protocols.` });
+        console.warn(`[SECURITY BREACH] Non-trusted node attempt: ${email}`);
+        return res.status(403).json({ error: `Access Denied: Node Identity [${email}] is not recognized as a Global Authority.` });
       }
 
       (req as any).user = decodedToken;

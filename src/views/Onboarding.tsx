@@ -8,7 +8,8 @@ import { Button } from "../lib/Button";
 
 export default function Onboarding({ onComplete }: { onComplete: (orgData: any) => void }) {
   const [user, setUser] = useState<User | null>(null);
-  const [orgType, setOrgType] = useState<"vendor" | "client" | "recruiter" | "freelancer" | null>(null);
+  const [orgType, setOrgType] = useState<"vendor_agency" | "client" | "independent_vendor" | "independent_recruiter" | "freelancer_recruiter" | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>("");
   const [companyName, setCompanyName] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
@@ -97,21 +98,23 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       }
 
       // Trust Protocols
-      if (orgType === "client" || orgType === "vendor" || orgType === "recruiter") {
-        if (!checkCorporateEmail(user.email || "")) {
-          setError("SECURITY VULNERABILITY: Official Corporate Email Required for this role. Public providers (Gmail/Yahoo/Outlook) are restricted for business nodes.");
+      const supplyRoles = ["vendor_agency", "independent_vendor", "independent_recruiter", "freelancer_recruiter"];
+      if (orgType === "client" || supplyRoles.includes(orgType)) {
+        if (!["freelancer_recruiter", "independent_recruiter"].includes(orgType) && !checkCorporateEmail(user.email || "")) {
+          setError("SECURITY VULNERABILITY: Official Corporate or Custom Domain Email Required for business nodes.");
           setLoading(false);
           return;
         }
       }
 
-      if (orgType === "freelancer" && (!aadhaarNumber || aadhaarNumber.length < 12)) {
+      if (["freelancer_recruiter", "independent_recruiter"].includes(orgType) && (!aadhaarNumber || aadhaarNumber.length < 12)) {
         setError("IDENTITY REJECTED: Valid 12-digit Aadhaar required for individual verification.");
         setLoading(false);
         return;
       }
       
-      const orgId = orgType === "freelancer" ? "IND-" + user.uid.substring(0, 8) : "ORG-" + Math.floor(Math.random() * 100000);
+      const isIndividual = ["freelancer_recruiter", "independent_recruiter"].includes(orgType);
+      const orgId = isIndividual ? "IND-" + user.uid.substring(0, 8) : "ORG-" + Math.floor(Math.random() * 100000);
       let ndaUrl = "";
       let msaUrl = "";
       let businessUrl = "";
@@ -137,11 +140,11 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
 
       // Create Organization Layer
       let orgData: any = null;
-      if (orgType !== "freelancer") {
+      if (orgType !== "freelancer_recruiter") {
         orgData = {
           organizationId: orgId,
-          type: orgType === "recruiter" ? "recruitment_agency" : orgType,
-          companyName: orgType === "recruiter" ? `${user.displayName || 'Independent'} Practice` : companyName,
+          type: orgType,
+          companyName: ["independent_vendor", "independent_recruiter"].includes(orgType) ? `${user.displayName || 'Independent'} Leadership Office` : companyName,
           domain: user.email?.split('@')[1],
           status: "pending_review",
           verificationTier: businessFile ? "Tier 2" : "Tier 1",
@@ -171,16 +174,14 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       const userData = {
         uid: user.uid,
         email: user.email,
-        role: orgType === "client" ? "client_hm" : 
-              orgType === "vendor" ? "vendor_recruiter" : 
-              orgType === "recruiter" ? "independent_recruiter" : "freelancer",
+        role: orgType === "client" ? (selectedRole || "client_hm") : orgType,
         organizationId: orgId,
         verification: {
           emailVerified: user.emailVerified || false,
           identityVerified: false,
           businessVerified: !!businessFile,
-          aadhaarVerified: orgType === "freelancer",
-          trustScore: orgType === "freelancer" ? 60 : 40,
+          aadhaarVerified: ["freelancer_recruiter", "independent_recruiter"].includes(orgType),
+          trustScore: ["freelancer_recruiter", "independent_recruiter"].includes(orgType) ? 60 : 40,
           badgeType: "PENDING_VERIFICATION"
         },
         identityDocs: {
@@ -274,59 +275,90 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Workspace Role:</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Workspace Role Authority:</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => { setOrgType("vendor"); }}
-                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'vendor' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+                onClick={() => { setOrgType("client"); setSelectedRole("client_hm"); }}
+                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'client' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-bold text-slate-800 text-sm">Vendor</div>
-                <div className="text-[10px] text-slate-500 mt-1">Agency or Staffing firm looking to submit candidates.</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Client Node</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Hiring organization looking for elite global talent.</div>
               </button>
               <button
                 type="button"
-                onClick={() => { setOrgType("client"); }}
-                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'client' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+                onClick={() => { setOrgType("vendor_agency"); }}
+                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'vendor_agency' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-bold text-slate-800 text-sm">Client</div>
-                <div className="text-[10px] text-slate-500 mt-1">Hiring organization looking for talent globally.</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Staffing Agency</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Staffing partner or Agency node providing specialists.</div>
               </button>
               <button
                 type="button"
-                onClick={() => { setOrgType("recruiter"); }}
-                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'recruiter' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+                onClick={() => { setOrgType("independent_vendor"); }}
+                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'independent_vendor' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-bold text-slate-800 text-sm">Recruiter</div>
-                <div className="text-[10px] text-slate-500 mt-1">Independent recruiter or headhunter node.</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Independent Vendor</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">High-authority independent provider or leadership agency.</div>
               </button>
               <button
                 type="button"
-                onClick={() => { setOrgType("freelancer"); }}
-                className={`p-3 border rounded-lg text-left transition-all ${orgType === 'freelancer' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300'}`}
+                onClick={() => { setOrgType("independent_recruiter"); }}
+                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'independent_recruiter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-bold text-slate-800 text-sm">Freelancer</div>
-                <div className="text-[10px] text-slate-500 mt-1">Individual contractor applying directly.</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Independent Recruiter</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Solo recruiter managing elite talent deal rooms.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOrgType("freelancer_recruiter"); }}
+                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'freelancer_recruiter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
+              >
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Freelancer Recruiter</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Individual contributor providing specialized sourcing.</div>
               </button>
             </div>
           </div>
 
           <div className="space-y-4">
-            {orgType && orgType !== "freelancer" && (
+            {orgType === "client" && (
+              <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl space-y-3">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Select Internal Node Authority:</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'client_hm', label: 'Hiring Manager (Operations)' },
+                    { id: 'client_finance', label: 'Financial Controller (Settlements)' },
+                    { id: 'client_recruiter', label: 'Talent Lead (Strategy)' }
+                  ].map(role => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setSelectedRole(role.id)}
+                      className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all ${selectedRole === role.id ? 'border-indigo-600 bg-white' : 'border-transparent bg-slate-200/50 hover:bg-slate-200'}`}
+                    >
+                      <span className="text-xs font-bold text-slate-700">{role.label}</span>
+                      {selectedRole === role.id && <div className="h-2 w-2 rounded-full bg-indigo-600" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {orgType && !["freelancer_recruiter", "independent_recruiter", "independent_vendor"].includes(orgType) && (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Company Name</label>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Institution / Agency Name</label>
                 <input 
                   type="text" 
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500"
-                  placeholder="e.g. ABC Staffing Solutions"
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-xl p-3 text-sm font-bold transition-all outline-none"
+                  placeholder="e.g. Acme Staffing Solutions"
                 />
               </div>
             )}
 
-            {orgType === "freelancer" && (
+            {["freelancer_recruiter", "independent_recruiter"].includes(orgType) && (
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Aadhaar Number (12 Digits)</label>
                 <input 
@@ -335,14 +367,14 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                   maxLength={12}
                   value={aadhaarNumber}
                   onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
-                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono tracking-widest"
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-xl p-3 text-sm font-black tracking-[0.2em] transition-all outline-none"
                   placeholder="0000 0000 0000"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 italic">SECURITY NOTE: Your identity info is encrypted. Only last 4 digits are visible to verified admins.</p>
+                <p className="text-[10px] text-slate-400 mt-1 italic">SECURITY NOTE: Your individual recruiter node is bound to this identity. It is encrypted and used only for marketplace trust scoring.</p>
               </div>
             )}
 
-            {(orgType === "recruiter" || orgType === "freelancer") && (
+            {(orgType === "independent_vendor" || orgType === "independent_recruiter" || orgType === "freelancer_recruiter") && (
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-2">LinkedIn Profile URL</label>
                 <input 
@@ -360,10 +392,10 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
               <p className="text-xs text-slate-500">Upload documentation to establish your Node Authority.</p>
               
               <div className="grid grid-cols-1 gap-4 mt-2">
-                {(orgType === "vendor" || orgType === "client") && (
+                  {(orgType === "vendor_agency" || orgType === "client") && (
                   <>
                     <div>
-                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Company Registration / GST (PDF)</label>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Entity Registration / Tax Document (PDF)</label>
                       <input 
                         type="file" 
                         accept=".pdf"
@@ -372,7 +404,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Signed NDA (PDF)</label>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Signed Master Agreement (PDF)</label>
                       <input 
                         type="file" 
                         accept=".pdf"
@@ -382,9 +414,9 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     </div>
                   </>
                 )}
-                {orgType === "freelancer" && (
+                {["freelancer_recruiter", "independent_recruiter"].includes(orgType) && (
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Selfie Verification Match (JPG/PNG)</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Individual Identity Verification (JPG/PNG)</label>
                     <input 
                       type="file" 
                       accept="image/*"
@@ -393,9 +425,9 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     />
                   </div>
                 )}
-                {orgType === "recruiter" && (
+                {orgType === "independent_vendor" && (
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Business Card or Email Signature (PDF/JPG)</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Corporate Credential or Portfolio (PDF/JPG)</label>
                     <input 
                       type="file" 
                       accept=".pdf,image/*"
