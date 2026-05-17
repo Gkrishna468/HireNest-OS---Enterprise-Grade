@@ -15,7 +15,7 @@ service cloud.firestore {
     
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
-      let email = request.auth.token.email.lower();
+      let email = request.auth.token.email.toLower();
       let isTrusted = email == 'gopalkrishna0046@gmail.com' || 
                       email == 'gopal@hirenestworkforce.com';
       
@@ -29,7 +29,7 @@ service cloud.firestore {
     function isOrganizationMember(orgId) {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('organizationId', null) == orgId;
     }
 
     function isValidOrganization(data) {
@@ -80,7 +80,7 @@ service cloud.firestore {
     function isValidExecutionItem(data) {
       return (!data.keys().hasAny(['id']) || data.id is string) &&
              (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 600)) &&
-             (!data.keys().hasAny(['category']) || data.category in ["daily", "client", "vendor", "recruiter", "candidate", "partnership", "product", "sales"]) &&
+             (!data.keys().hasAny(['category']) || data.category in ["daily", "orchestration", "economics", "events", "trust", "risk", "briefing", "client", "vendor", "recruiter", "candidate", "partnership", "product", "sales", "review", "scoreboard", "rules", "ceo", "agents"]) &&
              (!data.keys().hasAny(['priority']) || data.priority in ["High", "Medium", "Low"]);
     }
 

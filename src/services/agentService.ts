@@ -34,18 +34,19 @@ export class AutonomousAgent {
   }
 
   async logActivity(action: string, impactLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL", targetId?: string, metadata?: any) {
-    const activity: AgentActivity = {
+    const activity: any = {
       agentType: this.type,
       action,
-      targetId,
       impactLevel,
-      timestamp: new Date().toISOString(),
-      metadata
+      timestamp: new Date().toISOString()
     };
+
+    if (targetId !== undefined) activity.targetId = targetId;
+    if (metadata !== undefined) activity.metadata = metadata;
 
     await addDoc(collection(db, "agent_activities"), activity);
     console.log(`[AGENT][${this.type}] ${action}`);
-    return activity;
+    return activity as AgentActivity;
   }
 }
 
