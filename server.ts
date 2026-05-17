@@ -202,25 +202,22 @@ async function startServer() {
 
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
-    console.log(`[HQ SECURITY] Handshake check: ${req.path}`);
-    
-    if (admin.apps.length === 0) {
-      console.error("[HQ SECURITY] Critical: Firebase Admin not initialized.");
-      return res.status(503).json({ error: "SERVICE_UNAVAILABLE", details: "Core governance layer is booting or offline." });
-    }
-
-    if (globalProjectId === "unknown-project") {
-      console.warn("[HQ SECURITY] Warning: Node identity not established via config.");
-    }
-
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn("[AUTH] Missing or malformed Authorization header");
-      return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol" });
-    }
-
-    const token = authHeader.split('Bearer ')[1];
     try {
+      console.log(`[HQ SECURITY] Handshake check: ${req.path}`);
+      
+      if (admin.apps.length === 0) {
+        console.error("[HQ SECURITY] Critical: Firebase Admin not initialized.");
+        return res.status(503).json({ error: "SERVICE_UNAVAILABLE", details: "Core governance layer is booting or offline." });
+      }
+
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn("[AUTH] Missing or malformed Authorization header");
+        return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol" });
+      }
+
+      const token = authHeader.split('Bearer ')[1];
+      
       // Use the explicit app to verify
       const app = admin.app();
       const decodedToken = await app.auth().verifyIdToken(token);
@@ -239,9 +236,9 @@ async function startServer() {
       if (!isTrustedEmail) {
         console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
         return res.status(403).json({ 
-          error: `ACCESS_DENIED: Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
-          identity: email,
-          details: "Contact HireNest HQ to whitelist this node."
+          error: "ACCESS_DENIED",
+          message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
+          identity: email
         });
       }
 
@@ -249,7 +246,14 @@ async function startServer() {
       next();
     } catch (err: any) {
       console.error("[AUTH ERROR] Verification Failed:", err.message);
-      res.status(401).json({ error: "IDENTITY_VERIFICATION_FAILED", details: err.message });
+      // Ensure we always return JSON instead of letting it bubble to HTML 500
+      if (!res.headersSent) {
+        res.status(401).json({ 
+          error: "IDENTITY_VERIFICATION_FAILED", 
+          details: err.message,
+          code: err.code || "auth/verification-failed"
+        });
+      }
     }
   }
 
@@ -299,27 +303,39 @@ async function startServer() {
       let mode = "LIVE";
       
       try {
-        const activeProjectId = globalProjectId;
-        console.log(`[HQ SYNC] Handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
+        const app = admin.app();
+        const db = app.firestore();
+        const activeProjectId = app.options.projectId || globalProjectId;
+        console.log(`[HQ SYNC] Attempting handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
         
-        const [usersSnap, orgsSnap] = await Promise.all([
+        // Timeout protection for Firebase calls
+        const timeout = <T>(promise: Promise<T>, ms: number) => {
+          return Promise.race([
+            promise,
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Firebase operation timed out after ' + ms + 'ms')), ms))
+          ]);
+        };
+
+        const [usersSnap, orgsSnap] = await timeout(Promise.all([
           db.collection("users").limit(100).get(),
           db.collection("organizations").limit(100).get()
-        ]);
+        ]), 10000); // 10s timeout
         
         users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        console.log(`[HQ SYNC] Intelligence retrieval successful. Identities: ${users.length}, Nodes: ${organizations.length}`);
+        console.log(`[HQ SYNC] Intelligence retrieval successful for project: ${activeProjectId}. Identities: ${users.length}, Nodes: ${organizations.length}`);
       } catch (dbErr: any) {
-        if (dbErr.message.includes('PERMISSION_DENIED') || String(dbErr.code) === '7') {
-          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${globalProjectId}. Ensure Service Account has 'Cloud Datastore User' role.`);
+        mode = "FALLBACK";
+        if (dbErr.message?.includes('PERMISSION_DENIED') || String(dbErr.code) === '7' || dbErr.message?.includes('Unauthenticated')) {
+          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${globalProjectId}. Identity: ${currentAdminEmail}. Ensure Service Account has 'Cloud Datastore User' role on project ${globalProjectId}.`);
+        } else if (dbErr.message?.includes('timed out')) {
+          console.error(`[HQ SYNC TIMEOUT] Database connection hung. Project: ${globalProjectId}`);
         } else {
           console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
         }
         users = dbMock.users;
         organizations = dbMock.organizations;
-        mode = "FALLBACK";
       }
 
       // If database is effectively empty, use mock for demo/visual consistency
@@ -377,8 +393,13 @@ async function startServer() {
 
       console.log(`[ONBOARD] Provisioning node [${email}] with role [${role}] under authority [${(req as any).user?.email}]`);
 
-      const auth = admin.auth();
-      const db = admin.firestore();
+      if (admin.apps.length === 0) {
+        throw new Error("CORE_OFFLINE: Global authority layer is not initialized.");
+      }
+      
+      const app = admin.app();
+      const auth = app.auth();
+      const db = app.firestore();
 
       // 1. Create Auth User
       let userRecord;
@@ -418,9 +439,13 @@ async function startServer() {
         // Map role to internal type
         let orgType = "client";
         if (role === "admin") orgType = "admin";
-        else if (["vendor_agency", "independent_vendor", "independent_recruiter", "freelancer_recruiter"].includes(role)) {
+        else if (role?.includes("vendor") || role?.includes("recruiter")) {
           orgType = "vendor";
+        } else if (role?.includes("client")) {
+          orgType = "client";
         }
+
+        console.log(`[ONBOARD] Calculated OrgType: ${orgType} for Role: ${role}`);
 
         // 2. Organization Record
         const orgRef = db.collection("organizations").doc(orgId);
@@ -508,12 +533,16 @@ async function startServer() {
       if (email) updateData.email = email;
       if (password) updateData.password = password;
       
+      if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
+      const app = admin.app();
+      const auth = app.auth();
+      
       if (Object.keys(updateData).length > 0) {
-        await admin.auth().updateUser(uid, updateData);
+        await auth.updateUser(uid, updateData);
       }
       
       // Update Firestore
-      const db = admin.firestore();
+      const db = app.firestore();
       
       const userUpdate: any = { updatedAt: new Date().toISOString() };
       if (email) userUpdate.email = email;
@@ -541,8 +570,11 @@ async function startServer() {
       const { uid, organizationId } = req.body;
       console.log(`[DELETE USER] Purging identity ${uid}...`);
       
-      await admin.auth().deleteUser(uid);
-      const db = admin.firestore();
+      if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
+      const app = admin.app();
+      
+      await app.auth().deleteUser(uid);
+      const db = app.firestore();
       await db.collection("users").doc(uid).delete();
       if (organizationId) {
         await db.collection("organizations").doc(organizationId).delete();
@@ -585,8 +617,9 @@ async function startServer() {
 
       console.log(`[JOB STATUS] Updating ${jobId} to ${status}...`);
 
-      // Update REAL Firestore via Admin SDK
-      const db = admin.firestore();
+      if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
+      const app = admin.app();
+      const db = app.firestore();
       await db.collection("requirements_public").doc(jobId).update({
         status: status,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()

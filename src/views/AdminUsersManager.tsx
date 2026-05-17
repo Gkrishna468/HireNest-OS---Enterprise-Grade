@@ -22,18 +22,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<any>("client_hm");
+  const [role, setRole] = useState<any>("client_os");
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
 
   const roles = [
     { value: 'admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
-    { value: 'client_hm', label: 'client node (member)', category: 'DEMAND' },
-    { value: 'vendor_agency', label: 'staffing agency (vendor)', category: 'SUPPLY' },
-    { value: 'independent_vendor', label: 'independent vendor (supply)', category: 'SUPPLY' },
-    { value: 'independent_recruiter', label: 'independent recruiter', category: 'SUPPLY' },
-    { value: 'freelancer_recruiter', label: 'freelancer recruiter', category: 'SUPPLY' },
+    { value: 'client_os', label: 'client os (demand/member)', category: 'DEMAND' },
+    { value: 'vendor_os', label: 'vendor os (agency/partner)', category: 'SUPPLY' },
+    { value: 'recruiter_os', label: 'recruiter os (independent/supply)', category: 'SUPPLY' },
+    { value: 'client_hm', label: 'legacy client node', category: 'DEMAND' },
+    { value: 'vendor_agency', label: 'legacy vendor agency', category: 'SUPPLY' },
+    { value: 'independent_vendor', label: 'legacy independent vendor', category: 'SUPPLY' },
   ];
 
   const getRoleCategory = (r: string) => {
