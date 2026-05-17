@@ -207,8 +207,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       <div className="flex flex-col h-screen items-center justify-center bg-slate-50 p-4">
         <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg border border-slate-200">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">HireNest<span className="text-indigo-600">OS</span></h1>
-            <p className="text-sm text-slate-500 mt-2">AI-Native Staffing Marketplace</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">HireNest<span className="text-indigo-600">OS</span> Identity Protocol</h1>
+            <p className="text-sm text-slate-500 mt-2">AI-Native Global Staffing Marketplace</p>
           </div>
           
           <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
@@ -267,8 +267,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       <div className="max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg border border-slate-200 overflow-y-auto max-h-[90vh]">
         <div className="mb-6 flex justify-between items-center border-b pb-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Organization Setup</h2>
-            <p className="text-xs text-slate-500">Configure your workspace identity</p>
+            <h2 className="text-xl font-bold text-slate-800">Identity Protocol Setup</h2>
+            <p className="text-xs text-slate-500">Configure your global workspace node identity</p>
           </div>
           <Button variant="ghost" onClick={() => signOut(auth)} size="sm">Sign Out</Button>
         </div>

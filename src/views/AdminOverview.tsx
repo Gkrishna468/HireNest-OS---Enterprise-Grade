@@ -124,8 +124,8 @@ export default function AdminOverview() {
     <div className="flex-1 overflow-auto p-6 space-y-6 bg-slate-50">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 lowercase tracking-widest">global governance control</h1>
-          <p className="text-xs text-slate-500 font-mono lowercase">platform-wide visibility across marketplace and erp layers.</p>
+            <h1 className="text-xl font-bold text-slate-800 lowercase tracking-widest">global governance & identity protocol</h1>
+            <p className="text-xs text-slate-500 font-mono lowercase">platform-wide synchronization across marketplace node layers.</p>
         </div>
         <div className="flex items-center space-x-3">
            <button 

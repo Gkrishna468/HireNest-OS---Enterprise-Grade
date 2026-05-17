@@ -59,9 +59,10 @@ const dbMock: any = {
   users: [
     { id: "vetAu3RF2qYVmsCuB6cpEz9DDqA2", email: "gopal@hirenestworkforce.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
     { id: "gopal-2", email: "gopalkrishna0046@gmail.com", role: "admin", organizationId: "ORG-GLOBAL-HQ", createdAt: new Date().toISOString() },
-    { id: "user-client-1", email: "client@example.com", role: "client", organizationId: "C-CLIENT-001", createdAt: new Date().toISOString() },
-    { id: "user-vendor-1", email: "vendor@example.com", role: "vendor", organizationId: "V-VENDOR-001", createdAt: new Date().toISOString() },
-    { id: "user-acme", email: "admin@acme.com", role: "client", organizationId: "C-8821", createdAt: new Date().toISOString() }
+    { id: "client-node-1", email: "gopalkrishna.sv46@gmail.com", role: "client_hm", organizationId: "C-8821", createdAt: new Date().toISOString() },
+    { id: "vendor-node-1", email: "founder.itconsulting@outlook.com", role: "vendor_agency", organizationId: "V-VENDOR-001", createdAt: new Date().toISOString() },
+    { id: "user-client-1", email: "client@example.com", role: "client_hm", organizationId: "C-CLIENT-001", createdAt: new Date().toISOString() },
+    { id: "user-vendor-1", email: "vendor@example.com", role: "vendor_agency", organizationId: "V-VENDOR-001", createdAt: new Date().toISOString() }
   ],
   requirements_public: [
     { 
@@ -196,17 +197,23 @@ async function startServer() {
     const token = authHeader.split('Bearer ')[1];
     try {
       const decodedToken = await admin.auth().verifyIdToken(token);
-      const email = decodedToken.email;
+      const email = decodedToken.email?.toLowerCase();
       
       console.log(`[HQ SECURITY] Handshake received from: ${email}`);
       
-      const isTrustedEmail = 
-        email === 'gopalkrishna0046@gmail.com' || 
-        email === 'gopal@hirenestworkforce.com';
+      const trustedNodes = [
+        'gopalkrishna0046@gmail.com',
+        'gopal@hirenestworkforce.com'
+      ];
+
+      const isTrustedEmail = email && trustedNodes.includes(email);
 
       if (!isTrustedEmail) {
         console.warn(`[SECURITY BREACH] Non-trusted node attempt: ${email}`);
-        return res.status(403).json({ error: `Access Denied: Node Identity [${email}] is not recognized as a Global Authority.` });
+        return res.status(403).json({ 
+          error: `Access Denied: Node Identity [${email}] is not recognized as a Global Authority.`,
+          identity: email
+        });
       }
 
       (req as any).user = decodedToken;
@@ -309,6 +316,7 @@ async function startServer() {
         metrics: dbMock.metrics || {},
         lastSync: new Date().toISOString(),
         isMock: mode !== "LIVE",
+        nodeId: admin.app().options.projectId,
         mode
       };
       res.status(200).json(payload);

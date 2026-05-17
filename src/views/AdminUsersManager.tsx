@@ -10,6 +10,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncMode, setSyncMode] = useState<string>("INITIALIZING");
+  const [nodeId, setNodeId] = useState<string>("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE">("ALL");
   
@@ -82,6 +83,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         const orgs = data.organizations || [];
         const remoteUsers = (data.users || []).filter((u: any) => !u.deleted);
         setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
+        setNodeId(data.nodeId || "");
+        setLoading(false);
         
         setUsers(remoteUsers.map((u: any) => {
           const orgId = u.organizationId || u.orgId || (u.org && u.org.id);
@@ -107,8 +110,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           return { id: d.id, uid: d.id, ...u, org };
         }).filter((u: any) => !u.deleted));
       } catch (fErr: any) {
-        const identity = auth.currentUser?.email || "Unknown Identity";
-        setError(`HANDSHAKE FAILED: Access Denied to [${identity}].`);
+        const identity = auth.currentUser?.email?.toLowerCase() || "Unknown Identity";
+        setError(`HANDSHAKE FAILED: Authority Rejection for [${identity}]. Contact HQ for Node Authorization.`);
+        console.error("Firestore Fallback Error:", fErr);
       }
     } finally {
       setLoading(false);
@@ -178,12 +182,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-12 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight lowercase">identity matrix</h1>
-          <p className="text-slate-400 font-bold text-[10px] lowercase tracking-widest mt-1">
-            <span className="text-indigo-600">global node authority</span> • platform governance & lifecycle
-          </p>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight lowercase">identity protocol matrix</h1>
+            <p className="text-slate-400 font-bold text-[10px] lowercase tracking-widest mt-1">
+              <span className="text-indigo-600">governance protocol hub</span> • platform node authority & scaling
+            </p>
         </div>
-        <div className="flex bg-slate-900 p-1 rounded-xl">
+        <div className="flex bg-slate-900 p-1 rounded-xl items-center gap-2">
+          {nodeId && (
+            <div className="px-3 py-1 bg-indigo-600 rounded-lg text-[8px] font-black text-white uppercase tracking-tighter">
+               ID: {nodeId}
+            </div>
+          )}
           <div className="px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
             <div className={cn(
               "h-2 w-2 rounded-full animate-pulse",
