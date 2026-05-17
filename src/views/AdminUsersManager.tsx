@@ -11,6 +11,11 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [loading, setLoading] = useState(true);
   const [syncMode, setSyncMode] = useState<string>("INITIALIZING");
   const [nodeId, setNodeId] = useState<string>("");
+  const [dbStatus, setDbStatus] = useState<{ projectId: string, connected: boolean, lastCheck: string }>({ 
+    projectId: 'initializing', 
+    connected: false, 
+    lastCheck: '-' 
+  });
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE">("ALL");
   
@@ -39,8 +44,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     return roles.find(ro => ro.value === r)?.label || r;
   };
 
-  const VerificationBadge = ({ verification }: { verification: any, role: string }) => {
+  const VerificationBadge = ({ verification, email }: { verification: any, role: string, email: string }) => {
     const trustScore = verification?.trustScore || 0;
+    const isGlobalHQ = ['gopal@hirenestworkforce.com', 'gopalkrishna0046@gmail.com'].includes(email?.toLowerCase());
+
+    if (isGlobalHQ) {
+      return (
+        <div className="flex items-center gap-1">
+          <span className="text-[8px] bg-slate-900 text-white px-2 py-0.5 rounded font-black lowercase tracking-widest">global authority node</span>
+          <span className="text-[10px] font-black text-indigo-600 ml-2 whitespace-nowrap lowercase tracking-tighter">trust: 100</span>
+        </div>
+      );
+    }
+
     if (!verification) return <span className="text-[8px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black tracking-widest lowercase">unverified node</span>;
     
     return (
@@ -84,6 +100,11 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         const remoteUsers = (data.users || []).filter((u: any) => !u.deleted);
         setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
         setNodeId(data.nodeId || "");
+        setDbStatus({
+          projectId: data.nodeId || 'unknown',
+          connected: data.mode !== 'FALLBACK' && data.mode !== 'FATAL_FALLBACK',
+          lastCheck: new Date().toLocaleTimeString()
+        });
         setLoading(false);
         
         setUsers(remoteUsers.map((u: any) => {
@@ -136,8 +157,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Onboarding failed");
+        const contentType = response.headers.get("content-type");
+        let errorMessage = "Onboarding failed";
+        
+        if (contentType && contentType.includes("application/json")) {
+          const errData = await response.json();
+          errorMessage = errData.error || errorMessage;
+        } else {
+          const text = await response.text();
+          errorMessage = text || `Server error (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       setEmail("");
@@ -295,14 +325,46 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           </div>
  
           <div className="bg-slate-900 rounded-[32px] p-8 text-white">
-            <h3 className="text-[10px] font-black lowercase tracking-[0.3em] text-slate-500 mb-6 text-center">node composition</h3>
+            <h3 className="text-[10px] font-black lowercase tracking-[0.3em] text-slate-500 mb-6 text-center">Protocol Connectivity</h3>
+            <div className="space-y-4">
+               <div className="flex items-center justify-between">
+                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Node ID</span>
+                 <span className="text-[10px] font-mono text-indigo-400 truncate max-w-[120px]">{dbStatus.projectId}</span>
+               </div>
+               <div className="flex items-center justify-between">
+                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Sync Status</span>
+                 <span className={cn(
+                   "text-[10px] font-black lowercase tracking-widest",
+                   dbStatus.connected ? "text-emerald-400" : "text-amber-400"
+                 )}>
+                   {dbStatus.connected ? "verified" : "fallback_mode"}
+                 </span>
+               </div>
+               <div className="flex items-center justify-between">
+                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Last Latency</span>
+                 <span className="text-[10px] font-mono text-slate-500">{dbStatus.lastCheck}</span>
+               </div>
+               <div className="pt-4 border-t border-slate-800">
+                  <Button 
+                    variant="ghost" 
+                    onClick={fetchUsers}
+                    className="w-full text-[9px] h-8 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg tracking-widest uppercase font-black"
+                  >
+                    Refresh Matrix
+                  </Button>
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-white border-2 border-slate-50 rounded-[32px] p-8">
+            <h3 className="text-[10px] font-black lowercase tracking-[0.3em] text-slate-400 mb-6 text-center">node composition</h3>
             <div className="space-y-4">
                {['GOVERNANCE', 'DEMAND', 'SUPPLY'].map(cat => {
                  const count = users.filter(u => getRoleCategory(u.role) === cat).length;
                  return (
                    <div key={cat} className="flex items-center justify-between">
-                     <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">{cat.toLowerCase()}</span>
-                     <span className="bg-slate-800 px-3 py-1 rounded-lg text-[10px] font-black">{count}</span>
+                     <span className="text-[10px] font-black lowercase tracking-widest text-slate-500">{cat.toLowerCase()}</span>
+                     <span className="bg-slate-50 px-3 py-1 rounded-lg text-[10px] text-slate-900 font-black">{count}</span>
                    </div>
                  );
                })}
@@ -361,7 +423,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                              </span>
                           </div>
                           <div className="mt-2">
-                             <VerificationBadge verification={u.verification} role={u.role} />
+                             <VerificationBadge verification={u.verification} role={u.role} email={u.email} />
                           </div>
                         </div>
                       </div>
