@@ -202,9 +202,15 @@ async function startServer() {
 
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+    console.log(`[HQ SECURITY] Handshake check: ${req.path}`);
+    
+    if (admin.apps.length === 0) {
+      console.error("[HQ SECURITY] Critical: Firebase Admin not initialized.");
+      return res.status(503).json({ error: "SERVICE_UNAVAILABLE", details: "Core governance layer is booting or offline." });
+    }
+
     if (globalProjectId === "unknown-project") {
-      console.error("[HQ SECURITY] Critical Infrastructure Failure: Node identity not established.");
-      return res.status(500).json({ error: "HQ_INFRASTRUCTURE_OFFLINE", details: "Global node authority has not been matched with a valid GCP project." });
+      console.warn("[HQ SECURITY] Warning: Node identity not established via config.");
     }
 
     const authHeader = req.headers.authorization;
@@ -215,11 +221,13 @@ async function startServer() {
 
     const token = authHeader.split('Bearer ')[1];
     try {
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      // Use the explicit app to verify
+      const app = admin.app();
+      const decodedToken = await app.auth().verifyIdToken(token);
       const email = decodedToken.email?.toLowerCase().trim();
       const uid = decodedToken.uid;
       
-      console.log(`[HQ SECURITY] Handshake received from: ${email} (UID: ${uid})`);
+      console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid})`);
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -247,7 +255,7 @@ async function startServer() {
 
   // --- API ROUTES ---
 
-  app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString() }));
+  app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString(), nodeId: globalProjectId }));
 
   app.get("/api/user/context", (req, res) => {
     const { orgId, role } = req.query;
@@ -338,7 +346,7 @@ async function startServer() {
         metrics: dbMock.metrics || {},
         lastSync: new Date().toISOString(),
         isMock: mode !== "LIVE",
-        nodeId: admin.app().options.projectId,
+        nodeId: globalProjectId,
         mode
       };
       res.status(200).json(payload);
@@ -358,14 +366,16 @@ async function startServer() {
   });
 
   app.post("/api/admin/onboard-node", verifyAdmin, async (req: Request, res: Response) => {
+    console.log("[ONBOARD] Request received. Parsing payload...");
     try {
       const { email, password, role, companyName } = req.body;
       
       if (!email || !password || !role || !companyName) {
+        console.warn("[ONBOARD] Validation failed: Missing parameters");
         return res.status(400).json({ error: "VALIDATION_FAILED: All node parameters (email, password, role, companyName) are required." });
       }
 
-      console.log(`[ONBOARD] Attempting to provision new node [${email}] under authority [${(req as any).user?.email}]`);
+      console.log(`[ONBOARD] Provisioning node [${email}] with role [${role}] under authority [${(req as any).user?.email}]`);
 
       const auth = admin.auth();
       const db = admin.firestore();
@@ -373,16 +383,18 @@ async function startServer() {
       // 1. Create Auth User
       let userRecord;
       try {
+        console.log(`[ONBOARD] Calling Auth.createUser for ${email}...`);
         userRecord = await auth.createUser({
           email,
           password,
           displayName: companyName || "New Node Agent"
         });
+        console.log(`[ONBOARD] Auth created. UID: ${userRecord.uid}`);
       } catch (authErr: any) {
         const errMsg = authErr?.message || "Internal Node Authority Failure";
         const errCode = authErr?.code || "auth/internal-error";
         
-        console.error(`[ONBOARD AUTH FAIL] ${email}:`, errMsg);
+        console.error(`[ONBOARD AUTH FAIL] ${email}:`, errMsg, errCode);
 
         if (errMsg.includes("identitytoolkit.googleapis.com") || errCode === 'auth/internal-error' || errCode === 'auth/project-not-found') {
           return res.status(500).json({ 
@@ -398,16 +410,23 @@ async function startServer() {
       const uid = userRecord.uid;
       const orgId = "NODE-" + Math.random().toString(36).substring(2, 11).toUpperCase();
       
-      console.log(`[ONBOARD] Auth created [${uid}]. Provisioning database synchronization...`);
+      console.log(`[ONBOARD] Provisioning database records for UID: ${uid}...`);
 
       try {
         const batch = db.batch();
+
+        // Map role to internal type
+        let orgType = "client";
+        if (role === "admin") orgType = "admin";
+        else if (["vendor_agency", "independent_vendor", "independent_recruiter", "freelancer_recruiter"].includes(role)) {
+          orgType = "vendor";
+        }
 
         // 2. Organization Record
         const orgRef = db.collection("organizations").doc(orgId);
         batch.set(orgRef, {
           organizationId: orgId,
-          type: role === "admin" ? "admin" : (role === "vendor_agency" || role === "independent_vendor" ? "vendor" : "client"),
+          type: orgType,
           companyName,
           status: "approved",
           adminApproved: true,
@@ -433,12 +452,13 @@ async function startServer() {
           }
         });
 
+        console.log(`[ONBOARD] Committing batch for ${email}...`);
         await batch.commit();
         console.log(`[ONBOARD SUCCESS] Identity matched: ${email} (UID: ${uid}, Node: ${orgId})`);
         return res.status(200).json({ success: true, uid, orgId });
       } catch (dbErr: any) {
         console.error("[ONBOARD DB FAIL] Reverting or flagging inconsistent state:", dbErr.message);
-        // Clean up auth user to prevent orphaned identities? Actually safer to return error.
+        // We could delete the auth user here, but it's risky if the fail was a timeout.
         return res.status(500).json({ 
           error: "DATABASE_SYNCHRONIZATION_FAILED", 
           details: dbErr.message,
