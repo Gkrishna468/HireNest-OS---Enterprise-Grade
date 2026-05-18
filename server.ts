@@ -274,7 +274,8 @@ async function startServer() {
     try {
       console.log(`[HQ SECURITY] [${requestId}] Handshake check: ${req.path}`);
       
-      if (admin.apps.length === 0) {
+      const app = admin.apps.length > 0 ? admin.app() : null;
+      if (!app) {
         console.error(`[HQ SECURITY] [${requestId}] Critical: Firebase Admin not initialized.`);
         return res.status(503).json({ 
           error: "SERVICE_UNAVAILABLE", 
@@ -285,7 +286,6 @@ async function startServer() {
 
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.warn(`[HQ SECURITY] [${requestId}] Missing or malformed Authorization header`);
         return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol", requestId });
       }
 
@@ -294,14 +294,12 @@ async function startServer() {
         return res.status(401).json({ error: "Access Denied: Invalid Auth Token String", requestId });
       }
       
-      const auth = admin.auth();
+      const auth = app.auth();
       // Use absolute project isolation for verification
       const decodedToken = await auth.verifyIdToken(token);
       const email = decodedToken.email?.toLowerCase().trim();
-      const uid = decodedToken.uid;
-      const role = decodedToken.role;
       
-      console.log(`[HQ SECURITY] [${requestId}] Authority Handshake Verified: ${email} (UID: ${uid}, Role: ${role})`);
+      console.log(`[HQ SECURITY] [${requestId}] Authority Handshake Verified: ${email}`);
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -309,15 +307,13 @@ async function startServer() {
       ];
 
       const isTrustedEmail = email && trustedNodes.includes(email);
-      const isTrustedRole = role === 'admin';
+      const isTrustedRole = decodedToken.role === 'admin';
 
       if (!isTrustedEmail && !isTrustedRole) {
         console.warn(`[SECURITY BREACH] [${requestId}] Unauthorized Authority Attempt: ${email}`);
         return res.status(403).json({ 
           error: "ACCESS_DENIED",
           message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
-          identity: email,
-          details: "Required claim 'role: admin' or master email whitelist membership.",
           requestId
         });
       }
@@ -327,23 +323,38 @@ async function startServer() {
     } catch (err: any) {
       console.error(`[HQ SECURITY] [${requestId}] Protocol Handshake Failed:`, err.message);
       if (!res.headersSent) {
-        // Map common errors to descriptive JSON instead of letting it hit Vite's 500 HTML
         const isAuthError = err.code?.startsWith('auth/');
-        const isPermissionError = err.message?.includes('PERMISSION_DENIED') || err.code === 7;
-        
-        const status = isAuthError ? 401 : (isPermissionError ? 403 : 500);
-        res.status(status).json({ 
-          error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : (isPermissionError ? "CORE_PERMISSION_DENIED" : "SECURITY_PROTOCOL_CRASH"), 
-          details: err.message,
+        res.status(isAuthError ? 401 : 500).json({ 
+          error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : "SECURITY_PROTOCOL_CRASH", 
+          details: err.message || "Unknown Verification Error",
           code: err.code || "governance/handshake-failure",
-          requestId,
-          remediation: isPermissionError ? `Grant 'Service Usage Consumer' and 'Firebase Authentication Admin' roles to the Service Account in project ${globalProjectId}.` : undefined
+          requestId
         });
       }
     }
   }
 
   // --- API ROUTES ---
+  app.get("/api/admin/pre-flight", async (req, res) => {
+    // PUBLIC non-sensitive identity check to help users debug IAM in prod
+    const results: any = { status: "operational", timestamp: new Date().toISOString() };
+    try {
+      const saRes = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
+        headers: { "Metadata-Flavor": "Google" },
+        signal: AbortSignal.timeout(1000)
+      });
+      results.runtimeIdentity = saRes.ok ? await saRes.text() : "compute-default";
+      
+      const projRes = await fetch("http://metadata.google.internal/computeMetadata/v1/project/project-id", {
+        headers: { "Metadata-Flavor": "Google" },
+        signal: AbortSignal.timeout(1000)
+      });
+      if (projRes.ok) results.runtimeProjectId = await projRes.text();
+    } catch (e) {
+      results.runtimeIdentity = "local-environment";
+    }
+    res.json(results);
+  });
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
@@ -423,72 +434,58 @@ async function startServer() {
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
     const results: any = {
       projectId: globalProjectId,
-      globalProjectId,
-      envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
+      envProjectId: process.env.GOOGLE_CLOUD_PROJECT,
       auth: "checking",
       firestore: "checking",
-      nodeEnv: process.env.NODE_ENV || "development",
-      timestamp: new Date().toISOString(),
-      handshakeId: Math.random().toString(36).substring(7)
+      timestamp: new Date().toISOString()
     };
 
     try {
-      // 1. Infrastructure Identity Identification
+      // 1. Identity Discovery
       try {
-        const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
+        const saRes = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
           headers: { "Metadata-Flavor": "Google" },
-          signal: AbortSignal.timeout(2000)
+          signal: AbortSignal.timeout(1500)
         });
-        if (response.ok) {
-          results.serviceAccount = await response.text();
-        } else {
-          results.serviceAccount = "compute-default-runtime";
-        }
+        results.serviceAccount = saRes.ok ? await saRes.text() : "compute-default";
+
+        const projRes = await fetch("http://metadata.google.internal/computeMetadata/v1/project/project-id", {
+          headers: { "Metadata-Flavor": "Google" },
+          signal: AbortSignal.timeout(1500)
+        });
+        if (projRes.ok) results.runtimeProjectId = await projRes.text();
       } catch (e) {
-        results.serviceAccount = "local-dev-fallback";
+        results.serviceAccount = "local-environment";
       }
 
-      // 2. Authority Node (Auth) Handshake
+      // 2. Auth Handshake
       try {
         const auth = admin.auth();
-        const listPromise = auth.listUsers(1);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Authority operation timed out (Auth Layer)")), 5000));
-        await Promise.race([listPromise, timeoutPromise]);
+        await auth.listUsers(1);
         results.auth = "healthy";
       } catch (e: any) {
-        const errorMsg = e.message || "";
-        results.auth = `failure: ${errorMsg}`;
+        results.auth = `failure: ${e.message}`;
         results.authCode = e.code;
-        results.authDetails = errorMsg;
-        
-        if (errorMsg.includes('serviceusage.serviceUsageConsumer') || errorMsg.includes('PERMISSION_DENIED') || e.code === 7) {
-          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/iam.serviceAccountTokenCreator"`;
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('Service Usage')) {
+          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin"`;
         }
       }
 
-      // 3. Entity Mirror (Firestore) Handshake
+      // 3. Firestore Handshake
       try {
         const db = admin.firestore();
-        const getPromise = db.collection("users").limit(1).get();
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Entity Mirror operation timed out (Firestore Layer)")), 5000));
-        await Promise.race([getPromise, timeoutPromise]);
+        await db.collection("users").limit(1).get();
         results.firestore = "healthy";
       } catch (e: any) {
         results.firestore = `failure: ${e.message}`;
-        results.firestoreCode = e.code;
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-            results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin" --role="roles/serviceusage.serviceUsageConsumer"`;
+          results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user"`;
         }
       }
 
-      return res.json(results);
+      res.json(results);
     } catch (fatalErr: any) {
-      console.error("[DIAGNOSTICS FATAL]", fatalErr);
-      return res.status(200).json({ 
-        ...results,
-        error: "DIAGNOSTICS_PARTIAL_CRASH", 
-        message: fatalErr.message 
-      });
+      res.status(200).json({ ...results, error: fatalErr.message });
     }
   });
 

@@ -28,8 +28,9 @@ export default function AdminSecurityDashboard() {
   const [logs, setLogs] = useState<any[]>([]);
   const [quotas, setQuotas] = useState<any[]>([]);
   const [riskAssessments, setRiskAssessments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [preFlight, setPreFlight] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let unsubLogs: (() => void) | null = null;
@@ -82,7 +83,13 @@ export default function AdminSecurityDashboard() {
           }).catch(() => console.warn("Firestore Quotas denied"));
         } catch (e) {}
 
-        // 4. Server Diagnostics
+        // 4. Pre-flight Check (Public Identity Detection)
+        fetch('/api/admin/pre-flight')
+          .then(r => r.ok ? r.json() : null)
+          .then(setPreFlight)
+          .catch(() => console.warn("Pre-flight handshake offline"));
+
+        // 5. Server Diagnostics
         fetch('/api/admin/diagnostics', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
@@ -100,14 +107,14 @@ export default function AdminSecurityDashboard() {
               firestore: "handshake-failed",
               authDetails: errorData.details || `HTTP ${r.status}`,
               remediation: errorData.remediation,
-              serviceAccount: errorData.serviceAccount || "Identity detecting..."
+              serviceAccount: errorData.serviceAccount || null 
             };
           } else {
             const text = await r.text();
             return { 
               auth: "handshake-failed", 
               firestore: "handshake-failed", 
-              authDetails: `HTTP ${r.status}: ${text.substring(0, 200) || "Empty or non-JSON response"}` 
+              authDetails: `HTTP ${r.status}: ${text.substring(0, 500) || "Empty or non-JSON response"}` 
             };
           }
         })
@@ -152,8 +159,8 @@ export default function AdminSecurityDashboard() {
         {[
           { label: "Authority Node", value: diagnostics?.auth || "PENDING", icon: Lock, status: diagnostics?.auth === "healthy" ? "success" : "warning" },
           { label: "Entity Mirror", value: diagnostics?.firestore || "PENDING", icon: Server, status: diagnostics?.firestore === "healthy" ? "success" : "warning" },
-          { label: "Runtime Identity", value: diagnostics?.serviceAccount || "Detecting...", icon: Fingerprint, status: "neutral", copyable: true },
-          { label: "Infrastructure Host", value: diagnostics?.projectId || diagnostics?.envProjectId || "...", icon: Shield, status: "neutral" }
+          { label: "Runtime Identity", value: diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Detecting...", icon: Fingerprint, status: "neutral", copyable: true },
+          { label: "Infrastructure Host", value: diagnostics?.projectId || preFlight?.runtimeProjectId || "...", icon: Shield, status: "neutral" }
         ].map((item, idx) => (
           <div key={idx} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-start gap-4">
             <div className={cn(
