@@ -15,7 +15,7 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
-let globalProjectId = "hirenest-os"; // Target Project
+let globalProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || "hirenest-os"; // Priority detection
 process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
 process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
 
@@ -43,24 +43,28 @@ const AuditService = {
 };
 
 // Initialize Firebase Admin with explicit project attribution
-console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
+console.log(`[HQ CORE] Boot sequence initiated. Node: ${globalProjectId}`);
 try {
+  // 1. Attempt config file discovery
   const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(firebaseConfigPath)) {
     const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
     globalProjectId = config.projectId || globalProjectId;
+    console.log(`[HQ CORE] Config identified Project ID: ${globalProjectId}`);
   }
 
+  // 2. Initialize if needed
   if (admin.apps.length === 0) {
     admin.initializeApp({
       projectId: globalProjectId,
       credential: admin.credential.applicationDefault()
     });
     const app = admin.app();
-    console.log(`[HQ CORE] Governance layer established on node: ${app.options.projectId}`);
+    console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
   }
 } catch (e: any) {
-  console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
+  console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
+  // Do not crash server, allow diagnostics to report the issue
 }
 
 const UsageService = {
@@ -337,21 +341,30 @@ async function startServer() {
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
     // PUBLIC non-sensitive identity check to help users debug IAM in prod
-    const results: any = { status: "operational", timestamp: new Date().toISOString() };
+    const results: any = { 
+        status: "operational", 
+        timestamp: new Date().toISOString(),
+        nodeId: globalProjectId,
+        appsCount: admin.apps.length
+    };
     try {
-      const saRes = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
-        headers: { "Metadata-Flavor": "Google" },
-        signal: AbortSignal.timeout(1000)
-      });
-      results.runtimeIdentity = saRes.ok ? await saRes.text() : "compute-default";
+      // Use shorter timeouts and check specifically for metadata availability
+      const metadataUrl = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email";
+      const saRes = await fetch(metadataUrl, {
+        headers: { "Metadata-Flavor": "Google" }
+      }).catch(() => null);
       
-      const projRes = await fetch("http://metadata.google.internal/computeMetadata/v1/project/project-id", {
-        headers: { "Metadata-Flavor": "Google" },
-        signal: AbortSignal.timeout(1000)
-      });
-      if (projRes.ok) results.runtimeProjectId = await projRes.text();
-    } catch (e) {
-      results.runtimeIdentity = "local-environment";
+      results.runtimeIdentity = saRes && saRes.ok ? await saRes.text() : "local-or-sandbox";
+      
+      const projUrl = "http://metadata.google.internal/computeMetadata/v1/project/project-id";
+      const projRes = await fetch(projUrl, {
+        headers: { "Metadata-Flavor": "Google" }
+      }).catch(() => null);
+      
+      if (projRes && projRes.ok) results.runtimeProjectId = await projRes.text();
+    } catch (e: any) {
+      results.runtimeIdentity = "error-detecting";
+      results.error = e.message;
     }
     res.json(results);
   });
@@ -435,28 +448,35 @@ async function startServer() {
     const results: any = {
       projectId: globalProjectId,
       envProjectId: process.env.GOOGLE_CLOUD_PROJECT,
+      appsInitialized: admin.apps.length,
       auth: "checking",
       firestore: "checking",
       timestamp: new Date().toISOString()
     };
 
     try {
+      if (admin.apps.length === 0) {
+        throw new Error("Governance Node offline: Firebase Admin failed to initialize.");
+      }
+
       // 1. Identity Discovery
       try {
         const saRes = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
-          headers: { "Metadata-Flavor": "Google" },
-          signal: AbortSignal.timeout(1500)
-        });
-        results.serviceAccount = saRes.ok ? await saRes.text() : "compute-default";
+          headers: { "Metadata-Flavor": "Google" }
+        }).catch(() => null);
+        
+        results.serviceAccount = (saRes && saRes.ok) ? await saRes.text() : "detecting...";
 
         const projRes = await fetch("http://metadata.google.internal/computeMetadata/v1/project/project-id", {
-          headers: { "Metadata-Flavor": "Google" },
-          signal: AbortSignal.timeout(1500)
-        });
-        if (projRes.ok) results.runtimeProjectId = await projRes.text();
+          headers: { "Metadata-Flavor": "Google" }
+        }).catch(() => null);
+        
+        if (projRes && projRes.ok) results.runtimeProjectId = await projRes.text();
       } catch (e) {
-        results.serviceAccount = "local-environment";
+        results.serviceAccount = "identity-error";
       }
+
+      const activeProject = results.runtimeProjectId || globalProjectId;
 
       // 2. Auth Handshake
       try {
@@ -466,8 +486,9 @@ async function startServer() {
       } catch (e: any) {
         results.auth = `failure: ${e.message}`;
         results.authCode = e.code;
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('Service Usage')) {
-          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin"`;
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('Service Usage') || e.message?.includes('IAM')) {
+          const sa = results.serviceAccount || "YOUR_SERVICE_ACCOUNT";
+          results.remediation = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
         }
       }
 
@@ -479,13 +500,20 @@ async function startServer() {
       } catch (e: any) {
         results.firestore = `failure: ${e.message}`;
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-          results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user"`;
+          const sa = results.serviceAccount || "YOUR_SERVICE_ACCOUNT";
+          results.iamCommand = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/datastore.user"`;
         }
       }
 
       res.json(results);
     } catch (fatalErr: any) {
-      res.status(200).json({ ...results, error: fatalErr.message });
+      console.error("[DIAGNOSTICS FATAL]", fatalErr);
+      res.status(500).json({ 
+        error: "DIAGNOSTICS_FAILURE", 
+        details: fatalErr.message,
+        nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE",
+        projectId: globalProjectId
+      });
     }
   });
 

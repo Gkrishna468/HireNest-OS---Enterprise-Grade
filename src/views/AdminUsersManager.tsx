@@ -287,11 +287,11 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                  error.toUpperCase().includes("PERMISSION_DENIED") ? (
                   <div className="space-y-2">
                     <p className="text-[9px] text-red-500 font-bold leading-relaxed">
-                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" (including service usage consumer) for the service account in project hirenest-os.
+                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" (including service usage consumer) for the service account in project {nodeId || 'hirenest-os'}.
                     </p>
                     <div className="flex gap-2">
                         <a 
-                          href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=hirenest-os`}
+                          href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=${nodeId || 'hirenest-os'}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-block bg-red-600 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
@@ -299,7 +299,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                           Enable API
                         </a>
                         <a 
-                          href={`https://console.cloud.google.com/iam-admin/iam?project=hirenest-os`}
+                          href={`https://console.cloud.google.com/iam-admin/iam?project=${nodeId || 'hirenest-os'}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-block bg-slate-800 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"

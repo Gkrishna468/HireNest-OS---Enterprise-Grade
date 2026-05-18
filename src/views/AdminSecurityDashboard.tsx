@@ -77,17 +77,20 @@ export default function AdminSecurityDashboard() {
           })
           .then(async (r) => {
             if (r.ok) return await r.json();
+            
             const errorRaw = await r.text();
-            let errorData = {};
+            let errorData = { details: "Unknown Protocol Error", requestId: "N/A" };
             try { errorData = JSON.parse(errorRaw); } catch(e) {}
             
             return {
               auth: "handshake-failed",
               firestore: "handshake-failed",
-              authDetails: (errorData as any).details || errorRaw || `HTTP ${r.status}`,
+              authDetails: errorData.details || errorRaw || `HTTP ${r.status}`,
               remediation: (errorData as any).remediation,
               serviceAccount: (errorData as any).serviceAccount || null,
-              iamCommand: (errorData as any).iamCommand 
+              iamCommand: (errorData as any).iamCommand,
+              requestId: errorData.requestId || "SRV-500",
+              statusText: r.statusText
             };
           })
           .then(setDiagnostics)
