@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { Zap, Clock, MessageSquare, ShieldCheck, Activity } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -27,6 +27,8 @@ export function ExecutionFeed({ requirementId, dealId, className }: ExecutionFee
     return onSnapshot(q, (snap) => {
       setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "execution_events");
     });
   }, [requirementId, dealId]);
 

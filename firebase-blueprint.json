@@ -1,5 +1,25 @@
 {
   "entities": {
+    "OnboardingRequest": {
+      "title": "Onboarding Request",
+      "description": "A request for a new organization or user to join the network",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "type": { "type": "string", "enum": ["vendor", "client", "recruiter", "freelancer"] },
+        "companyName": { "type": "string" },
+        "email": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "aadhaarNumber": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "VERIFIED", "REJECTED"] },
+        "riskScore": { "type": "number" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "reviewedBy": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["requestId", "type", "email", "verificationStatus", "submittedAt"]
+    },
     "Organization": {
       "title": "Organization",
       "description": "Represents a client, vendor, or admin organization",
@@ -331,6 +351,7 @@
     }
   },
   "firestore": {
+    "onboarding_requests/{requestId}": { "schema": { "$ref": "OnboardingRequest" }, "description": "Verification queue for network admission" },
     "organizations/{organizationId}": { "schema": { "$ref": "Organization" }, "description": "Global organizations" },
     "users/{userId}": { "schema": { "$ref": "User" }, "description": "User profiles" },
     "requirements_public/{requirementId}": { "schema": { "$ref": "Requirement" }, "description": "Public job requirements (Vendor safe)" },

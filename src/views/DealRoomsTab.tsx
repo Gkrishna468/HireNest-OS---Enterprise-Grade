@@ -158,8 +158,12 @@ export default function DealRoomsTab() {
       timestamp: serverTimestamp()
     };
 
-    await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), payload);
-    setInputText("");
+    try {
+      await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), payload);
+      setInputText("");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `dealRooms/${selectedRoom.id}/messages`);
+    }
   };
 
   const fetchIntelligence = async () => {
@@ -272,9 +276,13 @@ export default function DealRoomsTab() {
   const handleRevealToggle = async () => {
     if (!selectedRoom) return;
     const nextState = !selectedRoom.identitiesRevealed;
-    await updateDoc(doc(db, "dealRooms", selectedRoom.id), {
-      identitiesRevealed: nextState
-    });
+    try {
+      await updateDoc(doc(db, "dealRooms", selectedRoom.id), {
+        identitiesRevealed: nextState
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `dealRooms/${selectedRoom.id}`);
+    }
     
     // System message
     await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {

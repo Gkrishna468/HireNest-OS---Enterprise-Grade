@@ -381,6 +381,112 @@ async function startServer() {
     }
   });
 
+  app.post("/api/onboard/request", async (req, res) => {
+    try {
+      const { type, companyName, email, linkedin, gstNumber, aadhaarNumber, metadata } = req.body;
+      const db = admin.firestore();
+      
+      const requestId = "REQ-" + Math.random().toString(36).substring(2, 11).toUpperCase();
+      
+      // Calculate a basic risk score (prototype)
+      let riskScore = 30; // Base score
+      if (!companyName && type !== 'freelancer') riskScore += 20;
+      if (!linkedin) riskScore += 10;
+      
+      const request = {
+        requestId,
+        type,
+        companyName: companyName || "Independent Entity",
+        email,
+        linkedin: linkedin || null,
+        gstNumber: gstNumber || null,
+        aadhaarNumber: aadhaarNumber || null,
+        verificationStatus: "PENDING",
+        riskScore,
+        submittedAt: new Date().toISOString(),
+        metadata: metadata || {}
+      };
+      
+      await db.collection("onboarding_requests").doc(requestId).set(request);
+      
+      console.log(`[GOVERNANACE] New Onboarding Request: ${requestId} for ${email}`);
+      res.json({ success: true, requestId });
+    } catch (err: any) {
+      console.error("[ONBOARD REQ FAIL]", err);
+      res.status(500).json({ error: "Onboarding submission failed", details: err.message });
+    }
+  });
+
+  app.post("/api/admin/onboard/approve", verifyAdmin, async (req, res) => {
+    try {
+      const { requestId, role, password } = req.body;
+      const db = admin.firestore();
+      const auth = admin.auth();
+      
+      const reqDoc = await db.collection("onboarding_requests").doc(requestId).get();
+      if (!reqDoc.exists) {
+        return res.status(404).json({ error: "Request not found" });
+      }
+      
+      const reqData = reqDoc.data()!;
+      
+      // 1. Create Auth User
+      const userRecord = await auth.createUser({
+        email: reqData.email,
+        password: password || "Temp123!", // Should be handled better in real flow
+        displayName: reqData.companyName || "Verified Member"
+      });
+      
+      const uid = userRecord.uid;
+      const orgId = "ORG-" + Math.random().toString(36).substring(2, 11).toUpperCase();
+      
+      const batch = db.batch();
+      
+      // 2. Create Organization
+      batch.set(db.collection("organizations").doc(orgId), {
+        organizationId: orgId,
+        type: reqData.type === 'freelancer' ? 'freelancer' : reqData.type,
+        companyName: reqData.companyName,
+        status: "approved",
+        trustGrade: reqData.riskScore < 40 ? "AAA" : "AA",
+        verificationLevel: 2,
+        ownerId: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      // 3. Create User
+      batch.set(db.collection("users").doc(uid), {
+        uid,
+        email: reqData.email,
+        role: role || (reqData.type === 'client' ? 'CLIENT_ADMIN' : 'VENDOR_ADMIN'),
+        organizationId: orgId,
+        trustLevel: 1,
+        verification: {
+          emailVerified: false,
+          identityVerified: true,
+          businessVerified: !!reqData.gstNumber,
+          trustScore: 100 - (reqData.riskScore || 30)
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      // 4. Update Request Status
+      batch.update(db.collection("onboarding_requests").doc(requestId), {
+        verificationStatus: "VERIFIED",
+        reviewedBy: (req as any).user.email,
+        metadata: { ...reqData.metadata, provisionedUid: uid, provisionedOrgId: orgId }
+      });
+      
+      await batch.commit();
+      
+      console.log(`[GOVERNANACE] Request ${requestId} Approved. User ${uid} activated.`);
+      res.json({ success: true, uid, orgId });
+    } catch (err: any) {
+      console.error("[ONBOARD APPROVE FAIL]", err);
+      res.status(500).json({ error: "Approval execution failed", details: err.message });
+    }
+  });
+
   app.post("/api/admin/onboard-node", verifyAdmin, async (req: Request, res: Response) => {
     console.log("[ONBOARD] Request received. Parsing payload...");
     try {

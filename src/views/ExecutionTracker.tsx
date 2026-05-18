@@ -32,7 +32,7 @@ import {
 import { Button } from "../lib/Button";
 import { Badge } from "../lib/Badge";
 import { cn } from "../lib/utils";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { 
   collection, 
   query, 
@@ -81,6 +81,8 @@ export default function ExecutionTracker() {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setItems(data);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "execution_tracker");
     });
 
     // v5.0 Autonomous trigger
@@ -116,21 +118,29 @@ export default function ExecutionTracker() {
       }
       alert("Intelligence layers seeded successfully.");
     } catch (err) {
-      console.error("Seeding failed", err);
+      handleFirestoreError(err, OperationType.CREATE, "execution_tracker");
     }
   };
 
   const toggleStatus = async (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === "Completed" ? "In Progress" : "Completed";
-    await updateDoc(doc(db, "execution_tracker", id), {
-      status: nextStatus,
-      updatedAt: new Date().toISOString()
-    });
+    try {
+      await updateDoc(doc(db, "execution_tracker", id), {
+        status: nextStatus,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `execution_tracker/${id}`);
+    }
   };
 
   const deleteItem = async (id: string) => {
     if (confirm("Purge this execution pulse?")) {
-      await deleteDoc(doc(db, "execution_tracker", id));
+      try {
+        await deleteDoc(doc(db, "execution_tracker", id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `execution_tracker/${id}`);
+      }
     }
   };
 
@@ -377,19 +387,23 @@ export default function ExecutionTracker() {
                 <form onSubmit={async (e: any) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    await addDoc(collection(db, "execution_tracker"), {
-                        category: activeCategory,
-                        title: formData.get("title"),
-                        priority: formData.get("priority"),
-                        status: "Not Started",
-                        owner: formData.get("owner"),
-                        deadline: formData.get("deadline"),
-                        notes: formData.get("notes"),
-                        nextAction: formData.get("nextAction"),
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                    });
-                    setShowAddModal(false);
+                    try {
+                      await addDoc(collection(db, "execution_tracker"), {
+                          category: activeCategory,
+                          title: formData.get("title"),
+                          priority: formData.get("priority"),
+                          status: "Not Started",
+                          owner: formData.get("owner"),
+                          deadline: formData.get("deadline"),
+                          notes: formData.get("notes"),
+                          nextAction: formData.get("nextAction"),
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString()
+                      });
+                      setShowAddModal(false);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.CREATE, "execution_tracker");
+                    }
                 }} className="p-8 space-y-4">
                     <div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Task Title</label>
@@ -477,6 +491,8 @@ function EventBusView() {
         return onSnapshot(q, (snap) => {
             setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             setLoading(false);
+        }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, "execution_events");
         });
     }, []);
 
@@ -532,6 +548,8 @@ function RiskCenterView() {
     useEffect(() => {
         return onSnapshot(collection(db, "risk_assessments"), (snap) => {
             setRisks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, "risk_assessments");
         });
     }, []);
 
@@ -679,6 +697,8 @@ function TrustIndexView() {
     useEffect(() => {
         return onSnapshot(collection(db, "trust_metrics"), (snap) => {
             setMetrics(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, "trust_metrics");
         });
     }, []);
 
@@ -762,6 +782,8 @@ function OrchestrationHubView() {
     useEffect(() => {
         return onSnapshot(collection(db, "requirements_public"), (snap) => {
             setRequirements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, "requirements_public");
         });
     }, []);
 
@@ -976,6 +998,8 @@ function AgentOrchestrationView() {
         const q = query(collection(db, "agent_activities"), orderBy("timestamp", "desc"), limit(20));
         return onSnapshot(q, (snap) => {
             setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, "agent_activities");
         });
     }, []);
 

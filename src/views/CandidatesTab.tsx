@@ -89,17 +89,12 @@ export default function CandidatesTab() {
     setIsSubmitting(true);
     try {
       const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-      
-      // PERSISTENCE LAYER: Save record immediately
       const initialCandidate = {
         ...formData,
         candidateId: candId,
         vendorId: userOrgId,
-        skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean),
-        matchScore: 0, 
         pipelineStage: "Candidate Added",
-        source: "Manual Entry",
-        distillationStatus: formData.resumeText ? "PENDING" : "COMPLETED",
+        matchScore: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -117,8 +112,7 @@ export default function CandidatesTab() {
       setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "", experience: "" });
       alert("Candidate successfully onboarded. Intelligence processing in background.");
     } catch (e: any) {
-      console.error(e);
-      alert("Failed to add candidate: " + e.message);
+      console.error("Manual onboarding failed", e);
       setIsSubmitting(false);
     }
   };
@@ -137,16 +131,20 @@ export default function CandidatesTab() {
       let count = 0;
       for (const profile of parsedProfiles) {
         const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-        await setDoc(doc(db, "candidatePool", candId), {
-          ...profile,
-          candidateId: candId,
-          vendorId: userOrgId,
-          matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
-          pipelineStage: "Candidate Added",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        count++;
+        try {
+          await setDoc(doc(db, "candidatePool", candId), {
+            ...profile,
+            candidateId: candId,
+            vendorId: userOrgId,
+            matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
+            pipelineStage: "Candidate Added",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          count++;
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `candidatePool/${candId}`);
+        }
       }
       setBulkText("");
       setShowBulkUpload(false);

@@ -113,94 +113,77 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         return;
       }
       
-      const isIndividual = ["freelancer_recruiter", "independent_recruiter"].includes(orgType);
-      const orgId = isIndividual ? "IND-" + user.uid.substring(0, 8) : "ORG-" + Math.floor(Math.random() * 100000);
-      let ndaUrl = "";
-      let msaUrl = "";
-      let businessUrl = "";
-
-      // Upload Documents
-      if (ndaFile) {
-        const ndaRef = ref(storage, `compliance/${orgId}/NDA.pdf`);
-        await uploadBytes(ndaRef, ndaFile);
-        ndaUrl = await getDownloadURL(ndaRef);
-      }
-
-      if (msaFile) {
-        const msaRef = ref(storage, `compliance/${orgId}/MSA.pdf`);
-        await uploadBytes(msaRef, msaFile);
-        msaUrl = await getDownloadURL(msaRef);
-      }
-
-      if (businessFile) {
-        const busRef = ref(storage, `compliance/${orgId}/business_verification.pdf`);
-        await uploadBytes(busRef, businessFile);
-        businessUrl = await getDownloadURL(busRef);
-      }
-
-      // Create Organization Layer
-      let orgData: any = null;
-      if (orgType !== "freelancer_recruiter") {
-        orgData = {
-          organizationId: orgId,
-          type: orgType,
-          companyName: ["independent_vendor", "independent_recruiter"].includes(orgType) ? `${user.displayName || 'Independent'} Leadership Office` : companyName,
-          domain: user.email?.split('@')[1],
-          status: "pending_review",
-          verificationTier: businessFile ? "Tier 2" : "Tier 1",
-          ndaUploaded: !!ndaFile,
-          msaUploaded: !!msaFile,
-          businessDocsUploaded: !!businessFile,
-          ownerId: user.uid,
-          createdAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, "organizations", orgId), orgData);
-
-        if (ndaFile || msaFile || businessFile) {
-           await Promise.all([
-             ndaFile && setDoc(doc(db, "compliance_documents", orgId + "_NDA"), {
-               organizationId: orgId, documentType: "NDA", fileUrl: ndaUrl,
-               uploadedAt: new Date().toISOString(), status: "pending", ownerId: user.uid
-             }),
-             msaFile && setDoc(doc(db, "compliance_documents", orgId + "_MSA"), {
-               organizationId: orgId, documentType: "MSA", fileUrl: msaUrl,
-               uploadedAt: new Date().toISOString(), status: "pending", ownerId: user.uid
-             })
-           ].filter(Boolean));
+      const payload = {
+        type: orgType === 'client' ? 'client' : (orgType === 'freelancer_recruiter' ? 'freelancer' : (orgType.includes('recruiter') ? 'recruiter' : 'vendor')),
+        companyName: companyName || (["freelancer_recruiter", "independent_recruiter"].includes(orgType) ? user.displayName : ""),
+        email: user.email,
+        linkedin: linkedinUrl,
+        gstNumber: businessFile ? "GST-PENDING" : null,
+        aadhaarNumber: aadhaarNumber || null,
+        metadata: {
+          originalRole: orgType,
+          uid: user.uid,
+          selectedRole: selectedRole || ""
         }
+      };
+
+      console.log("[PROTOCOL] Initiating Network Onboarding Request...");
+      
+      const response = await fetch('/api/onboard/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Network Handshake Failed");
       }
 
-      // Create Identity Layer
-      const userData = {
+      const resData = await response.json();
+      console.log("[PROTOCOL] Verification Queue Entry Created:", resData.requestId);
+
+      // Create a local record in users collection specifically as PENDING
+      // This allows the app to know they are waiting
+      await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: user.email,
-        role: orgType === "client" ? (selectedRole || "client_hm") : orgType,
-        organizationId: orgId,
-        verification: {
-          emailVerified: user.emailVerified || false,
-          identityVerified: false,
-          businessVerified: !!businessFile,
-          aadhaarVerified: ["freelancer_recruiter", "independent_recruiter"].includes(orgType),
-          trustScore: ["freelancer_recruiter", "independent_recruiter"].includes(orgType) ? 60 : 40,
-          badgeType: "PENDING_VERIFICATION"
-        },
-        identityDocs: {
-          aadhaarMasked: aadhaarNumber ? `XXXXXXXX${aadhaarNumber.slice(-4)}` : null,
-          documentUrl: businessUrl
-        },
-        linkedinUrl: linkedinUrl || null,
+        role: "PENDING_VERIFICATION",
+        onboardingRequestId: resData.requestId,
+        status: "PENDING",
         createdAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, "users", user.uid), userData);
+      });
 
-      onComplete({ user: userData, org: orgData });
+      setStep(4); // Move to "Pending Approval" step
     } catch (err: any) {
       console.error("Governance Handshake Failure:", err);
       setError(err.message || "Protocol execution failed. System halted.");
     }
     setLoading(false);
   };
+
+  if (step === 4) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="max-w-md w-full bg-white p-10 rounded-[40px] shadow-2xl border border-slate-100 text-center space-y-6">
+          <div className="h-20 w-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
+            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.21 3m-11.33 5a10.978 10.978 0 01-3.232-5.756m11.353 7.555A10.978 10.978 0 0015.12 11" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter">Identity in Queue</h2>
+          <p className="text-sm text-slate-500 font-medium">Your node identity is currently being verified by the HireNest Global Authority. Access will be provisioned upon trust score confirmation.</p>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+             <div className="text-[10px] font-black uppercase text-slate-400 mb-1">Queue Status</div>
+             <div className="text-xs font-bold text-indigo-600">Verification Pending (Standard Priority)</div>
+          </div>
+          <Button onClick={() => signOut(auth)} className="w-full bg-slate-900 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs">
+            Disconnect Node
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

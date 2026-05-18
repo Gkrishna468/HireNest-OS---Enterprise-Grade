@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { 
   collection, 
   addDoc, 
@@ -42,9 +42,19 @@ export class AutonomousAgent {
     };
 
     if (targetId !== undefined) activity.targetId = targetId;
-    if (metadata !== undefined) activity.metadata = metadata;
+    if (metadata !== undefined && metadata !== null) {
+      // Strip undefined values from metadata
+      activity.metadata = JSON.parse(JSON.stringify(metadata, (key, value) => value === undefined ? null : value));
+    }
 
-    await addDoc(collection(db, "agent_activities"), activity);
+    try {
+      await addDoc(collection(db, "agent_activities"), activity);
+    } catch (error) {
+      // Background agent error, log but don't necessarily crash the whole app unless it's critical
+      console.warn("Agent activity logging failed", error);
+      // We still follow the protocol of throwing the formatted error if we want the system to catch it
+      handleFirestoreError(error, OperationType.CREATE, "agent_activities");
+    }
     console.log(`[AGENT][${this.type}] ${action}`);
     return activity as AgentActivity;
   }

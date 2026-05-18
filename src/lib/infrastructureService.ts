@@ -1,4 +1,4 @@
-import { db, auth } from "./firebase";
+import { db, auth, handleFirestoreError, OperationType } from "./firebase";
 import { 
   collection, 
   addDoc, 
@@ -35,6 +35,9 @@ export async function logExecutionEvent(
   metadata: any = {},
   requirementId?: string
 ) {
+  // Clean metadata to remove undefined values which Firestore doesn't support
+  const cleanMetadata = metadata ? JSON.parse(JSON.stringify(metadata, (key, value) => value === undefined ? null : value)) : {};
+
   try {
     const event = {
       eventType: type,
@@ -43,7 +46,7 @@ export async function logExecutionEvent(
       targetId,
       targetType,
       requirementId: requirementId || metadata.requirementId || null,
-      metadata,
+      metadata: cleanMetadata,
       timestamp: new Date().toISOString()
     };
 
@@ -54,7 +57,7 @@ export async function logExecutionEvent(
     
     return true;
   } catch (err) {
-    console.error("Failed to log execution event", err);
+    handleFirestoreError(err, OperationType.WRITE, "execution_events");
     return false;
   }
 }
@@ -102,7 +105,11 @@ async function processEventForTrust(type: ExecutionEventType, targetId: string, 
     updates.score = increment(1);
   }
 
-  await updateDoc(trustRef, updates);
+  try {
+    await updateDoc(trustRef, updates);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `trust_metrics/${orgId}`);
+  }
 }
 
 // --- SLA Management ---
@@ -123,7 +130,11 @@ export async function createSLA(
     createdAt: new Date().toISOString()
   };
 
-  await addDoc(collection(db, "slas"), sla);
+  try {
+    await addDoc(collection(db, "slas"), sla);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, "slas");
+  }
 }
 
 export function calculateTrustGrade(score: number): string {

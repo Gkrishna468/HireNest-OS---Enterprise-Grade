@@ -17,7 +17,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     lastCheck: '-' 
   });
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE" | "ONBOARDING">("ALL");
+  const [onboardingRequests, setOnboardingRequests] = useState<any[]>([]);
   
   // Form state
   const [email, setEmail] = useState("");
@@ -29,12 +30,15 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
   const roles = [
     { value: 'admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
-    { value: 'client_os', label: 'client os (demand/member)', category: 'DEMAND' },
-    { value: 'vendor_os', label: 'vendor os (agency/partner)', category: 'SUPPLY' },
-    { value: 'recruiter_os', label: 'recruiter os (independent/supply)', category: 'SUPPLY' },
-    { value: 'client_hm', label: 'legacy client node', category: 'DEMAND' },
-    { value: 'vendor_agency', label: 'legacy vendor agency', category: 'SUPPLY' },
-    { value: 'independent_vendor', label: 'legacy independent vendor', category: 'SUPPLY' },
+    { value: 'SUPER_ADMIN', label: 'super admin (hq)', category: 'GOVERNANCE' },
+    { value: 'CEO', label: 'chief executive (hq)', category: 'GOVERNANCE' },
+    { value: 'FINANCE_ADMIN', label: 'finance authority (hq)', category: 'GOVERNANCE' },
+    { value: 'RISK_ADMIN', label: 'risk & trust authority (hq)', category: 'GOVERNANCE' },
+    { value: 'CLIENT_ADMIN', label: 'client administrator', category: 'DEMAND' },
+    { value: 'VENDOR_ADMIN', label: 'vendor administrator', category: 'SUPPLY' },
+    { value: 'RECRUITER', label: 'verification recruiter', category: 'SUPPLY' },
+    { value: 'ACCOUNT_MANAGER', label: 'account orchestration', category: 'DEMAND' },
+    { value: 'FREELANCER', label: 'independent freelancer', category: 'SUPPLY' },
   ];
 
   const getRoleCategory = (r: string) => {
@@ -91,12 +95,16 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       if (!user) throw new Error("No active identity found. Access Denied.");
       
       const token = await user.getIdToken();
-      const response = await fetch('/api/admin/governance-data', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // Also fetch onboarding requests
+      const [govResp, reqSnap] = await Promise.all([
+        fetch('/api/admin/governance-data', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        getDocs(collection(db, "onboarding_requests"))
+      ]);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (govResp.ok) {
+        const data = await govResp.json();
         const orgs = data.organizations || [];
         const remoteUsers = (data.users || []).filter((u: any) => !u.deleted);
         setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
@@ -106,24 +114,24 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           connected: data.mode !== 'FALLBACK' && data.mode !== 'FATAL_FALLBACK',
           lastCheck: new Date().toLocaleTimeString()
         });
-        setLoading(false);
         
         setUsers(remoteUsers.map((u: any) => {
           const orgId = u.organizationId || u.orgId || (u.org && u.org.id);
           const org = orgs.find((o: any) => o.id === orgId || o.organizationId === orgId);
           return { ...u, id: u.uid || u.id, uid: u.uid || u.id, org };
         }));
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Governance API returned ${response.status}`);
       }
+
+      const requests = reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setOnboardingRequests(requests);
     } catch (err: any) {
       console.warn("Governance API failed, attempting Firestore fallback", err.message);
       setSyncMode("FS_FALLBACK");
       try {
-        const [userSnap, orgSnap] = await Promise.all([
+        const [userSnap, orgSnap, reqSnap] = await Promise.all([
           getDocs(collection(db, "users")),
-          getDocs(collection(db, "organizations"))
+          getDocs(collection(db, "organizations")),
+          getDocs(collection(db, "onboarding_requests"))
         ]);
         const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
         setUsers(userSnap.docs.map(d => {
@@ -131,6 +139,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           const org = orgs.find(o => o.id === u.organizationId);
           return { id: d.id, uid: d.id, ...u, org };
         }).filter((u: any) => !u.deleted));
+        setOnboardingRequests(reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (fErr: any) {
         const identity = auth.currentUser?.email?.toLowerCase() || "Unknown Identity";
         setError(`HANDSHAKE FAILED: Authority Rejection for [${identity}]. Contact HQ for Node Authorization.`);
@@ -138,6 +147,28 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string, targetRole: string) => {
+    if (!window.confirm("Approve this request and provision live authority?")) return;
+    setIsSubmitting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/onboard/approve', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ requestId, role: targetRole })
+      });
+      if (!response.ok) throw new Error("Approval protocol failed");
+      await fetchUsers();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -375,16 +406,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
         <div className="lg:col-span-3 space-y-6">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY"] as const).map(tab => (
+            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY", "ONBOARDING"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "px-6 py-3 rounded-xl text-[10px] font-black lowercase tracking-widest transition-all",
+                  "px-6 py-3 rounded-xl text-[10px] font-black lowercase tracking-widest transition-all relative",
                   activeTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
                 )}
               >
                 {tab.toLowerCase()}
+                {tab === "ONBOARDING" && onboardingRequests.filter(r => r.verificationStatus === 'PENDING').length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">{onboardingRequests.filter(r => r.verificationStatus === 'PENDING').length}</span>
+                )}
               </button>
             ))}
           </div>
@@ -393,6 +427,73 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
             <div className="space-y-4">
               {loading ? (
                 <div className="py-32 text-center text-[10px] font-black lowercase tracking-[0.3em] text-slate-400">syncing matrix...</div>
+              ) : activeTab === "ONBOARDING" ? (
+                <div className="space-y-6">
+                   <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
+                      <h3 className="text-sm font-black lowercase italic tracking-tight">network verification center</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global Admission Queue</p>
+                   </div>
+                   {onboardingRequests.map(req => (
+                     <div key={req.id} className="group p-6 bg-slate-50 border-2 border-slate-100 rounded-[32px] hover:border-indigo-200 hover:bg-white hover:shadow-2xl transition-all">
+                        <div className="flex items-center justify-between">
+                           <div className="flex items-center gap-6">
+                              <div className={cn(
+                                "h-14 w-14 rounded-2xl flex items-center justify-center text-white",
+                                req.verificationStatus === 'VERIFIED' ? 'bg-emerald-500' : 'bg-indigo-600'
+                              )}>
+                                 {req.companyName.charAt(0).toLowerCase()}
+                              </div>
+                              <div>
+                                 <div className="text-sm font-black text-slate-900 tracking-tight">{req.companyName}</div>
+                                 <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-slate-400 font-bold lowercase tracking-widest">{req.email}</span>
+                                    <span className="h-1 w-1 rounded-full bg-slate-200" />
+                                    <span className={cn(
+                                      "text-[10px] font-black uppercase tracking-tighter",
+                                      req.type === 'client' ? 'text-indigo-600' : 'text-amber-600'
+                                    )}>{req.type} invitation</span>
+                                 </div>
+                                 <div className="mt-2 flex items-center gap-2">
+                                    <span className={cn(
+                                      "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
+                                      req.verificationStatus === 'PENDING' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                                    )}>{req.verificationStatus}</span>
+                                    <span className="text-[10px] font-black text-red-500 ml-2">Risk: {req.riskScore}</span>
+                                 </div>
+                              </div>
+                           </div>
+                           
+                           {req.verificationStatus === 'PENDING' && (
+                             <div className="flex items-center gap-3">
+                                <select 
+                                  className="bg-white border border-slate-200 rounded-lg text-[10px] font-bold p-2 outline-none focus:ring-1 focus:ring-indigo-500"
+                                  id={`role-${req.id}`}
+                                >
+                                  {roles.filter(r => !r.value.includes('hq')).map(r => (
+                                    <option key={r.value} value={r.value}>{r.label}</option>
+                                  ))}
+                                </select>
+                                <Button 
+                                  size="sm"
+                                  onClick={() => {
+                                    const roleSelect = document.getElementById(`role-${req.id}`) as HTMLSelectElement;
+                                    handleApproveRequest(req.id, roleSelect.value);
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black py-2 px-6"
+                                >
+                                  Approve & Provision
+                                </Button>
+                             </div>
+                           )}
+                        </div>
+                     </div>
+                   ))}
+                   {onboardingRequests.length === 0 && (
+                     <div className="py-20 text-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100">
+                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Queue Empty</p>
+                     </div>
+                   )}
+                </div>
               ) : (
                 <>
                   {filteredUsers.map(u => (

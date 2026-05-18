@@ -15,7 +15,7 @@ service cloud.firestore {
     
     // Critical: Admin check using trusted identifiers and database state
     function isAdmin() {
-      let email = request.auth.token.email.toLower();
+      let email = request.auth.token.email.lower();
       let isTrusted = email == 'gopalkrishna0046@gmail.com' || 
                       email == 'gopal@hirenestworkforce.com';
       
@@ -86,6 +86,12 @@ service cloud.firestore {
 
     // --- Hardened Rules ---
 
+    match /onboarding_requests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
@@ -129,6 +135,7 @@ service cloud.firestore {
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['pipelineStage', 'matchScore', 'mappedJobId', 'activeDealId', 'distillationStatus', 'distillationMetadata', 'updatedAt', 'name', 'email', 'phone', 'linkedin', 'skills', 'experience', 'resumeText'])) ||
         (isOrganizationMember(existing().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['pipelineStage', 'matchScore', 'mappedJobId', 'activeDealId', 'distillationStatus', 'distillationMetadata', 'updatedAt', 'name', 'email', 'phone', 'linkedin', 'skills', 'experience', 'resumeText']))
       );
+      allow delete: if isAdmin() || (isSignedIn() && isOrganizationMember(existing().vendorId));
     }
 
     match /submissions/{subId} {
@@ -170,12 +177,14 @@ service cloud.firestore {
 
     match /execution_tracker/{itemId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidExecutionItem(incoming());
+      allow create, update: if isAdmin() && isValidExecutionItem(incoming());
+      allow delete: if isAdmin();
     }
 
     match /execution_events/{eventId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn(); // System events can be triggered by actions
+      allow delete: if isAdmin();
     }
 
     match /risk_assessments/{riskId} {
