@@ -5,10 +5,18 @@ import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { DollarSign, Briefcase, Users, Activity, Shield, ChevronRight } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
+import { cn } from "../lib/utils";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminOverview() {
-  const [data, setData] = useState<any>({ candidates: [], organizations: [], dealRooms: [], requirements: [], submissions: [] });
+  const [data, setData] = useState<any>({ 
+    candidates: [], 
+    organizations: [], 
+    dealRooms: [], 
+    requirements: [], 
+    submissions: [],
+    onboardingRequests: [] 
+  });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -19,6 +27,8 @@ export default function AdminOverview() {
   const pendingExposure = data.requirements
     .filter((r: any) => r.status === 'PENDING_FINANCIAL_APPROVAL')
     .reduce((acc: number, req: any) => acc + (req.clientTargetBudget || 0), 0);
+
+  const pendingOnboarding = data.onboardingRequests.filter((r: any) => r.verificationStatus === 'PENDING').length;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -38,21 +48,28 @@ export default function AdminOverview() {
         if (!user) return;
 
         const token = await user.getIdToken();
-        const response = await fetch('/api/admin/governance-data', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const resData = await response.json();
+        const [govResp, reqSnap] = await Promise.all([
+          fetch('/api/admin/governance-data', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          getDocs(collection(db, "onboarding_requests")).catch(() => ({ docs: [] } as any))
+        ]);
+
+        const onboardReqs = reqSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+        if (govResp.ok) {
+          const resData = await govResp.json();
           setData({
               candidates: resData.candidatePool || [],
               organizations: resData.organizations || [],
               dealRooms: resData.dealRooms || [],
               requirements: resData.requirements_public || [],
-              submissions: resData.submissions || []
+              submissions: resData.submissions || [],
+              onboardingRequests: onboardReqs
           });
         } else {
-          console.warn(`Governance API returned ${response.status}, attempting Firestore fallback.`);
-          const [candSnap, orgSnap, drSnap, reqSnap, subSnap] = await Promise.all([
+          console.warn(`Governance API returned ${govResp.status}, attempting Firestore fallback.`);
+          const [candSnap, orgSnap, drSnap, reqSnapFull, subSnap] = await Promise.all([
               getDocs(collection(db, "candidatePool")).catch(() => ({docs: []} as any)),
               getDocs(collection(db, "organizations")).catch(() => ({docs: []} as any)),
               getDocs(collection(db, "dealRooms")).catch(() => ({docs: []} as any)),
@@ -63,8 +80,9 @@ export default function AdminOverview() {
               candidates: candSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
               organizations: orgSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
               dealRooms: drSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              requirements: reqSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()}))
+              requirements: reqSnapFull.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
+              onboardingRequests: onboardReqs
           });
         }
     } catch (err: any) {
@@ -145,10 +163,17 @@ export default function AdminOverview() {
         {[
           { label: "Verified Req Pool", value: data.requirements.length, icon: Briefcase, color: "text-indigo-600", desc: "authenticated demand" },
           { label: "Governance Volume", value: `₹${Math.round((totalMargin * 83) / 1000)}k`, icon: DollarSign, color: "text-emerald-600", desc: "platform profit capture" },
-          { label: "Trust Index (Avg)", value: `84.2%`, icon: Activity, color: "text-amber-600", desc: "network wide reliability" },
-          { label: "Node Population", value: data.organizations.length, icon: Users, color: "text-slate-900", desc: "entities in execution" }
+          { label: "Onboarding Queue", value: pendingOnboarding, icon: Users, color: "text-amber-600", desc: "Awaiting Network Admission", action: () => navigate('/admin/users') },
+          { label: "Node Population", value: data.organizations.length, icon: Shield, color: "text-slate-900", desc: "entities in execution" }
         ].map((stat) => (
-          <div key={stat.label} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all">
+          <div 
+            key={stat.label} 
+            onClick={stat.action}
+            className={cn(
+              "bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm transition-all",
+              stat.action ? "cursor-pointer hover:border-indigo-200 hover:shadow-xl hover:scale-[1.02]" : "hover:shadow-md"
+            )}
+          >
              <div className="flex items-center justify-between mb-4">
                <div className={`p-2 rounded-xl bg-slate-50 border border-slate-100 ${stat.color}`}>
                   <stat.icon className="h-4 w-4" />

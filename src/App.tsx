@@ -27,6 +27,7 @@ import CandidatesTab from "./views/CandidatesTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import AdminUsersManager from "./views/AdminUsersManager";
 import AdminOverview from "./views/AdminOverview";
+import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
 import ClientsTab from "./views/ClientsTab";
 import VendorsTab from "./views/VendorsTab";
 import NotificationsTab from "./views/NotificationsTab";
@@ -56,6 +57,7 @@ function Sidebar({ org, user }: { org: any, user: any }) {
     { name: "Manage Vendors", path: "/admin/vendors", icon: <Shield size={18} />, visible: isAdmin },
     { name: "Strategic Agent HQ", path: "/admin/strategy", icon: <Bot size={18} />, visible: isAdmin },
     { name: "Execution HQ", path: "/admin/execution", icon: <CheckSquare size={18} />, visible: isAdmin },
+    { name: "Security & Trust", path: "/admin/security", icon: <Shield size={18} />, visible: isAdmin },
     { name: "System Settings", path: "/users", icon: <Settings size={18} />, visible: isAdmin }
   ];
 
@@ -311,6 +313,7 @@ export default function App() {
                   <Route path="/admin/vendors" element={<VendorsTab />} />
                   <Route path="/admin/strategy" element={<AgentHQ />} />
                   <Route path="/admin/execution" element={<ExecutionTracker />} />
+                  <Route path="/admin/security" element={<AdminSecurityDashboard />} />
                   <Route path="/admin-overview" element={<AdminOverview />} />
                   <Route path="/users" element={<AdminUsersManager orgData={org} />} />
                 </>

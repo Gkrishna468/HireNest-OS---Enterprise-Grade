@@ -13,12 +13,13 @@ service cloud.firestore {
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
-    // Critical: Admin check using trusted identifiers and database state
+    // Critical: Admin check using trusted identifiers
     function isAdmin() {
       let email = request.auth.token.email.lower();
       let isTrusted = email == 'gopalkrishna0046@gmail.com' || 
                       email == 'gopal@hirenestworkforce.com';
       
+      // We trust these specific emails for administrative authority
       return isSignedIn() && isTrusted;
     }
 
@@ -87,7 +88,8 @@ service cloud.firestore {
     // --- Hardened Rules ---
 
     match /onboarding_requests/{requestId} {
-      allow read: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
@@ -165,7 +167,12 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(logId) && incoming().keys().hasAll(['userId', 'action', 'timestamp', 'outcome']);
+    }
+
+    match /quotas/{quotaId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.ownerId == request.auth.uid || isOrganizationMember(resource.data.ownerId)));
+      allow write: if isAdmin();
     }
 
     match /notifications/{notifId} {

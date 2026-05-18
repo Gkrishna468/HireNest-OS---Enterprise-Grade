@@ -125,6 +125,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       const requests = reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOnboardingRequests(requests);
     } catch (err: any) {
+      if (err.message?.includes('permission')) {
+        console.warn("Governance Queue: ACCESS_DENIED. Check Rules/IAM.");
+      }
       console.warn("Governance API failed, attempting Firestore fallback", err.message);
       setSyncMode("FS_FALLBACK");
       try {
@@ -142,8 +145,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         setOnboardingRequests(reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (fErr: any) {
         const identity = auth.currentUser?.email?.toLowerCase() || "Unknown Identity";
-        setError(`HANDSHAKE FAILED: Authority Rejection for [${identity}]. Contact HQ for Node Authorization.`);
-        console.error("Firestore Fallback Error:", fErr);
+        setError(`IDENTITY ACCESS DENIED: Authority Rejection for [${identity}]. Ensure your email has Admin authority and you have granted IAM permissions to the service account in GCP Console.`);
+        console.error("Firestore Fallback Error (Permission Handshake Failed):", fErr);
       }
     } finally {
       setLoading(false);

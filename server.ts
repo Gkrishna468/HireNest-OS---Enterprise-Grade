@@ -17,6 +17,69 @@ const require = createRequire(import.meta.url);
 // --- Global Configuration ---
 let globalProjectId = "unknown-project";
 
+// --- Security & Governance Infrastructure ---
+const AuditService = {
+  log: async (userId: string, action: string, metadata: any = {}) => {
+    try {
+      const db = admin.firestore();
+      const logId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      await db.collection("auditLogs").doc(logId).set({
+        logId,
+        userId,
+        action,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ...metadata,
+        severity: metadata.severity || "INFO",
+        outcome: metadata.outcome || "SUCCESS"
+      });
+    } catch (e) {
+      console.error("[AUDIT FATAL] Log failed:", e);
+    }
+  }
+};
+
+const UsageService = {
+  checkQuota: async (ownerId: string, type: string): Promise<boolean> => {
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("quotas")
+        .where("ownerId", "==", ownerId)
+        .where("quotaType", "==", type)
+        .limit(1)
+        .get();
+      
+      if (snap.empty) return true; // Default allow if no quota set
+      const quota = snap.docs[0].data();
+      if (quota.current >= quota.limit) {
+        if (new Date(quota.resetAt) < new Date()) {
+          // Reset logic would go here in production
+          return true;
+        }
+        return false;
+      }
+      return true;
+    } catch (e) {
+      return true; // Fail open for resilience, or fail closed for security? HireNest prefers resilience for now.
+    }
+  },
+  increment: async (ownerId: string, type: string, amount: number = 1) => {
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("quotas")
+        .where("ownerId", "==", ownerId)
+        .where("quotaType", "==", type)
+        .limit(1)
+        .get();
+      
+      if (!snap.empty) {
+        await snap.docs[0].ref.update({
+          current: admin.firestore.FieldValue.increment(amount)
+        });
+      }
+    } catch (e) {}
+  }
+};
+
 // Initialize Firebase Admin
 try {
   const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -259,6 +322,123 @@ async function startServer() {
 
   // --- API ROUTES ---
 
+  // --- AI GATEWAY & SECURITY ---
+  app.post("/api/ai/gateway", async (req, res) => {
+    try {
+      const { action, payload, context } = req.body;
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader) return res.status(401).json({ error: "UNAUTHORIZED" });
+      const token = authHeader.split('Bearer ')[1];
+      const decoded = await admin.auth().verifyIdToken(token);
+      const uid = decoded.uid;
+      const orgId = decoded.organizationId || context?.orgId;
+
+      console.log(`[AI GATEWAY] Request: ${action} from User: ${uid} (Org: ${orgId})`);
+
+      // 1. Quota Check
+      const hasQuota = await UsageService.checkQuota(orgId || uid, "ai_calls");
+      if (!hasQuota) {
+        await AuditService.log(uid, "AI_QUOTA_EXCEEDED", { orgId, action, outcome: "BLOCKED", severity: "HIGH" });
+        return res.status(429).json({ error: "QUOTA_EXCEEDED", message: "AI resource limit reached for your node." });
+      }
+
+      // 2. Prompt Injection / Sanity Check
+      if (typeof payload === 'string' && (payload.includes("ignore previous instructions") || payload.includes("system prompt"))) {
+        await AuditService.log(uid, "SEC_PROMPT_INJECTION_ATTEMPT", { orgId, action, outcome: "BLOCKED", severity: "CRITICAL" });
+        return res.status(400).json({ error: "SECURITY_VIOLATION", message: "Anomaly detected in language input." });
+      }
+
+      // 3. Execution
+      let result = null;
+      if (action === "ANALYZE_JD") {
+        result = await handleJDAnalysis(payload);
+      } else if (action === "EXTRACT_RESUME") {
+        result = await handleResumeExtraction(payload);
+      } else {
+        return res.status(400).json({ error: "INVALID_ACTION" });
+      }
+
+      // 4. Usage Tracking
+      await UsageService.increment(orgId || uid, "ai_calls");
+      await AuditService.log(uid, `AI_${action}`, { orgId, outcome: "SUCCESS" });
+
+      res.json({ result });
+    } catch (err: any) {
+      console.error("[AI GATEWAY FATAL]", err);
+      res.status(500).json({ error: "AI_GATEWAY_ERROR", details: err.message });
+    }
+  });
+
+  async function handleJDAnalysis(jd: string) {
+    if (!ai) throw new Error("AI_OFFLINE");
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Act as Recruitment Architect. Analyze this JD for technical requirements, seniority, and budget viability: ${jd}`
+    });
+    return response.text;
+  }
+
+  async function handleResumeExtraction(text: string) {
+    if (!ai) throw new Error("AI_OFFLINE");
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Extract candidate identity and high-fidelity skills from: ${text}`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(response.text);
+  }
+
+  app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
+    const results: any = {
+      globalProjectId,
+      envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
+      auth: "checking",
+      firestore: "checking",
+      identityToolkit: "checking"
+    };
+
+    try {
+      const auth = admin.auth();
+      await auth.listUsers(1);
+      results.auth = "healthy";
+    } catch (e: any) {
+      if (e.message?.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
+        results.auth = "access-denied (Need 'Firebase Authentication Admin')";
+      } else {
+        results.auth = `failure: ${e.message}`;
+      }
+      results.authCode = e.code;
+    }
+
+    // Try to fetch specific service account email from metadata
+    try {
+      const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
+        headers: { "Metadata-Flavor": "Google" }
+      });
+      if (response.ok) {
+        results.serviceAccount = await response.text();
+      }
+    } catch (e) {
+      results.serviceAccount = "metadata-unreachable";
+    }
+
+    try {
+      const db = admin.firestore();
+      await db.collection("users").limit(1).get();
+      results.firestore = "healthy";
+    } catch (e: any) {
+      if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
+        results.firestore = "access-denied (IAM Policy/Org Constraint)";
+      } else {
+        results.firestore = `failure: ${e.message}`;
+      }
+      results.firestoreCode = e.code;
+    }
+
+    res.json(results);
+  });
+
   app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString(), nodeId: globalProjectId }));
 
   app.get("/api/user/context", (req, res) => {
@@ -409,6 +589,13 @@ async function startServer() {
       
       await db.collection("onboarding_requests").doc(requestId).set(request);
       
+      await AuditService.log("anonymous", "ONBOARDING_REQUEST_SUBMITTED", { 
+        requestId, 
+        email, 
+        type, 
+        severity: "INFO" 
+      });
+      
       console.log(`[GOVERNANACE] New Onboarding Request: ${requestId} for ${email}`);
       res.json({ success: true, requestId });
     } catch (err: any) {
@@ -423,23 +610,37 @@ async function startServer() {
       const db = admin.firestore();
       const auth = admin.auth();
       
+      console.log(`[GOVERNANCE] Attempting approval for Request: ${requestId}`);
+      
       const reqDoc = await db.collection("onboarding_requests").doc(requestId).get();
       if (!reqDoc.exists) {
+        console.error(`[GOVERNANCE] Request ${requestId} not found.`);
         return res.status(404).json({ error: "Request not found" });
       }
       
       const reqData = reqDoc.data()!;
+      let uid: string;
       
-      // 1. Create Auth User
-      const userRecord = await auth.createUser({
-        email: reqData.email,
-        password: password || "Temp123!", // Should be handled better in real flow
-        displayName: reqData.companyName || "Verified Member"
-      });
+      // 1. Check if Auth User exists, create if not
+      try {
+        const userRecord = await auth.getUserByEmail(reqData.email);
+        uid = userRecord.uid;
+        console.log(`[GOVERNANCE] User ${reqData.email} already exists (UID: ${uid}). Updating identity...`);
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/user-not-found') {
+          console.log(`[GOVERNANCE] Provisioning new Auth identity for ${reqData.email}...`);
+          const userRecord = await auth.createUser({
+            email: reqData.email,
+            password: password || "Temp123!",
+            displayName: reqData.companyName || "Verified Member"
+          });
+          uid = userRecord.uid;
+        } else {
+          throw authErr;
+        }
+      }
       
-      const uid = userRecord.uid;
       const orgId = "ORG-" + Math.random().toString(36).substring(2, 11).toUpperCase();
-      
       const batch = db.batch();
       
       // 2. Create Organization
@@ -454,7 +655,7 @@ async function startServer() {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
-      // 3. Create User
+      // 3. Create/Update User
       batch.set(db.collection("users").doc(uid), {
         uid,
         email: reqData.email,
@@ -462,11 +663,13 @@ async function startServer() {
         organizationId: orgId,
         trustLevel: 1,
         verification: {
-          emailVerified: false,
+          emailVerified: true, // Mark as verified since admin approved
           identityVerified: true,
           businessVerified: !!reqData.gstNumber,
           trustScore: 100 - (reqData.riskScore || 30)
         },
+        status: "ACTIVE",
+        onboardingRequestId: requestId,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
@@ -479,11 +682,22 @@ async function startServer() {
       
       await batch.commit();
       
-      console.log(`[GOVERNANACE] Request ${requestId} Approved. User ${uid} activated.`);
+      await AuditService.log((req as any).user.uid, "ONBOARDING_REQUEST_APPROVED", { 
+        requestId, 
+        provisionedUid: uid, 
+        provisionedOrgId: orgId,
+        severity: "HIGH"
+      });
+      
+      console.log(`[GOVERNANCE] Request ${requestId} Approved. Node ${uid} activated in Network.`);
       res.json({ success: true, uid, orgId });
     } catch (err: any) {
-      console.error("[ONBOARD APPROVE FAIL]", err);
-      res.status(500).json({ error: "Approval execution failed", details: err.message });
+      console.error("[ONBOARD APPROVE FATAL]", err);
+      res.status(500).json({ 
+        error: "Approval execution failed", 
+        details: err.message,
+        code: err.code || "governance/internal-error"
+      });
     }
   });
 
@@ -510,28 +724,21 @@ async function startServer() {
       // 1. Create Auth User
       let userRecord;
       try {
-        console.log(`[ONBOARD] Calling Auth.createUser for ${email}...`);
-        userRecord = await auth.createUser({
-          email,
-          password,
-          displayName: companyName || "New Node Agent"
-        });
-        console.log(`[ONBOARD] Auth created. UID: ${userRecord.uid}`);
+        console.log(`[ONBOARD] Checking for existing identity ${email}...`);
+        userRecord = await auth.getUserByEmail(email);
+        console.log(`[ONBOARD] Identity already exists. UID: ${userRecord.uid}`);
       } catch (authErr: any) {
-        const errMsg = authErr?.message || "Internal Node Authority Failure";
-        const errCode = authErr?.code || "auth/internal-error";
-        
-        console.error(`[ONBOARD AUTH FAIL] ${email}:`, errMsg, errCode);
-
-        if (errMsg.includes("identitytoolkit.googleapis.com") || errCode === 'auth/internal-error' || errCode === 'auth/project-not-found') {
-          return res.status(500).json({ 
-            error: "INFRASTRUCTURE_FAILURE", 
-            details: `Identity Protocol Layer is disabled or misconfigured. Enable Identity Toolkit API for project: ${globalProjectId}`,
-            code: "API_DISABLED"
+        if (authErr.code === 'auth/user-not-found') {
+          console.log(`[ONBOARD] Calling Auth.createUser for ${email}...`);
+          userRecord = await auth.createUser({
+            email,
+            password,
+            displayName: companyName || "New Node Agent"
           });
+          console.log(`[ONBOARD] Auth created. UID: ${userRecord.uid}`);
+        } else {
+          throw authErr;
         }
-        
-        return res.status(400).json({ error: `IDENTITY_PROVISIONING_FAILED: ${errMsg}`, code: errCode });
       }
 
       const uid = userRecord.uid;
@@ -685,6 +892,12 @@ async function startServer() {
       if (organizationId) {
         await db.collection("organizations").doc(organizationId).delete();
       }
+      
+      await AuditService.log((req as any).user.uid, "IDENTITY_PURGED", { 
+        targetUid: uid, 
+        targetOrgId: organizationId,
+        severity: "CRITICAL"
+      });
       
       console.log("[DELETE USER SUCCESS] Identity purged.");
       res.json({ success: true });

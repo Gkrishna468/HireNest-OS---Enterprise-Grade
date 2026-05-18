@@ -26,16 +26,24 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     const unsub = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        // Check if user already has an org
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.organizationId) {
-            const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
-            if (orgDoc.exists()) {
-              onComplete({ user: userData, org: orgDoc.data() });
+        // Check if user already has an org or is pending
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.role === "PENDING_VERIFICATION" || userData.status === "PENDING") {
+              setStep(4);
+              return;
+            }
+            if (userData.organizationId) {
+              const orgDoc = await getDoc(doc(db, "organizations", userData.organizationId));
+              if (orgDoc.exists()) {
+                onComplete({ user: userData, org: orgDoc.data() });
+              }
             }
           }
+        } catch (e) {
+          console.warn("Onboarding Auth check failed:", e);
         }
       }
     });
