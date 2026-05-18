@@ -15,14 +15,42 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
-process.env.GOOGLE_CLOUD_PROJECT = "hirenest-os";
-process.env.GOOGLE_CLOUD_QUOTA_PROJECT = "hirenest-os";
-let globalProjectId = "hirenest-os"; // Default project ID
+let globalProjectId = "hirenest-os"; // Target Project
+process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
+process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
+
+// Initialize Firebase Admin with explicit project attribution
+try {
+  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  let config: any = {};
+  if (fs.existsSync(firebaseConfigPath)) {
+    config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+    globalProjectId = config.projectId || "hirenest-os";
+  }
+
+  if (admin.apps.length === 0) {
+    console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
+    admin.initializeApp({
+      projectId: globalProjectId,
+      credential: admin.credential.applicationDefault()
+    });
+    // Double check project binding
+    const app = admin.app();
+    console.log(`[HQ CORE] Governance layer established on node: ${app.options.projectId}`);
+    
+    // Explicitly set environment to match initialized app
+    process.env.GOOGLE_CLOUD_PROJECT = app.options.projectId || globalProjectId;
+    process.env.GOOGLE_CLOUD_QUOTA_PROJECT = app.options.projectId || globalProjectId;
+  }
+} catch (e: any) {
+  console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
+}
 
 // --- Security & Governance Infrastructure ---
 const AuditService = {
   log: async (userId: string, action: string, metadata: any = {}) => {
     try {
+      if (admin.apps.length === 0) return;
       const db = admin.firestore();
       const logId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       await db.collection("auditLogs").doc(logId).set({
@@ -82,36 +110,6 @@ const UsageService = {
   }
 };
 
-// Initialize Firebase Admin
-try {
-  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(firebaseConfigPath)) {
-    const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-    globalProjectId = firebaseConfig.projectId;
-    
-    // Explicitly set environment project ID to override host project attribution
-    process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
-    
-    if (admin.apps.length === 0) {
-      console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
-      admin.initializeApp({
-        projectId: globalProjectId,
-        credential: admin.credential.applicationDefault()
-      });
-      console.log("[HQ CORE] Handshake complete. Governance layer established.");
-    }
-  } else {
-    console.warn("[HQ CORE] firebase-applet-config.json not found. Using discovery mode.");
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault()
-      });
-    }
-    globalProjectId = admin.app().options.projectId || "discovered-project";
-  }
-} catch (e: any) {
-  console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
-}
 // --- Global Metadata & Paths ---
 let currentDirname: string;
 try {
@@ -278,38 +276,37 @@ async function startServer() {
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
     try {
-      console.log(`[HQ SECURITY] Handshake check: ${req.path}`);
+      const requestId = Math.random().toString(36).substring(7);
+      console.log(`[HQ SECURITY] [${requestId}] Handshake check: ${req.path}`);
       
       if (admin.apps.length === 0) {
-        console.error("[HQ SECURITY] Critical: Firebase Admin not initialized.");
+        console.error(`[HQ SECURITY] [${requestId}] Critical: Firebase Admin not initialized.`);
         return res.status(503).json({ 
           error: "SERVICE_UNAVAILABLE", 
           details: "Core governance layer is booting or offline.", 
-          phase: "BOOT_VALIDATION" 
+          requestId
         });
       }
 
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.warn("[AUTH] Missing or malformed Authorization header");
-        return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol" });
+        console.warn(`[HQ SECURITY] [${requestId}] Missing or malformed Authorization header`);
+        return res.status(401).json({ error: "Access Denied: Missing Authorization Protocol", requestId });
       }
 
       const token = authHeader.split('Bearer ')[1];
       if (!token || token === "undefined" || token === "null") {
-        return res.status(401).json({ error: "Access Denied: Invalid Auth Token String" });
+        return res.status(401).json({ error: "Access Denied: Invalid Auth Token String", requestId });
       }
       
-      // Verification with absolute project isolation
-      const auth = admin.auth();
-      
       try {
+        const auth = admin.auth();
         const decodedToken = await auth.verifyIdToken(token);
         const email = decodedToken.email?.toLowerCase().trim();
         const uid = decodedToken.uid;
         const role = decodedToken.role;
         
-        console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
+        console.log(`[HQ SECURITY] [${requestId}] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
         
         const trustedNodes = [
           'gopalkrishna0046@gmail.com',
@@ -320,31 +317,34 @@ async function startServer() {
         const isTrustedRole = role === 'admin';
 
         if (!isTrustedEmail && !isTrustedRole) {
-          console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
+          console.warn(`[SECURITY BREACH] [${requestId}] Unauthorized Authority Attempt: ${email}`);
           return res.status(403).json({ 
             error: "ACCESS_DENIED",
             message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
             identity: email,
-            details: "Required claim 'role: admin' or master email whitelist membership."
+            details: "Required claim 'role: admin' or master email whitelist membership.",
+            requestId
           });
         }
 
         (req as any).user = decodedToken;
         next();
       } catch (authErr: any) {
-        console.error("[AUTH ERROR] Token Verification Failed:", authErr.message);
+        console.error(`[HQ SECURITY] [${requestId}] Token Verification Failed:`, authErr.message);
         return res.status(401).json({ 
           error: "IDENTITY_VERIFICATION_FAILED", 
           details: authErr.message,
-          code: authErr.code || "auth/invalid-token"
+          code: authErr.code || "auth/invalid-token",
+          requestId
         });
       }
     } catch (err: any) {
-      console.error("[AUTH FATAL] middleware crash:", err);
+      console.error("[HQ SECURITY] [FATAL] middleware crash:", err);
       if (!res.headersSent) {
         res.status(500).json({ 
           error: "SECURITY_PROTOCOL_CRASH", 
-          details: err.message 
+          details: err.message,
+          stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
         });
       }
     }
@@ -428,26 +428,18 @@ async function startServer() {
   }
 
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
+    const results: any = {
+      projectId: globalProjectId,
+      globalProjectId,
+      envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
+      auth: "checking",
+      firestore: "checking",
+      nodeEnv: process.env.NODE_ENV || "development",
+      timestamp: new Date().toISOString()
+    };
+
     try {
-      const results: any = {
-        projectId: "checking",
-        globalProjectId,
-        envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
-        auth: "checking",
-        firestore: "checking",
-        identityToolkit: "checking",
-        nodeEnv: process.env.NODE_ENV || "development"
-      };
-
-      try {
-        results.projectId = admin.app().options.projectId || globalProjectId;
-      } catch (e) {}
-
-      // Capture project info
-      results.projectNumber = "375081910602"; // Host project number
-      results.globalProjectId = globalProjectId;
-
-      // Try to fetch specific service account email from metadata
+      // 1. Service Account Identification
       try {
         const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
           headers: { "Metadata-Flavor": "Google" },
@@ -455,39 +447,32 @@ async function startServer() {
         });
         if (response.ok) {
           results.serviceAccount = await response.text();
+        } else {
+          results.serviceAccount = "metadata-api-non-ok";
         }
       } catch (e) {
         results.serviceAccount = "metadata-unreachable";
       }
 
+      // 2. Auth Handshake
       try {
         const auth = admin.auth();
-        // Give it a short timeout
         const listPromise = auth.listUsers(1);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth operation timed out")), 5000));
         await Promise.race([listPromise, timeoutPromise]);
         results.auth = "healthy";
       } catch (e: any) {
         const errorMsg = e.message || "";
-        if (errorMsg.includes('USER_PROJECT_DENIED') || errorMsg.includes('serviceusage.serviceUsageConsumer')) {
-          results.auth = `iam-denied: serviceusage.serviceUsageConsumer missing (Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId})`;
-          results.isSandboxAttributionError = true;
-        } else if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
-          results.auth = `api-disabled-on-host (Add roles to ${results.serviceAccount} in project ${globalProjectId})`;
-          results.isSandboxAttributionError = true;
-        } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
-          results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
-        } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7 || e.code === 'permission-denied') {
-          results.auth = "access-denied (Check IAM roles for Service Account)";
-        } else if (errorMsg.includes("timed out")) {
-          results.auth = "timeout (Identity Toolkit call hung)";
-        } else {
-          results.auth = `failure: ${errorMsg || "Unknown error"}`;
-        }
+        results.auth = `failure: ${errorMsg}`;
         results.authCode = e.code;
         results.authDetails = errorMsg;
+        
+        if (errorMsg.includes('serviceusage.serviceUsageConsumer')) {
+          results.remediation = `Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId}`;
+        }
       }
 
+      // 3. Firestore Handshake
       try {
         const db = admin.firestore();
         const getPromise = db.collection("users").limit(1).get();
@@ -495,23 +480,17 @@ async function startServer() {
         await Promise.race([getPromise, timeoutPromise]);
         results.firestore = "healthy";
       } catch (e: any) {
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('permission-denied')) {
-          results.firestore = `access-denied (Grant 'Cloud Datastore User' to ${results.serviceAccount} in ${globalProjectId})`;
-        } else if (e.message?.includes("timed out")) {
-          results.firestore = "timeout (Firestore call hung)";
-        } else {
-          results.firestore = `failure: ${e.message}`;
-        }
+        results.firestore = `failure: ${e.message}`;
         results.firestoreCode = e.code;
       }
 
       return res.json(results);
     } catch (fatalErr: any) {
       console.error("[DIAGNOSTICS FATAL]", fatalErr);
-      return res.status(500).json({ 
-        error: "DIAGNOSTICS_FAILED", 
-        message: fatalErr.message,
-        stack: process.env.NODE_ENV !== 'production' ? fatalErr.stack : undefined 
+      return res.status(200).json({ 
+        ...results,
+        error: "DIAGNOSTICS_PARTIAL_CRASH", 
+        message: fatalErr.message 
       });
     }
   });
