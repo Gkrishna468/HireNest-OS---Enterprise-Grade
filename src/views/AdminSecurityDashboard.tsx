@@ -87,7 +87,7 @@ export default function AdminSecurityDashboard() {
           { label: "Identity Node", value: diagnostics?.auth || "PENDING", icon: Lock, status: diagnostics?.auth === "healthy" ? "success" : "warning" },
           { label: "Data Authority", value: diagnostics?.firestore || "PENDING", icon: Server, status: diagnostics?.firestore === "healthy" ? "success" : "warning" },
           { label: "Cloud Service Account", value: diagnostics?.serviceAccount || "Detecting...", icon: Fingerprint, status: "neutral", copyable: true },
-          { label: "Governance Project", value: diagnostics?.envProjectId || diagnostics?.globalProjectId || "...", icon: Shield, status: "neutral" }
+          { label: "Governance Project", value: diagnostics?.projectId || diagnostics?.envProjectId || "...", icon: Shield, status: "neutral" }
         ].map((item, idx) => (
           <div key={idx} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-start gap-4">
             <div className={cn(
@@ -109,12 +109,17 @@ export default function AdminSecurityDashboard() {
                   onClick={() => {
                     if (item.copyable && item.value) {
                       navigator.clipboard.writeText(item.value);
-                      alert("Identity copied to clipboard");
+                      alert("Value copied to clipboard");
                     }
                   }}
                 >
                   {item.value}
                 </p>
+                {item.label === "Governance Project" && diagnostics?.projectNumber && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    # {diagnostics.projectNumber}
+                  </p>
+                )}
                 {item.value.includes("Org Constraint") && (
                   <p className="text-[10px] text-rose-500 mt-1 leading-tight">
                     Disable "Domain-restricted sharing" Org Policy in GCP Console.
@@ -130,7 +135,10 @@ export default function AdminSecurityDashboard() {
         {/* Left: Audit Log */}
         <div className="lg:col-span-2 space-y-8">
           {/* Troubleshooting Guide for IAM/Org Policy */}
-          {(diagnostics?.firestore?.includes("denied") || diagnostics?.auth?.includes("denied") || diagnostics?.firestore?.includes("Org Constraint")) && (
+          {(diagnostics?.firestore?.includes("denied") || 
+            diagnostics?.auth?.includes("denied") || 
+            diagnostics?.auth?.includes("api-disabled") || 
+            diagnostics?.firestore?.includes("Org Constraint")) && (
             <div className="bg-rose-50 border border-rose-100 rounded-[32px] p-8 space-y-6">
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-white rounded-2xl shadow-sm text-rose-600">
@@ -139,7 +147,9 @@ export default function AdminSecurityDashboard() {
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-rose-900">Infrastructure Handshake Partially Blocked</h3>
                   <p className="text-rose-700 text-sm leading-relaxed">
-                    {diagnostics?.auth?.includes("denied") ? 
+                    {diagnostics?.auth?.includes("api-disabled") ? 
+                      "The Identity Toolkit API is either disabled or hasn't finished provisioning in your GCP project." :
+                      diagnostics?.auth?.includes("denied") ? 
                       "The Identity Node requires elevated permissions to manage users and access management." : 
                       "Your GCP configuration is preventing HireNest OS from fully synchronizing with your project."
                     }
@@ -149,36 +159,73 @@ export default function AdminSecurityDashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/50 p-4 rounded-2xl border border-rose-100 space-y-2">
-                  <p className="text-xs font-bold text-rose-900 uppercase">Required IAM Roles</p>
+                  <p className="text-xs font-bold text-rose-900 uppercase">
+                    {diagnostics?.auth?.includes("api-disabled") ? "Critical: API Activation" : "Required IAM Roles"}
+                  </p>
                   <p className="text-xs text-rose-700">
-                    Grant these roles to the <strong>Service Account</strong> shown above:
+                    {diagnostics?.auth?.includes("api-disabled") ? 
+                      "Roles are added, but the project APIs are still sleeping. You must manually wake them up:" :
+                      "Grant these roles to the Service Account shown above:"
+                    }
                   </p>
                   <ul className="text-[10px] text-rose-700 list-disc ml-4 space-y-1">
-                    <li className={cn(diagnostics?.firestore === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
-                      Cloud Datastore User
-                    </li>
-                    <li className={cn(diagnostics?.auth === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
-                      Firebase Authentication Admin
-                    </li>
-                    <li className="font-bold text-rose-900">
-                      Firebase Rules Admin
-                    </li>
+                    {diagnostics?.auth?.includes("api-disabled") ? (
+                      <>
+                        <li className="font-bold text-rose-900 underline">
+                          <a href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=${diagnostics?.projectId || 'hirenest-os'}`} target="_blank" rel="noreferrer">1. Enable Identity Toolkit API</a>
+                        </li>
+                        <li className="font-bold text-rose-900 underline">
+                          <a href={`https://console.cloud.google.com/apis/library/firebaserules.googleapis.com?project=${diagnostics?.projectId || 'hirenest-os'}`} target="_blank" rel="noreferrer">2. Enable Firebase Rules API</a>
+                        </li>
+                        <li className="font-bold text-rose-900 underline">
+                          <a href={`https://console.firebase.google.com/project/${diagnostics?.projectId || 'hirenest-os'}/authentication`} target="_blank" rel="noreferrer">3. Visit Firebase Console & Enable Auth</a>
+                        </li>
+                      </>
+                    ) : (
+                      <>
+                        <li className={cn(diagnostics?.firestore === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
+                          Cloud Datastore User
+                        </li>
+                        <li className={cn(diagnostics?.auth === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
+                          Firebase Authentication Admin
+                        </li>
+                        <li className="font-bold text-rose-900">
+                          Firebase Rules Admin
+                        </li>
+                      </>
+                    )}
                   </ul>
+                  {diagnostics?.authDetails && (
+                    <div className="mt-4 p-2 bg-rose-100/50 rounded-lg">
+                      <p className="text-[10px] font-mono text-rose-800 break-all">
+                        Server Detail: {diagnostics.authDetails}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-white/50 p-4 rounded-2xl border border-rose-100 space-y-2">
                   <p className="text-xs font-bold text-rose-900 uppercase">Strategic Resolution</p>
                   <ul className="text-xs text-rose-700 list-disc ml-4 space-y-1">
-                    {diagnostics?.firestore?.includes("Org Constraint") ? (
+                    {diagnostics?.auth?.includes("api-disabled") ? (
+                      <>
+                        <li>Go to <a href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=${diagnostics?.projectId || 'hirenest-os'}`} target="_blank" className="font-bold underline" rel="noreferrer">GCP API Library</a>.</li>
+                        <li>Click <strong>Enable</strong> for both Identity Toolkit and Firebase Rules.</li>
+                        <li><strong>Note:</strong> If you see "Additional Access Needed", your email needs the <strong>Editor</strong> or <strong>Service Usage Admin</strong> role.</li>
+                        <li>Finally, go to Firebase Console &gt; Authentication &gt; <a href={`https://console.firebase.google.com/project/${diagnostics?.projectId || 'hirenest-os'}/authentication`} target="_blank" className="font-bold underline" rel="noreferrer">Get Started</a>.</li>
+                      </>
+                    ) : diagnostics?.firestore?.includes("Org Constraint") ? (
                       <>
                         <li>Switch GCP Console scope from <strong>Project</strong> to <strong>Organization</strong> level.</li>
                         <li>Update the 'iam.allowedPolicyMemberDomains' policy to include <code className="bg-rose-100 px-1 rounded">google.com</code>.</li>
                       </>
                     ) : (
-                      <li>Ensure you are in the <strong>IAM & Admin &gt; IAM</strong> page.</li>
+                      <>
+                        <li>Go to <strong>IAM & Admin &gt; IAM</strong>.</li>
+                        <li>Ensure the Service Account principal is added.</li>
+                        <li>Add all three roles listed on the left.</li>
+                        <li><strong>Self-Access:</strong> If you see "Access Denied" in GCP, grant your email the <strong>Editor</strong> role for this project.</li>
+                      </>
                     )}
-                    <li>Click <strong>Edit Principal</strong> for the Service Account.</li>
-                    <li>Add the missing roles listed on the left.</li>
-                    <li>Save and wait 60 seconds for propagation.</li>
                   </ul>
                 </div>
               </div>

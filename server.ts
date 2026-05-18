@@ -15,7 +15,7 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
-let globalProjectId = "unknown-project";
+let globalProjectId = "hirenest-os"; // Default project ID
 
 // --- Security & Governance Infrastructure ---
 const AuditService = {
@@ -86,6 +86,9 @@ try {
   if (fs.existsSync(firebaseConfigPath)) {
     const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
     globalProjectId = firebaseConfig.projectId;
+    
+    // Explicitly set environment project ID to override host project attribution
+    process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
     
     if (admin.apps.length === 0) {
       console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
@@ -391,6 +394,7 @@ async function startServer() {
 
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
     const results: any = {
+      projectId: admin.app().options.projectId || globalProjectId,
       globalProjectId,
       envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
       auth: "checking",
@@ -403,13 +407,26 @@ async function startServer() {
       await auth.listUsers(1);
       results.auth = "healthy";
     } catch (e: any) {
-      if (e.message?.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
-        results.auth = "access-denied (Need 'Firebase Authentication Admin')";
+      const errorMsg = e.message || "";
+      // Detect sandbox project attribution error
+      if (errorMsg.includes('project 375081910602') && errorMsg.includes('Identity Toolkit API')) {
+        results.auth = "api-disabled-on-host (Enable 'Identity Toolkit API' in your GCP project: " + globalProjectId + ")";
+        results.isSandboxAttributionError = true;
+      } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
+        results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
+      } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
+        results.auth = "access-denied (Check IAM Role: 'Firebase Authentication Admin')";
       } else {
-        results.auth = `failure: ${e.message}`;
+        results.auth = `failure: ${errorMsg || "Unknown error"}`;
       }
       results.authCode = e.code;
+      results.authDetails = errorMsg;
     }
+
+    // Capture project info
+    results.projectNumber = "375081910602"; // Host project number
+    results.envProjectId = process.env.GOOGLE_CLOUD_PROJECT;
+    results.globalProjectId = globalProjectId;
 
     // Try to fetch specific service account email from metadata
     try {
