@@ -32,37 +32,69 @@ export default function AdminSecurityDashboard() {
   const [diagnostics, setDiagnostics] = useState<any>(null);
 
   useEffect(() => {
-    // 1. Live Audit Logs
-    const qLogs = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(20));
-    const unsubLogs = onSnapshot(qLogs, (snap) => {
-      setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    let unsubLogs: (() => void) | null = null;
+    let unsubRisk: (() => void) | null = null;
 
-    // 2. Risk Assessments
-    const qRisk = query(collection(db, "risk_assessments"), orderBy("createdAt", "desc"), limit(10));
-    const unsubRisk = onSnapshot(qRisk, (snap) => {
-      setRiskAssessments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // 3. Quotas
-    getDocs(collection(db, "quotas")).then(snap => {
-      setQuotas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // 4. Server Diagnostics
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
+    const initSecurityNodes = async () => {
+      auth.onAuthStateChanged(async (user) => {
+        if (!user) return;
+        
         const token = await user.getIdToken();
+
+        // 1. Fetch Audit Logs (API First -> FS Fallback)
+        try {
+          const resp = await fetch('/api/admin/audit-logs', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (resp.ok) {
+            const data = await resp.json();
+            setLogs(data);
+          } else {
+            throw new Error("API Offline");
+          }
+        } catch (e) {
+          console.warn("[SECURITY DASH] Audit API fallback to Firestore");
+          const qLogs = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(20));
+          unsubLogs = onSnapshot(qLogs, (snap) => {
+            setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          }, (err) => console.error("Firestore Audit Log Denied:", err));
+        }
+
+        // 2. Risk Assessments
+        try {
+          const resp = await fetch('/api/admin/risk-assessments', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (resp.ok) {
+            const data = await resp.json();
+            setRiskAssessments(data);
+          } else {
+            throw new Error("API Offline");
+          }
+        } catch (e) {
+          console.warn("[SECURITY DASH] Risk API fallback to Firestore");
+          const qRisk = query(collection(db, "risk_assessments"), orderBy("createdAt", "desc"), limit(10));
+          unsubRisk = onSnapshot(qRisk, (snap) => {
+            setRiskAssessments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          }, (err) => console.error("Firestore Risk Denied:", err));
+        }
+
+        // 3. Quotas
+        try {
+          getDocs(collection(db, "quotas")).then(snap => {
+            setQuotas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          }).catch(() => console.warn("Firestore Quotas denied"));
+        } catch (e) {}
+
+        // 4. Server Diagnostics
         fetch('/api/admin/diagnostics', {
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json()).then(setDiagnostics);
-      }
-    });
+        }).then(r => r.json()).then(setDiagnostics).catch(err => console.error("Diagnostics handshake failed", err));
+      });
+    };
 
+    initSecurityNodes();
     setLoading(false);
+
     return () => {
-      unsubLogs();
-      unsubRisk();
+      if (unsubLogs) unsubLogs();
+      if (unsubRisk) unsubRisk();
     };
   }, []);
 
@@ -165,9 +197,12 @@ export default function AdminSecurityDashboard() {
                   <p className="text-xs text-rose-700">
                     {diagnostics?.auth?.includes("api-disabled") ? 
                       "Roles are added, but the project APIs are still sleeping. You must manually wake them up:" :
-                      "Grant these roles to the Service Account shown above:"
+                      "You must grant these roles to the Service Account in project hirenest-os:"
                     }
                   </p>
+                  <div className="bg-slate-900 text-indigo-300 p-2 rounded-lg font-mono text-[9px] break-all my-2 border border-slate-800">
+                    {diagnostics?.serviceAccount || "Identity Detecting..."}
+                  </div>
                   <ul className="text-[10px] text-rose-700 list-disc ml-4 space-y-1">
                     {diagnostics?.auth?.includes("api-disabled") ? (
                       <>
@@ -183,14 +218,17 @@ export default function AdminSecurityDashboard() {
                       </>
                     ) : (
                       <>
-                        <li className={cn(diagnostics?.firestore === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
-                          Cloud Datastore User
+                        <li className={cn(diagnostics?.firestore === "healthy" ? "line-through opacity-50 font-normal" : "font-black text-rose-900")}>
+                          Cloud Datastore User (Required for Database)
                         </li>
-                        <li className={cn(diagnostics?.auth === "healthy" ? "line-through opacity-50" : "font-bold text-rose-900")}>
-                          Firebase Authentication Admin
+                        <li className={cn(diagnostics?.auth === "healthy" ? "line-through opacity-50 font-normal" : "font-black text-rose-900")}>
+                          Firebase Authentication Admin (Required for Identity)
                         </li>
-                        <li className="font-bold text-rose-900">
-                          Firebase Rules Admin
+                        <li className="font-black text-rose-900">
+                          Firebase Rules Admin (Required for Security Rules)
+                        </li>
+                        <li className="font-black text-rose-900">
+                          Service Usage Consumer (Required for API Calls)
                         </li>
                       </>
                     )}
@@ -220,10 +258,11 @@ export default function AdminSecurityDashboard() {
                       </>
                     ) : (
                       <>
-                        <li>Go to <strong>IAM & Admin &gt; IAM</strong>.</li>
-                        <li>Ensure the Service Account principal is added.</li>
-                        <li>Add all three roles listed on the left.</li>
-                        <li><strong>Self-Access:</strong> If you see "Access Denied" in GCP, grant your email the <strong>Editor</strong> role for this project.</li>
+                        <li>Go to <strong>IAM & Admin &gt; IAM</strong> in project <span className="font-bold">hirenest-os</span>.</li>
+                        <li>Click <strong>Grant Access</strong>.</li>
+                        <li>Principal: <code className="bg-rose-100 px-1 rounded">{diagnostics?.serviceAccount}</code></li>
+                        <li>Assign Roles: <span className="font-bold text-rose-900">Firebase Authentication Admin</span>, <span className="font-bold text-rose-900">Cloud Datastore User</span>, and <span className="font-bold text-rose-900">Firebase Rules Admin</span>.</li>
+                        <li><strong>Self-Access:</strong> If you see "Access Denied" in GCP, grant your email the <strong>Owner</strong> or <strong>Editor</strong> role for this project.</li>
                       </>
                     )}
                   </ul>
@@ -235,7 +274,7 @@ export default function AdminSecurityDashboard() {
                   variant="outline" 
                   className="flex-1 border-rose-200 text-rose-700 hover:bg-rose-100/50"
                   onClick={() => {
-                    navigator.clipboard.writeText(`Hi Admin, I need the 'Firebase Authentication Admin' and 'Firebase Rules Admin' roles for service account: ${diagnostics?.serviceAccount}`);
+                    navigator.clipboard.writeText(`Hi Admin, I need the 'Firebase Authentication Admin', 'Cloud Datastore User' and 'Firebase Rules Admin' roles for service account: ${diagnostics?.serviceAccount} in project hirenest-os.`);
                     alert("Request template copied to clipboard");
                   }}
                 >
@@ -361,6 +400,82 @@ export default function AdminSecurityDashboard() {
              <div className="absolute top-0 right-0 p-4 opacity-10">
                 <FileWarning size={120} />
              </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[32px] border-2 border-slate-100 shadow-sm space-y-6">
+            <div className="flex items-center gap-3">
+              <Lock className="text-slate-900" size={20} />
+              <h2 className="font-semibold text-slate-900">Security Rules Manual Deployment</h2>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              If the platform is unable to auto-deploy security rules to your project, you must manually apply the hardened ruleset.
+            </p>
+            <div className="space-y-4">
+              <ol className="text-xs text-slate-600 list-decimal ml-4 space-y-2">
+                <li>Visit the <a href={`https://console.firebase.google.com/project/${diagnostics?.projectId || 'hirenest-os'}/firestore/rules`} target="_blank" className="text-indigo-600 font-bold underline" rel="noreferrer">Firestore Rules Console</a>.</li>
+                <li>Click <strong>Edit Rules</strong>.</li>
+                <li>Delete existing rules and paste the HireNest OS Hardened Ruleset.</li>
+                <li>Click <strong>Publish</strong>.</li>
+              </ol>
+              <Button 
+                variant="outline" 
+                className="w-full text-xs font-bold border-indigo-100 text-indigo-600 hover:bg-indigo-50"
+                onClick={async () => {
+                  try {
+                    const rules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() {
+      let email = request.auth.token.get('email', '').lower();
+      return isSignedIn() && (email == 'gopalkrishna0046@gmail.com' || email == 'gopal@hirenestworkforce.com');
+    }
+
+    match /onboarding_requests/{requestId} {
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (request.auth.token.get('email', '') == resource.data.email || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId));
+    }
+
+    match /organizations/{orgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+    }
+
+    match /requirements_public/{reqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if (isAdmin());
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
+  }
+}`;
+                    await navigator.clipboard.writeText(rules);
+                    alert("Hardened Rules copied to clipboard. Paste them into the Firebase Console.");
+                  } catch (err) {
+                    alert("Failed to copy rules. Please find firestore.rules in the file explorer.");
+                  }
+                }}
+              >
+                Copy Hardened Rules
+              </Button>
+            </div>
           </div>
         </div>
       </div>

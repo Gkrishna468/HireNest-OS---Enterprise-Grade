@@ -15,6 +15,8 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
+process.env.GOOGLE_CLOUD_PROJECT = "hirenest-os";
+process.env.GOOGLE_CLOUD_QUOTA_PROJECT = "hirenest-os";
 let globalProjectId = "hirenest-os"; // Default project ID
 
 // --- Security & Governance Infrastructure ---
@@ -402,27 +404,6 @@ async function startServer() {
       identityToolkit: "checking"
     };
 
-    try {
-      const auth = admin.auth();
-      await auth.listUsers(1);
-      results.auth = "healthy";
-    } catch (e: any) {
-      const errorMsg = e.message || "";
-      // Detect sandbox project attribution error
-      if (errorMsg.includes('project 375081910602') && errorMsg.includes('Identity Toolkit API')) {
-        results.auth = "api-disabled-on-host (Enable 'Identity Toolkit API' in your GCP project: " + globalProjectId + ")";
-        results.isSandboxAttributionError = true;
-      } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
-        results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
-      } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
-        results.auth = "access-denied (Check IAM Role: 'Firebase Authentication Admin')";
-      } else {
-        results.auth = `failure: ${errorMsg || "Unknown error"}`;
-      }
-      results.authCode = e.code;
-      results.authDetails = errorMsg;
-    }
-
     // Capture project info
     results.projectNumber = "375081910602"; // Host project number
     results.envProjectId = process.env.GOOGLE_CLOUD_PROJECT;
@@ -441,12 +422,33 @@ async function startServer() {
     }
 
     try {
+      const auth = admin.auth();
+      await auth.listUsers(1);
+      results.auth = "healthy";
+    } catch (e: any) {
+      const errorMsg = e.message || "";
+      // Detect sandbox project attribution error
+      if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
+        results.auth = `api-disabled-on-host (Add roles to ${results.serviceAccount} in project ${globalProjectId})`;
+        results.isSandboxAttributionError = true;
+      } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
+        results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
+      } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
+        results.auth = "access-denied (Check IAM roles for Service Account)";
+      } else {
+        results.auth = `failure: ${errorMsg || "Unknown error"}`;
+      }
+      results.authCode = e.code;
+      results.authDetails = errorMsg;
+    }
+
+    try {
       const db = admin.firestore();
       await db.collection("users").limit(1).get();
       results.firestore = "healthy";
     } catch (e: any) {
       if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-        results.firestore = "access-denied (IAM Policy/Org Constraint)";
+        results.firestore = `access-denied (Grant 'Cloud Datastore User' to ${results.serviceAccount} in ${globalProjectId})`;
       } else {
         results.firestore = `failure: ${e.message}`;
       }
@@ -454,6 +456,30 @@ async function startServer() {
     }
 
     res.json(results);
+  });
+
+  app.get("/api/admin/audit-logs", verifyAdmin, async (req, res) => {
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("auditLogs").orderBy("timestamp", "desc").limit(100).get();
+      const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(logs);
+    } catch (err: any) {
+      console.error("[AUDIT FETCH FAIL]", err.message);
+      res.status(500).json({ error: "Failed to fetch audit logs", details: err.message });
+    }
+  });
+
+  app.get("/api/admin/risk-assessments", verifyAdmin, async (req, res) => {
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("risk_assessments").orderBy("createdAt", "desc").limit(50).get();
+      const risks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(risks);
+    } catch (err: any) {
+      console.error("[RISK FETCH FAIL]", err.message);
+      res.status(500).json({ error: "Failed to fetch risk data", details: err.message });
+    }
   });
 
   app.get("/api/ping", (req, res) => res.json({ status: "pong", time: new Date().toISOString(), nodeId: globalProjectId }));
@@ -497,6 +523,7 @@ async function startServer() {
       // Try to fetch real data but don't crash if it fails
       let users: any[] = [];
       let organizations: any[] = [];
+      let onboarding_requests: any[] = [];
       let mode = "LIVE";
       
       try {
@@ -513,15 +540,17 @@ async function startServer() {
           ]);
         };
 
-        const [usersSnap, orgsSnap] = await timeout(Promise.all([
+        const [usersSnap, orgsSnap, reqsSnap] = await timeout(Promise.all([
           db.collection("users").limit(100).get(),
-          db.collection("organizations").limit(100).get()
+          db.collection("organizations").limit(100).get(),
+          db.collection("onboarding_requests").limit(100).get()
         ]), 10000); // 10s timeout
         
         users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        onboarding_requests = reqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        console.log(`[HQ SYNC] Intelligence retrieval successful for project: ${activeProjectId}. Identities: ${users.length}, Nodes: ${organizations.length}`);
+        console.log(`[HQ SYNC] Intelligence retrieval successful for project: ${activeProjectId}. Identities: ${users.length}, Nodes: ${organizations.length}, Requests: ${onboarding_requests.length}`);
       } catch (dbErr: any) {
         mode = "FALLBACK";
         if (dbErr.message?.includes('PERMISSION_DENIED') || String(dbErr.code) === '7' || dbErr.message?.includes('Unauthenticated')) {
@@ -533,10 +562,10 @@ async function startServer() {
         }
         users = dbMock.users;
         organizations = dbMock.organizations;
+        onboarding_requests = [];
       }
 
       // If database is effectively empty, use mock for demo/visual consistency
-      // This ensures the "Zero Provisioned Nodes" screen is not shown when it should be mock data
       if (mode === "LIVE" && users.length === 0) {
          console.warn("[HQ SYNC] User list empty, seeding mock identities.");
          users = dbMock.users;
@@ -552,6 +581,7 @@ async function startServer() {
       const payload = {
         organizations,
         users,
+        onboarding_requests,
         requirements_public: dbMock.requirements_public || [],
         candidatePool: dbMock.candidatePool || [],
         submissions: dbMock.submissions || [],

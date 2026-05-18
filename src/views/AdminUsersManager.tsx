@@ -95,18 +95,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       if (!user) throw new Error("No active identity found. Access Denied.");
       
       const token = await user.getIdToken();
-      // Also fetch onboarding requests
-      const [govResp, reqSnap] = await Promise.all([
-        fetch('/api/admin/governance-data', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        getDocs(collection(db, "onboarding_requests"))
-      ]);
+      // Fetch everything via governance API (bypasses rules via Admin SDK)
+      const govResp = await fetch('/api/admin/governance-data', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
       if (govResp.ok) {
         const data = await govResp.json();
         const orgs = data.organizations || [];
         const remoteUsers = (data.users || []).filter((u: any) => !u.deleted);
+        const remoteRequests = data.onboarding_requests || [];
+
         setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
         setNodeId(data.nodeId || "");
         setDbStatus({
@@ -120,13 +119,15 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           const org = orgs.find((o: any) => o.id === orgId || o.organizationId === orgId);
           return { ...u, id: u.uid || u.id, uid: u.uid || u.id, org };
         }));
-      }
 
-      const requests = reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setOnboardingRequests(requests);
+        setOnboardingRequests(remoteRequests);
+      } else {
+        throw new Error("Governance metadata handshake failed");
+      }
     } catch (err: any) {
-      if (err.message?.includes('permission')) {
+      if (err.message?.toLowerCase().includes('permission')) {
         console.warn("Governance Queue: ACCESS_DENIED. Check Rules/IAM.");
+        setError(`DATABASE ACCESS DENIED: Authority Rejection for [${auth.currentUser?.email}]. Ensure you have granted IAM permissions to the service account shown in the Security & Trust dashboard.`);
       }
       console.warn("Governance API failed, attempting Firestore fallback", err.message);
       setSyncMode("FS_FALLBACK");
@@ -280,19 +281,29 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
             {error && (
               <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4">
                 <p className="text-[10px] font-black lowercase tracking-widest text-red-600 mb-2">{error}</p>
-                {error.includes("API_DISABLED") || error.includes("infrastructure_failure") ? (
+                {error.includes("API_DISABLED") || error.includes("infrastructure_failure") || error.includes("ACCESS DENIED") ? (
                   <div className="space-y-2">
                     <p className="text-[9px] text-red-500 font-bold leading-relaxed">
-                      critical: identity protocol requires "identity toolkit api" to be enabled in google cloud console.
+                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" for the service account in project hirenest-os.
                     </p>
-                    <a 
-                      href={`https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${nodeId || '375081910602'}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block bg-red-600 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
-                    >
-                      Enable API in GCP Console
-                    </a>
+                    <div className="flex gap-2">
+                        <a 
+                          href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=hirenest-os`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block bg-red-600 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
+                        >
+                          Enable API
+                        </a>
+                        <a 
+                          href={`https://console.cloud.google.com/iam-admin/iam?project=hirenest-os`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block bg-slate-800 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
+                        >
+                          Grant IAM Roles
+                        </a>
+                    </div>
                   </div>
                 ) : null}
               </div>

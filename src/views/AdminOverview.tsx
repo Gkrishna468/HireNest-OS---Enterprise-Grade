@@ -48,14 +48,9 @@ export default function AdminOverview() {
         if (!user) return;
 
         const token = await user.getIdToken();
-        const [govResp, reqSnap] = await Promise.all([
-          fetch('/api/admin/governance-data', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }),
-          getDocs(collection(db, "onboarding_requests")).catch(() => ({ docs: [] } as any))
-        ]);
-
-        const onboardReqs = reqSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        const govResp = await fetch('/api/admin/governance-data', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
         if (govResp.ok) {
           const resData = await govResp.json();
@@ -65,31 +60,14 @@ export default function AdminOverview() {
               dealRooms: resData.dealRooms || [],
               requirements: resData.requirements_public || [],
               submissions: resData.submissions || [],
-              onboardingRequests: onboardReqs
+              onboardingRequests: resData.onboarding_requests || []
           });
         } else {
-          console.warn(`Governance API returned ${govResp.status}, attempting Firestore fallback.`);
-          const [candSnap, orgSnap, drSnap, reqSnapFull, subSnap] = await Promise.all([
-              getDocs(collection(db, "candidatePool")).catch(() => ({docs: []} as any)),
-              getDocs(collection(db, "organizations")).catch(() => ({docs: []} as any)),
-              getDocs(collection(db, "dealRooms")).catch(() => ({docs: []} as any)),
-              getDocs(collection(db, "requirements_public")).catch(() => ({docs: []} as any)),
-              getDocs(collection(db, "submissions")).catch(() => ({docs: []} as any)),
-          ]);
-          setData({
-              candidates: candSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              organizations: orgSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              dealRooms: drSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              requirements: reqSnapFull.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              submissions: subSnap.docs.map((d: any) => ({id: d.id, ...d.data()})),
-              onboardingRequests: onboardReqs
-          });
+          console.warn(`Governance API returned ${govResp.status}. Identity: ${user.email}. Check IAM roles.`);
+          // Silent fallback to empty or handle error
         }
     } catch (err: any) {
         console.error("Governance Sync failed", err);
-        if (err.name === 'FirebaseError') {
-           handleFirestoreError(err, OperationType.LIST, "admin_overview_sync");
-        }
     } finally {
       setLoading(false);
     }
