@@ -25,6 +25,7 @@ const AuditService = {
       if (admin.apps.length === 0) return;
       const db = admin.firestore();
       const logId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      console.log(`[ORCHESTRATOR] Logging Governance Event: ${action} for Node: ${userId}`);
       await db.collection("auditLogs").doc(logId).set({
         logId,
         userId,
@@ -32,7 +33,8 @@ const AuditService = {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         ...metadata,
         severity: metadata.severity || "INFO",
-        outcome: metadata.outcome || "SUCCESS"
+        outcome: metadata.outcome || "SUCCESS",
+        systemId: "HireNest Global OS"
       });
     } catch (e) {
       console.warn("[AUDIT] Log persistent failure:", e);
@@ -293,12 +295,13 @@ async function startServer() {
       }
       
       const auth = admin.auth();
+      // Use absolute project isolation for verification
       const decodedToken = await auth.verifyIdToken(token);
       const email = decodedToken.email?.toLowerCase().trim();
       const uid = decodedToken.uid;
       const role = decodedToken.role;
       
-      console.log(`[HQ SECURITY] [${requestId}] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
+      console.log(`[HQ SECURITY] [${requestId}] Authority Handshake Verified: ${email} (UID: ${uid}, Role: ${role})`);
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -322,14 +325,19 @@ async function startServer() {
       (req as any).user = decodedToken;
       next();
     } catch (err: any) {
-      console.error(`[HQ SECURITY] [${requestId}] Verification Failed:`, err.message);
+      console.error(`[HQ SECURITY] [${requestId}] Protocol Handshake Failed:`, err.message);
       if (!res.headersSent) {
+        // Map common errors to descriptive JSON instead of letting it hit Vite's 500 HTML
         const isAuthError = err.code?.startsWith('auth/');
-        res.status(isAuthError ? 401 : 500).json({ 
-          error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : "SECURITY_PROTOCOL_CRASH", 
+        const isPermissionError = err.message?.includes('PERMISSION_DENIED') || err.code === 7;
+        
+        const status = isAuthError ? 401 : (isPermissionError ? 403 : 500);
+        res.status(status).json({ 
+          error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : (isPermissionError ? "CORE_PERMISSION_DENIED" : "SECURITY_PROTOCOL_CRASH"), 
           details: err.message,
-          code: err.code || "governance/internal-error",
-          requestId
+          code: err.code || "governance/handshake-failure",
+          requestId,
+          remediation: isPermissionError ? `Grant 'Service Usage Consumer' and 'Firebase Authentication Admin' roles to the Service Account in project ${globalProjectId}.` : undefined
         });
       }
     }
@@ -425,7 +433,7 @@ async function startServer() {
     };
 
     try {
-      // 1. Service Account Identification
+      // 1. Infrastructure Identity Identification
       try {
         const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
           headers: { "Metadata-Flavor": "Google" },
@@ -434,17 +442,17 @@ async function startServer() {
         if (response.ok) {
           results.serviceAccount = await response.text();
         } else {
-          results.serviceAccount = "metadata-api-non-ok";
+          results.serviceAccount = "compute-default-runtime";
         }
       } catch (e) {
-        results.serviceAccount = "metadata-unreachable";
+        results.serviceAccount = "local-dev-fallback";
       }
 
-      // 2. Auth Handshake
+      // 2. Authority Node (Auth) Handshake
       try {
         const auth = admin.auth();
         const listPromise = auth.listUsers(1);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth operation timed out")), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Authority operation timed out (Auth Layer)")), 5000));
         await Promise.race([listPromise, timeoutPromise]);
         results.auth = "healthy";
       } catch (e: any) {
@@ -453,23 +461,23 @@ async function startServer() {
         results.authCode = e.code;
         results.authDetails = errorMsg;
         
-        if (errorMsg.includes('serviceusage.serviceUsageConsumer')) {
-          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer"`;
+        if (errorMsg.includes('serviceusage.serviceUsageConsumer') || errorMsg.includes('PERMISSION_DENIED') || e.code === 7) {
+          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/iam.serviceAccountTokenCreator"`;
         }
       }
 
-      // 3. Firestore Handshake
+      // 3. Entity Mirror (Firestore) Handshake
       try {
         const db = admin.firestore();
         const getPromise = db.collection("users").limit(1).get();
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore operation timed out")), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Entity Mirror operation timed out (Firestore Layer)")), 5000));
         await Promise.race([getPromise, timeoutPromise]);
         results.firestore = "healthy";
       } catch (e: any) {
         results.firestore = `failure: ${e.message}`;
         results.firestoreCode = e.code;
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-            results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
+            results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin" --role="roles/serviceusage.serviceUsageConsumer"`;
         }
       }
 

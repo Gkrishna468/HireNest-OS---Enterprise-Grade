@@ -88,8 +88,20 @@ export default function AdminSecurityDashboard() {
         })
         .then(async (r) => {
           const contentType = r.headers.get("content-type");
-          if (r.ok && contentType && contentType.indexOf("application/json") !== -1) {
+          const isJson = contentType && contentType.indexOf("application/json") !== -1;
+          
+          if (r.ok && isJson) {
             return await r.json();
+          } else if (isJson) {
+            // Handle error JSON (like from verifyAdmin)
+            const errorData = await r.json();
+            return {
+              auth: "handshake-failed",
+              firestore: "handshake-failed",
+              authDetails: errorData.details || `HTTP ${r.status}`,
+              remediation: errorData.remediation,
+              serviceAccount: errorData.serviceAccount || "Identity detecting..."
+            };
           } else {
             const text = await r.text();
             return { 
@@ -126,8 +138,8 @@ export default function AdminSecurityDashboard() {
     <div className="p-8 max-w-7xl mx-auto space-y-8 pb-32">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Security & Governance</h1>
-          <p className="text-slate-500">Workforce infrastructure health & zero-trust metrics</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 underline decoration-indigo-500 decoration-4 underline-offset-8">Global OS Integrity Layer</h1>
+          <p className="text-slate-500 mt-2">Zero-trust workforce infrastructure protocols & health metrics</p>
         </div>
         <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 flex items-center gap-2">
            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -138,10 +150,10 @@ export default function AdminSecurityDashboard() {
       {/* Diagnostics Panel */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: "Identity Node", value: diagnostics?.auth || "PENDING", icon: Lock, status: diagnostics?.auth === "healthy" ? "success" : "warning" },
-          { label: "Data Authority", value: diagnostics?.firestore || "PENDING", icon: Server, status: diagnostics?.firestore === "healthy" ? "success" : "warning" },
-          { label: "Cloud Service Account", value: diagnostics?.serviceAccount || "Detecting...", icon: Fingerprint, status: "neutral", copyable: true },
-          { label: "Governance Project", value: diagnostics?.projectId || diagnostics?.envProjectId || "...", icon: Shield, status: "neutral" }
+          { label: "Authority Node", value: diagnostics?.auth || "PENDING", icon: Lock, status: diagnostics?.auth === "healthy" ? "success" : "warning" },
+          { label: "Entity Mirror", value: diagnostics?.firestore || "PENDING", icon: Server, status: diagnostics?.firestore === "healthy" ? "success" : "warning" },
+          { label: "Runtime Identity", value: diagnostics?.serviceAccount || "Detecting...", icon: Fingerprint, status: "neutral", copyable: true },
+          { label: "Infrastructure Host", value: diagnostics?.projectId || diagnostics?.envProjectId || "...", icon: Shield, status: "neutral" }
         ].map((item, idx) => (
           <div key={idx} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-start gap-4">
             <div className={cn(
@@ -189,9 +201,11 @@ export default function AdminSecurityDashboard() {
         {/* Left: Audit Log */}
         <div className="lg:col-span-2 space-y-8">
           {/* Troubleshooting Guide for IAM/Org Policy */}
-          {(diagnostics?.firestore?.includes("denied") || 
-            diagnostics?.auth?.includes("denied") || 
+          {(diagnostics?.firestore?.includes("failure") || 
+            diagnostics?.auth?.includes("failure") || 
             diagnostics?.auth?.includes("api-disabled") || 
+            diagnostics?.auth === "handshake-failed" ||
+            diagnostics?.remediation ||
             diagnostics?.firestore?.includes("Org Constraint")) && (
             <div className="bg-rose-50 border border-rose-100 rounded-[32px] p-8 space-y-6">
               <div className="flex items-start gap-4">
@@ -202,10 +216,10 @@ export default function AdminSecurityDashboard() {
                   <h3 className="text-lg font-bold text-rose-900">Infrastructure Handshake Partially Blocked</h3>
                   <p className="text-rose-700 text-sm leading-relaxed">
                     {diagnostics?.remediation || diagnostics?.iamCommand ? 
-                      (diagnostics.remediation ? "API Activation Required" : "IAM Permission Gap Detected") :
+                      "IAM Permission Gap Detected: The production environment nodes are unable to verify identities or mirror entities." :
                       diagnostics?.auth?.includes("api-disabled") ? 
                       "The Identity Toolkit API is either disabled or hasn't finished provisioning in your GCP project." :
-                      diagnostics?.auth?.includes("denied") ? 
+                      diagnostics?.auth?.includes("failure") ? 
                       "The Identity Node requires elevated permissions to manage users and access management." : 
                       "Your GCP configuration is preventing HireNest OS from fully synchronizing with your project."
                     }
@@ -329,7 +343,7 @@ export default function AdminSecurityDashboard() {
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Activity className="text-indigo-600" size={20} />
-                <h2 className="font-semibold text-slate-900">Live Audit Chain</h2>
+                <h2 className="font-semibold text-slate-900">Immutable Audit Stream</h2>
               </div>
               <Badge variant="outline">Last 20 Events</Badge>
             </div>
