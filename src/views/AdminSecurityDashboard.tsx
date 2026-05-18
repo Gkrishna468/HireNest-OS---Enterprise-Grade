@@ -274,7 +274,7 @@ export default function AdminSecurityDashboard() {
                   variant="outline" 
                   className="flex-1 border-rose-200 text-rose-700 hover:bg-rose-100/50"
                   onClick={() => {
-                    navigator.clipboard.writeText(`Hi Admin, I need the 'Firebase Authentication Admin', 'Cloud Datastore User' and 'Firebase Rules Admin' roles for service account: ${diagnostics?.serviceAccount} in project hirenest-os.`);
+                    navigator.clipboard.writeText(`Hi Admin, I need the 'Firebase Authentication Admin', 'Cloud Datastore User', 'Firebase Rules Admin', and 'Service Usage Consumer' roles for service account: ${diagnostics?.serviceAccount} in project hirenest-os.`);
                     alert("Request template copied to clipboard");
                   }}
                 >

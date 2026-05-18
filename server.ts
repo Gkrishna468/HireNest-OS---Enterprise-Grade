@@ -427,8 +427,11 @@ async function startServer() {
       results.auth = "healthy";
     } catch (e: any) {
       const errorMsg = e.message || "";
-      // Detect sandbox project attribution error
-      if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
+      // Detect sandbox project attribution error or project access issues
+      if (errorMsg.includes('USER_PROJECT_DENIED') || errorMsg.includes('serviceusage.serviceUsageConsumer')) {
+        results.auth = `iam-denied: serviceusage.serviceUsageConsumer missing (Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId})`;
+        results.isSandboxAttributionError = true;
+      } else if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
         results.auth = `api-disabled-on-host (Add roles to ${results.serviceAccount} in project ${globalProjectId})`;
         results.isSandboxAttributionError = true;
       } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
@@ -740,9 +743,13 @@ async function startServer() {
       res.json({ success: true, uid, orgId });
     } catch (err: any) {
       console.error("[ONBOARD APPROVE FATAL]", err);
+      let errorDetails = err.message;
+      if (errorDetails.includes("serviceusage.serviceUsageConsumer")) {
+        errorDetails = "IAM_PERMISSION_DENIED: The service account requires the 'Service Usage Consumer' role in project hirenest-os to interact with Identity Toolkit.";
+      }
       res.status(500).json({ 
         error: "Approval execution failed", 
-        details: err.message,
+        details: errorDetails,
         code: err.code || "governance/internal-error"
       });
     }

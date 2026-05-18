@@ -281,10 +281,13 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
             {error && (
               <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4">
                 <p className="text-[10px] font-black lowercase tracking-widest text-red-600 mb-2">{error}</p>
-                {error.includes("API_DISABLED") || error.includes("infrastructure_failure") || error.includes("ACCESS DENIED") ? (
+                {error.toUpperCase().includes("API_DISABLED") || 
+                 error.toUpperCase().includes("INFRASTRUCTURE_FAILURE") || 
+                 error.toUpperCase().includes("ACCESS DENIED") ||
+                 error.toUpperCase().includes("PERMISSION_DENIED") ? (
                   <div className="space-y-2">
                     <p className="text-[9px] text-red-500 font-bold leading-relaxed">
-                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" for the service account in project hirenest-os.
+                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" (including service usage consumer) for the service account in project hirenest-os.
                     </p>
                     <div className="flex gap-2">
                         <a 
