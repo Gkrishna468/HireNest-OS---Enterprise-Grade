@@ -288,7 +288,11 @@ async function startServer() {
       
       // Use the explicit app to verify
       const app = admin.app();
-      const decodedToken = await app.auth().verifyIdToken(token);
+      
+      const verifyPromise = app.auth().verifyIdToken(token);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Identity verification timed out")), 5000));
+      
+      const decodedToken = await Promise.race([verifyPromise, timeoutPromise]) as admin.auth.DecodedIdToken;
       const email = decodedToken.email?.toLowerCase().trim();
       const uid = decodedToken.uid;
       
@@ -395,77 +399,110 @@ async function startServer() {
   }
 
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
-    const results: any = {
-      projectId: admin.app().options.projectId || globalProjectId,
-      globalProjectId,
-      envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
-      auth: "checking",
-      firestore: "checking",
-      identityToolkit: "checking"
-    };
-
-    // Capture project info
-    results.projectNumber = "375081910602"; // Host project number
-    results.envProjectId = process.env.GOOGLE_CLOUD_PROJECT;
-    results.globalProjectId = globalProjectId;
-
-    // Try to fetch specific service account email from metadata
     try {
-      const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
-        headers: { "Metadata-Flavor": "Google" }
+      const results: any = {
+        projectId: "checking",
+        globalProjectId,
+        envProjectId: process.env.GOOGLE_CLOUD_PROJECT || "not-set",
+        auth: "checking",
+        firestore: "checking",
+        identityToolkit: "checking",
+        nodeEnv: process.env.NODE_ENV || "development"
+      };
+
+      try {
+        results.projectId = admin.app().options.projectId || globalProjectId;
+      } catch (e) {}
+
+      // Capture project info
+      results.projectNumber = "375081910602"; // Host project number
+      results.globalProjectId = globalProjectId;
+
+      // Try to fetch specific service account email from metadata
+      try {
+        const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
+          headers: { "Metadata-Flavor": "Google" },
+          signal: AbortSignal.timeout(2000)
+        });
+        if (response.ok) {
+          results.serviceAccount = await response.text();
+        }
+      } catch (e) {
+        results.serviceAccount = "metadata-unreachable";
+      }
+
+      try {
+        const auth = admin.auth();
+        // Give it a short timeout
+        const listPromise = auth.listUsers(1);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth operation timed out")), 5000));
+        await Promise.race([listPromise, timeoutPromise]);
+        results.auth = "healthy";
+      } catch (e: any) {
+        const errorMsg = e.message || "";
+        if (errorMsg.includes('USER_PROJECT_DENIED') || errorMsg.includes('serviceusage.serviceUsageConsumer')) {
+          results.auth = `iam-denied: serviceusage.serviceUsageConsumer missing (Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId})`;
+          results.isSandboxAttributionError = true;
+        } else if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
+          results.auth = `api-disabled-on-host (Add roles to ${results.serviceAccount} in project ${globalProjectId})`;
+          results.isSandboxAttributionError = true;
+        } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
+          results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
+        } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7 || e.code === 'permission-denied') {
+          results.auth = "access-denied (Check IAM roles for Service Account)";
+        } else if (errorMsg.includes("timed out")) {
+          results.auth = "timeout (Identity Toolkit call hung)";
+        } else {
+          results.auth = `failure: ${errorMsg || "Unknown error"}`;
+        }
+        results.authCode = e.code;
+        results.authDetails = errorMsg;
+      }
+
+      try {
+        const db = admin.firestore();
+        const getPromise = db.collection("users").limit(1).get();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore operation timed out")), 5000));
+        await Promise.race([getPromise, timeoutPromise]);
+        results.firestore = "healthy";
+      } catch (e: any) {
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('permission-denied')) {
+          results.firestore = `access-denied (Grant 'Cloud Datastore User' to ${results.serviceAccount} in ${globalProjectId})`;
+        } else if (e.message?.includes("timed out")) {
+          results.firestore = "timeout (Firestore call hung)";
+        } else {
+          results.firestore = `failure: ${e.message}`;
+        }
+        results.firestoreCode = e.code;
+      }
+
+      return res.json(results);
+    } catch (fatalErr: any) {
+      console.error("[DIAGNOSTICS FATAL]", fatalErr);
+      return res.status(500).json({ 
+        error: "DIAGNOSTICS_FAILED", 
+        message: fatalErr.message,
+        stack: process.env.NODE_ENV !== 'production' ? fatalErr.stack : undefined 
       });
-      if (response.ok) {
-        results.serviceAccount = await response.text();
-      }
-    } catch (e) {
-      results.serviceAccount = "metadata-unreachable";
     }
-
-    try {
-      const auth = admin.auth();
-      await auth.listUsers(1);
-      results.auth = "healthy";
-    } catch (e: any) {
-      const errorMsg = e.message || "";
-      // Detect sandbox project attribution error or project access issues
-      if (errorMsg.includes('USER_PROJECT_DENIED') || errorMsg.includes('serviceusage.serviceUsageConsumer')) {
-        results.auth = `iam-denied: serviceusage.serviceUsageConsumer missing (Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId})`;
-        results.isSandboxAttributionError = true;
-      } else if (errorMsg.includes('project 375081910602') || errorMsg.includes('375081910602')) {
-        results.auth = `api-disabled-on-host (Add roles to ${results.serviceAccount} in project ${globalProjectId})`;
-        results.isSandboxAttributionError = true;
-      } else if (errorMsg.includes('Identity Toolkit API has not been used') || errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('SERVICE_DISABLED')) {
-        results.auth = "api-disabled (Enable 'Identity Toolkit API' in GCP Console)";
-      } else if (errorMsg.includes('PERMISSION_DENIED') || e.code === 'auth/insufficient-permission' || e.code === 7) {
-        results.auth = "access-denied (Check IAM roles for Service Account)";
-      } else {
-        results.auth = `failure: ${errorMsg || "Unknown error"}`;
-      }
-      results.authCode = e.code;
-      results.authDetails = errorMsg;
-    }
-
-    try {
-      const db = admin.firestore();
-      await db.collection("users").limit(1).get();
-      results.firestore = "healthy";
-    } catch (e: any) {
-      if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-        results.firestore = `access-denied (Grant 'Cloud Datastore User' to ${results.serviceAccount} in ${globalProjectId})`;
-      } else {
-        results.firestore = `failure: ${e.message}`;
-      }
-      results.firestoreCode = e.code;
-    }
-
-    res.json(results);
   });
 
   app.get("/api/admin/audit-logs", verifyAdmin, async (req, res) => {
     try {
       const db = admin.firestore();
-      const snap = await db.collection("auditLogs").orderBy("timestamp", "desc").limit(100).get();
+      // Temporarily remove orderBy to rule out missing index timeout
+      const snapPromise = db.collection("auditLogs").limit(100).get();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Audit logs fetch timed out")), 8000));
+      const snap = await Promise.race([snapPromise, timeoutPromise]) as admin.firestore.QuerySnapshot;
+      
       const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort manually in memory if needed
+      logs.sort((a: any, b: any) => {
+        const tA = a.timestamp?.seconds || 0;
+        const tB = b.timestamp?.seconds || 0;
+        return tB - tA;
+      });
+      
       res.json(logs);
     } catch (err: any) {
       console.error("[AUDIT FETCH FAIL]", err.message);
@@ -476,7 +513,11 @@ async function startServer() {
   app.get("/api/admin/risk-assessments", verifyAdmin, async (req, res) => {
     try {
       const db = admin.firestore();
-      const snap = await db.collection("risk_assessments").orderBy("createdAt", "desc").limit(50).get();
+      // Remove orderBy temporarily
+      const snapPromise = db.collection("risk_assessments").limit(50).get();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Risk assessment fetch timed out")), 8000));
+      const snap = await Promise.race([snapPromise, timeoutPromise]) as admin.firestore.QuerySnapshot;
+      
       const risks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json(risks);
     } catch (err: any) {
