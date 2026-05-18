@@ -19,34 +19,6 @@ let globalProjectId = "hirenest-os"; // Target Project
 process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
 process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
 
-// Initialize Firebase Admin with explicit project attribution
-try {
-  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  let config: any = {};
-  if (fs.existsSync(firebaseConfigPath)) {
-    config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-    globalProjectId = config.projectId || "hirenest-os";
-  }
-
-  if (admin.apps.length === 0) {
-    console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
-    admin.initializeApp({
-      projectId: globalProjectId,
-      credential: admin.credential.applicationDefault()
-    });
-    // Double check project binding
-    const app = admin.app();
-    console.log(`[HQ CORE] Governance layer established on node: ${app.options.projectId}`);
-    
-    // Explicitly set environment to match initialized app
-    process.env.GOOGLE_CLOUD_PROJECT = app.options.projectId || globalProjectId;
-    process.env.GOOGLE_CLOUD_QUOTA_PROJECT = app.options.projectId || globalProjectId;
-  }
-} catch (e: any) {
-  console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
-}
-
-// --- Security & Governance Infrastructure ---
 const AuditService = {
   log: async (userId: string, action: string, metadata: any = {}) => {
     try {
@@ -63,10 +35,31 @@ const AuditService = {
         outcome: metadata.outcome || "SUCCESS"
       });
     } catch (e) {
-      console.error("[AUDIT FATAL] Log failed:", e);
+      console.warn("[AUDIT] Log persistent failure:", e);
     }
   }
 };
+
+// Initialize Firebase Admin with explicit project attribution
+console.log(`[HQ CORE] Initializing Global Authority Node: ${globalProjectId}`);
+try {
+  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(firebaseConfigPath)) {
+    const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+    globalProjectId = config.projectId || globalProjectId;
+  }
+
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      projectId: globalProjectId,
+      credential: admin.credential.applicationDefault()
+    });
+    const app = admin.app();
+    console.log(`[HQ CORE] Governance layer established on node: ${app.options.projectId}`);
+  }
+} catch (e: any) {
+  console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
+}
 
 const UsageService = {
   checkQuota: async (ownerId: string, type: string): Promise<boolean> => {
@@ -275,8 +268,8 @@ async function startServer() {
 
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+    const requestId = Math.random().toString(36).substring(7);
     try {
-      const requestId = Math.random().toString(36).substring(7);
       console.log(`[HQ SECURITY] [${requestId}] Handshake check: ${req.path}`);
       
       if (admin.apps.length === 0) {
@@ -299,52 +292,44 @@ async function startServer() {
         return res.status(401).json({ error: "Access Denied: Invalid Auth Token String", requestId });
       }
       
-      try {
-        const auth = admin.auth();
-        const decodedToken = await auth.verifyIdToken(token);
-        const email = decodedToken.email?.toLowerCase().trim();
-        const uid = decodedToken.uid;
-        const role = decodedToken.role;
-        
-        console.log(`[HQ SECURITY] [${requestId}] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
-        
-        const trustedNodes = [
-          'gopalkrishna0046@gmail.com',
-          'gopal@hirenestworkforce.com'
-        ];
+      const auth = admin.auth();
+      const decodedToken = await auth.verifyIdToken(token);
+      const email = decodedToken.email?.toLowerCase().trim();
+      const uid = decodedToken.uid;
+      const role = decodedToken.role;
+      
+      console.log(`[HQ SECURITY] [${requestId}] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
+      
+      const trustedNodes = [
+        'gopalkrishna0046@gmail.com',
+        'gopal@hirenestworkforce.com'
+      ];
 
-        const isTrustedEmail = email && trustedNodes.includes(email);
-        const isTrustedRole = role === 'admin';
+      const isTrustedEmail = email && trustedNodes.includes(email);
+      const isTrustedRole = role === 'admin';
 
-        if (!isTrustedEmail && !isTrustedRole) {
-          console.warn(`[SECURITY BREACH] [${requestId}] Unauthorized Authority Attempt: ${email}`);
-          return res.status(403).json({ 
-            error: "ACCESS_DENIED",
-            message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
-            identity: email,
-            details: "Required claim 'role: admin' or master email whitelist membership.",
-            requestId
-          });
-        }
-
-        (req as any).user = decodedToken;
-        next();
-      } catch (authErr: any) {
-        console.error(`[HQ SECURITY] [${requestId}] Token Verification Failed:`, authErr.message);
-        return res.status(401).json({ 
-          error: "IDENTITY_VERIFICATION_FAILED", 
-          details: authErr.message,
-          code: authErr.code || "auth/invalid-token",
+      if (!isTrustedEmail && !isTrustedRole) {
+        console.warn(`[SECURITY BREACH] [${requestId}] Unauthorized Authority Attempt: ${email}`);
+        return res.status(403).json({ 
+          error: "ACCESS_DENIED",
+          message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
+          identity: email,
+          details: "Required claim 'role: admin' or master email whitelist membership.",
           requestId
         });
       }
+
+      (req as any).user = decodedToken;
+      next();
     } catch (err: any) {
-      console.error("[HQ SECURITY] [FATAL] middleware crash:", err);
+      console.error(`[HQ SECURITY] [${requestId}] Verification Failed:`, err.message);
       if (!res.headersSent) {
-        res.status(500).json({ 
-          error: "SECURITY_PROTOCOL_CRASH", 
+        const isAuthError = err.code?.startsWith('auth/');
+        res.status(isAuthError ? 401 : 500).json({ 
+          error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : "SECURITY_PROTOCOL_CRASH", 
           details: err.message,
-          stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+          code: err.code || "governance/internal-error",
+          requestId
         });
       }
     }
@@ -435,7 +420,8 @@ async function startServer() {
       auth: "checking",
       firestore: "checking",
       nodeEnv: process.env.NODE_ENV || "development",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      handshakeId: Math.random().toString(36).substring(7)
     };
 
     try {
@@ -468,7 +454,7 @@ async function startServer() {
         results.authDetails = errorMsg;
         
         if (errorMsg.includes('serviceusage.serviceUsageConsumer')) {
-          results.remediation = `Grant 'Service Usage Consumer' to ${results.serviceAccount} in project ${globalProjectId}`;
+          results.remediation = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/serviceusage.serviceUsageConsumer"`;
         }
       }
 
@@ -482,6 +468,9 @@ async function startServer() {
       } catch (e: any) {
         results.firestore = `failure: ${e.message}`;
         results.firestoreCode = e.code;
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
+            results.iamCommand = `gcloud projects add-iam-policy-binding ${globalProjectId} --member="serviceAccount:${results.serviceAccount}" --role="roles/datastore.user" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
+        }
       }
 
       return res.json(results);

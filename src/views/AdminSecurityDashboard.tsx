@@ -201,7 +201,9 @@ export default function AdminSecurityDashboard() {
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-rose-900">Infrastructure Handshake Partially Blocked</h3>
                   <p className="text-rose-700 text-sm leading-relaxed">
-                    {diagnostics?.auth?.includes("api-disabled") ? 
+                    {diagnostics?.remediation || diagnostics?.iamCommand ? 
+                      (diagnostics.remediation ? "API Activation Required" : "IAM Permission Gap Detected") :
+                      diagnostics?.auth?.includes("api-disabled") ? 
                       "The Identity Toolkit API is either disabled or hasn't finished provisioning in your GCP project." :
                       diagnostics?.auth?.includes("denied") ? 
                       "The Identity Node requires elevated permissions to manage users and access management." : 
@@ -214,17 +216,28 @@ export default function AdminSecurityDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/50 p-4 rounded-2xl border border-rose-100 space-y-2">
                   <p className="text-xs font-bold text-rose-900 uppercase">
-                    {diagnostics?.auth?.includes("api-disabled") ? "Critical: API Activation" : "Required IAM Roles"}
+                    {(diagnostics?.remediation || diagnostics?.auth?.includes("api-disabled")) ? "Critical: API Activation" : "Required IAM Roles"}
                   </p>
                   <p className="text-xs text-rose-700">
-                    {diagnostics?.auth?.includes("api-disabled") ? 
-                      "Roles are added, but the project APIs are still sleeping. You must manually wake them up:" :
+                    {diagnostics?.remediation ? 
+                      "Run this command in GCP Cloud Shell to enable required infrastructure:" :
                       "You must grant these roles to the Service Account in project hirenest-os:"
                     }
                   </p>
-                  <div className="bg-slate-900 text-indigo-300 p-2 rounded-lg font-mono text-[9px] break-all my-2 border border-slate-800">
-                    {diagnostics?.serviceAccount || "Identity Detecting..."}
-                  </div>
+                  {(diagnostics?.remediation || diagnostics?.iamCommand) ? (
+                    <div className="bg-slate-900 text-emerald-400 p-3 rounded-lg font-mono text-[9px] break-all my-2 border border-slate-800 relative group cursor-pointer"
+                         onClick={() => {
+                           navigator.clipboard.writeText(diagnostics.remediation || diagnostics.iamCommand);
+                           alert("GCloud command copied!");
+                         }}>
+                      {diagnostics.remediation || diagnostics.iamCommand}
+                      <div className="absolute top-1 right-1 opacity-50 text-[8px] uppercase">Click to copy</div>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-900 text-indigo-300 p-2 rounded-lg font-mono text-[9px] break-all my-2 border border-slate-800">
+                      {diagnostics?.serviceAccount || "Identity Detecting..."}
+                    </div>
+                  )}
                   <ul className="text-[10px] text-rose-700 list-disc ml-4 space-y-1">
                     {diagnostics?.auth?.includes("api-disabled") ? (
                       <>
