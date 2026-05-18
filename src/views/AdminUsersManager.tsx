@@ -4,7 +4,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Trash2, Check, Save } from "lucide-react";
+import { Trash2, Check, Save, Lock } from "lucide-react";
 
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [users, setUsers] = useState<any[]>([]);
@@ -548,6 +548,34 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                       </div>
                       
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button 
+                            onClick={async () => {
+                              if (confirm(`Sync ${u.email} role [${u.role}] to Custom Claims? This enables enterprise rule enforcement.`)) {
+                                try {
+                                  setIsSubmitting(true);
+                                  const token = await auth.currentUser?.getIdToken();
+                                  const resp = await fetch('/api/admin/assign-role', {
+                                    method: 'POST',
+                                    headers: { 
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${token}` 
+                                    },
+                                    body: JSON.stringify({ uid: u.id, role: u.role, organizationId: u.organizationId })
+                                  });
+                                  if (resp.ok) alert("IAM Role synchronized. Access Protocol Updated.");
+                                  else alert("IAM sync failed.");
+                                } catch (e) {
+                                  alert("Network handshake failure");
+                                } finally {
+                                  setIsSubmitting(false);
+                                }
+                              }
+                            }}
+                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                            title="Sync IAM Custom Claims"
+                         >
+                            <Lock size={16} />
+                         </button>
                          <button 
                             onClick={() => handleDeleteUser(u.id, u.organizationId)}
                             className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm"

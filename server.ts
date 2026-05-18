@@ -295,8 +295,9 @@ async function startServer() {
       const decodedToken = await Promise.race([verifyPromise, timeoutPromise]) as admin.auth.DecodedIdToken;
       const email = decodedToken.email?.toLowerCase().trim();
       const uid = decodedToken.uid;
+      const role = decodedToken.role;
       
-      console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid})`);
+      console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -304,8 +305,9 @@ async function startServer() {
       ];
 
       const isTrustedEmail = email && trustedNodes.includes(email);
+      const isTrustedRole = role === 'admin';
 
-      if (!isTrustedEmail) {
+      if (!isTrustedEmail && !isTrustedRole) {
         console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
         return res.status(403).json({ 
           error: "ACCESS_DENIED",
@@ -523,6 +525,32 @@ async function startServer() {
     } catch (err: any) {
       console.error("[RISK FETCH FAIL]", err.message);
       res.status(500).json({ error: "Failed to fetch risk data", details: err.message });
+    }
+  });
+
+  app.post("/api/admin/assign-role", verifyAdmin, async (req, res) => {
+    try {
+      const { uid, role, organizationId } = req.body;
+      if (!uid || !role) return res.status(400).json({ error: "UID and Role are required" });
+      
+      console.log(`[HQ IAM] Assigning role [${role}] and org [${organizationId}] to [${uid}]`);
+      
+      const claims: any = { role };
+      if (organizationId) claims.organizationId = organizationId;
+      
+      await admin.auth().setCustomUserClaims(uid, claims);
+      
+      await AuditService.log((req as any).user.uid, "ROLE_ASSIGNED", { 
+        targetUid: uid, 
+        role, 
+        organizationId,
+        severity: "HIGH" 
+      });
+      
+      res.json({ success: true, message: `Role ${role} assigned to ${uid}` });
+    } catch (err: any) {
+      console.error("[HQ IAM FAIL]", err);
+      res.status(500).json({ error: "Failed to assign role", details: err.message });
     }
   });
 
@@ -772,6 +800,19 @@ async function startServer() {
       });
       
       await batch.commit();
+      
+      // 5. Assign Custom Claims
+      try {
+        console.log(`[GOVERNANCE] Assigning custom claims to ${reqData.email}...`);
+        await auth.setCustomUserClaims(uid, {
+          role: role || (reqData.type === 'client' ? 'client_recruiter' : 'vendor_recruiter'),
+          organizationId: orgId
+        });
+        console.log(`[GOVERNANCE] Claims assigned successfully.`);
+      } catch (claimErr: any) {
+        console.error("[GOVERNANCE WARNING] Custom claims assignment failed:", claimErr.message);
+        // We don't fail the whole request since DB records are committed
+      }
       
       await AuditService.log((req as any).user.uid, "ONBOARDING_REQUEST_APPROVED", { 
         requestId, 
