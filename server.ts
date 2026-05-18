@@ -112,10 +112,17 @@ try {
 } catch (e: any) {
   console.error("[HQ CORE FATAL] Lifecycle failure:", e.message);
 }
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// --- Global Metadata & Paths ---
+let currentDirname: string;
+try {
+  const _filename = fileURLToPath(import.meta.url);
+  currentDirname = path.dirname(_filename);
+} catch (e) {
+  // CJS Fallback
+  currentDirname = process.cwd();
+}
 
-// --- Initialization & Error Control ---
+// --- Security & Governance Infrastructure ---
 console.log("[SERVER START] Booting HireNest Global OS Intelligence Layer...");
 
 let pdfParse: any = null;
@@ -275,7 +282,11 @@ async function startServer() {
       
       if (admin.apps.length === 0) {
         console.error("[HQ SECURITY] Critical: Firebase Admin not initialized.");
-        return res.status(503).json({ error: "SERVICE_UNAVAILABLE", details: "Core governance layer is booting or offline." });
+        return res.status(503).json({ 
+          error: "SERVICE_UNAVAILABLE", 
+          details: "Core governance layer is booting or offline.", 
+          phase: "BOOT_VALIDATION" 
+        });
       }
 
       const authHeader = req.headers.authorization;
@@ -285,53 +296,69 @@ async function startServer() {
       }
 
       const token = authHeader.split('Bearer ')[1];
+      if (!token || token === "undefined" || token === "null") {
+        return res.status(401).json({ error: "Access Denied: Invalid Auth Token String" });
+      }
       
-      // Use the explicit app to verify
-      const app = admin.app();
+      // Verification with absolute project isolation
+      const auth = admin.auth();
       
-      const verifyPromise = app.auth().verifyIdToken(token);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Identity verification timed out")), 5000));
-      
-      const decodedToken = await Promise.race([verifyPromise, timeoutPromise]) as admin.auth.DecodedIdToken;
-      const email = decodedToken.email?.toLowerCase().trim();
-      const uid = decodedToken.uid;
-      const role = decodedToken.role;
-      
-      console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
-      
-      const trustedNodes = [
-        'gopalkrishna0046@gmail.com',
-        'gopal@hirenestworkforce.com'
-      ];
+      try {
+        const decodedToken = await auth.verifyIdToken(token);
+        const email = decodedToken.email?.toLowerCase().trim();
+        const uid = decodedToken.uid;
+        const role = decodedToken.role;
+        
+        console.log(`[HQ SECURITY] Identity Verified: ${email} (UID: ${uid}, Role: ${role})`);
+        
+        const trustedNodes = [
+          'gopalkrishna0046@gmail.com',
+          'gopal@hirenestworkforce.com'
+        ];
 
-      const isTrustedEmail = email && trustedNodes.includes(email);
-      const isTrustedRole = role === 'admin';
+        const isTrustedEmail = email && trustedNodes.includes(email);
+        const isTrustedRole = role === 'admin';
 
-      if (!isTrustedEmail && !isTrustedRole) {
-        console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
-        return res.status(403).json({ 
-          error: "ACCESS_DENIED",
-          message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
-          identity: email
+        if (!isTrustedEmail && !isTrustedRole) {
+          console.warn(`[SECURITY BREACH] Unauthorized Authority Attempt: ${email}`);
+          return res.status(403).json({ 
+            error: "ACCESS_DENIED",
+            message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
+            identity: email,
+            details: "Required claim 'role: admin' or master email whitelist membership."
+          });
+        }
+
+        (req as any).user = decodedToken;
+        next();
+      } catch (authErr: any) {
+        console.error("[AUTH ERROR] Token Verification Failed:", authErr.message);
+        return res.status(401).json({ 
+          error: "IDENTITY_VERIFICATION_FAILED", 
+          details: authErr.message,
+          code: authErr.code || "auth/invalid-token"
         });
       }
-
-      (req as any).user = decodedToken;
-      next();
     } catch (err: any) {
-      console.error("[AUTH ERROR] Verification Failed:", err.message);
-      // Ensure we always return JSON instead of letting it bubble to HTML 500
+      console.error("[AUTH FATAL] middleware crash:", err);
       if (!res.headersSent) {
-        res.status(401).json({ 
-          error: "IDENTITY_VERIFICATION_FAILED", 
-          details: err.message,
-          code: err.code || "auth/verification-failed"
+        res.status(500).json({ 
+          error: "SECURITY_PROTOCOL_CRASH", 
+          details: err.message 
         });
       }
     }
   }
 
   // --- API ROUTES ---
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      nodeId: globalProjectId,
+      env: process.env.NODE_ENV 
+    });
+  });
 
   // --- AI GATEWAY & SECURITY ---
   app.post("/api/ai/gateway", async (req, res) => {
@@ -1489,7 +1516,7 @@ Candidate Profile: ${candidateProfile}`,
     app.use(vite.middlewares);
     app.get("*", async (req, res, next) => {
       try {
-        const template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        const template = fs.readFileSync(path.resolve(currentDirname, 'index.html'), 'utf-8');
         const html = await vite.transformIndexHtml(req.url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {

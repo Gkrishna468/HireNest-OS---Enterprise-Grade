@@ -85,7 +85,25 @@ export default function AdminSecurityDashboard() {
         // 4. Server Diagnostics
         fetch('/api/admin/diagnostics', {
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json()).then(setDiagnostics).catch(err => console.error("Diagnostics handshake failed", err));
+        })
+        .then(async (r) => {
+          const contentType = r.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            return await r.json();
+          } else {
+            const text = await r.text();
+            return { 
+              auth: "handshake-failed", 
+              firestore: "handshake-failed", 
+              authDetails: text.substring(0, 200) || "Server returned non-JSON response" 
+            };
+          }
+        })
+        .then(setDiagnostics)
+        .catch(err => {
+          console.error("Diagnostics handshake failed", err);
+          setDiagnostics({ auth: "network-error", firestore: "network-error", authDetails: err.message });
+        });
       });
     };
 
