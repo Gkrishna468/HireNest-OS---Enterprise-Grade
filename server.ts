@@ -15,9 +15,34 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
-let globalProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || "hirenest-os"; // Priority detection
-process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
-process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
+let globalProjectId: string = "hirenest-os"; // Default fallback
+
+// Initial detection from environment
+if (process.env.GOOGLE_CLOUD_PROJECT) {
+  globalProjectId = process.env.GOOGLE_CLOUD_PROJECT;
+} else if (process.env.PROJECT_ID) {
+  globalProjectId = process.env.PROJECT_ID;
+}
+
+// Metadata fetch with timeout helper
+async function fetchMetadata(path: string): Promise<string | null> {
+  const url = `http://metadata.google.internal/computeMetadata/v1/${path}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000); // 1s timeout
+    
+    const response = await fetch(url, {
+      headers: { "Metadata-Flavor": "Google" },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    if (response.ok) return (await response.text()).trim();
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
 
 const AuditService = {
   log: async (userId: string, action: string, metadata: any = {}) => {
@@ -43,29 +68,48 @@ const AuditService = {
 };
 
 // Initialize Firebase Admin with explicit project attribution
-console.log(`[HQ CORE] Boot sequence initiated. Node: ${globalProjectId}`);
-try {
-  // 1. Attempt config file discovery
-  const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(firebaseConfigPath)) {
-    const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-    globalProjectId = config.projectId || globalProjectId;
-    console.log(`[HQ CORE] Config identified Project ID: ${globalProjectId}`);
-  }
+console.log(`[HQ CORE] Boot sequence initiated...`);
 
-  // 2. Initialize if needed
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
-      projectId: globalProjectId,
-      credential: admin.credential.applicationDefault()
-    });
-    const app = admin.app();
-    console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
+async function initializeGovernanceLayer() {
+  try {
+    // 1. Check for runtime project ID via metadata (highest priority in production)
+    const runtimeId = await fetchMetadata("project/project-id");
+    if (runtimeId) {
+      globalProjectId = runtimeId;
+      console.log(`[HQ CORE] Runtime Metadata Project ID: ${globalProjectId}`);
+    }
+
+    // 2. Load config file as secondary source/override
+    const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(firebaseConfigPath)) {
+      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+      // Only override if we haven't detected a definite runtime ID or if we're in dev
+      if (!runtimeId || process.env.NODE_ENV !== 'production') {
+        globalProjectId = config.projectId || globalProjectId;
+        console.log(`[HQ CORE] Config File Project ID: ${globalProjectId}`);
+      }
+    }
+
+    // Ensure env vars are synced for SDKs that rely on them
+    process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
+    process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
+
+    // 3. Initialize Admin SDK
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        projectId: globalProjectId,
+        credential: admin.credential.applicationDefault()
+      });
+      const app = admin.app();
+      console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
+    }
+  } catch (e: any) {
+    console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
   }
-} catch (e: any) {
-  console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
-  // Do not crash server, allow diagnostics to report the issue
 }
+
+// Invoke initialization
+const initPromise = initializeGovernanceLayer();
 
 const UsageService = {
   checkQuota: async (ownerId: string, type: string): Promise<boolean> => {
@@ -228,6 +272,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Await core initialization
+  await initPromise;
+  
   // --- Dependency Onboarding ---
   try {
     // Use require for pdf-parse as it's more reliable for this older package even in ESM
@@ -340,30 +387,18 @@ async function startServer() {
 
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
-    // PUBLIC non-sensitive identity check to help users debug IAM in prod
     const results: any = { 
         status: "operational", 
         timestamp: new Date().toISOString(),
         nodeId: globalProjectId,
-        appsCount: admin.apps.length
+        appsCount: admin.apps.length,
+        env: process.env.NODE_ENV
     };
+    
     try {
-      // Use shorter timeouts and check specifically for metadata availability
-      const metadataUrl = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email";
-      const saRes = await fetch(metadataUrl, {
-        headers: { "Metadata-Flavor": "Google" }
-      }).catch(() => null);
-      
-      results.runtimeIdentity = saRes && saRes.ok ? await saRes.text() : "local-or-sandbox";
-      
-      const projUrl = "http://metadata.google.internal/computeMetadata/v1/project/project-id";
-      const projRes = await fetch(projUrl, {
-        headers: { "Metadata-Flavor": "Google" }
-      }).catch(() => null);
-      
-      if (projRes && projRes.ok) results.runtimeProjectId = await projRes.text();
+      results.runtimeIdentity = (await fetchMetadata("instance/service-accounts/default/email")) || "local-or-unknown";
+      results.runtimeProjectId = await fetchMetadata("project/project-id");
     } catch (e: any) {
-      results.runtimeIdentity = "error-detecting";
       results.error = e.message;
     }
     res.json(results);
@@ -456,31 +491,23 @@ async function startServer() {
 
     try {
       if (admin.apps.length === 0) {
-        throw new Error("Governance Node offline: Firebase Admin failed to initialize.");
+        // Retry initialization one last time if it failed at boot
+        await initializeGovernanceLayer();
+        if (admin.apps.length === 0) {
+          throw new Error("Governance Node offline: Firebase Admin failed to initialize.");
+        }
       }
 
       // 1. Identity Discovery
-      try {
-        const saRes = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email", {
-          headers: { "Metadata-Flavor": "Google" }
-        }).catch(() => null);
-        
-        results.serviceAccount = (saRes && saRes.ok) ? await saRes.text() : "detecting...";
-
-        const projRes = await fetch("http://metadata.google.internal/computeMetadata/v1/project/project-id", {
-          headers: { "Metadata-Flavor": "Google" }
-        }).catch(() => null);
-        
-        if (projRes && projRes.ok) results.runtimeProjectId = await projRes.text();
-      } catch (e) {
-        results.serviceAccount = "identity-error";
-      }
+      results.serviceAccount = (await fetchMetadata("instance/service-accounts/default/email")) || "compute-default";
+      results.runtimeProjectId = await fetchMetadata("project/project-id");
 
       const activeProject = results.runtimeProjectId || globalProjectId;
 
-      // 2. Auth Handshake
+      // 2. Auth Handshake (Identity Toolkit)
       try {
         const auth = admin.auth();
+        // Use a lightweight operation to verify project link
         await auth.listUsers(1);
         results.auth = "healthy";
       } catch (e: any) {
@@ -512,7 +539,8 @@ async function startServer() {
         error: "DIAGNOSTICS_FAILURE", 
         details: fatalErr.message,
         nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE",
-        projectId: globalProjectId
+        projectId: globalProjectId,
+        requestId: Math.random().toString(36).substring(7)
       });
     }
   });

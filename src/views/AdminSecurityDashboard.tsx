@@ -89,8 +89,9 @@ export default function AdminSecurityDashboard() {
               remediation: (errorData as any).remediation,
               serviceAccount: (errorData as any).serviceAccount || null,
               iamCommand: (errorData as any).iamCommand,
-              requestId: errorData.requestId || "SRV-500",
-              statusText: r.statusText
+              requestId: errorData.requestId || (errorData as any).requestId || "SRV-500",
+              statusText: r.statusText,
+              statusCode: r.status
             };
           })
           .then(setDiagnostics)
