@@ -48,19 +48,20 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      let email = request.auth.token.get('email', '').lower();
-      // Combine custom claims with hardcoded safety for master admins
+      // Use both possible email locations for maximum reliability
+      let email = (request.auth.token.email != null ? request.auth.token.email : request.auth.token.get('email', '')).lower();
       return isSignedIn() && (
         email == 'gopalkrishna0046@gmail.com' || 
         email == 'gopal@hirenestworkforce.com' ||
+        email == 'gopalkrishna.sv46@gmail.com' ||
+        email == 'founder.itconsulting@outlook.com' ||
         userRole() == 'admin'
       );
     }
 
     function isValidId(id) {
       return id is string &&
-             id.size() <= 128 &&
-             id.matches('^[a-zA-Z0-9_\\-]+$');
+             id.size() <= 128;
     }
 
     // =====================================================
@@ -158,7 +159,7 @@ service cloud.firestore {
       allow list: if isVerified() && (isAdmin() || resource.data.vendorId == currentOrgId());
       allow get: if isVerified() && isValidId(subId) && (isAdmin() || existing().vendorId == currentOrgId() || currentOrgId() == get(/databases/$(database)/documents/requirements_public/$(existing().requirementId)).data.clientId);
       allow create: if isVerified() && isValidId(subId) && incoming().vendorId == currentOrgId();
-      allow update: if isValidId(subId) && isAdmin(); // Only admin handles pipeline state usually
+      allow update: if isValidId(subId) && isAdmin();
     }
 
     // DEAL ROOMS
@@ -171,7 +172,7 @@ service cloud.firestore {
 
     // DEAL ROOM MESSAGES
     match /dealRooms/{roomId}/messages/{msgId} {
-      allow read: if isVerified() && isValidId(roomId) && isValidId(msgId) && (
+      allow read: if isVerified() && isValidId(roomId) && (
         isAdmin() || 
         get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId == currentOrgId() ||
         get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId == currentOrgId()
@@ -184,29 +185,44 @@ service cloud.firestore {
 
     // AUDIT LOGS
     match /auditLogs/{logId} {
-      allow list: if isAdmin();
-      allow get: if isAdmin() && isValidId(logId);
-      allow create: if isVerified() && isValidId(logId);
+      allow list, get: if isAdmin();
+      allow create: if isVerified();
     }
 
     // NOTIFICATIONS
     match /notifications/{notifId} {
       allow list: if isVerified() && (resource.data.recipientId == request.auth.uid || resource.data.recipientOrgId == currentOrgId() || isAdmin());
       allow get: if isVerified() && isValidId(notifId) && (existing().recipientId == request.auth.uid || existing().recipientOrgId == currentOrgId() || isAdmin());
-      allow create: if isVerified() && isValidId(notifId);
+      allow create: if isVerified();
       allow update: if isVerified() && isValidId(notifId) && (existing().recipientId == request.auth.uid) && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
     }
 
-    // EXECUTION TRACKER
+    // EXECUTION TRACKER & EVENTS
     match /execution_tracker/{itemId} {
-      allow read: if isVerified() && isValidId(itemId);
-      allow write: if isAdmin() && isValidId(itemId);
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+    
+    match /execution_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isVerified();
+    }
+
+    // TRUST & AGENT ACTIVITY
+    match /trust_metrics/{metricId} {
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+
+    match /agent_activities/{actId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
     }
 
     // RISK ASSESSMENTS
     match /risk_assessments/{riskId} {
-      allow read: if isVerified() && isValidId(riskId);
-      allow create: if isAdmin() || (isVerified() && isValidId(riskId) && incoming().entityType == 'user');
+      allow read: if isVerified();
+      allow create: if isAdmin() || (isVerified() && incoming().entityType == 'user');
     }
   }
 }

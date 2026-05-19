@@ -75,13 +75,19 @@ export default function ExecutionTracker() {
     { id: "ceo", label: "CEO OS", icon: <Settings size={16} /> },
   ];
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   useEffect(() => {
     const q = query(collection(db, "execution_tracker"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setItems(data);
       setLoading(false);
+      setErrorMsg(null);
     }, (error) => {
+      console.error("Execution Tracker Stream Error:", error);
+      setErrorMsg(error.message);
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, "execution_tracker");
     });
 
@@ -269,7 +275,33 @@ export default function ExecutionTracker() {
 
             {/* List View */}
             <div className="flex-1 overflow-y-auto">
-                {activeCategory === 'review' ? (
+                {errorMsg && errorMsg.includes("permissions") ? (
+                    <div className="p-20 text-center flex flex-col items-center justify-center">
+                        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-6 animate-pulse border-2 border-rose-200">
+                            <Lock size={32} />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase italic">Access Restricted</h2>
+                        <p className="text-slate-500 mt-4 max-w-lg mx-auto font-medium leading-loose">
+                            HireNestOS Governance Layer detected a <span className="text-rose-600 font-bold">Permission Denial</span>. 
+                            The cloud security rules for <code className="bg-slate-100 px-2 py-0.5 rounded text-indigo-600 font-mono">execution_tracker</code> 
+                            require manual authority alignment.
+                        </p>
+                        <div className="mt-8 flex gap-4">
+                            <Link to="/admin/security">
+                                <Button className="bg-slate-900 text-white rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 hover:scale-105 transition-transform">
+                                    Open Security Dashboard
+                                </Button>
+                            </Link>
+                            <Button 
+                                onClick={() => window.location.reload()}
+                                variant="outline"
+                                className="rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest border-2"
+                            >
+                                Retry Handshake
+                            </Button>
+                        </div>
+                    </div>
+                ) : activeCategory === 'review' ? (
                     <ReviewSystemView />
                 ) : activeCategory === 'ceo' ? (
                     <CEOOpsView />

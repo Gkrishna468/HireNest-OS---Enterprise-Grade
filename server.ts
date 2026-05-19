@@ -557,11 +557,14 @@ async function startServer() {
       try {
         const db = admin.firestore();
         await db.collection("users").limit(1).get();
+        await db.collection("execution_tracker").limit(1).get();
         results.firestore = "healthy";
       } catch (e: any) {
         results.firestore = `failure: ${e.message || "Mirror Sync Blocked"}`;
         results.firestoreDetails = e.message || "The entity mirror could not be replicated. Ensure Firestore (Datastore mode) is enabled and permissions are granted.";
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
+        
+        // If it's a permission error, generate remediation command
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
                      : "733294346096-compute@developer.gserviceaccount.com";
@@ -571,16 +574,23 @@ async function startServer() {
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
             `user:gopalkrishna.sv46@gmail.com`,
-            `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
+            `user:founder.itconsulting@outlook.com`,
             `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
           ];
           const memberFlags = members.map(m => `--member="${m}"`).join(" ");
+          
+          const roles = [
+            "roles/datastore.user",
+            "roles/firebase.admin",
+            "roles/firebaserules.admin",
+            "roles/cloudfunctions.admin",
+            "roles/serviceusage.serviceUsageConsumer"
+          ];
+
           results.iamCommand = [
             `gcloud auth login`,
             `gcloud config set project hirenest-os`,
-            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/datastore.user"`,
-            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/firebase.admin"`,
-            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/cloudfunctions.admin"`
+            ...roles.map(role => `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="${role}"`)
           ].join(" && ");
         }
       }
