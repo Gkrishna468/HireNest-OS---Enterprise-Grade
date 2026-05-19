@@ -93,15 +93,20 @@ async function initializeGovernanceLayer() {
 
     // 3. Initialize Admin SDK
     if (admin.apps.length === 0) {
+      console.log(`[HQ CORE] Attempting to establish nexus with project: ${globalProjectId}`);
       admin.initializeApp({
         projectId: globalProjectId,
         credential: admin.credential.applicationDefault()
       });
       const app = admin.app();
       console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
+    } else {
+      console.log(`[HQ CORE] Nexus already exists on project: ${admin.app().options.projectId}`);
     }
   } catch (e: any) {
     console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
+    // Explicitly throw to let re-init catch it
+    throw e;
   }
 }
 
@@ -418,12 +423,35 @@ async function startServer() {
     try {
       console.log("[HQ SYSTEM] Infrastructure re-initialization requested...");
       // Delete existing apps if any
-      await Promise.all(admin.apps.map(app => app?.delete()));
+      const apps = [...admin.apps];
+      for (const app of apps) {
+        if (app) {
+          console.log(`[HQ SYSTEM] Decommissioning application node: ${app.name}`);
+          await app.delete();
+        }
+      }
+      
       await initializeGovernanceLayer();
       res.json({ success: true, message: "Infrastructure successfully re-initialized." });
     } catch (e: any) {
-      res.status(500).json({ error: "REINIT_FAILURE", details: e.message });
+      console.error("[HQ SYSTEM REINIT FAIL]", e);
+      res.status(500).json({ 
+        error: "REINIT_FAILURE", 
+        details: e.message,
+        stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
+      });
     }
+  });
+
+  // Global Error Handler to avoid HTML error pages
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    console.error("[GLOBAL ERROR]", err);
+    if (res.headersSent) return next(err);
+    res.status(500).json({
+      error: "INTERNAL_SERVER_ERROR",
+      message: err.message || "An unhandled exception occurred.",
+      requestId: Math.random().toString(36).substring(7)
+    });
   });
 
   // --- AI GATEWAY & SECURITY ---
@@ -541,11 +569,15 @@ async function startServer() {
 
       const memberFlags = members.map(m => `--member="${m}"`).join(" ");
 
+      // Pre-calculated easy fix
+      results.emergencyFix = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/owner"`;
+
       // 2. Auth Handshake
       try {
         const auth = admin.auth();
-        await auth.listUsers(1); 
+        const users = await auth.listUsers(1); 
         results.auth = "healthy";
+        results.userCount = users.users.length;
       } catch (e: any) {
         results.auth = `failure: ${e.message || "Handshake Rejected"}`;
         results.authCode = e.code || "governance/auth-denied";
@@ -575,7 +607,9 @@ async function startServer() {
             `# 1. Enable Essential Infrastructure APIs`,
             `gcloud services enable ${services.join(" ")}`,
             `# 2. Synchronize Identity Manifests`,
-            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
+            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`),
+            `# 3. Emergency Owner Fix (Fastest)`,
+            `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/owner"`
           ].join(" && ");
         }
       }
