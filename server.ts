@@ -506,7 +506,7 @@ async function startServer() {
       results.projectNumber = metadataProjNum;
 
       const activeProject = results.runtimeProjectId || globalProjectId;
-      const activeProjectNum = results.projectNumber || "733294346096";
+      const activeProjectNum = results.projectNumber; // No hardcoded fallback here
 
       // 2. Auth Handshake
       try {
@@ -517,10 +517,11 @@ async function startServer() {
         results.auth = `failure: ${e.message || "Handshake Rejected"}`;
         results.authCode = e.code || "governance/auth-denied";
         results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM')) {
+        
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : `${activeProjectNum}-compute@developer.gserviceaccount.com`;
+                     : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
           
           const members = [
             `serviceAccount:${sa}`,
@@ -540,16 +541,22 @@ async function startServer() {
             "roles/firebaserules.admin",
             "roles/datastore.user",
             "roles/iam.serviceAccountTokenCreator",
-            "roles/identitytoolkit.admin",
             "roles/firebase.admin",
-            "roles/resourcemanager.projectIamAdmin",
-            "roles/cloudfunctions.admin",
-            "roles/storage.admin"
+            "roles/resourcemanager.projectIamAdmin"
           ];
           
+          const services = [
+            "identitytoolkit.googleapis.com",
+            "firestore.googleapis.com",
+            "cloudresourcemanager.googleapis.com",
+            "iam.googleapis.com"
+          ];
+
           const commands = [
             `gcloud auth login`,
             `gcloud config set project ${activeProject}`,
+            `# Enable essential cloud services`,
+            `gcloud services enable ${services.join(" ")}`,
             `# Grant full permissions to all essential identities`,
             ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
@@ -571,7 +578,7 @@ async function startServer() {
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : `${activeProjectNum}-compute@developer.gserviceaccount.com`;
+                     : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
           
           const members = [
             `serviceAccount:${sa}`,
@@ -593,9 +600,15 @@ async function startServer() {
             "roles/serviceusage.serviceUsageConsumer"
           ];
 
+          const services = [
+            "firestore.googleapis.com",
+            "identitytoolkit.googleapis.com"
+          ];
+
           results.iamCommand = [
             `gcloud auth login`,
             `gcloud config set project ${activeProject}`,
+            `gcloud services enable ${services.join(" ")}`,
             ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
         }

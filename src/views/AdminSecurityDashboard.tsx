@@ -265,17 +265,17 @@ export default function AdminSecurityDashboard() {
                        <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex flex-col gap-3 font-mono text-sm group">
                           <div className="flex items-center justify-between hover:bg-white/5 p-2 rounded cursor-copy transition-colors" 
                                onClick={() => {
-                                 const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`;
+                                 const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com";
                                  navigator.clipboard.writeText(sa);
                                }}>
-                             <code className="text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`}</code>
+                             <code className="text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5..."}</code>
                              <span className="text-[9px] font-black uppercase text-indigo-400 shrink-0">COPY PRIMARY</span>
                           </div>
                           <div className="flex items-center justify-between hover:bg-white/5 p-2 rounded cursor-copy pt-2 border-t border-white/5" onClick={() => {
-                            navigator.clipboard.writeText(`${diagnostics?.projectId || 'hirenest-os'}@appspot.gserviceaccount.com`);
+                            navigator.clipboard.writeText(`ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`);
                           }}>
-                             <code className="text-amber-400 truncate pr-4">{diagnostics?.projectId || 'hirenest-os'}@appspot.gserviceaccount.com</code>
-                             <span className="text-[9px] font-black uppercase text-indigo-400 shrink-0">COPY ALT</span>
+                             <code className="text-blue-400 truncate pr-4">ais-sandbox@ais-asia-east1-5...</code>
+                             <span className="text-[9px] font-black uppercase text-indigo-400 shrink-0">COPY SANDBOX</span>
                           </div>
                        </div>
                     </div>
@@ -285,9 +285,9 @@ export default function AdminSecurityDashboard() {
                           <Lock className="text-rose-400" />
                           <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Detection Logs</p>
                        </div>
-                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-rose-900/20 max-h-[100px] overflow-y-auto">
+                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-rose-900/20 max-h-[150px] overflow-y-auto">
                           <p className="text-xs font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
-                            {diagnostics?.authDetails || diagnostics?.firestoreDetails || diagnostics?.error || diagnostics?.details || "Protocol handshake failed at edge node."}
+                            {diagnostics?.authDetails || diagnostics?.firestoreDetails || diagnostics?.error || diagnostics?.details || (diagnostics?.statusCode ? `HTTP ${diagnostics.statusCode}: ${diagnostics.statusText || 'Connection Rejected'}` : "Protocol handshake failed at edge node.")}
                           </p>
                        </div>
                     </div>
