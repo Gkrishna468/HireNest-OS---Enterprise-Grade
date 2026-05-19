@@ -366,8 +366,9 @@ async function startServer() {
         console.warn(`[SECURITY BREACH] [${requestId}] Unauthorized Authority Attempt: ${email}`);
         return res.status(403).json({ 
           error: "ACCESS_DENIED",
-          message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest.`,
-          requestId
+          message: `Identity [${email || 'Anonymous'}] is not recognized in the Global Authority Manifest. Ensure you use a Chief Head email.`,
+          requestId,
+          email
         });
       }
 
@@ -380,6 +381,7 @@ async function startServer() {
         res.status(isAuthError ? 401 : 500).json({ 
           error: isAuthError ? "IDENTITY_VERIFICATION_FAILED" : "SECURITY_PROTOCOL_CRASH", 
           details: err.message || "Unknown Verification Error",
+          message: `Internal Handshake Failure: ${err.message}`,
           code: err.code || "governance/handshake-failure",
           requestId
         });
@@ -410,8 +412,21 @@ async function startServer() {
       status: "ok", 
       time: new Date().toISOString(),
       nodeId: globalProjectId,
+      appsCount: admin.apps.length,
       env: process.env.NODE_ENV 
     });
+  });
+
+  app.post("/api/admin/system/re-init", verifyAdmin, async (req, res) => {
+    try {
+      console.log("[HQ SYSTEM] Infrastructure re-initialization requested...");
+      // Delete existing apps if any
+      await Promise.all(admin.apps.map(app => app?.delete()));
+      await initializeGovernanceLayer();
+      res.json({ success: true, message: "Infrastructure successfully re-initialized." });
+    } catch (e: any) {
+      res.status(500).json({ error: "REINIT_FAILURE", details: e.message });
+    }
   });
 
   // --- AI GATEWAY & SECURITY ---
@@ -497,16 +512,37 @@ async function startServer() {
       }
 
       // 1. Identity Discovery (Non-blocking)
-      const metadataSA = await fetchMetadata("instance/service-accounts/default/email");
-      const metadataProj = await fetchMetadata("project/project-id");
-      const metadataProjNum = await fetchMetadata("project/numeric-project-id");
+      const [metadataSA, metadataProj, metadataProjNum] = await Promise.all([
+        fetchMetadata("instance/service-accounts/default/email"),
+        fetchMetadata("project/project-id"),
+        fetchMetadata("project/numeric-project-id")
+      ]);
       
       results.serviceAccount = metadataSA || "system-assigned-identity";
       results.runtimeProjectId = metadataProj || globalProjectId;
       results.projectNumber = metadataProjNum;
+      results.nodeIdentity = metadataSA || "local-dev-node";
 
       const activeProject = results.runtimeProjectId || globalProjectId;
-      const activeProjectNum = results.projectNumber; // No hardcoded fallback here
+      const activeProjectNum = results.projectNumber; 
+
+      // Support identities
+      const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
+                 ? results.serviceAccount 
+                 : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
+
+      const members = [
+        `serviceAccount:${sa}`,
+        `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
+        `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
+        `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
+        `user:gopalkrishna0046@gmail.com`,
+        `user:gopal@hirenestworkforce.com`,
+        `user:gopalkrishna.sv46@gmail.com`,
+        `user:founder.itconsulting@outlook.com`
+      ];
+
+      const memberFlags = members.map(m => `--member="${m}"`).join(" ");
 
       // 2. Auth Handshake
       try {
@@ -518,23 +554,7 @@ async function startServer() {
         results.authCode = e.code || "governance/auth-denied";
         results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
         
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before')) {
-          const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
-                     ? results.serviceAccount 
-                     : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
-          
-          const members = [
-            `serviceAccount:${sa}`,
-            `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
-            `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
-            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
-            `user:gopalkrishna0046@gmail.com`,
-            `user:gopal@hirenestworkforce.com`,
-            `user:gopalkrishna.sv46@gmail.com`,
-            `user:founder.itconsulting@outlook.com`
-          ];
-
-          const memberFlags = members.map(m => `--member="${m}"`).join(" ");
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before') || e.message?.includes('Identity Toolkit')) {
           const roles = [
             "roles/serviceusage.serviceUsageConsumer",
             "roles/firebaseauth.admin",
@@ -552,46 +572,29 @@ async function startServer() {
             "iam.googleapis.com"
           ];
 
-          const commands = [
+          results.remediation = [
             `gcloud auth login`,
             `gcloud config set project ${activeProject}`,
-            `# Enable essential cloud services`,
+            `# 1. Enable Essential Infrastructure APIs`,
             `gcloud services enable ${services.join(" ")}`,
-            `# Grant full permissions to all essential identities`,
+            `# 2. Synchronize Identity Manifests`,
             ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
-          results.remediation = commands;
         }
       }
 
       // 3. Firestore Handshake
       try {
         const db = admin.firestore();
-        await db.collection("users").limit(1).get();
-        await db.collection("execution_tracker").limit(1).get();
+        // Check connectivity deeply
+        const testCol = db.collection("_health_check_");
+        await testCol.limit(1).get();
         results.firestore = "healthy";
       } catch (e: any) {
         results.firestore = `failure: ${e.message || "Mirror Sync Blocked"}`;
         results.firestoreDetails = e.message || "The entity mirror could not be replicated. Ensure Firestore (Datastore mode) is enabled and permissions are granted.";
         
-        // If it's a permission error, generate remediation command
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions')) {
-          const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
-                     ? results.serviceAccount 
-                     : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
-          
-          const members = [
-            `serviceAccount:${sa}`,
-            `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
-            `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
-            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
-            `user:gopalkrishna0046@gmail.com`,
-            `user:gopal@hirenestworkforce.com`,
-            `user:gopalkrishna.sv46@gmail.com`,
-            `user:founder.itconsulting@outlook.com`
-          ];
-          const memberFlags = members.map(m => `--member="${m}"`).join(" ");
-          
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions') || e.message?.includes('Cloud Firestore API')) {
           const roles = [
             "roles/datastore.user",
             "roles/firebase.admin",

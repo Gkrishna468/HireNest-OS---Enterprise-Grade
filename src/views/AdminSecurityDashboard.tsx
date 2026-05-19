@@ -101,27 +101,34 @@ export default function AdminSecurityDashboard() {
             })
             .catch(() => console.warn("Pre-flight handshake offline"));
 
-          // 3. Server Diagnostics (Authenticated)
+      // 3. Server Diagnostics (Authenticated)
           fetch('/api/admin/diagnostics', {
             headers: { 'Authorization': `Bearer ${token}` }
           })
           .then(async (r) => {
-            if (r.ok) return await r.json();
-            
             const errorRaw = await r.text();
-            let errorData = { details: "Unknown Protocol Error", requestId: "N/A" };
+            if (r.ok) {
+              try {
+                return JSON.parse(errorRaw);
+              } catch (e) {
+                return { auth: "handshake-failed", authDetails: "Invalid JSON response from authority node.", raw: errorRaw };
+              }
+            }
+            
+            let errorData: any = { details: "Unknown Protocol Error", requestId: "N/A" };
             try { errorData = JSON.parse(errorRaw); } catch(e) {}
             
             return {
               auth: "handshake-failed",
               firestore: "handshake-failed",
-              authDetails: errorData.details || errorRaw || `HTTP ${r.status}`,
-              remediation: (errorData as any).remediation,
-              serviceAccount: (errorData as any).serviceAccount || null,
-              iamCommand: (errorData as any).iamCommand,
-              requestId: errorData.requestId || (errorData as any).requestId || "SRV-500",
+              authDetails: errorData.details || errorData.message || errorRaw || `HTTP ${r.status}`,
+              remediation: errorData.remediation || (errorData as any).remediation,
+              serviceAccount: errorData.serviceAccount || (errorData as any).serviceAccount || null,
+              iamCommand: errorData.iamCommand || (errorData as any).iamCommand,
+              requestId: errorData.requestId || (errorData as any).requestId || "SRV-ERR",
               statusText: r.statusText,
-              statusCode: r.status
+              statusCode: r.status,
+              raw: errorRaw
             };
           })
           .then(setDiagnostics)
@@ -287,7 +294,7 @@ export default function AdminSecurityDashboard() {
                        </div>
                        <div className="bg-white/5 p-6 rounded-2xl border-2 border-rose-900/20 max-h-[150px] overflow-y-auto">
                           <p className="text-xs font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
-                            {diagnostics?.authDetails || diagnostics?.firestoreDetails || diagnostics?.error || diagnostics?.details || (diagnostics?.statusCode ? `HTTP ${diagnostics.statusCode}: ${diagnostics.statusText || 'Connection Rejected'}` : "Protocol handshake failed at edge node.")}
+                            {diagnostics?.authDetails || diagnostics?.firestoreDetails || (diagnostics as any)?.raw || diagnostics?.error || diagnostics?.details || (diagnostics?.statusCode ? `HTTP ${diagnostics.statusCode}: ${diagnostics.statusText || 'Connection Rejected'}` : "Protocol handshake failed at edge node.")}
                           </p>
                        </div>
                     </div>
