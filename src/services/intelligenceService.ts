@@ -55,7 +55,11 @@ export async function runPredictiveIntelligence(entityId: string, type: Predicti
     lastModelRun: new Date().toISOString()
   };
 
-  await addDoc(collection(db, "predictions"), prediction);
+  try {
+    await addDoc(collection(db, "predictions"), prediction);
+  } catch (e) {
+    console.warn("[INTELLIGENCE] Prediction log failed:", e);
+  }
   return prediction;
 }
 
@@ -74,15 +78,19 @@ export async function detectMarginLeakage(dealId: string) {
   // Logic: Monitor if vendor payout is drifting too close to client budget
   const leakage = Math.floor(Math.random() * 5000);
   if (leakage > 2000) {
-    await addDoc(collection(db, "execution_events"), {
-      eventType: "MARGIN_LEAKAGE_DETECTED",
-      targetId: dealId,
-      targetType: "deal_room",
-      actorId: "system",
-      actorType: "system",
-      timestamp: Date.now(),
-      metadata: { value: `₹${leakage}`, note: "Suspicious margin compression detected on deal node." }
-    });
+    try {
+      await addDoc(collection(db, "execution_events"), {
+        eventType: "MARGIN_LEAKAGE_DETECTED",
+        targetId: dealId,
+        targetType: "deal_room",
+        actorId: "system",
+        actorType: "system",
+        timestamp: Date.now(),
+        metadata: { value: `₹${leakage}`, note: "Suspicious margin compression detected on deal node." }
+      });
+    } catch (e) {
+      console.warn("[INTELLIGENCE] Margin leakage log failed:", e);
+    }
   }
   return leakage;
 }
@@ -112,7 +120,11 @@ export async function assessRisk(entityId: string, entityType: string, signals: 
     createdAt: new Date().toISOString()
   };
 
-  await addDoc(collection(db, "risk_assessments"), assessment);
+  try {
+    await addDoc(collection(db, "risk_assessments"), assessment);
+  } catch (e) {
+    console.warn("[INTELLIGENCE] Risk assessment log failed:", e);
+  }
   return assessment;
 }
 
@@ -124,20 +136,24 @@ export async function runAutonomousReasoning(intent: string, payload: any, conte
     ...context
   });
 
-  // Log reasoning event
-  await addDoc(collection(db, "execution_events"), {
-    eventType: "GOVERNANCE_REASONING_EXECUTED",
-    actorId: context?.uid || "system",
-    actorType: "system",
-    targetId: payload.id || "global",
-    targetType: "system",
-    timestamp: new Date().toISOString(),
-    metadata: {
-      intent,
-      appliedModes: result.appliedModes,
-      confidence: result.confidence
-    }
-  });
+  // Log reasoning event (Non-blocking)
+  try {
+    await addDoc(collection(db, "execution_events"), {
+      eventType: "GOVERNANCE_REASONING_EXECUTED",
+      actorId: context?.uid || "system",
+      actorType: "system",
+      targetId: payload.id || "global",
+      targetType: "system",
+      timestamp: new Date().toISOString(),
+      metadata: {
+        intent,
+        appliedModes: result.appliedModes,
+        confidence: result.confidence
+      }
+    });
+  } catch (e) {
+    console.warn("[INTELLIGENCE] Execution log persistent failure:", e);
+  }
 
   return result;
 }

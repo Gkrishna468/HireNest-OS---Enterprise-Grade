@@ -95,7 +95,12 @@ async function initializeGovernanceLayer() {
     if (admin.apps.length === 0) {
       console.log(`[HQ CORE] Attempting to establish nexus with project: ${globalProjectId}`);
       
-      let credential = admin.credential.applicationDefault();
+      let credential;
+      try {
+        credential = admin.credential.applicationDefault();
+      } catch (e) {
+        console.warn("[HQ CORE] ADC not available. Will attempt Service Account fallback or manual init.");
+      }
       
       // Vercel / External Deployment support: check for explicit Service Account JSON
       const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -105,9 +110,13 @@ async function initializeGovernanceLayer() {
           const serviceAccount = JSON.parse(saJson);
           credential = admin.credential.cert(serviceAccount);
           globalProjectId = serviceAccount.project_id || globalProjectId;
-        } catch (je) {
-          console.error("[HQ CORE ERROR] Malformed FIREBASE_SERVICE_ACCOUNT JSON. Falling back to ADC.");
+        } catch (je: any) {
+          console.error("[HQ CORE ERROR] Malformed FIREBASE_SERVICE_ACCOUNT JSON:", je.message);
         }
+      }
+
+      if (!credential) {
+         console.warn("[HQ CORE] No valid credential found. Booting in DEGRADED mode.");
       }
 
       admin.initializeApp({
@@ -121,8 +130,10 @@ async function initializeGovernanceLayer() {
     }
   } catch (e: any) {
     console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
-    // Explicitly throw to let re-init catch it
-    throw e;
+    // Non-fatal if we already have apps, but if it's the first time, it's problematic
+    if (admin.apps.length === 0) {
+        console.warn("[HQ CORE] Initial boot failed. Server will continue but governance APIs will be restricted.");
+    }
   }
 }
 
@@ -474,11 +485,21 @@ async function startServer() {
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error("[GLOBAL ERROR]", err);
     if (res.headersSent) return next(err);
-    res.status(500).json({
-      error: "INTERNAL_SERVER_ERROR",
+    
+    // Check if it's a verifyAdmin failure which might have been passed down
+    const status = err.status || 500;
+    const errorBody: any = {
+      error: err.code || "INTERNAL_SERVER_ERROR",
       message: err.message || "An unhandled exception occurred.",
+      path: req.path,
       requestId: Math.random().toString(36).substring(7)
-    });
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      errorBody.stack = err.stack;
+    }
+    
+    res.status(status).json(errorBody);
   });
 
   // --- AI GATEWAY & SECURITY ---
@@ -532,7 +553,7 @@ async function startServer() {
   async function handleJDAnalysis(jd: string) {
     if (!ai) throw new Error("AI_OFFLINE");
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: `Act as Recruitment Architect. Analyze this JD for technical requirements, seniority, and budget viability: ${jd}`
     });
     return response.text;
@@ -541,7 +562,7 @@ async function startServer() {
   async function handleResumeExtraction(text: string) {
     if (!ai) throw new Error("AI_OFFLINE");
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: `Extract candidate identity and high-fidelity skills from: ${text}`,
       config: { responseMimeType: "application/json" }
     });
@@ -1470,7 +1491,7 @@ Candidate Profile: ${candidateProfile}`,
 
       const response = await withAIRetry(async () => {
         return await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+          model: "gemini-1.5-flash",
           contents: prompt,
           config: { responseMimeType: "application/json" }
         });
@@ -1706,7 +1727,7 @@ Candidate Profile: ${candidateProfile}`,
 
         const response = await withAIRetry(async () => {
           return await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-1.5-flash",
             contents: prompt,
           });
         });
@@ -1782,7 +1803,12 @@ process.on('uncaughtException', (err) => {
 
 const appPromise = startServer().catch(err => {
   console.error("[STARTUP FATAL]", err);
-  process.exit(1);
+  // In serverless environments like Vercel, we might want to let the app start even if partially broken
+  // so we can still see diagnostics, but here we stay strict for startup.
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+      process.exit(1);
+  }
+  return null; 
 });
 
 export default appPromise;

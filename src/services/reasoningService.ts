@@ -95,8 +95,18 @@ export class ReasoningEngine {
         })
       });
 
-      if (!response.ok) throw new Error(`Reasoning Engine unreachable: ${response.status}`);
-      return await response.json();
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Reasoning Engine unreachable: ${response.status} - ${text.substring(0, 100)}`);
+      }
+      
+      try {
+        return await response.json();
+      } catch (parseErr: any) {
+        const raw = await response.text();
+        console.error("[REASONING] Manifest Parse Failure:", raw);
+        throw new Error(`Malformed Intelligence Packet: ${parseErr.message}`);
+      }
     } catch (e: any) {
       console.error("[REASONING_ERROR]", e);
       return {

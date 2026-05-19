@@ -107,14 +107,14 @@ service cloud.firestore {
     // ONBOARDING REQUESTS
     match /onboarding_requests/{requestId} {
       allow list: if isAdmin();
-      allow get: if isVerified() && (isValidId(requestId) && (existing().email == request.auth.token.email || isAdmin()));
+      allow get: if isAdmin() || (isVerified() && (isValidId(requestId) && existing().email == request.auth.token.email));
       allow create: if isVerified();
       allow update, delete: if isAdmin() && isValidId(requestId);
     }
 
     // USERS
     match /users/{userId} {
-      allow read: if isVerified() && isValidId(userId);
+      allow read: if isAdmin() || (isVerified() && isValidId(userId));
       allow create: if isVerified() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming());
       allow update: if isValidId(userId) && (
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'verification', 'updatedAt', 'status'])) ||
@@ -124,17 +124,17 @@ service cloud.firestore {
 
     // ORGANIZATIONS
     match /organizations/{orgId} {
-      allow read: if isVerified() && isValidId(orgId);
+      allow read: if isAdmin() || (isVerified() && isValidId(orgId));
       allow create: if isVerified() && isValidId(orgId) && isValidOrganization(incoming());
       allow update: if isValidId(orgId) && (
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'trustGrade', 'verificationLevel', 'updatedAt'])) ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'trustGrade', 'verificationLevel', 'updatedAt', 'msaUploaded', 'ndaUploaded'])) ||
         (isVerified() && currentOrgId() == orgId && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'businessDocsUploaded', 'updatedAt']))
       );
     }
 
     // PUBLIC REQUIREMENTS
     match /requirements_public/{reqId} {
-      allow read: if isVerified() && isValidId(reqId);
+      allow read: if isAdmin() || (isVerified() && isValidId(reqId));
       allow create: if isVerified() && isValidId(reqId) && isValidRequirement(incoming());
       allow update: if isValidId(reqId) && (
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials', 'matchProcessingStatus'])) ||
@@ -221,7 +221,7 @@ service cloud.firestore {
 
     // RISK ASSESSMENTS
     match /risk_assessments/{riskId} {
-      allow read: if isVerified();
+      allow read: if isAdmin() || isVerified();
       allow create: if isAdmin() || (isVerified() && incoming().entityType == 'user');
     }
   }
