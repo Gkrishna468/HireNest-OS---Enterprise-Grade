@@ -157,14 +157,15 @@ export default function AdminSecurityDashboard() {
   );
 
   const isBlocked = !!(
-    (diagnostics?.auth?.includes("failure") && !diagnostics?.auth?.includes("permission_denied")) || 
-    (diagnostics?.firestore?.includes("failure") && !diagnostics?.firestore?.includes("permission_denied")) ||
-    (diagnostics?.auth === "handshake-failed")
+    (diagnostics?.auth?.includes("failure") && !diagnostics?.auth?.toLowerCase()?.includes("permission_denied")) || 
+    (diagnostics?.firestore?.includes("failure") && !diagnostics?.firestore?.toLowerCase()?.includes("permission_denied")) ||
+    (diagnostics?.auth === "handshake-failed") ||
+    (diagnostics?.error === "DIAGNOSTICS_FAILURE")
   );
 
   const isDegraded = !!(
     (!isBlocked) && 
-    (diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.auth?.includes("PERMISSION_DENIED") || diagnostics?.firestore?.includes("PERMISSION_DENIED"))
+    (diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.auth?.toLowerCase()?.includes("permission_denied") || diagnostics?.firestore?.toLowerCase()?.includes("permission_denied"))
   );
 
   const isNominal = diagnostics?.auth === "healthy" && diagnostics?.firestore === "healthy" && !isDegraded;
@@ -254,46 +255,99 @@ export default function AdminSecurityDashboard() {
                  </div>
                </div>
 
-               <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-12 relative">
-                 <div className="space-y-8">
-                    <div className="flex items-center gap-4 border-b-2 border-white/10 pb-4">
-                       <Fingerprint className="text-indigo-400" />
-                       <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Service Principle</p>
-                    </div>
-                    <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex items-center justify-between group cursor-copy hover:border-emerald-500 transition-all"
-                         onClick={() => {
-                           const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Detecting...";
-                           navigator.clipboard.writeText(sa);
-                         }}>
-                       <code className="font-mono text-sm text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Identifying Authority..."}</code>
-                       <span className="text-[10px] font-black uppercase text-indigo-400 group-hover:scale-110 transition-transform">COPY</span>
+               <div className="mt-16 flex flex-col gap-12 relative">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                       <div className="flex items-center gap-4 border-b-2 border-white/10 pb-4">
+                          <Fingerprint className="text-indigo-400" />
+                          <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Service Principle</p>
+                       </div>
+                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex items-center justify-between group cursor-copy hover:border-emerald-500 transition-all font-mono text-sm overflow-hidden"
+                            onClick={() => {
+                              const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "733294346096-compute@developer.gserviceaccount.com";
+                              navigator.clipboard.writeText(sa);
+                            }}>
+                          <code className="text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "733294346096-compute@developer.gserviceaccount.com"}</code>
+                          <span className="text-[10px] font-black uppercase text-indigo-400 group-hover:scale-110 transition-transform shrink-0">COPY</span>
+                       </div>
                     </div>
 
-                    <div className="bg-white/5 p-8 rounded-3xl border-2 border-white/10 space-y-6">
-                       <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400 italic">Detection Logs</p>
-                       <p className="text-sm font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
-                         {diagnostics?.authDetails || diagnostics?.firestore || "Protocol handshake failed at edge node."}
-                       </p>
+                    <div className="space-y-6">
+                       <div className="flex items-center gap-4 border-b-2 border-white/10 pb-4">
+                          <Lock className="text-rose-400" />
+                          <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Detection Logs</p>
+                       </div>
+                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-rose-900/20 max-h-[100px] overflow-y-auto">
+                          <p className="text-xs font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
+                            {diagnostics?.authDetails || diagnostics?.firestoreDetails || diagnostics?.error || diagnostics?.details || "Protocol handshake failed at edge node."}
+                          </p>
+                       </div>
                     </div>
                  </div>
 
-                 <div className="space-y-8 bg-white/5 p-8 rounded-[40px] border-2 border-white/10 shadow-inner">
-                    <div className="flex items-center justify-between">
-                       <h4 className="font-black uppercase tracking-widest text-[12px] text-rose-400 italic">Remediation Sequence</h4>
-                       <Badge variant="outline" className="text-[10px] border-white/20 text-slate-500 font-mono tracking-[0.3em]">SHELL_V1</Badge>
+                 <div className="space-y-8 bg-white/5 p-10 rounded-[48px] border-2 border-white/10 shadow-inner">
+                    <div className="flex items-center justify-between border-b-2 border-white/5 pb-6">
+                       <div className="flex items-center gap-4">
+                          <div className="bg-rose-500/20 p-3 rounded-xl">
+                             <Target className="text-rose-400" size={24} />
+                          </div>
+                          <div>
+                             <h4 className="font-black uppercase tracking-widest text-sm text-rose-400 italic">Goverance Remediation Sequence</h4>
+                             <p className="text-[10px] text-slate-500 uppercase font-black">Manual Authority Alignment Required</p>
+                          </div>
+                       </div>
+                       <Badge variant="outline" className="text-[10px] border-white/20 text-slate-500 font-mono tracking-[0.3em] py-2 px-4">SHELL_V2_ENFORCED</Badge>
                     </div>
 
-                    <div className="space-y-4">
-                      <p className="text-[10px] text-slate-500 uppercase font-black">Run this in Google Cloud Shell:</p>
-                      <div className="bg-slate-900 p-6 rounded-2xl border-2 border-rose-900/30 font-mono text-[11px] text-rose-100 whitespace-pre-wrap leading-relaxed shadow-lg">
-                        {diagnostics?.remediation || diagnostics?.iamCommand || "No remediation generated. Manual console check required."}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-slate-400 uppercase font-black">Step 1: Session Authorization</p>
+                          <div className="bg-slate-900 p-5 rounded-2xl border border-white/10 font-mono text-[11px] text-white flex items-center justify-between group cursor-copy hover:bg-slate-800 transition-colors"
+                               onClick={() => navigator.clipboard.writeText("gcloud auth login && gcloud config set project hirenest-os")}>
+                             <div className="flex flex-col">
+                                <code>gcloud auth login</code>
+                                <code className="text-indigo-400">gcloud config set project hirenest-os</code>
+                             </div>
+                             <span className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 uppercase shrink-0">Click to Copy</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-slate-400 uppercase font-black">Step 2: Resource Availability</p>
+                          <div className="bg-slate-900 p-5 rounded-2xl border border-white/10 font-mono text-[11px] text-white flex items-center justify-between group cursor-copy hover:bg-slate-800 transition-colors"
+                               onClick={() => navigator.clipboard.writeText("gcloud services enable identitytoolkit.googleapis.com firebaserules.googleapis.com firestore.googleapis.com")}>
+                             <code>gcloud services enable ...</code>
+                             <span className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 uppercase shrink-0">Enable APIs</span>
+                          </div>
+                        </div>
                       </div>
-                      <Button className="w-full bg-white text-black hover:bg-slate-200 mt-4 rounded-xl font-black uppercase text-[10px] py-4"
-                              onClick={() => {
-                                navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || "");
-                              }}>
-                        Copy Command Directive
-                      </Button>
+
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-slate-400 uppercase font-black">Step 3: Identity Manifest Deployment</p>
+                          <div className="bg-slate-900 p-6 rounded-3xl border-2 border-rose-900/40 font-mono text-[10px] text-rose-100 whitespace-pre-wrap leading-relaxed shadow-2xl h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-rose-900/40">
+                            {diagnostics?.remediation || diagnostics?.iamCommand || "No remediation string. Use Emergency Owner Fix below."}
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <Button className="flex-1 bg-white text-black hover:bg-slate-200 rounded-2xl font-black uppercase text-[10px] py-5 shadow-xl transition-transform active:scale-95"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || "");
+                                  }}>
+                            Copy Full Manifest
+                          </Button>
+                          <Button variant="outline" className="flex-1 border-white/20 text-white hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] py-5 transition-transform active:scale-95"
+                                  onClick={() => {
+                                    const sa = diagnostics?.serviceAccount || "733294346096-compute@developer.gserviceaccount.com";
+                                    const cmd = `gcloud projects add-iam-policy-binding hirenest-os --member="serviceAccount:${sa}" --role="roles/owner"`;
+                                    navigator.clipboard.writeText(cmd);
+                                  }}>
+                            Emergency Owner Escalation
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                  </div>
                </div>

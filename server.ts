@@ -355,7 +355,8 @@ async function startServer() {
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
         'gopal@hirenestworkforce.com',
-        'gopalkrishna.sv46@gmail.com'
+        'gopalkrishna.sv46@gmail.com',
+        'founder.itconsulting@outlook.com'
       ];
 
       const isTrustedEmail = email && trustedNodes.includes(email);
@@ -510,18 +511,20 @@ async function startServer() {
         await auth.listUsers(1); 
         results.auth = "healthy";
       } catch (e: any) {
-        results.auth = `failure: ${e.message}`;
-        results.authCode = e.code;
-        results.authDetails = e.message;
+        results.auth = `failure: ${e.message || "Handshake Rejected"}`;
+        results.authCode = e.code || "governance/auth-denied";
+        results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "PROJECT_NUMBER-compute@developer.gserviceaccount.com";
+                     : "733294346096-compute@developer.gserviceaccount.com";
           
           const members = [
             `serviceAccount:${sa}`,
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
+            `user:gopalkrishna.sv46@gmail.com`,
+            `user:founder.itconsulting@outlook.com`,
             `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
             `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
           ];
@@ -532,10 +535,20 @@ async function startServer() {
             "roles/firebaseauth.admin",
             "roles/firebaserules.admin",
             "roles/datastore.user",
-            "roles/iam.serviceAccountTokenCreator"
+            "roles/iam.serviceAccountTokenCreator",
+            "roles/identitytoolkit.admin",
+            "roles/firebase.admin",
+            "roles/resourcemanager.projectIamAdmin",
+            "roles/cloudfunctions.admin",
+            "roles/storage.admin"
           ];
           
-          const commands = roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`).join(" && ");
+          const commands = [
+            `gcloud auth login`,
+            `gcloud config set project hirenest-os`,
+            `# Grant full permissions to all essential identities`,
+            ...roles.map(role => `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="${role}"`)
+          ].join(" && ");
           results.remediation = commands;
         }
       }
@@ -546,19 +559,29 @@ async function startServer() {
         await db.collection("users").limit(1).get();
         results.firestore = "healthy";
       } catch (e: any) {
-        results.firestore = `failure: ${e.message}`;
+        results.firestore = `failure: ${e.message || "Mirror Sync Blocked"}`;
+        results.firestoreDetails = e.message || "The entity mirror could not be replicated. Ensure Firestore (Datastore mode) is enabled and permissions are granted.";
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "PROJECT_NUMBER-compute@developer.gserviceaccount.com";
+                     : "733294346096-compute@developer.gserviceaccount.com";
           
           const members = [
             `serviceAccount:${sa}`,
+            `user:gopalkrishna0046@gmail.com`,
+            `user:gopal@hirenestworkforce.com`,
+            `user:gopalkrishna.sv46@gmail.com`,
             `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
             `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
           ];
           const memberFlags = members.map(m => `--member="${m}"`).join(" ");
-          results.iamCommand = `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="roles/datastore.user"`;
+          results.iamCommand = [
+            `gcloud auth login`,
+            `gcloud config set project hirenest-os`,
+            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/datastore.user"`,
+            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/firebase.admin"`,
+            `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="roles/cloudfunctions.admin"`
+          ].join(" && ");
         }
       }
 
@@ -568,6 +591,7 @@ async function startServer() {
       res.status(200).json({ 
         ...results,
         error: "DIAGNOSTICS_FAILURE", 
+        authDetails: fatalErr.message,
         details: fatalErr.message,
         nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE"
       });
