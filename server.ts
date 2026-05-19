@@ -354,7 +354,8 @@ async function startServer() {
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
-        'gopal@hirenestworkforce.com'
+        'gopal@hirenestworkforce.com',
+        'gopalkrishna.sv46@gmail.com'
       ];
 
       const isTrustedEmail = email && trustedNodes.includes(email);
@@ -515,8 +516,27 @@ async function startServer() {
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "[SERVICE_ACCOUNT_EMAIL]";
-          results.remediation = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --member="user:gopalkrishna0046@gmail.com" --member="user:gopal@hirenestworkforce.com" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
+                     : "PROJECT_NUMBER-compute@developer.gserviceaccount.com";
+          
+          const members = [
+            `serviceAccount:${sa}`,
+            `user:gopalkrishna0046@gmail.com`,
+            `user:gopal@hirenestworkforce.com`,
+            `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
+            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
+          ];
+
+          const memberFlags = members.map(m => `--member="${m}"`).join(" ");
+          const roles = [
+            "roles/serviceusage.serviceUsageConsumer",
+            "roles/firebaseauth.admin",
+            "roles/firebaserules.admin",
+            "roles/datastore.user",
+            "roles/iam.serviceAccountTokenCreator"
+          ];
+          
+          const commands = roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`).join(" && ");
+          results.remediation = commands;
         }
       }
 
@@ -530,8 +550,15 @@ async function startServer() {
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "[SERVICE_ACCOUNT_EMAIL]";
-          results.iamCommand = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/datastore.user"`;
+                     : "PROJECT_NUMBER-compute@developer.gserviceaccount.com";
+          
+          const members = [
+            `serviceAccount:${sa}`,
+            `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
+            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
+          ];
+          const memberFlags = members.map(m => `--member="${m}"`).join(" ");
+          results.iamCommand = `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="roles/datastore.user"`;
         }
       }
 

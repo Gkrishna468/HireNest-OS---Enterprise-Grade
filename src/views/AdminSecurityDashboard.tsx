@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   BrainCircuit,
   Zap,
-  Target
+  Target,
+  ShieldAlert
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
@@ -67,9 +68,13 @@ export default function AdminSecurityDashboard() {
     let unsubLogs: (() => void) | null = null;
 
     const initSecurityNodes = async () => {
+      const safetyTimeout = setTimeout(() => {
+        setLoading(false);
+      }, 6000); // Max 6s wait for establishing node connection
+
       auth.onAuthStateChanged(async (user) => {
-        // We set loading false early if no user to show "Unauthorized" or simple state
         if (!user) {
+          clearTimeout(safetyTimeout);
           setLoading(false);
           return;
         }
