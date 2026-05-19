@@ -491,30 +491,31 @@ async function startServer() {
 
     try {
       if (admin.apps.length === 0) {
-        // Retry initialization one last time if it failed at boot
         await initializeGovernanceLayer();
-        if (admin.apps.length === 0) {
-          throw new Error("Governance Node offline: Firebase Admin failed to initialize.");
-        }
       }
 
-      // 1. Identity Discovery
-      results.serviceAccount = (await fetchMetadata("instance/service-accounts/default/email")) || "compute-default";
-      results.runtimeProjectId = await fetchMetadata("project/project-id");
+      // 1. Identity Discovery (Non-blocking)
+      const metadataSA = await fetchMetadata("instance/service-accounts/default/email");
+      const metadataProj = await fetchMetadata("project/project-id");
+      
+      results.serviceAccount = metadataSA || "system-assigned-identity";
+      results.runtimeProjectId = metadataProj || globalProjectId;
 
       const activeProject = results.runtimeProjectId || globalProjectId;
 
-      // 2. Auth Handshake (Identity Toolkit)
+      // 2. Auth Handshake
       try {
         const auth = admin.auth();
-        // Use a lightweight operation to verify project link
-        await auth.listUsers(1);
+        await auth.listUsers(1); 
         results.auth = "healthy";
       } catch (e: any) {
         results.auth = `failure: ${e.message}`;
         results.authCode = e.code;
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('Service Usage') || e.message?.includes('IAM')) {
-          const sa = results.serviceAccount || "YOUR_SERVICE_ACCOUNT";
+        results.authDetails = e.message;
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM')) {
+          const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
+                     ? results.serviceAccount 
+                     : "[SERVICE_ACCOUNT_EMAIL]";
           results.remediation = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
         }
       }
@@ -527,20 +528,21 @@ async function startServer() {
       } catch (e: any) {
         results.firestore = `failure: ${e.message}`;
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7) {
-          const sa = results.serviceAccount || "YOUR_SERVICE_ACCOUNT";
+          const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
+                     ? results.serviceAccount 
+                     : "[SERVICE_ACCOUNT_EMAIL]";
           results.iamCommand = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/datastore.user"`;
         }
       }
 
-      res.json(results);
+      res.status(200).json(results);
     } catch (fatalErr: any) {
       console.error("[DIAGNOSTICS FATAL]", fatalErr);
-      res.status(500).json({ 
+      res.status(200).json({ 
+        ...results,
         error: "DIAGNOSTICS_FAILURE", 
         details: fatalErr.message,
-        nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE",
-        projectId: globalProjectId,
-        requestId: Math.random().toString(36).substring(7)
+        nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE"
       });
     }
   });

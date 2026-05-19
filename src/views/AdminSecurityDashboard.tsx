@@ -15,7 +15,8 @@ import {
   Lock, 
   Server,
   Fingerprint,
-  RefreshCw
+  RefreshCw,
+  CheckCircle2
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
@@ -126,7 +127,14 @@ export default function AdminSecurityDashboard() {
     </div>
   );
 
-  const isBlocked = diagnostics?.auth === "handshake-failed" || diagnostics?.firestore === "handshake-failed" || diagnostics?.remediation;
+  const isBlocked = !!(
+    (diagnostics?.auth?.includes("failure")) || 
+    (diagnostics?.firestore?.includes("failure")) ||
+    (diagnostics?.remediation) ||
+    (diagnostics?.auth === "handshake-failed")
+  );
+
+  const isNominal = diagnostics?.auth === "healthy" && diagnostics?.firestore === "healthy";
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-8 lg:p-16 max-w-[1920px] mx-auto font-sans flex flex-col gap-12 text-[#141414]">
@@ -196,19 +204,19 @@ export default function AdminSecurityDashboard() {
             ))}
           </div>
 
-          {/* BLOCKAGE / REMEDIATION LAYER */}
-          {isBlocked && (
+          {/* BLOCKAGE / NOMINAL LAYER */}
+          {isBlocked ? (
             <div className="bg-[#141414] text-white p-12 rounded-[48px] border-[12px] border-[#2A2A2A] shadow-2xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 blur-[100px] -mr-40 -mt-40" />
+               <div className="absolute top-0 right-0 w-80 h-80 bg-rose-600/10 blur-[100px] -mr-40 -mt-40" />
                
                <div className="flex items-start gap-10 relative">
                  <div className="bg-rose-600 p-8 rounded-3xl text-white shadow-[0_0_80px_rgba(225,29,72,0.4)] animate-pulse shrink-0">
                    <AlertTriangle size={56} strokeWidth={3} />
                  </div>
                  <div className="space-y-4">
-                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Blocked</h2>
+                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Restricted</h2>
                    <p className="text-slate-400 text-xl font-medium leading-relaxed max-w-3xl">
-                     The Authority Signal is being rejected by the cloud perimeter. Verify <span className="text-white font-bold">IAM bindings</span> on the host project console.
+                     The Authority Signal is being filtered. This usually indicates <span className="text-white font-bold">IAM Authorization</span> or <span className="text-white font-bold">API Access</span> is missing for the runtime node.
                    </p>
                  </div>
                </div>
@@ -223,16 +231,15 @@ export default function AdminSecurityDashboard() {
                          onClick={() => {
                            const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Detecting...";
                            navigator.clipboard.writeText(sa);
-                           alert("Principle Identity Cloned.");
                          }}>
                        <code className="font-mono text-sm text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Identifying Authority..."}</code>
                        <span className="text-[10px] font-black uppercase text-indigo-400 group-hover:scale-110 transition-transform">COPY</span>
                     </div>
 
                     <div className="bg-white/5 p-8 rounded-3xl border-2 border-white/10 space-y-6">
-                       <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400 italic">Command Directive</p>
-                       <p className="text-sm font-medium text-slate-400 leading-relaxed italic opacity-80">
-                         {strategyNarrative}
+                       <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400 italic">Detection Logs</p>
+                       <p className="text-sm font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
+                         {diagnostics?.authDetails || diagnostics?.firestore || "Protocol handshake failed at edge node."}
                        </p>
                     </div>
                  </div>
@@ -243,39 +250,32 @@ export default function AdminSecurityDashboard() {
                        <Badge variant="outline" className="text-[10px] border-white/20 text-slate-500 font-mono tracking-[0.3em]">SHELL_V1</Badge>
                     </div>
 
-                    {diagnostics?.remediation || diagnostics?.iamCommand ? (
-                      <div className="space-y-4">
-                        <div className="bg-black/80 p-8 rounded-2xl border-2 border-white/10 font-mono text-[11px] text-emerald-500 leading-normal break-all cursor-copy hover:bg-black transition-colors"
-                             onClick={() => {
-                               navigator.clipboard.writeText(diagnostics.remediation || diagnostics.iamCommand);
-                               alert("Sequence Sequenced.");
-                             }}>
-                          {diagnostics.remediation || diagnostics.iamCommand}
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] text-center italic">
-                          Execute in GCP Cloud Shell to unify identity.
-                        </p>
+                    <div className="space-y-4">
+                      <p className="text-[10px] text-slate-500 uppercase font-black">Run this in Google Cloud Shell:</p>
+                      <div className="bg-slate-900 p-6 rounded-2xl border-2 border-rose-900/30 font-mono text-[11px] text-rose-100 whitespace-pre-wrap leading-relaxed shadow-lg">
+                        {diagnostics?.remediation || diagnostics?.iamCommand || "No remediation generated. Manual console check required."}
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center p-12 space-y-4 border-2 border-dashed border-white/10 rounded-2xl">
-                         <div className="w-8 h-8 border-2 border-slate-700 border-t-white rounded-full animate-spin" />
-                         <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Awaiting Remote Signal...</p>
-                         {diagnostics?.authDetails && (
-                           <div className="bg-rose-500/10 p-4 rounded-xl text-[10px] font-mono text-rose-400 opacity-60">
-                             TRC: {diagnostics.authDetails}
-                           </div>
-                         )}
-                      </div>
-                    )}
+                      <Button className="w-full bg-white text-black hover:bg-slate-200 mt-4 rounded-xl font-black uppercase text-[10px] py-4"
+                              onClick={() => {
+                                navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || "");
+                              }}>
+                        Copy Command Directive
+                      </Button>
+                    </div>
                  </div>
                </div>
-
-               <div className="mt-12 flex justify-center">
-                  <Button className="bg-white text-black hover:bg-slate-200 py-8 px-12 rounded-2xl font-black uppercase tracking-[0.3em] text-sm shadow-xl transition-transform hover:scale-105 active:scale-95"
-                          onClick={() => window.location.reload()}>
-                    <RefreshCw className="mr-4" />
-                    Force Integrity Rescan
-                  </Button>
+            </div>
+          ) : isNominal && (
+            <div className="bg-emerald-500 text-white p-12 rounded-[48px] shadow-2xl relative overflow-hidden border-[12px] border-emerald-600/20">
+               <div className="absolute top-0 right-0 w-80 h-80 bg-white/20 blur-[100px] -mr-40 -mt-40" />
+               <div className="flex items-center gap-10 relative">
+                  <div className="bg-white text-emerald-600 p-8 rounded-3xl shadow-xl">
+                    <CheckCircle2 size={56} strokeWidth={3} />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-5xl font-black tracking-tighter uppercase italic">System Operational</h2>
+                    <p className="text-emerald-100 text-xl font-medium tracking-tight">Governance node established. Authority signal validated across all cloud sectors.</p>
+                  </div>
                </div>
             </div>
           )}
