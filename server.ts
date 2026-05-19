@@ -15,13 +15,44 @@ import admin from 'firebase-admin';
 const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
-let globalProjectId: string = "hirenest-os"; // Default fallback
+let globalProjectId: string = "hirenest-os"; 
 
-// Initial detection from environment
-if (process.env.GOOGLE_CLOUD_PROJECT) {
-  globalProjectId = process.env.GOOGLE_CLOUD_PROJECT;
-} else if (process.env.PROJECT_ID) {
-  globalProjectId = process.env.PROJECT_ID;
+// Identity Handshake Logic
+async function resolveIdentity() {
+  // 1. Explicit Env Override (High priority)
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PROJECT_ID !== "undefined" && process.env.FIREBASE_PROJECT_ID !== "") {
+    return process.env.FIREBASE_PROJECT_ID;
+  }
+  if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== "undefined" && process.env.GOOGLE_CLOUD_PROJECT !== "") {
+    return process.env.GOOGLE_CLOUD_PROJECT;
+  }
+  
+  // 2. Service Account JSON lookup
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (saJson) {
+    try {
+      const sa = JSON.parse(saJson);
+      if (sa.project_id) return sa.project_id;
+    } catch(e) {}
+  }
+
+  // 3. Metadata fallback (AIS only)
+  try {
+    const metaId = await fetchMetadata("project/project-id");
+    if (metaId && metaId !== "undefined" && metaId !== "") return metaId;
+  } catch(e) {}
+
+  // 4. Config file fallback
+  try {
+    const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(firebaseConfigPath)) {
+      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
+      if (config.projectId) return config.projectId;
+    }
+  } catch(e) {}
+
+  // 5. Default baseline
+  return "hirenest-os";
 }
 
 // Metadata fetch with timeout helper
@@ -72,68 +103,45 @@ console.log(`[HQ CORE] Boot sequence initiated...`);
 
 async function initializeGovernanceLayer() {
   try {
-    // 1. Load config file as PRIMARY source (defines the app's intended backend)
-    const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(firebaseConfigPath)) {
-      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-      globalProjectId = config.projectId || globalProjectId;
-      console.log(`[HQ CORE] Target Database Node: ${globalProjectId} (from config)`);
-    } else {
-      // 2. Fallback: Check for runtime project ID via metadata (AIS environment node)
-      const runtimeId = await fetchMetadata("project/project-id");
-      if (runtimeId) {
-        globalProjectId = runtimeId;
-        console.log(`[HQ CORE] Runtime Environment Node: ${globalProjectId}`);
-      }
+    console.log(`[HQ CORE] Governance Handshake Initiated...`);
+    
+    // Resolve precise project identity
+    globalProjectId = await resolveIdentity();
+    console.log(`[HQ CORE] Governance Target: ${globalProjectId}`);
+    
+    if (!globalProjectId || globalProjectId === "" || globalProjectId === "undefined") {
+       globalProjectId = "hirenest-os";
     }
 
-    // Ensure env vars are synced for SDKs that rely on them
     process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
     process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
 
-    // 3. Initialize Admin SDK
+    // Initialize Admin SDK
     if (admin.apps.length === 0) {
-      console.log(`[HQ CORE] Attempting to establish nexus with project: ${globalProjectId}`);
-      
       let credential;
-      try {
-        credential = admin.credential.applicationDefault();
-      } catch (e) {
-        console.warn("[HQ CORE] ADC not available. Will attempt Service Account fallback or manual init.");
-      }
-      
-      // Vercel / External Deployment support: check for explicit Service Account JSON
       const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-      if (saJson) {
-        try {
-          console.log("[HQ CORE] Explicit Service Account detected via Environment.");
-          const serviceAccount = JSON.parse(saJson);
-          credential = admin.credential.cert(serviceAccount);
-          globalProjectId = serviceAccount.project_id || globalProjectId;
-        } catch (je: any) {
-          console.error("[HQ CORE ERROR] Malformed FIREBASE_SERVICE_ACCOUNT JSON:", je.message);
+      
+      try {
+        if (saJson) {
+          credential = admin.credential.cert(JSON.parse(saJson));
+          console.log("[HQ CORE] Authority granted via explicit Service Account.");
+        } else {
+          credential = admin.credential.applicationDefault();
+          console.log("[HQ CORE] Authority granted via Application Default Credentials.");
         }
-      }
-
-      if (!credential) {
-         console.warn("[HQ CORE] No valid credential found. Booting in DEGRADED mode.");
+      } catch (e: any) {
+        console.warn(`[HQ CORE] Credential Resolution Restricted: ${e.message}`);
       }
 
       admin.initializeApp({
         projectId: globalProjectId,
         credential
       });
-      const app = admin.app();
-      console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
-    } else {
-      console.log(`[HQ CORE] Nexus already exists on project: ${admin.app().options.projectId}`);
+      
+      console.log(`[HQ CORE] Nexus Established Node: ${admin.app().options.projectId}`);
     }
   } catch (e: any) {
-    console.error("[HQ CORE FATAL] Lifecycle failure during initialization:", e.message);
-    // Non-fatal if we already have apps, but if it's the first time, it's problematic
-    if (admin.apps.length === 0) {
-        console.warn("[HQ CORE] Initial boot failed. Server will continue but governance APIs will be restricted.");
-    }
+    console.error("[HQ CORE FATAL] Global Handshake Failure:", e.message);
   }
 }
 
@@ -631,6 +639,12 @@ async function startServer() {
         results.authCode = e.code || "governance/auth-denied";
         results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
         
+        // Extract Google Console activation link if present in error message
+        const enableLinkMatch = e.message?.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/[a-z0-9.]+\/[^?\s]*/);
+        if (enableLinkMatch) {
+            results.enableUrl = enableLinkMatch[0];
+        }
+
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before') || e.message?.includes('Identity Toolkit') || e.message?.includes('IAM_PERMISSION_DENIED')) {
           const roles = [
             "roles/serviceusage.serviceUsageConsumer",
