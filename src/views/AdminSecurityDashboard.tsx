@@ -342,14 +342,24 @@ export default function AdminSecurityDashboard() {
                         <div className="space-y-3">
                           <p className="text-[10px] text-slate-400 uppercase font-black">Step 3: Identity Manifest Deployment</p>
                           <div className="bg-slate-900 p-6 rounded-3xl border-2 border-rose-900/40 font-mono text-[10px] text-rose-100 whitespace-pre-wrap leading-relaxed shadow-2xl h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-rose-900/40">
-                            {diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.emergencyFix || "No remediation string. Use Emergency Owner Fix below."}
+                            {(() => {
+                              if (diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.emergencyFix) {
+                                return diagnostics.remediation || diagnostics.iamCommand || diagnostics.emergencyFix;
+                              }
+                              const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com";
+                              const proj = diagnostics?.projectId || preFlight?.nodeId || "hirenest-os";
+                              return `gcloud projects add-iam-policy-binding ${proj} --member="serviceAccount:${sa}" --role="roles/owner"`;
+                            })()}
                           </div>
                         </div>
                         
                         <div className="flex flex-col sm:flex-row gap-4">
                           <Button className="flex-1 bg-white text-black hover:bg-slate-200 rounded-2xl font-black uppercase text-[10px] py-5 shadow-xl transition-transform active:scale-95"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.emergencyFix || "");
+                                    const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com";
+                                    const proj = diagnostics?.projectId || preFlight?.nodeId || "hirenest-os";
+                                    const fallback = `gcloud projects add-iam-policy-binding ${proj} --member="serviceAccount:${sa}" --role="roles/owner"`;
+                                    navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.emergencyFix || fallback);
                                   }}>
                             Copy Full Manifest
                           </Button>
@@ -363,6 +373,8 @@ export default function AdminSecurityDashboard() {
                                         headers: { 'Authorization': `Bearer ${token}` }
                                       });
                                       if (r.ok) {
+                                        const data = await r.json();
+                                        alert(`Sync Success: ${data.message}\nNode: ${data.report?.newProject || 'Unknown'}\nStatus: ${data.report?.status}`);
                                         window.location.reload();
                                       } else {
                                         let msg = "Sync Failed";
@@ -373,7 +385,7 @@ export default function AdminSecurityDashboard() {
                                           const raw = await r.text();
                                           msg = raw || `HTTP ${r.status}`;
                                         }
-                                        alert(`Sync Failed: ${msg}`);
+                                        alert(`Sync Failed: ${msg}\n\nTry refreshing the page or checking Gcloud permissions for the Service Account.`);
                                       }
                                     } catch (e: any) {
                                       alert(`Network failure: ${e.message}`);

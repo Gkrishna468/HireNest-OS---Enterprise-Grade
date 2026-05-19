@@ -94,9 +94,25 @@ async function initializeGovernanceLayer() {
     // 3. Initialize Admin SDK
     if (admin.apps.length === 0) {
       console.log(`[HQ CORE] Attempting to establish nexus with project: ${globalProjectId}`);
+      
+      let credential = admin.credential.applicationDefault();
+      
+      // Vercel / External Deployment support: check for explicit Service Account JSON
+      const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (saJson) {
+        try {
+          console.log("[HQ CORE] Explicit Service Account detected via Environment.");
+          const serviceAccount = JSON.parse(saJson);
+          credential = admin.credential.cert(serviceAccount);
+          globalProjectId = serviceAccount.project_id || globalProjectId;
+        } catch (je) {
+          console.error("[HQ CORE ERROR] Malformed FIREBASE_SERVICE_ACCOUNT JSON. Falling back to ADC.");
+        }
+      }
+
       admin.initializeApp({
         projectId: globalProjectId,
-        credential: admin.credential.applicationDefault()
+        credential
       });
       const app = admin.app();
       console.log(`[HQ CORE] Governance layer established on project: ${app.options.projectId}`);
@@ -422,17 +438,28 @@ async function startServer() {
   app.post("/api/admin/system/re-init", verifyAdmin, async (req, res) => {
     try {
       console.log("[HQ SYSTEM] Infrastructure re-initialization requested...");
+      
+      // Detailed tracking
+      const report: any = { steps: [] };
+
       // Delete existing apps if any
       const apps = [...admin.apps];
+      report.decommissioning = apps.length;
       for (const app of apps) {
         if (app) {
-          console.log(`[HQ SYSTEM] Decommissioning application node: ${app.name}`);
+          console.log(`[HQ SYSTEM] Decommissioning application node: ${app.name} (${app.options.projectId})`);
           await app.delete();
+          report.steps.push(`Deleted app: ${app.name}`);
         }
       }
       
+      console.log("[HQ SYSTEM] Invoking fresh governance lifecycle...");
       await initializeGovernanceLayer();
-      res.json({ success: true, message: "Infrastructure successfully re-initialized." });
+      
+      report.status = "NOMINAL";
+      report.newProject = globalProjectId;
+      
+      res.json({ success: true, message: "Infrastructure successfully re-initialized.", report });
     } catch (e: any) {
       console.error("[HQ SYSTEM REINIT FAIL]", e);
       res.status(500).json({ 
@@ -565,11 +592,11 @@ async function startServer() {
         `user:gopal@hirenestworkforce.com`,
         `user:gopalkrishna.sv46@gmail.com`,
         `user:founder.itconsulting@outlook.com`
-      ];
+      ].filter(m => m !== `serviceAccount:undefined` && m !== `serviceAccount:null`);
 
       const memberFlags = members.map(m => `--member="${m}"`).join(" ");
 
-      // Pre-calculated easy fix
+      // Pre-calculated easy fix (Always available)
       results.emergencyFix = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/owner"`;
 
       // 2. Auth Handshake
@@ -583,7 +610,7 @@ async function startServer() {
         results.authCode = e.code || "governance/auth-denied";
         results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
         
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before') || e.message?.includes('Identity Toolkit')) {
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before') || e.message?.includes('Identity Toolkit') || e.message?.includes('IAM_PERMISSION_DENIED')) {
           const roles = [
             "roles/serviceusage.serviceUsageConsumer",
             "roles/firebaseauth.admin",
@@ -602,14 +629,15 @@ async function startServer() {
           ];
 
           results.remediation = [
+            `# OPTION A: AI Studio / Gcloud CLI`,
             `gcloud auth login`,
             `gcloud config set project ${activeProject}`,
-            `# 1. Enable Essential Infrastructure APIs`,
             `gcloud services enable ${services.join(" ")}`,
-            `# 2. Synchronize Identity Manifests`,
-            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`),
-            `# 3. Emergency Owner Fix (Fastest)`,
-            `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/owner"`
+            `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="roles/owner"`,
+            `# OPTION B: Vercel / External Deployment`,
+            `# 1. Download Service Account JSON from Firebase Console`,
+            `# 2. Add 'FIREBASE_SERVICE_ACCOUNT' as a Secret on Vercel (Paste the JSON string)`,
+            `# 3. Add 'PROJECT_ID' variable with value: ${activeProject}`
           ].join(" && ");
         }
       }
@@ -625,7 +653,7 @@ async function startServer() {
         results.firestore = `failure: ${e.message || "Mirror Sync Blocked"}`;
         results.firestoreDetails = e.message || "The entity mirror could not be replicated. Ensure Firestore (Datastore mode) is enabled and permissions are granted.";
         
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions') || e.message?.includes('Cloud Firestore API')) {
+        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions') || e.message?.includes('Cloud Firestore API') || e.message?.includes('NOT_FOUND') || e.message?.includes('database')) {
           const roles = [
             "roles/datastore.user",
             "roles/firebase.admin",
@@ -643,6 +671,8 @@ async function startServer() {
             `gcloud auth login`,
             `gcloud config set project ${activeProject}`,
             `gcloud services enable ${services.join(" ")}`,
+            `# Ensure Firestore Database exists (Default Location)`,
+            `gcloud firestore databases create --location=us-central1 || true`,
             ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
         }
