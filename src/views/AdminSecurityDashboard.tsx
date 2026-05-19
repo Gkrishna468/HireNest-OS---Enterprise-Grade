@@ -218,7 +218,7 @@ export default function AdminSecurityDashboard() {
               { label: "Authority Node", value: diagnostics?.auth || "PENDING", status: diagnostics?.auth === "healthy" ? "OK" : "ERR" },
               { label: "Entity Mirror", value: diagnostics?.firestore || "PENDING", status: diagnostics?.firestore === "healthy" ? "OK" : "ERR" },
               { label: "Runtime Identity", value: diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING...", status: "DATA" },
-              { label: "Governance Project", value: diagnostics?.projectId || preFlight?.runtimeProjectId || "hirenest-os", status: "DATA" }
+              { label: "Project Details", value: `${diagnostics?.projectId || "hirenest-os"} (#${diagnostics?.projectNumber || "..."})`, status: "DATA" }
             ].map((item, idx) => (
               <div key={idx} className="p-8 space-y-4 hover:bg-slate-50 transition-colors">
                 <div className="flex items-center justify-between">
@@ -262,13 +262,21 @@ export default function AdminSecurityDashboard() {
                           <Fingerprint className="text-indigo-400" />
                           <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Service Principle</p>
                        </div>
-                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex items-center justify-between group cursor-copy hover:border-emerald-500 transition-all font-mono text-sm overflow-hidden"
-                            onClick={() => {
-                              const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "733294346096-compute@developer.gserviceaccount.com";
-                              navigator.clipboard.writeText(sa);
-                            }}>
-                          <code className="text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "733294346096-compute@developer.gserviceaccount.com"}</code>
-                          <span className="text-[10px] font-black uppercase text-indigo-400 group-hover:scale-110 transition-transform shrink-0">COPY</span>
+                       <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex flex-col gap-3 font-mono text-sm group">
+                          <div className="flex items-center justify-between hover:bg-white/5 p-2 rounded cursor-copy transition-colors" 
+                               onClick={() => {
+                                 const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`;
+                                 navigator.clipboard.writeText(sa);
+                               }}>
+                             <code className="text-emerald-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`}</code>
+                             <span className="text-[9px] font-black uppercase text-indigo-400 shrink-0">COPY PRIMARY</span>
+                          </div>
+                          <div className="flex items-center justify-between hover:bg-white/5 p-2 rounded cursor-copy pt-2 border-t border-white/5" onClick={() => {
+                            navigator.clipboard.writeText(`${diagnostics?.projectId || 'hirenest-os'}@appspot.gserviceaccount.com`);
+                          }}>
+                             <code className="text-amber-400 truncate pr-4">{diagnostics?.projectId || 'hirenest-os'}@appspot.gserviceaccount.com</code>
+                             <span className="text-[9px] font-black uppercase text-indigo-400 shrink-0">COPY ALT</span>
+                          </div>
                        </div>
                     </div>
 
@@ -340,7 +348,7 @@ export default function AdminSecurityDashboard() {
                           </Button>
                           <Button variant="outline" className="flex-1 border-white/20 text-white hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] py-5 transition-transform active:scale-95"
                                   onClick={() => {
-                                    const sa = diagnostics?.serviceAccount || "733294346096-compute@developer.gserviceaccount.com";
+                                    const sa = diagnostics?.serviceAccount || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`;
                                     const cmd = `gcloud projects add-iam-policy-binding hirenest-os --member="serviceAccount:${sa}" --role="roles/owner"`;
                                     navigator.clipboard.writeText(cmd);
                                   }}>

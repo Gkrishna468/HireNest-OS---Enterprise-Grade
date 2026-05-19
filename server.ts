@@ -499,11 +499,14 @@ async function startServer() {
       // 1. Identity Discovery (Non-blocking)
       const metadataSA = await fetchMetadata("instance/service-accounts/default/email");
       const metadataProj = await fetchMetadata("project/project-id");
+      const metadataProjNum = await fetchMetadata("project/numeric-project-id");
       
       results.serviceAccount = metadataSA || "system-assigned-identity";
       results.runtimeProjectId = metadataProj || globalProjectId;
+      results.projectNumber = metadataProjNum;
 
       const activeProject = results.runtimeProjectId || globalProjectId;
+      const activeProjectNum = results.projectNumber || "733294346096";
 
       // 2. Auth Handshake
       try {
@@ -517,10 +520,11 @@ async function startServer() {
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "733294346096-compute@developer.gserviceaccount.com";
+                     : `${activeProjectNum}-compute@developer.gserviceaccount.com`;
           
           const members = [
             `serviceAccount:${sa}`,
+            `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
             `user:gopalkrishna.sv46@gmail.com`,
@@ -545,9 +549,9 @@ async function startServer() {
           
           const commands = [
             `gcloud auth login`,
-            `gcloud config set project hirenest-os`,
+            `gcloud config set project ${activeProject}`,
             `# Grant full permissions to all essential identities`,
-            ...roles.map(role => `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="${role}"`)
+            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
           results.remediation = commands;
         }
@@ -567,10 +571,11 @@ async function startServer() {
         if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions')) {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
-                     : "733294346096-compute@developer.gserviceaccount.com";
+                     : `${activeProjectNum}-compute@developer.gserviceaccount.com`;
           
           const members = [
             `serviceAccount:${sa}`,
+            `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
             `user:gopalkrishna.sv46@gmail.com`,
@@ -589,8 +594,8 @@ async function startServer() {
 
           results.iamCommand = [
             `gcloud auth login`,
-            `gcloud config set project hirenest-os`,
-            ...roles.map(role => `gcloud projects add-iam-policy-binding hirenest-os ${memberFlags} --role="${role}"`)
+            `gcloud config set project ${activeProject}`,
+            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
           ].join(" && ");
         }
       }
