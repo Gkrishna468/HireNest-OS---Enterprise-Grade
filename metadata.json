@@ -1,6 +1,6 @@
 {
-  "name": "HireNest OS v5.0 (Cortex)",
-  "description": "Autonomous Workforce Coordination Infrastructure. Enterprise-grade Integrity Layer with multi-agent orchestration, self-regulating trust networks, and immutable governance auditing.",
+  "name": "HireNest OS v5.2 (Integrity Reasoning)",
+  "description": "Autonomous Workforce Coordination & Governance OS. Featuring a mission-critical Intent-Based Reasoning Engine, enterprise integrity layer, and self-regulating multi-agent trust orchestration.",
   "requestFramePermissions": [
     "camera",
     "microphone"

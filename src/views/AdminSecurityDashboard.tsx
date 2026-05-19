@@ -16,20 +16,44 @@ import {
   Server,
   Fingerprint,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  BrainCircuit,
+  Zap,
+  Target
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
+import { runAutonomousReasoning } from "../services/intelligenceService";
 
 export default function AdminSecurityDashboard() {
   const [logs, setLogs] = useState<any[]>([]);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [preFlight, setPreFlight] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [reasoningActive, setReasoningActive] = useState(false);
+  const [reasoningResult, setReasoningResult] = useState<any>(null);
 
   // Founder Narrative Strategy
   const strategyNarrative = "AI can help you ship fast. But if you don't secure what you build, you're creating liabilities. HireNest OS transforms 'vibe coding' into enterprise-grade production infrastructure.";
+
+  const runGovernanceAudit = async () => {
+    setReasoningActive(true);
+    try {
+      const intent = "Audit the current governance state and identify architecture blindspots.";
+      const payload = {
+        diagnostics,
+        preFlight,
+        securityChecklist
+      };
+      const result = await runAutonomousReasoning(intent, payload);
+      setReasoningResult(result);
+    } catch (e) {
+      console.error("Reasoning failed", e);
+    } finally {
+      setReasoningActive(false);
+    }
+  };
 
   const securityChecklist = [
     { id: 'sa', label: 'Runtime Identity Isolation', status: diagnostics?.serviceAccount ? 'secure' : 'pending' },
@@ -128,13 +152,17 @@ export default function AdminSecurityDashboard() {
   );
 
   const isBlocked = !!(
-    (diagnostics?.auth?.includes("failure")) || 
-    (diagnostics?.firestore?.includes("failure")) ||
-    (diagnostics?.remediation) ||
+    (diagnostics?.auth?.includes("failure") && !diagnostics?.auth?.includes("permission_denied")) || 
+    (diagnostics?.firestore?.includes("failure") && !diagnostics?.firestore?.includes("permission_denied")) ||
     (diagnostics?.auth === "handshake-failed")
   );
 
-  const isNominal = diagnostics?.auth === "healthy" && diagnostics?.firestore === "healthy";
+  const isDegraded = !!(
+    (!isBlocked) && 
+    (diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.auth?.includes("PERMISSION_DENIED") || diagnostics?.firestore?.includes("PERMISSION_DENIED"))
+  );
+
+  const isNominal = diagnostics?.auth === "healthy" && diagnostics?.firestore === "healthy" && !isDegraded;
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-8 lg:p-16 max-w-[1920px] mx-auto font-sans flex flex-col gap-12 text-[#141414]">
@@ -204,14 +232,14 @@ export default function AdminSecurityDashboard() {
             ))}
           </div>
 
-          {/* BLOCKAGE / NOMINAL LAYER */}
+          {/* BLOCKAGE / DEGRADATION / NOMINAL LAYER */}
           {isBlocked ? (
             <div className="bg-[#141414] text-white p-12 rounded-[48px] border-[12px] border-[#2A2A2A] shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 right-0 w-80 h-80 bg-rose-600/10 blur-[100px] -mr-40 -mt-40" />
                
                <div className="flex items-start gap-10 relative">
                  <div className="bg-rose-600 p-8 rounded-3xl text-white shadow-[0_0_80px_rgba(225,29,72,0.4)] animate-pulse shrink-0">
-                   <AlertTriangle size={56} strokeWidth={3} />
+                    <ShieldAlert size={56} strokeWidth={3} />
                  </div>
                  <div className="space-y-4">
                    <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Restricted</h2>
@@ -260,6 +288,72 @@ export default function AdminSecurityDashboard() {
                                 navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || "");
                               }}>
                         Copy Command Directive
+                      </Button>
+                    </div>
+                 </div>
+               </div>
+            </div>
+          ) : isDegraded ? (
+            <div className="bg-[#1A1A1A] text-white p-12 rounded-[48px] border-[12px] border-amber-600/20 shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-80 h-80 bg-amber-600/10 blur-[100px] -mr-40 -mt-40" />
+               
+               <div className="flex items-start gap-10 relative">
+                 <div className="bg-amber-600 p-8 rounded-3xl text-white shadow-[0_0_80px_rgba(217,119,6,0.3)] shrink-0">
+                    <Activity size={56} strokeWidth={3} />
+                 </div>
+                 <div className="space-y-4">
+                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-amber-600 decoration-8 underline-offset-[12px]">Partial Governance Degradation</h2>
+                   <p className="text-slate-400 text-xl font-medium leading-relaxed max-w-3xl">
+                     Compute nodes are operational, but <span className="text-white font-bold">Policy Deployment (IAM/Rulesets)</span> is restricted. Automatic updates are currently inhibited.
+                   </p>
+                 </div>
+               </div>
+
+               <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-12 relative">
+                 <div className="space-y-8">
+                    <div className="bg-white/5 p-6 rounded-2xl border-2 border-white/10 flex items-center justify-between group cursor-pointer"
+                         onClick={() => {
+                           const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Detecting...";
+                           navigator.clipboard.writeText(sa);
+                         }}>
+                       <code className="font-mono text-sm text-amber-400 truncate pr-4">{diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "Identifying Authority..."}</code>
+                       <span className="text-[10px] font-black uppercase text-amber-400">COPY IDENTITY</span>
+                    </div>
+
+                    <div className="bg-white/5 p-8 rounded-3xl border-2 border-white/10 space-y-4">
+                       <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-500 italic">Integrity Log</p>
+                       <p className="text-sm font-medium text-slate-400 leading-relaxed italic opacity-80 break-words">
+                         {diagnostics?.authDetails || diagnostics?.firestore || "Governance handshake incomplete. Ruleset creation permissions rejected."}
+                       </p>
+                    </div>
+                 </div>
+
+                 <div className="bg-amber-600/5 p-10 rounded-[40px] border-2 border-amber-600/20 space-y-8">
+                    <div className="flex justify-between items-center">
+                       <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-500">Remediation Directive</p>
+                       <Badge variant="outline" className="text-[10px] border-amber-600/30 text-amber-600 font-mono tracking-[0.3em]">IAM_V2</Badge>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-black">1. Auth Session in Cloud Shell:</p>
+                        <div className="bg-black/40 p-4 rounded-xl font-mono text-[11px] text-amber-100 border border-amber-600/20 group cursor-copy" onClick={() => navigator.clipboard.writeText("gcloud auth login")}>
+                          gcloud auth login
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-black">2. Execute Policy Binding:</p>
+                        <div className="bg-slate-900 p-6 rounded-2xl border-2 border-amber-900/30 font-mono text-[11px] text-amber-100 whitespace-pre-wrap leading-relaxed shadow-lg break-all">
+                          {diagnostics?.remediation || diagnostics?.iamCommand || "No remediation generated."}
+                        </div>
+                      </div>
+
+                      <Button className="w-full bg-amber-600 text-white hover:bg-amber-700 mt-4 rounded-xl font-black uppercase text-[10px] py-4"
+                              onClick={() => {
+                                navigator.clipboard.writeText(diagnostics?.remediation || diagnostics?.iamCommand || "");
+                              }}>
+                        Batch Copy Command
                       </Button>
                     </div>
                  </div>
@@ -339,6 +433,85 @@ export default function AdminSecurityDashboard() {
         {/* RIGHT COLUMN: SECURITY POSTURE */}
         <div className="lg:col-span-4 space-y-12">
            
+           {/* REASONING ENGINE PULSE */}
+           <div className={cn(
+             "bg-indigo-600 text-white p-10 rounded-[56px] border-[8px] border-indigo-700/50 space-y-8 shadow-2xl relative overflow-hidden transition-all duration-500",
+             reasoningActive && "animate-pulse ring-8 ring-indigo-500/30"
+           )}>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[80px] -mr-32 -mt-32" />
+              
+              <div className="flex items-center justify-between relative">
+                 <div className="flex items-center gap-4">
+                    <div className="bg-white/20 p-4 rounded-2xl">
+                       <BrainCircuit className="text-white" size={32} />
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-60">Intent Engine</p>
+                       <h3 className="text-2xl font-black italic uppercase tracking-tighter">Integrity Cortex</h3>
+                    </div>
+                 </div>
+                 <Badge className="bg-white/20 border-white/30 text-white font-mono text-[10px] py-1 px-4 tracking-widest">
+                    V1.2_ACTIVE
+                 </Badge>
+              </div>
+
+              {reasoningResult ? (
+                <div className="space-y-6 relative">
+                  <div className="bg-black/20 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
+                    <p className="text-sm font-medium leading-relaxed italic text-indigo-50">
+                      {reasoningResult.analysis}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {reasoningResult.appliedModes.map((mode: any) => (
+                      <Badge key={mode} className="bg-indigo-900/50 border-indigo-400/30 text-indigo-200 text-[9px] uppercase tracking-tighter">
+                         /{mode}
+                      </Badge>
+                    ))}
+                  </div>
+                  {reasoningResult.suggestions && (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Strategic Directives</p>
+                      <div className="space-y-2">
+                         {reasoningResult.suggestions.slice(0, 2).map((s: string, i: number) => (
+                           <div key={i} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl text-xs font-semibold">
+                              <Zap size={14} className="text-amber-400 shrink-0" />
+                              <span>{s}</span>
+                           </div>
+                         ))}
+                      </div>
+                    </div>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-white/20 text-white hover:bg-white/10 rounded-2xl py-4 font-black uppercase text-[10px] tracking-widest"
+                    onClick={runGovernanceAudit}
+                    disabled={reasoningActive}
+                  >
+                    {reasoningActive ? "ORCHESTRATING..." : "RE-EVALUATE PROTOCOLS"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-8 relative">
+                  <p className="text-sm font-medium text-indigo-100 opacity-80 leading-relaxed italic">
+                    The Intent-Based Reasoning Engine is idling. Run an autonomous audit to activate strategic protocols.
+                  </p>
+                  <Button 
+                    className="w-full bg-white text-indigo-600 hover:bg-indigo-50 rounded-2xl py-6 font-black uppercase italic tracking-tighter text-lg shadow-xl shrink-0 h-auto"
+                    onClick={runGovernanceAudit}
+                    disabled={reasoningActive}
+                  >
+                    {reasoningActive ? (
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="animate-spin" />
+                        <span>BOOTING_REASONING_NODE...</span>
+                      </div>
+                    ) : "ACTIVATE AUTONOMOUS AUDIT"}
+                  </Button>
+                </div>
+              )}
+           </div>
+
            {/* SECURITY STATE LIST */}
            <div className="bg-[#141414] text-white p-12 rounded-[56px] border-[8px] border-[#2A2A2A] space-y-12 shadow-2xl relative">
               <div className="space-y-4">

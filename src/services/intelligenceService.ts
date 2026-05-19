@@ -1,4 +1,5 @@
 import { db } from "../lib/firebase";
+import { ReasoningEngine, ReasoningMode } from "./reasoningService";
 import { 
   collection, 
   addDoc, 
@@ -87,7 +88,14 @@ export async function detectMarginLeakage(dealId: string) {
 }
 
 export async function assessRisk(entityId: string, entityType: string, signals: string[]) {
-  const riskScore = signals.length * 15; // Simple heuristic for now
+  // Use Reasoning Engine for a deeper analysis
+  const reasoning = await ReasoningEngine.execute({
+    intent: `Assess the risk of this ${entityType}`,
+    payload: { entityId, entityType, signals },
+    mode: ['redteam', 'skeptic', 'simulate']
+  });
+
+  const riskScore = reasoning.confidence * 100;
   let riskLevel = "Low";
   if (riskScore > 70) riskLevel = "Critical";
   else if (riskScore > 50) riskLevel = "High";
@@ -99,12 +107,39 @@ export async function assessRisk(entityId: string, entityType: string, signals: 
     riskLevel,
     riskScore,
     signals,
-    aiJustification: `Detected ${signals.length} high-risk signals in the execution timeline.`,
+    aiJustification: reasoning.analysis || `Detected ${signals.length} signals.`,
+    appliedModes: reasoning.appliedModes,
     createdAt: new Date().toISOString()
   };
 
   await addDoc(collection(db, "risk_assessments"), assessment);
   return assessment;
+}
+
+export async function runAutonomousReasoning(intent: string, payload: any, context?: { orgId?: string, uid?: string }) {
+  const result = await ReasoningEngine.execute({
+    intent,
+    payload,
+    mode: [], // Auto-detect
+    ...context
+  });
+
+  // Log reasoning event
+  await addDoc(collection(db, "execution_events"), {
+    eventType: "GOVERNANCE_REASONING_EXECUTED",
+    actorId: context?.uid || "system",
+    actorType: "system",
+    targetId: payload.id || "global",
+    targetType: "system",
+    timestamp: new Date().toISOString(),
+    metadata: {
+      intent,
+      appliedModes: result.appliedModes,
+      confidence: result.confidence
+    }
+  });
+
+  return result;
 }
 
 export async function getRoutingRecommendation(requirementId: string) {

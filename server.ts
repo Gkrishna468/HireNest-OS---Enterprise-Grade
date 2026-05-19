@@ -516,7 +516,7 @@ async function startServer() {
           const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
                      ? results.serviceAccount 
                      : "[SERVICE_ACCOUNT_EMAIL]";
-          results.remediation = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
+          results.remediation = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --member="user:gopalkrishna0046@gmail.com" --member="user:gopal@hirenestworkforce.com" --role="roles/serviceusage.serviceUsageConsumer" --role="roles/firebaseauth.admin" --role="roles/firebaserules.admin"`;
         }
       }
 
@@ -1292,6 +1292,52 @@ Candidate Profile: ${candidateProfile}`,
       }
     }
     res.json(result);
+  });
+
+  app.post("/api/reasoning/execute", async (req, res) => {
+    const { intent, payload, instructions, modes, context } = req.body;
+    
+    if (!ai) return res.status(503).json({ error: "AI_OFFLINE" });
+
+    try {
+      console.log(`[REASONING_NODE] Processing Intent: ${intent} with Modes: ${modes?.join(', ')}`);
+      
+      const prompt = `
+        GOVERNANCE PROTOCOL: INTEGRITY_OS_REASONING_V1
+        ACTIVE_PERSONAE: 
+        ${instructions}
+
+        USER_INTENT: ${intent}
+        DATA_CONTEXT: ${JSON.stringify(payload)}
+
+        MISSION_DIRECTIVE:
+        Apply the active reasoning modes to the user intent and provided data. 
+        Provide a high-fidelity analysis that follows the specific mood and constraints of the active personae.
+        
+        OUTPUT_SCHEMA (Strict JSON):
+        {
+          "analysis": "The detailed reasoning output (Markdown supported)",
+          "appliedModes": ["mode1", "mode2"],
+          "confidence": 0.0 to 1.0,
+          "suggestions": ["Next actionable step 1", "Next actionable step 2"],
+          "workflowTriggers": ["TRIGGER_CODE_1", "TRIGGER_CODE_2"]
+        }
+      `;
+
+      const response = await withAIRetry(async () => {
+        return await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
+        });
+      });
+
+      const result = JSON.parse(response.text.replace(/```json|```/g, "").trim());
+      res.json(result);
+    } catch (e: any) {
+      console.error("[REASONING_SERVER_ERROR]", e);
+      res.status(500).json({ error: "Reasoning Execution Failed", details: e.message });
+    }
   });
 
   app.post("/api/bulk-parse-resumes", async (req, res) => {
