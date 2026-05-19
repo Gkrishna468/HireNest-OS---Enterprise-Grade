@@ -354,13 +354,36 @@ export default function AdminSecurityDashboard() {
                             Copy Full Manifest
                           </Button>
                           <Button variant="outline" className="flex-1 border-white/20 text-white hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] py-5 transition-transform active:scale-95"
+                                  onClick={async () => {
+                                    setLoading(true);
+                                    try {
+                                      const token = await auth.currentUser?.getIdToken();
+                                      const r = await fetch('/api/admin/system/re-init', {
+                                        method: 'POST',
+                                        headers: { 'Authorization': `Bearer ${token}` }
+                                      });
+                                      if (r.ok) {
+                                        window.location.reload();
+                                      } else {
+                                        const err = await r.json();
+                                        alert(`Sync Failed: ${err.details || err.error}`);
+                                      }
+                                    } catch (e: any) {
+                                      alert(`Network failure: ${e.message}`);
+                                    } finally {
+                                      setLoading(false);
+                                    }
+                                  }}>
+                            Re-Sync Server Node
+                          </Button>
+                          <Button variant="outline" className="flex-1 border-rose-500/50 text-rose-400 hover:bg-rose-500/10 rounded-2xl font-black uppercase text-[10px] py-5 transition-transform active:scale-95"
                                   onClick={() => {
                                     const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com";
                                     const proj = diagnostics?.projectId || "hirenest-os";
                                     const cmd = `gcloud projects add-iam-policy-binding ${proj} --member="serviceAccount:${sa}" --role="roles/owner"`;
                                     navigator.clipboard.writeText(cmd);
                                   }}>
-                            Escalate Active Identity
+                            Copy Identity Fix
                           </Button>
                         </div>
                       </div>

@@ -72,21 +72,18 @@ console.log(`[HQ CORE] Boot sequence initiated...`);
 
 async function initializeGovernanceLayer() {
   try {
-    // 1. Check for runtime project ID via metadata (highest priority in production)
-    const runtimeId = await fetchMetadata("project/project-id");
-    if (runtimeId) {
-      globalProjectId = runtimeId;
-      console.log(`[HQ CORE] Runtime Metadata Project ID: ${globalProjectId}`);
-    }
-
-    // 2. Load config file as secondary source/override
+    // 1. Load config file as PRIMARY source (defines the app's intended backend)
     const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(firebaseConfigPath)) {
       const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-      // Only override if we haven't detected a definite runtime ID or if we're in dev
-      if (!runtimeId || process.env.NODE_ENV !== 'production') {
-        globalProjectId = config.projectId || globalProjectId;
-        console.log(`[HQ CORE] Config File Project ID: ${globalProjectId}`);
+      globalProjectId = config.projectId || globalProjectId;
+      console.log(`[HQ CORE] Target Database Node: ${globalProjectId} (from config)`);
+    } else {
+      // 2. Fallback: Check for runtime project ID via metadata (AIS environment node)
+      const runtimeId = await fetchMetadata("project/project-id");
+      if (runtimeId) {
+        globalProjectId = runtimeId;
+        console.log(`[HQ CORE] Runtime Environment Node: ${globalProjectId}`);
       }
     }
 
