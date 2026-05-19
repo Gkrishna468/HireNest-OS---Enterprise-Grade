@@ -348,11 +348,12 @@ export default function AdminSecurityDashboard() {
                           </Button>
                           <Button variant="outline" className="flex-1 border-white/20 text-white hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] py-5 transition-transform active:scale-95"
                                   onClick={() => {
-                                    const sa = diagnostics?.serviceAccount || `${diagnostics?.projectNumber || '733294346096'}-compute@developer.gserviceaccount.com`;
-                                    const cmd = `gcloud projects add-iam-policy-binding hirenest-os --member="serviceAccount:${sa}" --role="roles/owner"`;
+                                    const sa = diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com";
+                                    const proj = diagnostics?.projectId || "hirenest-os";
+                                    const cmd = `gcloud projects add-iam-policy-binding ${proj} --member="serviceAccount:${sa}" --role="roles/owner"`;
                                     navigator.clipboard.writeText(cmd);
                                   }}>
-                            Emergency Owner Escalation
+                            Escalate Active Identity
                           </Button>
                         </div>
                       </div>

@@ -525,12 +525,12 @@ async function startServer() {
           const members = [
             `serviceAccount:${sa}`,
             `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
+            `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
+            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
             `user:gopalkrishna.sv46@gmail.com`,
-            `user:founder.itconsulting@outlook.com`,
-            `serviceAccount:firebase-adminsdk-fbsvc@hirenest-os.iam.gserviceaccount.com`,
-            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
+            `user:founder.itconsulting@outlook.com`
           ];
 
           const memberFlags = members.map(m => `--member="${m}"`).join(" ");
@@ -576,11 +576,12 @@ async function startServer() {
           const members = [
             `serviceAccount:${sa}`,
             `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
+            `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
+            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
             `user:gopalkrishna0046@gmail.com`,
             `user:gopal@hirenestworkforce.com`,
             `user:gopalkrishna.sv46@gmail.com`,
-            `user:founder.itconsulting@outlook.com`,
-            `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`
+            `user:founder.itconsulting@outlook.com`
           ];
           const memberFlags = members.map(m => `--member="${m}"`).join(" ");
           
