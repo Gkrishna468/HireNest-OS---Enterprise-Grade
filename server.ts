@@ -370,35 +370,7 @@ async function startServer() {
     }
   }
 
-  // --- API ROUTES ---
-  app.get("/api/admin/pre-flight", async (req, res) => {
-    try {
-        // Minimal response to confirm runtime is ALIVE
-        const results: any = { 
-            status: "operational", 
-            timestamp: new Date().toISOString(),
-            runtime: "nodejs",
-            nodeVersion: process.version,
-            projectId: globalProjectId
-        };
-        
-        // Non-blocking environment check
-        results.env = {
-          FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-          FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "not_set",
-          DEPLOYMENT_ENV: process.env.NODE_ENV || "unknown"
-        };
-
-        return res.json(results);
-    } catch (e: any) {
-        console.error("[PRE-FLIGHT CRASH]", e);
-        return res.status(500).json({ 
-          status: "error",
-          error: "PRE_FLIGHT_CRASH", 
-          message: e.message
-        });
-    }
-  });
+  // MOVED TO STANDALONE /api/admin/pre-flight.ts
   app.get("/api/health", async (req, res) => {
     const admin = await import('firebase-admin').then(m => m.default || m);
     res.json({ 
@@ -535,66 +507,8 @@ async function startServer() {
     return JSON.parse(response.text);
   }
 
-  app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
-    try {
-      const admin = await getAdmin();
-      const results: any = {
-        projectId: globalProjectId,
-        appsInitialized: admin.apps.length,
-        status: "operational",
-        timestamp: new Date().toISOString(),
-        runtime: "nodejs"
-      };
-
-      // 1. Auth Health check
-      try {
-        const app = admin.apps.length > 0 ? admin.app() : null;
-        if (app) {
-          results.auth = "checking";
-          const users = await app.auth().listUsers(1);
-          results.auth = "healthy";
-          results.userCount = users.users.length;
-        } else {
-          results.auth = "pending-init";
-        }
-      } catch (authErr: any) {
-        console.warn("[DIAGNOSTIC] Auth probe failed:", authErr.message);
-        results.auth = "degraded";
-        results.authDetails = authErr.message;
-      }
-
-      // 2. Firestore Health check
-      try {
-        const app = admin.apps.length > 0 ? admin.app() : null;
-        if (app) {
-           results.firestore = "checking";
-           await app.firestore().collection("_health_ping").limit(1).get();
-           results.firestore = "healthy";
-        } else {
-           results.firestore = "pending-init";
-        }
-      } catch (fsErr: any) {
-        console.warn("[DIAGNOSTIC] Firestore probe failed:", fsErr.message);
-        results.firestore = "unreachable";
-        results.firestoreError = fsErr.message;
-        // Specific advice for common permissions issues
-        if (fsErr.message?.includes("PERMISSION_DENIED")) {
-           results.remediation = "Check IAM Roles: Ensure Service Account has 'Cloud Datastore User'.";
-        }
-      }
-
-      return res.json(results);
-    } catch (err: any) {
-      console.error("[DIAGNOSTICS FATAL]", err);
-      return res.status(500).json({
-        status: "error",
-        error: "DIAGNOSTICS_FAILURE",
-        message: err.message,
-        stack: err.stack
-      });
-    }
-  });
-
+  // DIAGNOSTICS MOVED TO STANDALONE FILE
+  
   app.get("/api/admin/audit-logs", verifyAdmin, async (req, res) => {
     try {
       const admin = await import('firebase-admin').then(m => m.default || m);
@@ -696,61 +610,8 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/governance-data", verifyAdmin, async (req, res) => {
-    try {
-      const admin = await getAdmin();
-      const currentAdminEmail = (req as any).user?.email || "unknown";
-      
-      let users: any[] = [];
-      let organizations: any[] = [];
-      let candidates: any[] = [];
-      let dealRooms: any[] = [];
-      let requirements: any[] = [];
-      
-      try {
-        const app = admin.apps.length > 0 ? admin.app() : null;
-        if (!app) throw new Error("GOVERNANCE_OFFLINE");
-        
-        const db = app.firestore();
-        
-        // Controlled, non-crashing data retrieval
-        const [usersSnap, orgsSnap, candSnap, roomsSnap, reqsSnap] = await Promise.all([
-          db.collection("users").limit(50).get().catch(() => ({ docs: [] })),
-          db.collection("organizations").limit(50).get().catch(() => ({ docs: [] })),
-          db.collection("candidates").limit(50).get().catch(() => ({ docs: [] })),
-          db.collection("deal_rooms").limit(50).get().catch(() => ({ docs: [] })),
-          db.collection("requirements").limit(50).get().catch(() => ({ docs: [] }))
-        ]);
+  // GOVERNANCE DATA MOVED TO STANDALONE FILE
 
-        users = usersSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        organizations = orgsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        candidates = candSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        dealRooms = roomsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        requirements = reqsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-
-      } catch (innerErr: any) {
-        console.warn("[GOVERNANCE SYNC] Partial failure during data retrieval:", innerErr.message);
-      }
-
-      return res.json({
-        ok: true,
-        users,
-        organizations,
-        candidatePool: candidates,
-        dealRooms,
-        requirements_public: requirements,
-        onboarding_requests: [], // Placeholder
-        timestamp: new Date().toISOString()
-      });
-    } catch (err: any) {
-       console.error("[GOVERNANCE FATAL]", err);
-       return res.status(500).json({
-         status: "error",
-         error: "GOVERNANCE_SYNC_FAILURE",
-         message: err.message
-       });
-    }
-  });
   app.post("/api/onboard/request", async (req, res) => {
     try {
       const { type, companyName, email, linkedin, gstNumber, aadhaarNumber, metadata } = req.body;
