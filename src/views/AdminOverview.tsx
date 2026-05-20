@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-import { DollarSign, Briefcase, Users, Activity, Shield, ChevronRight } from "lucide-react";
+import { Users, Briefcase, DollarSign, Activity, Shield, ChevronRight } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 
 export default function AdminOverview() {
   const [data, setData] = useState<any>({ 
@@ -18,7 +18,7 @@ export default function AdminOverview() {
     onboardingRequests: [] 
   });
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Derived Financial Metrics
   const totalBilling = data.requirements.reduce((acc: number, req: any) => acc + (req.financials?.clientBudget || 0), 0);
@@ -29,12 +29,25 @@ export default function AdminOverview() {
     .reduce((acc: number, req: any) => acc + (req.clientTargetBudget || 0), 0);
 
   const pendingOnboarding = data.onboardingRequests.filter((r: any) => r.verificationStatus === 'PENDING').length;
+  const verifiedNodes = data.organizations.length;
+  const totalNodesExpected = verifiedNodes + data.onboardingRequests.length;
+  const verificationPercent = totalNodesExpected > 0 ? Math.round((verifiedNodes / totalNodesExpected) * 100) : 0;
+
+  const authStats = {
+    business: data.onboardingRequests.filter((r: any) => r.gstNumber || r.type === 'client' || r.type === 'vendor').length,
+    identity: data.onboardingRequests.filter((r: any) => r.aadhaarNumber).length,
+    email: data.onboardingRequests.filter((r: any) => r.email).length,
+    total: data.onboardingRequests.length || 1
+  };
+
+  const fetchDataInitialized = useRef(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && !fetchDataInitialized.current) {
         fetchData();
-      } else {
+        fetchDataInitialized.current = true;
+      } else if (!user) {
         setLoading(false);
       }
     });
@@ -48,73 +61,27 @@ export default function AdminOverview() {
         if (!user) return;
 
         const token = await user.getIdToken();
-        const govResp = await fetch('/api/admin/governance-data', {
+        const govResp = await fetch('/api/governance', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (govResp.ok) {
           const resData = await govResp.json();
           setData({
-              candidates: resData.candidatePool || [],
+              candidates: resData.candidates || [],
               organizations: resData.organizations || [],
               dealRooms: resData.dealRooms || [],
-              requirements: resData.requirements_public || [],
+              requirements: resData.requirements || [],
               submissions: resData.submissions || [],
-              onboardingRequests: resData.onboarding_requests || []
+              onboardingRequests: resData.onboarding_requests || [] // Keep original key for now or update if needed
           });
-        } else {
-          console.warn(`Governance API returned ${govResp.status}. Identity: ${user.email}. Check IAM roles.`);
-          // Silent fallback to empty or handle error
         }
     } catch (err: any) {
-        console.error("Governance Sync failed", err);
+        console.warn("[Admin Overview] Data sync skipped or failed:", err.message);
     } finally {
       setLoading(false);
     }
   }
-
-  const handleBootstrap = async () => {
-    if (!window.confirm("This will overwrite/populate your real Firestore with mock Marketplace data. Proceed?")) return;
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        alert("Authentication required for bootstrap protocol.");
-        return;
-      }
-      const token = await user.getIdToken();
-      const response = await fetch('/api/admin/governance-data', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error("Could not fetch mock data from server. Authority rejected.");
-      const resData = await response.json();
-      
-      const collections = {
-        candidatePool: resData.candidatePool,
-        organizations: resData.organizations,
-        dealRooms: resData.dealRooms,
-        requirements_public: resData.requirements_public,
-        submissions: resData.submissions
-      };
-
-      for (const [colName, items] of Object.entries(collections)) {
-        if (!items || !Array.isArray(items)) continue;
-        for (const item of (items as any[])) {
-          const { id, ...rest } = item;
-          try {
-            const docRef = doc(collection(db, colName), id || undefined);
-            await setDoc(docRef, { ...rest, updatedAt: new Date().toISOString() }, { merge: true });
-          } catch (writeErr) {
-            console.error(`Bootstrap FAILED for ${colName}/${id}:`, writeErr);
-          }
-        }
-      }
-      alert("Marketplace Bootstrapped successfully!");
-      window.location.reload();
-    } catch (err) {
-      console.error("Bootstrap failed", err);
-      alert("Bootstrap failed: " + String(err));
-    }
-  };
 
   return (
     <div className="flex-1 overflow-auto p-6 space-y-6 bg-slate-50">
@@ -124,12 +91,6 @@ export default function AdminOverview() {
             <p className="text-xs text-slate-500 font-bold lowercase">global synchronization across the verified staffing execution network.</p>
         </div>
         <div className="flex items-center space-x-3">
-           <button 
-             onClick={handleBootstrap}
-             className="text-[10px] font-black uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 px-6 py-2 rounded-xl shadow-xl shadow-slate-200 transition-all flex items-center gap-2"
-           >
-             <Activity size={14} /> bootstrap marketplace
-           </button>
            <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
               <Shield size={12} />
               <span>network healthy</span>
@@ -140,8 +101,8 @@ export default function AdminOverview() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Verified Req Pool", value: data.requirements.length, icon: Briefcase, color: "text-indigo-600", desc: "authenticated demand" },
-          { label: "Governance Volume", value: `₹${Math.round((totalMargin * 83) / 1000)}k`, icon: DollarSign, color: "text-emerald-600", desc: "platform profit capture" },
-          { label: "Onboarding Queue", value: pendingOnboarding, icon: Users, color: "text-amber-600", desc: "Awaiting Network Admission", action: () => router.push('/admin/users') },
+          { label: "Governance Volume", value: `₹${Math.round(totalMargin / 1000)}k`, icon: DollarSign, color: "text-emerald-600", desc: "platform profit capture" },
+          { label: "Onboarding Queue", value: pendingOnboarding, icon: Users, color: "text-amber-600", desc: "Awaiting Network Admission", action: () => navigate('/users') },
           { label: "Node Population", value: data.organizations.length, icon: Shield, color: "text-slate-900", desc: "entities in execution" }
         ].map((stat) => (
           <div 
@@ -169,23 +130,23 @@ export default function AdminOverview() {
           <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Node Verification Velocity</h3>
             <div className="flex gap-2">
-                <Badge variant="outline" className="text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border-emerald-100">82% Verified</Badge>
+                <Badge variant="outline" className="text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border-emerald-100">{verificationPercent}% Verified</Badge>
             </div>
           </div>
           <div className="p-8">
              <div className="grid grid-cols-3 gap-8 mb-10">
                 {[
-                    { label: "GST/Company", count: "14", total: "18", color: "bg-indigo-500" },
-                    { label: "Aadhaar/Identity", count: "42", total: "50", color: "bg-emerald-500" },
-                    { label: "Official Email", count: "68", total: "74", color: "bg-amber-500" }
+                    { label: "GST/Company", count: authStats.business, total: authStats.total, color: "bg-indigo-500" },
+                    { label: "Aadhaar/Identity", count: authStats.identity, total: authStats.total, color: "bg-emerald-500" },
+                    { label: "Official Email", count: authStats.email, total: authStats.total, color: "bg-amber-500" }
                 ].map((item, i) => (
                     <div key={i}>
                         <div className="flex justify-between items-end mb-2">
                             <span className="text-[10px] font-black text-slate-800 uppercase italic">{item.label}</span>
-                            <span className="text-xs font-black text-slate-900">{Math.round((parseInt(item.count)/parseInt(item.total))*100)}%</span>
+                            <span className="text-xs font-black text-slate-900">{Math.round((item.count/item.total)*100)}%</span>
                         </div>
                         <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden border border-slate-100">
-                            <div className={`h-full ${item.color}`} style={{ width: `${(parseInt(item.count)/parseInt(item.total))*100}%` }}></div>
+                            <div className={`h-full ${item.color}`} style={{ width: `${(item.count/item.total)*100}%` }}></div>
                         </div>
                     </div>
                 ))}
@@ -196,7 +157,7 @@ export default function AdminOverview() {
                 {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').map((req: any) => (
                    <div 
                       key={req.id} 
-                      onClick={() => router.push('/admin/execution')}
+                      onClick={() => navigate('/hq')}
                       className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-3xl hover:border-indigo-200 hover:bg-white hover:shadow-xl transition-all cursor-pointer group"
                    >
                       <div className="flex items-center gap-4">
@@ -205,7 +166,7 @@ export default function AdminOverview() {
                         </div>
                         <div>
                             <div className="text-xs font-black text-slate-900 uppercase tracking-tight group-hover:text-indigo-600">{req.title}</div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Budget Exposure: ₹{(req.clientTargetBudget * 83).toLocaleString()} • Pipeline Pending</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Budget Exposure: ₹{req.clientTargetBudget?.toLocaleString()} • Pipeline Pending</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -249,7 +210,7 @@ export default function AdminOverview() {
                 </div>
 
                 <Button 
-                    onClick={() => router.push('/admin/execution')}
+                    onClick={() => navigate('/hq')}
                     className="w-full mt-10 bg-indigo-600 hover:bg-white hover:text-slate-900 h-14 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-2xl shadow-indigo-500/20"
                 >
                     go to execution hq

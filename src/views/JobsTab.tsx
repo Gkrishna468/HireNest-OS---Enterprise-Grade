@@ -12,10 +12,10 @@ import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 
 export default function JobsTab() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [jdText, setJdText] = useState("");
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
@@ -395,7 +395,7 @@ export default function JobsTab() {
       timestamp: serverTimestamp()
     });
 
-    router.push("/deals");
+    navigate("/deals");
   };
 
   return (
@@ -473,7 +473,6 @@ export default function JobsTab() {
                            className="bg-slate-100 border border-slate-200 rounded-l px-2 text-[10px] font-bold text-slate-600 outline-none"
                         >
                            <option value="INR">₹ INR</option>
-                           <option value="USD">$ USD</option>
                         </select>
                         <input 
                            type="number" 
@@ -648,7 +647,7 @@ export default function JobsTab() {
                     <h4 className="text-xs font-black uppercase tracking-widest text-indigo-900 mb-4">Financial Governance Required</h4>
                     <div className="flex gap-4">
                       <div className="flex-1 space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase text-indigo-400">Specify Requirement Budget ($)</label>
+                        <label className="text-[10px] font-bold uppercase text-indigo-400">Specify Requirement Budget (₹)</label>
                         <div className="flex gap-2">
                           <input 
                             id="client_budget_input"

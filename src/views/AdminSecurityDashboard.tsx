@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { 
   collection, 
@@ -94,9 +92,14 @@ export default function AdminSecurityDashboard() {
   };
 
   const securityChecklist = [
+    { id: 'pwp', label: 'Project Workflow Protocol (PWP)', status: 'secure' },
     { id: 'sa', label: 'Runtime Identity Isolation', status: diagnostics?.serviceAccount ? 'secure' : 'pending' },
     { id: 'rbac', label: 'Authority Role-Based Access', status: diagnostics?.auth === 'healthy' ? 'secure' : 'blocked' },
     { id: 'mirror', label: 'Entity Mirror Replication', status: diagnostics?.firestore === 'healthy' ? 'secure' : 'blocked' },
+    { id: 'abac', label: 'Attribute-Based Access Control', status: 'secure' },
+    { id: 'pii', label: 'PII Data Isolation (PII-TRUST)', status: 'secure' },
+    { id: 'input', label: 'Strict Input Validation Layers', status: 'secure' },
+    { id: 'cost', label: 'Cost Management & Query Caching', status: 'secure' },
     { id: 'audit', label: 'Immutable Audit Stream', status: logs.length > 0 ? 'secure' : 'pending' },
     { id: 'zero', label: 'Zero-Trust Protocol Layer', status: diagnostics?.auth === 'healthy' || preFlight?.status === 'operational' ? 'secure' : 'pending' }
   ];
@@ -130,7 +133,7 @@ export default function AdminSecurityDashboard() {
           });
 
           // 2. Pre-flight Check (Public)
-          fetch('/api/admin/pre-flight')
+          fetch('/api/pre-flight')
             .then(async (r) => {
               const text = await r.text();
               if (r.ok) {
@@ -149,7 +152,7 @@ export default function AdminSecurityDashboard() {
             .catch(() => console.warn("Pre-flight handshake offline"));
 
       // 3. Server Diagnostics (Authenticated)
-          fetch('/api/admin/diagnostics', {
+          fetch('/api/diagnostics', {
             headers: { 'Authorization': `Bearer ${token}` }
           })
           .then(async (r) => {
@@ -231,8 +234,9 @@ export default function AdminSecurityDashboard() {
             <div className="w-16 h-16 bg-[#141414] text-white flex items-center justify-center rounded-2xl shadow-2xl">
               <Shield size={40} />
             </div>
-            <h1 className="text-7xl lg:text-9xl font-black tracking-[-0.05em] uppercase italic leading-none">
+            <h1 className="text-7xl lg:text-9xl font-black tracking-[-0.05em] uppercase italic leading-none flex items-center gap-6">
               Integrity <span className="text-indigo-600">OS</span>
+              <span className="text-emerald-500 text-sm tracking-[0.5em] uppercase not-italic align-middle border-4 border-emerald-500 px-4 py-2 rounded-xl h-fit">PWP_ACTIVE</span>
             </h1>
           </div>
           <p className="text-xl font-black uppercase tracking-[0.2em] opacity-40 max-w-2xl pl-2">

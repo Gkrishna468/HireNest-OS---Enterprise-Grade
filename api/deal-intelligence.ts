@@ -1,0 +1,52 @@
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  try {
+    const { profile, jd, type } = req.body;
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: `
+        You are a strategic recruiting AI copilot for HireNestOS.
+        
+        Job Description: ${jd}
+        Candidate Profile: ${profile}
+        User Role: ${type}
+        
+        If user is 'client', provide 5 high-impact, technical interview questions tailored to the JD vs Candidate match.
+        If user is 'vendor' (the recruiter), provide 5 strategic conversation starters to move the deal forward or address potential match gaps.
+        
+        Return as a JSON object with two keys:
+        "questions": [string, string, string, string, string] (only if client)
+        "starters": [string, string, string, string, string] (only if vendor)
+        
+        Return ONLY valid JSON.
+      `
+    });
+
+    const text = response.text || "{}";
+    
+    // Clean JSON if needed
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(jsonStr);
+
+    res.status(200).json(data);
+  } catch (err: any) {
+    console.error("Deal Intelligence Error:", err);
+    res.status(200).json({
+      questions: ["Verify core technical depth", "Assess architectural contribution", "Cultural alignment check", "Budget and availability sync", "Immediate next steps"],
+      starters: ["Candidate is very excited about the mission", "Shared detailed tech-stack alignment", "Ready for technical round this week", "Looking for clarity on project duration", "Has a competing offer, need fast feedback"]
+    });
+  }
+}

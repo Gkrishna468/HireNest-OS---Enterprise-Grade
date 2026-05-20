@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Activity, Brain, ShieldAlert, TrendingUp, Mail, AlertCircle, CheckCircle } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -10,41 +10,60 @@ export default function AgentHQ() {
   const [governanceQueue, setGovernanceQueue] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
 
+  const fetchInitialized = useRef(false);
+
   const fetchStrategicData = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       // 1. Fetch live governance data
-      const govRes = await fetch("/api/admin/governance-data");
+      const govRes = await fetch("/api/governance");
       const govData = await govRes.json();
       
-      const pending = (govData.requirements_public || []).filter((r: any) => r.status === "PENDING_FINANCIAL_APPROVAL");
+      const requirementsList = govData.requirements || [];
+      const pending = requirementsList.filter((r: any) => r.status === "PENDING_FINANCIAL_APPROVAL");
       setGovernanceQueue(pending);
 
-      // 2. Run strategic agent analysis
-      const stratRes = await fetch("/api/strategy/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          requirements: govData.requirements_public,
-          metrics: govData.metrics
-        })
-      });
-      const stratData = await stratRes.json();
-      setAnalysis(stratData.analysis);
+      // 2. Run strategic agent analysis (optional - handle if API missing)
+      try {
+        const stratRes = await fetch("/api/strategy/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            requirements: requirementsList,
+            metrics: govData.metrics
+          })
+        });
+        if (stratRes.ok) {
+          const stratData = await stratRes.json();
+          setAnalysis(stratData.analysis);
+        }
+      } catch (err) {
+        setAnalysis("Strategic Analysis Offline: Using deterministic heuristics for current session.");
+      }
 
-      // 3. Fetch notifications/logs
-      const notifyRes = await fetch("/api/admin/notifications");
-      const notifyData = await notifyRes.json();
-      setEmailLogs(notifyData);
+      // 3. Fetch notifications/logs (fallback to empty if API missing)
+      try {
+        const notifyRes = await fetch("/api/admin/notifications");
+        if (notifyRes.ok) {
+          const notifyData = await notifyRes.json();
+          setEmailLogs(notifyData);
+        }
+      } catch (err) {
+        setEmailLogs([]);
+      }
     } catch (err) {
-      console.error("Strategic Engine Sync Failed", err);
+      console.warn("[Agent HQ] Strategic Engine Sync Failed", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStrategicData();
+    if (!fetchInitialized.current) {
+        fetchStrategicData();
+        fetchInitialized.current = true;
+    }
   }, []);
 
   return (

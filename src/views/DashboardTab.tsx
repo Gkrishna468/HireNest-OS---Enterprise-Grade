@@ -1,36 +1,43 @@
-import { useEffect, useState } from "react";
-import { Activity, ShieldCheck, Bot } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
+import { useNavigate } from "react-router-dom";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [session, setSession] = useState<{ user: any, org: any } | null>(null);
+  const fetchInitialized = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged(user => {
-      if (user) {
-        // Mocking org for now or fetching from a standard place
-        setSession({
-          user,
-          org: { type: 'admin' } // Default to admin for safety in this dashboard
-        });
+    async function boot() {
+      if (fetchInitialized.current) return;
+      fetchInitialized.current = true;
+
+      try {
+        const resp = await fetch('/api/user-context');
+        if (resp.ok) {
+          const data = await resp.json();
+          setSession({
+            user: data.user,
+            org: { type: data.user.role === 'super_admin' ? 'admin' : data.user.role }
+          });
+        }
+      } catch (err) {
+        console.warn("User context boot failed, falling back to guest mode", err);
+        setSession({ user: { role: 'guest' }, org: { type: 'guest' } });
       }
-    });
-    return () => unsub();
+    }
+
+    boot();
   }, []);
 
-  const user = session?.user;
-  const org = session?.org;
-
   useEffect(() => {
-    if (org) {
-      fetch(`/api/metrics?type=${org.type}`)
-        .then(res => {
-          if (!res.ok) throw new Error("Metadata sync failed");
-          return res.json();
-        })
+    if (session?.org) {
+      fetch(`/api/metrics?type=${session.org.type}`)
+        .then(res => res.json())
         .then(setMetrics)
         .catch(err => {
           console.warn("Metrics fetch failed, using local fallback", err);
@@ -45,20 +52,23 @@ export default function DashboardTab() {
           });
         });
     }
-  }, [org]);
+  }, [session?.org]);
 
   if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Initializing Governance Layer...</div>;
 
-  const isAdmin = org?.type === 'admin';
-  const isClient = org?.type === 'client';
-  const isVendor = org?.type === 'vendor';
+  const org = session?.org;
+  const isAdmin = org?.type === 'admin' || org?.type === 'super_admin';
+  const isClient = org?.type === 'client' || org?.type === 'client_admin';
+  const isVendor = org?.type === 'vendor' || org?.type === 'vendor_admin';
+  const isRecruiter = org?.type === 'recruiter';
+  const isIndependent = org?.type === 'independent';
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50/50">
       <div className="px-6 pt-6 pb-2 bg-white flex items-center justify-between border-b border-slate-100">
         <div className="flex flex-col">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
-             {isClient ? "Operational Recruiting Center" : isVendor ? "V-Network Marketplace OS" : "Global Governance Command"}
+             {isClient ? "Operational Recruiting Center" : isVendor ? "V-Network Marketplace OS" : isRecruiter ? "Recruiter Talent Hub" : isIndependent ? "Independent Provider Node" : "Global Governance Command"}
              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </h2>
           <p className="text-[10px] text-slate-400 font-mono tracking-tighter">Strategic Ledger Sync: {new Date().toLocaleDateString()}</p>
@@ -70,6 +80,10 @@ export default function DashboardTab() {
             <Badge variant="outline" className="text-[9px] uppercase border-emerald-200 text-emerald-600 bg-emerald-50 font-bold px-2 py-1">
               AI MATCH: ONLINE
             </Badge>
+            <Badge variant="outline" className="text-[9px] uppercase border-indigo-200 text-indigo-700 bg-indigo-50 font-bold px-2 py-1 flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              PWP ACTIVE
+            </Badge>
         </div>
       </div>
       
@@ -77,14 +91,62 @@ export default function DashboardTab() {
       <div className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+                {/* Admin Quick Governance */}
+                {isAdmin && (
+                  <div className="bg-slate-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group border border-slate-800">
+                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <Shield size={100} />
+                    </div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                          <ShieldCheck size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black lowercase tracking-tighter italic">Authority Command Center</h3>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global HQ Node Authority</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button 
+                          onClick={() => navigate('/users')}
+                          className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left group/btn"
+                        >
+                          <div className="h-10 w-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400 group-hover/btn:bg-indigo-500 group-hover/btn:text-white transition-all">
+                            <Plus size={20} />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black lowercase tracking-tight">Onboard New Node</div>
+                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Invite Vendors/Clients</div>
+                          </div>
+                        </button>
+
+                        <button 
+                          onClick={() => navigate('/users')}
+                          className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left group/btn"
+                        >
+                          <div className="h-10 w-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-400 group-hover/btn:bg-amber-500 group-hover/btn:text-white transition-all">
+                            <Users size={20} />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black lowercase tracking-tight">Identity Matrix</div>
+                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Verify Supplies & Demand</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Metric Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {(isAdmin || isVendor) && (
+                    {(isAdmin || isVendor || isRecruiter || isIndependent) && (
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer group">
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-amber-600 transition-colors">
-                                {isAdmin ? "Gross Revenue" : "Billable Potential"}
+                                {isAdmin ? "Gross Revenue" : (isRecruiter || isIndependent) ? "Projected Earnings" : "Billable Potential"}
                             </div>
-                            <div className="text-2xl font-black text-slate-900 font-mono">${(metrics.revenue / 1000).toFixed(1)}k</div>
+                            <div className="text-2xl font-black text-slate-900 font-mono">₹{(metrics.revenue / 1000).toFixed(1)}k</div>
                             <div className="flex items-center gap-1 mt-1">
                                 <span className="text-[10px] text-emerald-600 font-bold">↑ 12.4%</span>
                                 <span className="text-[9px] text-slate-300 uppercase font-bold">MoM</span>
@@ -97,7 +159,7 @@ export default function DashboardTab() {
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">
                                 {isAdmin ? "Total Spend" : "Budget Utilization"}
                             </div>
-                            <div className="text-2xl font-black text-slate-900 font-mono">${(metrics.spending / 1000).toFixed(1)}k</div>
+                            <div className="text-2xl font-black text-slate-900 font-mono">₹{(metrics.spending / 1000).toFixed(1)}k</div>
                             <div className="flex items-center gap-1 mt-1">
                                 <div className="h-1 flex-1 bg-slate-100 rounded-full overflow-hidden">
                                      <div className="bg-indigo-500 h-full w-[82%]" />

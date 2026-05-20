@@ -85,7 +85,7 @@ export default function ClientsTab() {
     try {
       const platformProfit = marginType === 'PERCENTAGE' ? (actualBudget * (marginValue / 100)) : marginValue;
       const vendorVisible = actualBudget - platformProfit;
-      const currencySymbol = currency === 'INR' ? '₹' : '$';
+      const currencySymbol = currency === 'INR' ? '₹' : '₹';
       const rateString = `${currencySymbol}${vendorVisible}${model === 'HOURLY' ? '/hr' : (model === 'LPA' ? ' LPA' : ' LPM')}`;
       
       const financials = {
@@ -325,7 +325,7 @@ export default function ClientsTab() {
                         ) : (
                           <div className="text-[11px] font-black text-emerald-600 flex items-center gap-1">
                             <CheckCircle size={10} />
-                            <span>{job.rate || (job.vendorVisibleBudget ? `$${job.vendorVisibleBudget}/hr` : '---')}</span>
+                            <span>{job.rate || (job.vendorVisibleBudget ? `₹${job.vendorVisibleBudget}/hr` : '---')}</span>
                           </div>
                         )}
                       </div>
@@ -367,12 +367,6 @@ export default function ClientsTab() {
                         className={cn("text-[9px] font-black px-1.5 py-0.5 rounded transition-all", currency === 'INR' ? "bg-orange-100 text-orange-700 border border-orange-200" : "bg-slate-100 text-slate-400 border border-transparent")}
                      >
                        ₹ INR
-                     </button>
-                     <button 
-                        onClick={() => setCurrency('USD')}
-                        className={cn("text-[9px] font-black px-1.5 py-0.5 rounded transition-all", currency === 'USD' ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-100 text-slate-400 border border-transparent")}
-                     >
-                       $ USD
                      </button>
                    </div>
                 </div>
@@ -427,11 +421,11 @@ export default function ClientsTab() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Client Target ({currency === 'INR' ? '₹' : '$'})
+                        Client Target (₹)
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
-                          {currency === 'INR' ? '₹' : '$'}
+                          ₹
                         </span>
                         <input 
                           id="actualBudget" 
@@ -460,9 +454,7 @@ export default function ClientsTab() {
                          </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
+                                   <div className="p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500">
                       <Globe2 size={80} />
                     </div>
@@ -471,13 +463,14 @@ export default function ClientsTab() {
                       <ShieldAlert size={14} className="text-emerald-400" />
                     </div>
                     <div className="text-2xl font-black tracking-tighter">
-                      {currency === 'INR' ? '₹' : '$'} VISIBILITY
+                      ₹ VISIBILITY
                     </div>
                     <p className="text-[11px] text-slate-400 mt-2 font-medium leading-relaxed max-w-[80%]">
                       Release approved for {staffingModel} model. Commercial masking active. 
-                      Vendors will see payout in {currency}.
+                      Vendors will see payout in ₹ (INR).
                     </p>
                   </div>
+     </div>
 
                   <div className="flex gap-3">
                     <Button 

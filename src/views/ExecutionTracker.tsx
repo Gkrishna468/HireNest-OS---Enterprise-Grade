@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { 
   CheckSquare, 
   Calendar, 
@@ -83,14 +81,10 @@ export default function ExecutionTracker() {
   useEffect(() => {
     const fetchGovernanceData = async () => {
       try {
-        const response = await fetch('/api/admin/governance-data');
+        const response = await fetch('/api/governance');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (data.ok) {
-          setItems(data.execution_tracker || []);
-        } else {
-          throw new Error(data.error || "Governance Sync Failure");
-        }
+        setItems(data.execution_tracker || []);
       } catch (error: any) {
         console.error("Governance Data Retrieval Error:", error);
         setErrorMsg(error.message);
@@ -105,35 +99,9 @@ export default function ExecutionTracker() {
   }, []);
 
   const filteredItems = items.filter(item => {
-    if (activeTab === "active") return item.status !== "Completed" && item.category === activeCategory;
-    if (activeTab === "completed") return item.status === "Completed" && item.category === activeCategory;
-    if (activeTab === "pending") return item.status === "Waiting" && item.category === activeCategory;
-    if (activeTab === "escalated") return item.status === "Escalated" && item.category === activeCategory;
+    if (activeCategory === 'daily') return true;
     return item.category === activeCategory;
   });
-
-  const seedInitialData = async () => {
-    const initialData = [
-      { category: "daily", title: "Review pending follow-ups", owner: "CEO", deadline: "Today 09:00", priority: "High", status: "In Progress", notes: "Daily Morning Review" },
-      { category: "client", title: "Mapout Digital - Budget Confirmation", owner: "Ops", deadline: "May 20", priority: "High", status: "Waiting", notes: "Waiting for finance feedback", nextAction: "Call Roger" },
-      { category: "vendor", title: "Amce Crop Test - Email Verification", owner: "SecOps", deadline: "May 18", priority: "Medium", status: "In Progress", notes: "Check official domain records", nextAction: "Verify MX records" },
-      { category: "product", title: "AI Resume Parsing Optimization", owner: "Dev", deadline: "May 25", priority: "High", status: "In Progress", notes: "Testing Llama 4 matches" },
-      { category: "sales", title: "GCC Client - LinkedIn Outreach", owner: "Growth", deadline: "May 19", priority: "High", status: "Waiting", notes: "Awaiting reply on demo invite" },
-    ];
-
-    try {
-      for (const item of initialData) {
-        await addDoc(collection(db, "execution_tracker"), {
-          ...item,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-      alert("Intelligence layers seeded successfully.");
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, "execution_tracker");
-    }
-  };
 
   const toggleStatus = async (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === "Completed" ? "In Progress" : "Completed";
@@ -294,7 +262,7 @@ export default function ExecutionTracker() {
                             require manual authority alignment.
                         </p>
                         <div className="mt-8 flex gap-4">
-                            <Link href="/admin/security">
+                            <Link to="/settings">
                                 <Button className="bg-slate-900 text-white rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 hover:scale-105 transition-transform">
                                     Open Security Dashboard
                                 </Button>
@@ -347,13 +315,6 @@ export default function ExecutionTracker() {
                                             <div className="w-16 h-16 bg-slate-50 rounded-3xl mx-auto flex items-center justify-center text-slate-200 mb-4 border border-slate-100 uppercase font-black italic">!</div>
                                             <p className="text-xs font-black text-slate-900 uppercase">No execution items logged</p>
                                             <p className="text-[10px] text-slate-400 font-bold mt-1">Deploy new strategy to the {activeCategory} layer to begin tracking.</p>
-                                            <Button 
-                                                onClick={seedInitialData}
-                                                variant="outline" 
-                                                className="mt-6 border-slate-200 rounded-xl font-black text-[9px] uppercase h-9 shadow-sm"
-                                            >
-                                                Seed Initial Data
-                                            </Button>
                                         </div>
                                     </td>
                                 </tr>
@@ -526,10 +487,10 @@ function EventBusView() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('/api/admin/governance-data')
+        fetch('/api/governance')
             .then(r => r.json())
             .then(data => {
-                if (data.ok) setEvents(data.execution_events || []);
+                setEvents(data.execution_events || []);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
@@ -585,10 +546,10 @@ function RiskCenterView() {
     const [risks, setRisks] = useState<any[]>([]);
 
     useEffect(() => {
-        fetch('/api/admin/governance-data')
+        fetch('/api/governance')
             .then(r => r.json())
             .then(data => {
-                if (data.ok) setRisks(data.risk_assessments || []);
+                setRisks(data.risk_assessments || []);
             });
     }, []);
 
@@ -734,10 +695,10 @@ function TrustIndexView() {
     const [metrics, setMetrics] = useState<any[]>([]);
     
     useEffect(() => {
-        fetch('/api/admin/governance-data')
+        fetch('/api/governance')
             .then(r => r.json())
             .then(data => {
-                if (data.ok) setMetrics(data.trust_metrics || []);
+                setMetrics(data.trust_metrics || []);
             });
     }, []);
 
@@ -1159,11 +1120,11 @@ function CEOOpsView() {
                             <div className="space-y-4">
                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Locked Gross Margin</div>
-                                   <div className="text-2xl font-black text-slate-900">$142,500 <span className="text-xs text-emerald-500 ml-1">↑ 12%</span></div>
+                                   <div className="text-2xl font-black text-slate-900">₹1,18,27,500 <span className="text-xs text-emerald-500 ml-1">↑ 12%</span></div>
                                </div>
                                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pipeline Enterprise Value</div>
-                                   <div className="text-2xl font-black text-slate-900">$2.4M <span className="text-[10px] text-slate-400 font-bold ml-1">EST</span></div>
+                                   <div className="text-2xl font-black text-slate-900">₹20Cr <span className="text-[10px] text-slate-400 font-bold ml-1">EST</span></div>
                                </div>
                             </div>
                         </div>

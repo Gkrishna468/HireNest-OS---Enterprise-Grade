@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
@@ -25,22 +23,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<any>("client_os");
+  const [role, setRole] = useState<any>("client_admin");
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
 
   const roles = [
-    { value: 'admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
-    { value: 'SUPER_ADMIN', label: 'super admin (hq)', category: 'GOVERNANCE' },
-    { value: 'CEO', label: 'chief executive (hq)', category: 'GOVERNANCE' },
-    { value: 'FINANCE_ADMIN', label: 'finance authority (hq)', category: 'GOVERNANCE' },
-    { value: 'RISK_ADMIN', label: 'risk & trust authority (hq)', category: 'GOVERNANCE' },
-    { value: 'CLIENT_ADMIN', label: 'client administrator', category: 'DEMAND' },
-    { value: 'VENDOR_ADMIN', label: 'vendor administrator', category: 'SUPPLY' },
-    { value: 'RECRUITER', label: 'verification recruiter', category: 'SUPPLY' },
-    { value: 'ACCOUNT_MANAGER', label: 'account orchestration', category: 'DEMAND' },
-    { value: 'FREELANCER', label: 'independent freelancer', category: 'SUPPLY' },
+    { value: 'super_admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
+    { value: 'client_admin', label: 'Client', category: 'DEMAND' },
+    { value: 'vendor_admin', label: 'Vendor', category: 'SUPPLY' },
+    { value: 'recruiter', label: 'Recruiter', category: 'SUPPLY' },
+    { value: 'independent', label: 'Independent', category: 'SUPPLY' },
+    { value: 'ACCOUNT_MANAGER', label: 'account manager', category: 'DEMAND' },
+    { value: 'ops_admin', label: 'ops administrator', category: 'GOVERNANCE' },
   ];
 
   const getRoleCategory = (r: string) => {
@@ -98,7 +93,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       
       const token = await user.getIdToken();
       // Fetch everything via governance API (bypasses rules via Admin SDK)
-      const govResp = await fetch('/api/admin/governance-data', {
+      const govResp = await fetch('/api/governance', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -161,7 +156,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setIsSubmitting(true);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/admin/onboard/approve', {
+      const response = await fetch('/api/approve-request', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -185,7 +180,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/admin/onboard-node', {
+      const response = await fetch('/api/create-user', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -223,7 +218,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     if (!window.confirm("Terminate this identity and associated organization?")) return;
     try {
       const token = await auth.currentUser?.getIdToken();
-      await fetch('/api/admin/delete-user', {
+      await fetch('/api/delete-user', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -242,7 +237,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     return getRoleCategory(u.role) === activeTab;
   });
 
-  if (orgData.type !== 'admin') {
+  const isAdmin = orgData?.role === 'admin' || orgData?.role === 'super_admin' || orgData?.role === 'ops_admin';
+
+  if (!isAdmin) {
     return <div className="p-8 text-red-500 font-bold uppercase tracking-tight">Access Denied. Global HQ Node Only.</div>;
   }
 
@@ -556,7 +553,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                                 try {
                                   setIsSubmitting(true);
                                   const token = await auth.currentUser?.getIdToken();
-                                  const resp = await fetch('/api/admin/assign-role', {
+                                  const resp = await fetch('/api/assign-role', {
                                     method: 'POST',
                                     headers: { 
                                       'Content-Type': 'application/json',

@@ -122,8 +122,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       }
       
       const payload = {
-        type: orgType === 'client' ? 'client' : (orgType === 'freelancer_recruiter' ? 'freelancer' : (orgType.includes('recruiter') ? 'recruiter' : 'vendor')),
-        companyName: companyName || (["freelancer_recruiter", "independent_recruiter"].includes(orgType) ? user.displayName : ""),
+        type: orgType === 'client' ? 'client' : (orgType === 'independent_vendor' ? 'independent' : (orgType.includes('recruiter') ? 'recruiter' : 'vendor')),
+        companyName: companyName || (["independent_recruiter", "independent_vendor"].includes(orgType) ? user.displayName : ""),
         email: user.email,
         linkedin: linkedinUrl,
         gstNumber: businessFile ? "GST-PENDING" : null,
@@ -137,7 +137,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
 
       console.log("[PROTOCOL] Initiating Network Onboarding Request...");
       
-      const response = await fetch('/api/onboard/request', {
+      const response = await fetch('/api/onboard-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -273,7 +273,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 onClick={() => { setOrgType("client"); setSelectedRole("client_hm"); }}
                 className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'client' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Client Node</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Client</div>
                 <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Hiring organization looking for elite global talent.</div>
               </button>
               <button
@@ -281,7 +281,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 onClick={() => { setOrgType("vendor_agency"); }}
                 className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'vendor_agency' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Staffing Agency</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Vendor</div>
                 <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Staffing partner or Agency node providing specialists.</div>
               </button>
               <button
@@ -289,24 +289,16 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 onClick={() => { setOrgType("independent_vendor"); }}
                 className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'independent_vendor' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Independent Vendor</div>
-                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">High-authority independent provider or leadership agency.</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Independent</div>
+                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">High-authority independent provider or individual freelancer.</div>
               </button>
               <button
                 type="button"
                 onClick={() => { setOrgType("independent_recruiter"); }}
                 className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'independent_recruiter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
               >
-                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Independent Recruiter</div>
+                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Recruiter</div>
                 <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Solo recruiter managing elite talent deal rooms.</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setOrgType("freelancer_recruiter"); }}
-                className={`p-4 border-2 rounded-2xl text-left transition-all ${orgType === 'freelancer_recruiter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200'}`}
-              >
-                <div className="font-black text-slate-900 text-sm uppercase tracking-tight">Freelancer Recruiter</div>
-                <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold leading-relaxed">Individual contributor providing specialized sourcing.</div>
               </button>
             </div>
           </div>

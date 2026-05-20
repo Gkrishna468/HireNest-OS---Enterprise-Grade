@@ -60,7 +60,7 @@ export default function DealRoomsTab() {
       if (!orgId) return;
       try {
         // Try Proxy FIRST (Filtered by user context)
-        const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
+        const response = await fetch(`/api/user-context?orgId=${orgId}&role=${userRole}`);
         if (response.ok) {
            const resData = await response.json();
            if (resData.dealRooms) {
@@ -116,7 +116,7 @@ export default function DealRoomsTab() {
       const loadMessages = async () => {
         try {
            // Try Proxy for messages first if available in the sync payload
-           const response = await fetch('/api/admin/governance-data');
+           const response = await fetch('/api/governance');
            if (response.ok) {
              // In a real scenario we'd have a specific messages endpoint or filtered sync
              // For now we'll allow Firestore to handle chat as it's more real-time, 
@@ -170,7 +170,7 @@ export default function DealRoomsTab() {
     if (!selectedRoom) return;
     setIsAiLoading(true);
     try {
-      const response = await fetch('/api/deal/intelligence', {
+      const response = await fetch('/api/deal-intelligence', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
