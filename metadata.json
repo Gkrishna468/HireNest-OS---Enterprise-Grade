@@ -1,13 +1,11 @@
 {
-  "name": "HireNest OS v5.2 (Integrity Reasoning)",
-  "description": "Autonomous Workforce Coordination & Governance OS. Featuring a mission-critical Intent-Based Reasoning Engine, enterprise integrity layer, and self-regulating multi-agent trust orchestration.",
+  "name": "HireNestOS",
+  "description": "Enterprise Workforce Governance OS",
   "requestFramePermissions": [
     "camera",
     "microphone"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ],
-  "lastUpdate": "2026-05-18T10:00:00Z",
-  "version": "5.0.0-CORTEX-ORCHESTRATION"
+  ]
 }

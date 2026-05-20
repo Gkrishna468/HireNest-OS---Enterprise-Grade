@@ -56,7 +56,6 @@ export default function AgentHQ() {
                    <Brain className="text-indigo-600" size={32} /> 
                    Strategic Agent HQ
                 </h1>
-                <p className="text-slate-500 font-medium mt-1">Chief of Staffing & Recruitment Intelligence Dashboard</p>
             </div>
             <Button 
                 onClick={fetchStrategicData} 
