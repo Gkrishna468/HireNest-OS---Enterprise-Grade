@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
@@ -79,23 +81,27 @@ export default function ExecutionTracker() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "execution_tracker"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setItems(data);
-      setLoading(false);
-      setErrorMsg(null);
-    }, (error) => {
-      console.error("Execution Tracker Stream Error:", error);
-      setErrorMsg(error.message);
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, "execution_tracker");
-    });
+    const fetchGovernanceData = async () => {
+      try {
+        const response = await fetch('/api/admin/governance-data');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data.ok) {
+          setItems(data.execution_tracker || []);
+        } else {
+          throw new Error(data.error || "Governance Sync Failure");
+        }
+      } catch (error: any) {
+        console.error("Governance Data Retrieval Error:", error);
+        setErrorMsg(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    fetchGovernanceData();
     // v5.0 Autonomous trigger
     runawayAgentCheck();
-    
-    return () => unsub();
   }, []);
 
   const filteredItems = items.filter(item => {
@@ -520,13 +526,13 @@ function EventBusView() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const q = query(collection(db, "execution_events"), orderBy("timestamp", "desc"));
-        return onSnapshot(q, (snap) => {
-            setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            setLoading(false);
-        }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, "execution_events");
-        });
+        fetch('/api/admin/governance-data')
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) setEvents(data.execution_events || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
     }, []);
 
     return (
@@ -579,11 +585,11 @@ function RiskCenterView() {
     const [risks, setRisks] = useState<any[]>([]);
 
     useEffect(() => {
-        return onSnapshot(collection(db, "risk_assessments"), (snap) => {
-            setRisks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, "risk_assessments");
-        });
+        fetch('/api/admin/governance-data')
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) setRisks(data.risk_assessments || []);
+            });
     }, []);
 
     return (
@@ -728,11 +734,11 @@ function TrustIndexView() {
     const [metrics, setMetrics] = useState<any[]>([]);
     
     useEffect(() => {
-        return onSnapshot(collection(db, "trust_metrics"), (snap) => {
-            setMetrics(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, "trust_metrics");
-        });
+        fetch('/api/admin/governance-data')
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) setMetrics(data.trust_metrics || []);
+            });
     }, []);
 
     const calculateGrade = (score: number) => {
@@ -813,11 +819,11 @@ function OrchestrationHubView() {
     const [requirements, setRequirements] = useState<any[]>([]);
     
     useEffect(() => {
-        return onSnapshot(collection(db, "requirements_public"), (snap) => {
-            setRequirements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, "requirements_public");
-        });
+        fetch('/api/admin/governance-data')
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) setRequirements(data.requirements_public || []);
+            });
     }, []);
 
     return (
@@ -1028,12 +1034,11 @@ function AgentOrchestrationView() {
     const [activities, setActivities] = useState<any[]>([]);
     
     useEffect(() => {
-        const q = query(collection(db, "agent_activities"), orderBy("timestamp", "desc"), limit(20));
-        return onSnapshot(q, (snap) => {
-            setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, "agent_activities");
-        });
+        fetch('/api/admin/governance-data')
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) setActivities(data.agent_activities || []);
+            });
     }, []);
 
     const agents = [

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { 
   collection, 
@@ -20,12 +22,16 @@ import {
   BrainCircuit,
   Zap,
   Target,
-  ShieldAlert
+  ShieldAlert,
+  Cpu,
+  BarChart3,
+  Network
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { runAutonomousReasoning } from "../services/intelligenceService";
+import { MatchEngine, EmploymentType, CompensationModel, WorkMode } from "../services/matchEngine";
 
 export default function AdminSecurityDashboard() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -34,9 +40,40 @@ export default function AdminSecurityDashboard() {
   const [loading, setLoading] = useState(true);
   const [reasoningActive, setReasoningActive] = useState(false);
   const [reasoningResult, setReasoningResult] = useState<any>(null);
+  const [testMatch, setTestMatch] = useState<any>(null);
 
   // Founder Narrative Strategy
   const strategyNarrative = "AI can help you ship fast. But if you don't secure what you build, you're creating liabilities. HireNest OS transforms 'vibe coding' into enterprise-grade production infrastructure.";
+
+  const runMatchProbe = () => {
+    const jd = {
+      skills: ["React", "TypeScript", "Node.js", "Firebase"],
+      domain: "Fintech",
+      experience: 5,
+      location: "Hyderabad",
+      budget: 35,
+      employmentType: EmploymentType.CONTRACT,
+      compensationModel: CompensationModel.LPM,
+      workMode: WorkMode.REMOTE
+    };
+    const candidate = {
+      skills: ["React", "TypeScript", "Next.js"],
+      domain: "Fintech",
+      experience: 4,
+      location: "Bangalore",
+      budget: 32,
+      employmentType: EmploymentType.CONTRACT,
+      compensationModel: CompensationModel.LPM,
+      workMode: WorkMode.REMOTE
+    };
+    const vendor = {
+      trustScore: 92,
+      deliveryHistory: 88,
+      specializations: ["Web-Development", "Fintech"]
+    };
+    const result = MatchEngine.calculateUniversalScore(jd, candidate, vendor);
+    setTestMatch(result);
+  };
 
   const runGovernanceAudit = async () => {
     setReasoningActive(true);
@@ -129,8 +166,10 @@ export default function AdminSecurityDashboard() {
             try { errorData = JSON.parse(errorRaw); } catch(e) {}
             
             return {
-              auth: "handshake-failed",
-              firestore: "handshake-failed",
+              ok: false,
+              governance: "degraded",
+              auth: "sync-delayed",
+              firestore: "sync-delayed",
               authDetails: errorData.details || errorData.message || errorRaw || `HTTP ${r.status}`,
               remediation: errorData.remediation || (errorData as any).remediation,
               serviceAccount: errorData.serviceAccount || (errorData as any).serviceAccount || null,
@@ -230,8 +269,8 @@ export default function AdminSecurityDashboard() {
           {/* DIAGNOSTICS TILES (Visible Grid Recipe 1) */}
           <div className="grid grid-cols-1 md:grid-cols-4 border-4 border-[#141414] divide-y-4 md:divide-y-0 md:divide-x-4 divide-[#141414] shadow-[12px_12px_0px_rgba(20,20,20,0.05)]">
             {[
-              { label: "Authority Node", value: diagnostics?.auth || "PENDING", status: diagnostics?.auth === "healthy" ? "OK" : "ERR" },
-              { label: "Entity Mirror", value: diagnostics?.firestore || "PENDING", status: diagnostics?.firestore === "healthy" ? "OK" : "ERR" },
+              { label: "Authority Node", value: preFlight?.ok ? "CONNECTED" : (diagnostics?.status === "STABLE" ? "STABLE" : "PENDING"), status: preFlight?.ok ? "OK" : (diagnostics?.status === "STABLE" ? "OK" : "ERR") },
+              { label: "Governance Sync", value: diagnostics?.ok ? "SYNCHRONIZED" : (diagnostics?.error || "GOVERNANCE_SYNC_DELAYED"), status: diagnostics?.ok ? "OK" : "ERR" },
               { label: "Runtime Identity", value: preFlight?.identitySource ? `${diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING..."} [VIA: ${preFlight.identitySource}]` : (diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING..."), status: "DATA" },
               { label: "Project Details", value: `${diagnostics?.projectId || preFlight?.nodeId || "hirenest-os"} (#${diagnostics?.projectNumber || "..."})`, status: "DATA" }
             ].map((item, idx) => (
@@ -581,6 +620,110 @@ export default function AdminSecurityDashboard() {
                    </tbody>
                 </table>
              </div>
+          </div>
+
+          {/* AI ORCHESTRATION PREVIEW (New Enterprise Layer) */}
+          <div className="bg-[#141414] text-white p-12 rounded-[48px] border-[12px] border-[#2A2A2A] shadow-2xl space-y-12">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="bg-indigo-600 p-6 rounded-3xl text-white shadow-[0_0_60px_rgba(79,70,229,0.3)]">
+                  <Cpu size={40} strokeWidth={3} />
+                </div>
+                <div>
+                  <h2 className="text-4xl font-black tracking-tighter uppercase italic">AI Orchestration <span className="text-indigo-400">V2</span></h2>
+                  <p className="text-indigo-200/60 font-black uppercase tracking-[0.3em] text-[10px]">Universal Match & Broadcast Engine</p>
+                </div>
+              </div>
+              <Button 
+                className="bg-white text-black hover:bg-slate-200 rounded-2xl font-black uppercase text-xs px-8 py-6 shadow-xl"
+                onClick={runMatchProbe}
+              >
+                Execute Match Probe
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              {/* MATCH ENGINE PREVIEW */}
+              <div className="bg-white/5 p-8 rounded-[40px] border-2 border-white/10 space-y-8">
+                <div className="flex items-center gap-4 border-b-2 border-white/5 pb-6">
+                   <Target className="text-emerald-400" size={24} />
+                   <div className="space-y-0.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Universal Match Engine</p>
+                      <h4 className="text-xl font-black italic uppercase">Enterprise Fit Score</h4>
+                   </div>
+                </div>
+
+                {testMatch ? (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                       <span className="text-5xl font-black italic tracking-tighter text-emerald-400">{testMatch.finalScore}%</span>
+                       <Badge className="bg-emerald-500/20 border-emerald-500/40 text-emerald-400">HIGH_CONFIDENCE</Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                       {Object.entries(testMatch.breakdown).map(([k, v]: any) => (
+                         <div key={k} className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">{k}</p>
+                            <div className="flex items-center justify-between">
+                               <p className="font-mono text-sm font-bold">{v}%</p>
+                               <div className="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+                                  <div className="h-full bg-indigo-500" style={{ width: `${v}%` }} />
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-20 text-center space-y-4">
+                     <p className="font-mono text-xs text-slate-500 animate-pulse tracking-widest">AWAITING_PROBE_EXECUTION...</p>
+                     <p className="text-[10px] text-slate-600 uppercase max-w-[200px] mx-auto italic leading-relaxed">
+                        Matches candidates using specialized LPM/LPA weighing models and vendor trust scores.
+                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* BROADCAST ENGINE PREVIEW */}
+              <div className="bg-white/5 p-8 rounded-[40px] border-2 border-white/10 space-y-8">
+                <div className="flex items-center gap-4 border-b-2 border-white/5 pb-6">
+                   <Network className="text-indigo-400" size={24} />
+                   <div className="space-y-0.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Vector Broadcast Engine</p>
+                      <h4 className="text-xl font-black italic uppercase">Vendor Segmentation</h4>
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                   <div className="space-y-4">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-tight">
+                         <span className="text-slate-500">Segmentation Model</span>
+                         <span className="text-indigo-400">AI-SEGMENT_V2</span>
+                      </div>
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                         <div className="h-full w-[85%] bg-indigo-500" />
+                      </div>
+                   </div>
+
+                   <div className="space-y-3 bg-white/5 p-6 rounded-2xl border border-white/5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Broadcast Guardrails</p>
+                      <ul className="space-y-2">
+                        {[
+                          "Trust Score Floor: 70",
+                          "Domain Specialization Multiplier",
+                          "Delivery Velocity Weighing",
+                          "Anti-Spam Throttling"
+                        ].map((rule, i) => (
+                          <li key={i} className="flex items-center gap-3 text-xs font-semibold text-slate-400 italic">
+                             <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                             {rule}
+                          </li>
+                        ))}
+                      </ul>
+                   </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

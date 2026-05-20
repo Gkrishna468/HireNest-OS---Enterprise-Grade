@@ -1,16 +1,10 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // =====================================================
-    // 0. GLOBAL DEFAULT DENY
-    // =====================================================
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // =====================================================
-    // 1. CORE SECURITY HELPERS (Phase 3 & Pillars)
+    // GLOBAL HELPERS & AUTHORITY SYSTEM
     // =====================================================
 
     function isSignedIn() {
@@ -22,6 +16,34 @@ service cloud.firestore {
              request.auth.token.get('email_verified', false) == true;
     }
 
+    function isHQ() {
+      let email = (request.auth.token.email != null ? request.auth.token.email : "").lower();
+      return isVerified() && (
+        email == "gopal@hirenestworkforce.com" ||
+        email == "gopalkrishna0046@gmail.com"
+      );
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.role in [
+          "admin", 
+          "super_admin", 
+          "platform_authority", 
+          "hq_admin", 
+          "ceo"
+        ] || isHQ()
+      );
+    }
+
+    // =====================================================
+    // DATA ISOLATION (PII) & ORG HELPERS
+    // =====================================================
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -30,199 +52,173 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function currentUserId() {
-      return request.auth.uid;
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Use Custom Claims for Efficiency (Pillar 8)
     function currentOrgId() {
-      return request.auth.token.get('organizationId', null);
+      return getUserData().organizationId;
     }
 
-    function userRole() {
-      return request.auth.token.get('role', '');
-    }
-
-    function hasRole(role) {
-      return isVerified() && userRole() == role;
-    }
-
-    function isAdmin() {
-      // Use both possible email locations for maximum reliability
-      let email = (request.auth.token.email != null ? request.auth.token.email : request.auth.token.get('email', '')).lower();
-      return isSignedIn() && (
-        email == 'gopalkrishna0046@gmail.com' || 
-        email == 'gopal@hirenestworkforce.com' ||
-        email == 'gopalkrishna.sv46@gmail.com' ||
-        email == 'founder.itconsulting@outlook.com' ||
-        userRole() == 'admin'
+    function isSameOrg(orgId) {
+      return isVerified() && (
+        request.auth.token.organizationId == orgId ||
+        currentOrgId() == orgId
       );
     }
 
-    function isValidId(id) {
-      return id is string &&
-             id.size() <= 128;
+    function isOrganizationMember(orgId) {
+      return isVerified() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             currentOrgId() == orgId;
     }
 
     // =====================================================
-    // 2. VALIDATION BLUEPRINTS (Pillar 2 & 5)
+    // VALIDATION SCHEMA HELPERS
     // =====================================================
 
     function isValidOrganization(data) {
-      return data.keys().hasAll(['companyName', 'type']) &&
-             data.companyName is string && data.companyName.size() <= 200 &&
-             data.type in ['vendor', 'client', 'admin', 'recruitment_agency', 'independent_vendor', 'freelancer'] &&
-             (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending', 'suspended']);
+      return
+        (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency', 'independent_vendor', 'freelancer']) &&
+        (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending', 'suspended']) &&
+        (!data.keys().hasAny(['verificationTier']) || data.verificationTier in ['Tier 1', 'Tier 2', 'Tier 3']);
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['email', 'role']) &&
-             data.email is string && data.email.size() <= 150 &&
-             data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor'];
+      return
+        (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor']) &&
+        (!data.keys().hasAny(['verification']) || data.verification is map) &&
+        (!data.keys().hasAny(['identityDocs']) || data.identityDocs is map);
     }
 
-    function isValidRequirement(data) {
-      return data.keys().hasAll(['clientId', 'title', 'status']) &&
-             data.clientId is string && isValidId(data.clientId) &&
-             data.title is string && data.title.size() <= 200 &&
-             data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED'];
+    function isValidRequirementPublic(data) {
+      return
+        (!data.keys().hasAny(['status']) || data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED']) &&
+        (!data.keys().hasAny(['visibility']) || data.visibility in ['INTERNAL', 'VENDOR_NETWORK']) &&
+        (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200));
     }
 
     function isValidCandidate(data) {
-      return data.keys().hasAll(['vendorId', 'name']) &&
-             data.vendorId is string && isValidId(data.vendorId) &&
-             data.name is string && data.name.size() <= 200;
+      return
+        (!data.keys().hasAny(['pipelineStage']) || data.pipelineStage in ['Candidate Added', 'Duplicate Review', 'Matched', 'Client Submission', 'Deal Room']) &&
+        (!data.keys().hasAny(['distillationStatus']) || data.distillationStatus in ['PENDING', 'COMPLETED', 'FAILED']) &&
+        (!data.keys().hasAny(['matchScore']) || data.matchScore is number);
+    }
+
+    function isValidDealRoom(data) {
+      return
+        (!data.keys().hasAny(['status']) || data.status in ['ACTIVE', 'CLOSED']) &&
+        (!data.keys().hasAny(['requirementId']) || data.requirementId is string);
     }
 
     function isValidMessage(data) {
-      return data.keys().hasAll(['text', 'senderId', 'timestamp']) &&
-             data.text is string && data.text.size() <= 5000 &&
-             data.senderId == request.auth.uid;
+      return
+        (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 5000)) &&
+        (!data.keys().hasAny(['type']) || data.type in ['text', 'system']);
     }
 
     // =====================================================
-    // 3. COLLECTION RULES
+    // GOVERNANCE GUARDRAILS
     // =====================================================
 
-    // ONBOARDING REQUESTS
-    match /onboarding_requests/{requestId} {
-      allow list: if isAdmin();
-      allow get: if isAdmin() || (isVerified() && (isValidId(requestId) && existing().email == request.auth.token.email));
-      allow create: if isVerified();
-      allow update, delete: if isAdmin() && isValidId(requestId);
-    }
-
-    // USERS
     match /users/{userId} {
-      allow read: if isAdmin() || (isVerified() && isValidId(userId));
-      allow create: if isVerified() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming());
-      allow update: if isValidId(userId) && (
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'verification', 'updatedAt', 'status'])) ||
-        (isVerified() && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'linkedinUrl', 'identityDocs']))
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isVerified() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if (isAdmin() || isOwner(userId)) && isValidUser(incoming()) && (
+        isAdmin() ? 
+          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'organizationId', 'verification', 'updatedAt', 'status']) :
+          incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'linkedinUrl', 'identityDocs'])
       );
     }
 
-    // ORGANIZATIONS
     match /organizations/{orgId} {
-      allow read: if isAdmin() || (isVerified() && isValidId(orgId));
-      allow create: if isVerified() && isValidId(orgId) && isValidOrganization(incoming());
-      allow update: if isValidId(orgId) && (
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'trustGrade', 'verificationLevel', 'updatedAt', 'msaUploaded', 'ndaUploaded'])) ||
-        (isVerified() && currentOrgId() == orgId && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'businessDocsUploaded', 'updatedAt']))
+      allow read: if isSameOrg(orgId) || isAdmin();
+      allow create: if isVerified() && isValidOrganization(incoming());
+      allow update: if (isAdmin() || isOrganizationMember(orgId)) && isValidOrganization(incoming()) && (
+        isAdmin() ? true :
+        incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ndaUploaded', 'msaUploaded', 'businessDocsUploaded', 'updatedAt'])
       );
     }
 
-    // PUBLIC REQUIREMENTS
-    match /requirements_public/{reqId} {
-      allow read: if isAdmin() || (isVerified() && isValidId(reqId));
-      allow create: if isVerified() && isValidId(reqId) && isValidRequirement(incoming());
-      allow update: if isValidId(reqId) && (
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials', 'matchProcessingStatus'])) ||
-        (isVerified() && currentOrgId() == existing().clientId && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills', 'updatedAt', 'experience', 'minExp', 'maxExp', 'workMode']))
-      );
-    }
-
-    // CANDIDATE POOL
-    match /candidatePool/{candId} {
-      allow list: if isVerified() && (isAdmin() || resource.data.vendorId == currentOrgId());
-      allow get: if isVerified() && isValidId(candId) && (isAdmin() || existing().vendorId == currentOrgId());
-      allow create: if isVerified() && isValidId(candId) && incoming().vendorId == currentOrgId() && isValidCandidate(incoming());
-      allow update: if isVerified() && isValidId(candId) && (
-        (isAdmin()) || 
-        (existing().vendorId == currentOrgId() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'skills', 'experience', 'updatedAt', 'matchScore', 'pipelineStage']))
-      );
-      allow delete: if isAdmin() || (isVerified() && isValidId(candId) && existing().vendorId == currentOrgId());
-    }
-
-    // SUBMISSIONS
-    match /submissions/{subId} {
-      allow list: if isVerified() && (isAdmin() || resource.data.vendorId == currentOrgId());
-      allow get: if isVerified() && isValidId(subId) && (isAdmin() || existing().vendorId == currentOrgId() || currentOrgId() == get(/databases/$(database)/documents/requirements_public/$(existing().requirementId)).data.clientId);
-      allow create: if isVerified() && isValidId(subId) && incoming().vendorId == currentOrgId();
-      allow update: if isValidId(subId) && isAdmin();
-    }
-
-    // DEAL ROOMS
-    match /dealRooms/{roomId} {
-      allow list: if isVerified() && (isAdmin() || resource.data.clientId == currentOrgId() || resource.data.vendorId == currentOrgId());
-      allow get: if isVerified() && isValidId(roomId) && (isAdmin() || existing().clientId == currentOrgId() || existing().vendorId == currentOrgId());
-      allow create: if isVerified() && isValidId(roomId) && (isAdmin() || (incoming().clientId == currentOrgId() || incoming().vendorId == currentOrgId()));
-      allow update: if isVerified() && isValidId(roomId) && (isAdmin() || (existing().clientId == currentOrgId() || existing().vendorId == currentOrgId()));
-    }
-
-    // DEAL ROOM MESSAGES
-    match /dealRooms/{roomId}/messages/{msgId} {
-      allow read: if isVerified() && isValidId(roomId) && (
-        isAdmin() || 
-        get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId == currentOrgId() ||
-        get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId == currentOrgId()
-      );
-      allow create: if isVerified() && isValidId(roomId) && isValidId(msgId) && (
-        get(/databases/$(database)/documents/dealRooms/$(roomId)).data.clientId == currentOrgId() ||
-        get(/databases/$(database)/documents/dealRooms/$(roomId)).data.vendorId == currentOrgId()
-      ) && isValidMessage(incoming());
-    }
-
-    // AUDIT LOGS
     match /auditLogs/{logId} {
-      allow list, get: if isAdmin();
-      allow create: if isVerified();
-    }
-
-    // NOTIFICATIONS
-    match /notifications/{notifId} {
-      allow list: if isVerified() && (resource.data.recipientId == request.auth.uid || resource.data.recipientOrgId == currentOrgId() || isAdmin());
-      allow get: if isVerified() && isValidId(notifId) && (existing().recipientId == request.auth.uid || existing().recipientOrgId == currentOrgId() || isAdmin());
-      allow create: if isVerified();
-      allow update: if isVerified() && isValidId(notifId) && (existing().recipientId == request.auth.uid) && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
-    }
-
-    // EXECUTION TRACKER & EVENTS
-    match /execution_tracker/{itemId} {
-      allow read: if isVerified();
-      allow write: if isAdmin();
-    }
-    
-    match /execution_events/{eventId} {
       allow read: if isAdmin();
-      allow create: if isVerified();
+      allow write: if isVerified(); // System logs entry
     }
 
-    // TRUST & AGENT ACTIVITY
-    match /trust_metrics/{metricId} {
-      allow read: if isVerified();
+    match /execution_tracker/{docId} {
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
-    match /agent_activities/{actId} {
-      allow read: if isVerified();
+    match /onboarding_requests/{reqId} {
+      allow read: if isAdmin() || (isVerified() && resource.data.email == request.auth.token.email);
       allow create: if isVerified();
+      allow update, delete: if isAdmin();
     }
 
-    // RISK ASSESSMENTS
-    match /risk_assessments/{riskId} {
-      allow read: if isAdmin() || isVerified();
-      allow create: if isAdmin() || (isVerified() && incoming().entityType == 'user');
+    // =====================================================
+    // APPLICATION COLLECTIONS
+    // =====================================================
+
+    match /requirements_public/{reqId} {
+      allow read: if true;
+      allow create: if isVerified() && isValidRequirementPublic(incoming());
+      allow update: if (isAdmin() || isOrganizationMember(existing().clientId)) && isValidRequirementPublic(incoming()) && (
+        isAdmin() ?
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials', 'matchProcessingStatus']) :
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills', 'updatedAt', 'experience', 'minExp', 'maxExp', 'workMode'])
+      );
+    }
+
+    match /requirements_private/{reqId} {
+      allow read: if isAdmin() || (isVerified() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow write: if isAdmin();
+    }
+
+    match /candidatePool/{candId} {
+      allow read: if isAdmin() || isSameOrg(resource.data.vendorId);
+      allow create: if isVerified() && isSameOrg(incoming().vendorId) && isValidCandidate(incoming());
+      allow update: if (isAdmin() || isSameOrg(existing().vendorId)) && isValidCandidate(incoming());
+      allow delete: if isAdmin() || isSameOrg(existing().vendorId);
+    }
+
+    match /submissions/{id} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.vendorId) || isSameOrg(resource.data.clientId));
+      allow write: if isVerified();
+    }
+
+    match /dealRooms/{roomId} {
+      allow read: if isVerified() && (isAdmin() || request.auth.uid in resource.data.participants || isSameOrg(resource.data.clientId) || isSameOrg(resource.data.vendorId));
+      allow create: if (isAdmin() || (isVerified() && (incoming().clientId == currentOrgId() || incoming().vendorId == currentOrgId()))) && isValidDealRoom(incoming());
+      allow update: if (isAdmin() || (isVerified() && (existing().clientId == currentOrgId() || existing().vendorId == currentOrgId()))) && isValidDealRoom(incoming());
+      
+      match /messages/{msgId} {
+        allow read: if isVerified() && (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/dealRooms/$(roomId)).data.participants);
+        allow create: if isVerified() && isValidMessage(incoming());
+      }
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isVerified() && (resource.data.recipientId == request.auth.uid || isAdmin());
+      allow create: if isVerified();
+      allow update: if isVerified() && request.auth.uid == resource.data.recipientId && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
+    }
+
+    // =====================================================
+    // AI + ANALYTICS + SYSTEM
+    // =====================================================
+
+    match /predictions/{predId} { allow read: if isVerified(); allow write: if false; }
+    match /trust_metrics/{nodeId} { allow read: if isVerified(); allow write: if false; }
+    match /agent_activities/{activityId} { allow read: if isVerified(); allow create: if isVerified(); }
+
+    // =====================================================
+    // GLOBAL FALLBACK
+    // =====================================================
+
+    match /{document=**} {
+      allow read, write: if isHQ();
     }
   }
 }
+

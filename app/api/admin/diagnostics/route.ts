@@ -1,59 +1,81 @@
-import admin from "firebase-admin";
-import { getAdminApp } from "@/src/server/firebase-admin";
+import { NextResponse } from "next/server";
+import * as admin from "firebase-admin";
 
 export const runtime = "nodejs";
 
+/**
+ * Enterprise Diagnostics Node
+ * STRICT ISOLATION POLICY: No shared library imports.
+ */
+
+function getRobustAdminApp() {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
+
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || 
+                 process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+
+  if (!saJson) {
+    throw new Error("MISSING_SERVICE_ACCOUNT_NODE");
+  }
+
+  try {
+    let sa;
+    const trimmed = saJson.trim();
+    try {
+      sa = JSON.parse(trimmed);
+    } catch (e) {
+      // Handle escaped newlines or loose formatting
+      sa = JSON.parse(trimmed.replace(/\n/g, '\\n'));
+    }
+
+    if (sa.private_key) {
+      sa.private_key = sa.private_key.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
+    }
+
+    return admin.initializeApp({
+      credential: admin.credential.cert(sa),
+      projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "hirenest-os"
+    });
+  } catch (err: any) {
+    console.error("[DIAGNOSTICS] INIT_FAILURE", err.message);
+    throw err;
+  }
+}
+
 export async function GET() {
   try {
-    console.log("[DIAG] STEP 1: Booting Admin Context");
-    const app = getAdminApp();
+    const app = getRobustAdminApp();
+    const auth = admin.auth(app);
+    const db = admin.firestore(app);
+
+    // 1. Connectivity Probe
+    const authProbe = await auth.listUsers(1);
     
-    console.log("[DIAG] STEP 2: Initializing Subsystems");
-    const db = app.firestore();
-    const auth = app.auth();
+    // 2. Storage Connectivity (Basic)
+    const dbProbe = await db.collection("_health").limit(1).get();
 
-    const results: any = {
+    return NextResponse.json({
       ok: true,
-      status: "operational",
-      appsInitialized: admin.apps.length,
+      status: "STABLE",
+      handshake: "SUCCESS",
       projectId: app.options.projectId,
-      timestamp: new Date().toISOString(),
-      runtime: "healthy"
-    };
-
-    console.log("[DIAG] STEP 3: Probing Authority (Auth)");
-    try {
-      await auth.listUsers(1);
-      results.auth = "healthy";
-    } catch (e: any) {
-      console.warn("[DIAG] Auth probe failed:", e.message);
-      results.auth = "degraded";
-      results.authError = e.message;
-    }
-
-    console.log("[DIAG] STEP 4: Probing Entity Mirror (Firestore)");
-    try {
-      await db.collection("_health_ping").limit(1).get();
-      results.firestore = "healthy";
-    } catch (e: any) {
-      console.warn("[DIAG] Firestore probe failed:", e.message);
-      results.firestore = "unreachable";
-      results.firestoreError = e.message;
-    }
-
-    results.governance = (results.auth === "healthy" && results.firestore === "healthy") ? "healthy" : "degraded";
-
-    console.log("[DIAG] STEP 5: Finalizing Handshake");
-    return Response.json(results);
+      probes: {
+        auth: { status: "ACTIVE", count: authProbe.users.length },
+        firestore: { status: "ACTIVE", docs: dbProbe.size }
+      },
+      timestamp: Date.now(),
+      vibe: "PROPER_GOVERNANCE"
+    });
   } catch (err: any) {
-    console.error("[DIAG] FATAL CRASH:", err);
-    return Response.json({
+    console.error("[DIAGNOSTICS_FATAL]", err);
+    return NextResponse.json({
       ok: false,
-      phase: "diagnostics",
-      error: "DIAGNOSTICS_FAILURE",
-      message: err.message,
+      status: "DEGRADED",
+      error: err.message,
+      code: err.code || "INTERNAL_FAILURE",
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }, { status: 500 });
   }
 }
-

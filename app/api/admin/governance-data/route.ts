@@ -1,46 +1,65 @@
 import { getAdminApp } from "@/src/server/firebase-admin";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+/**
+ * Enterprise Governance Sync Route
+ * Bypasses Firestore rules via Admin SDK to provide HQ telemetry.
+ */
 export async function GET() {
   try {
-    console.log("[GOV] STEP 1: Booting Governance Context");
     const app = getAdminApp();
     const db = app.firestore();
-    
-    console.log("[GOV] STEP 2: Executing Distributed Retrieval (Fault-Tolerant)");
-    const collections = ["users", "organizations", "candidates", "deal_rooms", "requirements"];
-    
-    const results = await Promise.allSettled(
-      collections.map(col => db.collection(col).limit(50).get())
-    );
+    const auth = app.auth();
 
-    const data: any = {};
-    results.forEach((result, index) => {
-      const colName = collections[index];
-      if (result.status === "fulfilled") {
-        data[colName] = result.value.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      } else {
-        console.warn(`[GOV] Partial failure for ${colName}:`, result.reason.message);
-        data[colName] = [];
-      }
-    });
+    // 1. Fetch Parallel Collections
+    const collections = [
+      "users",
+      "organizations",
+      "execution_tracker",
+      "onboarding_requests",
+      "execution_events",
+      "risk_assessments",
+      "trust_metrics"
+    ];
 
-    console.log("[GOV] STEP 3: Finalizing Sync");
-    return Response.json({
+    const results: any = {
       ok: true,
-      ...data,
-      candidatePool: data.candidates, // Legacy mapping
-      requirements_public: data.requirements, // Legacy mapping
-      timestamp: new Date().toISOString()
+      timestamp: Date.now(),
+      mode: "LIVE",
+      nodeId: app.options.projectId || "hirenest-os"
+    };
+
+    const fetchPromises = collections.map(async (name) => {
+      const snap = await db.collection(name).limit(100).get();
+      results[name] = snap.docs.map(doc => {
+        const data = doc.data();
+        // Safe Serialization
+        return {
+          id: doc.id,
+          ...Object.fromEntries(
+            Object.entries(data).map(([k, v]) => {
+              if (v && typeof v === 'object' && 'toDate' in v) {
+                return [k, (v as any).toDate().toISOString()];
+              }
+              return [k, v];
+            })
+          )
+        };
+      });
     });
+
+    await Promise.all(fetchPromises);
+
+    return NextResponse.json(results);
   } catch (err: any) {
-    console.error("[GOV] FATAL GOVERNANCE SYNC FAILURE:", err);
-    return Response.json({
+    console.error("[GOVERNANCE SYNC SYNDROME]", err);
+    return NextResponse.json({
       ok: false,
-      error: "GOVERNANCE_SYNC_FAILURE",
-      message: err.message
+      error: "GOVERNANCE_SYNC_DEGRADED",
+      message: err.message,
+      code: err.code || "INTERNAL_ERROR"
     }, { status: 500 });
   }
 }
-

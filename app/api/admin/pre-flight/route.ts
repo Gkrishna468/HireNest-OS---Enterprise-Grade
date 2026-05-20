@@ -1,4 +1,4 @@
-import { getAdminApp } from "@/src/server/firebase-admin.ts";
+import { getAdminApp } from "@/src/server/firebase-admin";
 
 export const runtime = "nodejs";
 
