@@ -394,6 +394,25 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // --- PUBLIC CONFIG & SYNC ---
+  app.get("/api/debug-env", (req, res) => {
+    try {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+      return res.json({
+        exists: !!raw,
+        length: raw?.length || 0,
+        startsWith: raw?.substring(0, 40),
+        containsPrivateKey: raw?.includes("BEGIN PRIVATE KEY"),
+        containsSingleEscape: raw?.includes("\\n"),
+        containsDoubleEscape: raw?.includes("\\\\n"),
+        projectIdEnv: process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
+        nodeEnv: process.env.NODE_ENV,
+        hostname: req.hostname
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: "DEBUG_ENV_ERROR", message: e.message });
+    }
+  });
+
   app.get("/api/config/client", (req, res) => {
     // Attempt to load the applet config to serve it dynamically
     let baseConfig: any = {};
@@ -541,6 +560,7 @@ async function startServer() {
           status: "error",
           error: "PRE_FLIGHT_CRASH", 
           message: e.message,
+          stack: process.env.NODE_ENV === 'development' ? e.stack : undefined,
           nodeId: globalProjectId,
           identitySource
         });
@@ -830,11 +850,12 @@ async function startServer() {
       res.status(200).json(results);
     } catch (fatalErr: any) {
       console.error("[DIAGNOSTICS FATAL]", fatalErr);
-      res.status(200).json({ 
-        ...results,
+      res.status(500).json({ 
+        status: "error",
         error: "DIAGNOSTICS_FAILURE", 
-        authDetails: fatalErr.message,
-        details: fatalErr.message,
+        message: fatalErr.message,
+        stack: process.env.NODE_ENV === 'development' ? fatalErr.stack : undefined,
+        node: globalProjectId,
         nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE"
       });
     }

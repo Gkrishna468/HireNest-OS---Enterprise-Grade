@@ -30,8 +30,8 @@ function getServiceAccount() {
     }
 
     if (sa.private_key) {
-      // Fix common newline escaping issues
-      sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+      // Robustly handle both single-escaped (\n) and double-escaped (\\n) newlines
+      sa.private_key = sa.private_key.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
     }
     return sa;
   } catch (err: any) {
