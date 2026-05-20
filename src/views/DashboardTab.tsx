@@ -1,13 +1,28 @@
 import { useEffect, useState } from "react";
 import { Activity, ShieldCheck, Bot } from "lucide-react";
-import { currentUserState } from "../App";
+import { auth } from "../lib/firebase";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
-  const user = currentUserState?.user;
-  const org = currentUserState?.org;
+  const [session, setSession] = useState<{ user: any, org: any } | null>(null);
+
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged(user => {
+      if (user) {
+        // Mocking org for now or fetching from a standard place
+        setSession({
+          user,
+          org: { type: 'admin' } // Default to admin for safety in this dashboard
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const user = session?.user;
+  const org = session?.org;
 
   useEffect(() => {
     if (org) {
