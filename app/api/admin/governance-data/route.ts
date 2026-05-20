@@ -2,12 +2,11 @@ import { getAdminApp } from "@/src/server/firebase-admin.ts";
 
 export const runtime = "nodejs";
 
-export default async function handler(req: any, res: any) {
+export async function GET() {
   try {
     const app = getAdminApp();
     const db = app.firestore();
     
-    // Controlled, non-crashing data retrieval for the dashboard
     const [usersSnap, orgsSnap, candSnap, roomsSnap, reqsSnap] = await Promise.all([
       db.collection("users").limit(50).get().catch(() => ({ docs: [] })),
       db.collection("organizations").limit(50).get().catch(() => ({ docs: [] })),
@@ -22,7 +21,7 @@ export default async function handler(req: any, res: any) {
     const dealRooms = roomsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
     const requirements_public = reqsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
-    return res.status(200).json({
+    return Response.json({
       ok: true,
       users,
       organizations,
@@ -32,11 +31,10 @@ export default async function handler(req: any, res: any) {
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
-    console.error("[GOVERNANCE STANDALONE FATAL]", err);
-    return res.status(500).json({
+    return Response.json({
       ok: false,
       error: "GOVERNANCE_SYNC_FAILURE",
       message: err.message
-    });
+    }, { status: 500 });
   }
 }

@@ -3,7 +3,7 @@ import { getAdminApp } from "@/src/server/firebase-admin.ts";
 
 export const runtime = "nodejs";
 
-export default async function handler(req: any, res: any) {
+export async function GET() {
   try {
     const app = getAdminApp();
     
@@ -33,13 +33,12 @@ export default async function handler(req: any, res: any) {
       results.firestoreError = e.message;
     }
 
-    return res.status(200).json(results);
+    return Response.json(results);
   } catch (err: any) {
-    return res.status(500).json({
+    return Response.json({
       ok: false,
       error: "DIAGNOSTICS_FAILURE",
-      message: err.message,
-      stack: err.stack
-    });
+      message: err.message
+    }, { status: 500 });
   }
 }
