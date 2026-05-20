@@ -1,9 +1,8 @@
 import './globals.css';
-import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'HireNest OS',
-  description: 'Autonomous Workforce Coordination & Governance OS',
+export const metadata = {
+  title: 'HireNestOS',
+  description: 'Enterprise Workforce Governance OS',
 };
 
 export default function RootLayout({
