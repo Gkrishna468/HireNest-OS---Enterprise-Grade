@@ -11,6 +11,9 @@ import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
 import admin from 'firebase-admin';
+import { getAdminApp } from "./src/server/firebase-admin";
+
+export const runtime = "nodejs";
 
 const require = createRequire(import.meta.url);
 
@@ -156,75 +159,26 @@ const AuditService = {
 console.log(`[HQ CORE] Boot sequence initiated...`);
 
 let initializationError: string | null = null;
-let identitySource: string = "UNKNOWN";
+let identitySource: string = "CENTRALIZED_MODULE";
 
 async function initializeGovernanceLayer() {
   try {
     console.log(`[HQ CORE] Governance Handshake Initiated...`);
     initializationError = null;
     
-    // Resolve precise project identity
-    const identity = await resolveIdentity();
-    globalProjectId = identity.id;
-    identitySource = identity.source;
+    const app = getAdminApp();
+    globalProjectId = app.options.projectId || "hirenest-os";
     
-    if (identity.error) {
-       initializationError = identity.error;
-    }
-
-    console.log(`[HQ CORE] Governance Target: ${globalProjectId} (Source: ${identitySource})`);
-    
-    if (!globalProjectId || globalProjectId === "" || globalProjectId === "undefined") {
-       console.warn("[HQ CORE] Resolved project ID invalid, resetting to hirenest-os");
-       globalProjectId = "hirenest-os";
-    }
-
     // Set globally for other libraries
     process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
     process.env.GCLOUD_PROJECT = globalProjectId;
     process.env.FIREBASE_PROJECT_ID = globalProjectId;
 
-    // Initialize Admin SDK
-    if (admin.apps.length === 0) {
-      let credential;
-      const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT;
-      
-      try {
-        if (saJson && saJson !== "undefined" && saJson !== "null" && saJson !== "") {
-          if (saJson.trim().startsWith('sk_')) {
-             throw new Error("FIREBASE_SERVICE_ACCOUNT is a Stripe key (sk_...), expected Firebase Service Account JSON.");
-          }
-          let sa;
-          try {
-             sa = JSON.parse(saJson.trim());
-          } catch (e) {
-             sa = JSON.parse(saJson.trim().replace(/\n/g, '\\n'));
-          }
-
-          if (sa.private_key) {
-             sa.private_key = sa.private_key.replace(/\\n/g, '\n');
-          }
-          credential = admin.credential.cert(sa);
-          console.log("[HQ CORE] Authority granted via explicit Service Account.");
-        } else {
-          credential = admin.credential.applicationDefault();
-          console.log("[HQ CORE] Authority granted via Application Default Credentials.");
-        }
-      } catch (e: any) {
-        console.warn(`[HQ CORE] Credential Resolution Restricted: ${e.message}`);
-        initializationError = initializationError ? `${initializationError} | ${e.message}` : e.message;
-      }
-
-      admin.initializeApp({
-        projectId: globalProjectId,
-        credential
-      });
-      
-      console.log(`[HQ CORE] Nexus Established Node: ${admin.app().options.projectId}`);
-    }
+    console.log(`[HQ CORE] Nexus Established Node: ${globalProjectId}`);
   } catch (e: any) {
     console.error("[HQ CORE FATAL] Global Handshake Failure:", e.message);
-    initializationError = initializationError ? `${initializationError} | ${e.message}` : e.message;
+    initializationError = e.message;
+    // We don't throw here to allow the server to start and serve diagnostic JSON
   }
 }
 
@@ -554,7 +508,8 @@ async function startServer() {
             hostname: req.hostname,
             identityResolved: !!globalProjectId,
             identitySource: identitySource,
-            initializationError: initializationError
+            initializationError: initializationError,
+            runtime: "nodejs"
         };
         
         try {
@@ -576,12 +531,19 @@ async function startServer() {
 
         if (initializationError) {
           results.status = "error";
+          results.errorDetails = initializationError;
         }
         
-        res.json(results);
+        return res.json(results);
     } catch (e: any) {
         console.error("[PRE-FLIGHT CRASH]", e);
-        res.status(500).json({ error: "PRE_FLIGHT_ERROR", message: e.message });
+        return res.status(500).json({ 
+          status: "error",
+          error: "PRE_FLIGHT_CRASH", 
+          message: e.message,
+          nodeId: globalProjectId,
+          identitySource
+        });
     }
   });
   app.get("/api/health", (req, res) => {
@@ -724,13 +686,24 @@ async function startServer() {
       appsInitialized: admin.apps.length,
       auth: "checking",
       firestore: "checking",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      runtime: "nodejs"
     };
 
     try {
       if (admin.apps.length === 0) {
         await initializeGovernanceLayer();
         results.projectId = globalProjectId;
+      }
+      
+      // Ensure we have an app or fail early with JSON
+      if (admin.apps.length === 0) {
+        return res.status(503).json({
+           ...results,
+           status: "error",
+           error: "GOVERNANCE_OFFLINE",
+           message: "Governance layer failed to boot: " + initializationError
+        });
       }
 
       // 1. Identity Discovery (Non-blocking)
