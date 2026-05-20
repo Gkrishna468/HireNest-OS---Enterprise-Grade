@@ -10,8 +10,6 @@ import { createRequire } from 'module';
 import mammoth from 'mammoth';
 import nlp from 'compromise';
 import natural from 'natural';
-import admin from 'firebase-admin';
-import { getAdminApp } from "./src/server/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -19,102 +17,39 @@ const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
 let globalProjectId: string = "hirenest-os"; 
+let initializationError: string | null = null;
+let identitySource: string = "CENTRALIZED_MODULE";
 
-// Identity Handshake Logic
-async function resolveIdentity() {
-  // 5. Baseline Fallback
-  const baseline = "hirenest-os";
-
-  // 1. Explicit Env Override (High priority)
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PROJECT_ID !== "undefined" && process.env.FIREBASE_PROJECT_ID !== "") {
-    console.log(`[IDENTITY] Resolved via FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID}`);
-    return { id: process.env.FIREBASE_PROJECT_ID, source: "ENV_VAR (FIREBASE_PROJECT_ID)" };
-  }
-  if (process.env.PROJECT_ID && process.env.PROJECT_ID !== "undefined" && process.env.PROJECT_ID !== "") {
-    console.log(`[IDENTITY] Resolved via PROJECT_ID: ${process.env.PROJECT_ID}`);
-    return { id: process.env.PROJECT_ID, source: "ENV_VAR (PROJECT_ID)" };
-  }
-  if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== "undefined" && process.env.GOOGLE_CLOUD_PROJECT !== "") {
-    console.log(`[IDENTITY] Resolved via GOOGLE_CLOUD_PROJECT: ${process.env.GOOGLE_CLOUD_PROJECT}`);
-    return { id: process.env.GOOGLE_CLOUD_PROJECT, source: "ENV_VAR (GOOGLE_CLOUD_PROJECT)" };
-  }
-  if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== "undefined" && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== "") {
-    console.log(`[IDENTITY] Resolved via NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}`);
-    return { id: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, source: "ENV_VAR (NEXT_PUBLIC_FIREBASE_PROJECT_ID)" };
-  }
-  
-  // 2. Service Account JSON lookup
-  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT;
-  if (saJson && saJson !== "undefined" && saJson !== "null" && saJson !== "") {
-    if (saJson.startsWith('sk_live_') || saJson.startsWith('sk_test_') || saJson.trim().startsWith('sk_')) {
-      console.error("[IDENTITY] CRITICAL: FIREBASE_SERVICE_ACCOUNT appears to be a STRIPE key, not Firebase JSON.");
-      return { id: baseline, source: "ERROR (STRIPE_KEY_MISUSE)", error: "FIREBASE_SERVICE_ACCOUNT contains a Stripe secret key (sk_...)." };
-    }
-
-    try {
-      // Direct parse first (best practice)
-      let sa;
-      try {
-        sa = JSON.parse(saJson.trim());
-      } catch (e) {
-        // Fallback: try removing un-escaped newlines if user pasted raw JSON with breaks
-        const sanitized = saJson.trim().replace(/\n/g, '\\n');
-        sa = JSON.parse(sanitized);
-      }
-
-      if (sa.project_id) {
-        console.log(`[IDENTITY] Resolved via Service Account JSON (Project: ${sa.project_id})`);
-        return { id: sa.project_id, source: "SERVICE_ACCOUNT" };
-      }
-    } catch(e: any) {
-        console.warn(`[IDENTITY] Service Account JSON parse attempt failed: ${e.message}`);
-        // Log a small snippet to help debug format issues without exposing the full key
-        console.warn(`[IDENTITY] SA String Start: ${saJson.substring(0, 20)}...`);
-        return { id: baseline, source: "ERROR (MALFORMED_JSON)", error: `JSON Parse Error: ${e.message}. Ensure it is a complete {"type":...} object.` };
-    }
-  }
-
-  // 3. Metadata fallback (AIS only)
+async function initializeGovernanceLayer() {
   try {
-    const metaId = await fetchMetadata("project/project-id");
-    if (metaId && metaId !== "undefined" && metaId !== "") {
-      console.log(`[IDENTITY] Resolved via Cloud Metadata: ${metaId}`);
-      return { id: metaId, source: "METADATA" };
-    }
-  } catch(e) {}
+    console.log(`[HQ CORE] Governance Handshake Initiated...`);
+    initializationError = null;
+    
+    // Lazy import node-fetch if needed (not needed for native fetch in Node 18+)
+    const { getAdminApp } = await import("./src/server/firebase-admin");
+    const app = getAdminApp();
+    globalProjectId = app.options.projectId || "hirenest-os";
+    
+    // Set globally for other libraries
+    process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
+    process.env.GCLOUD_PROJECT = globalProjectId;
+    process.env.FIREBASE_PROJECT_ID = globalProjectId;
 
-    // 4. Config file fallback
-    try {
-      const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-      if (fs.existsSync(firebaseConfigPath)) {
-        const content = fs.readFileSync(firebaseConfigPath, 'utf-8');
-        const config = JSON.parse(content);
-        if (config.projectId && config.projectId !== "hirenest-os") {
-          console.log(`[IDENTITY] Resolved via firebase-applet-config.json: ${config.projectId}`);
-          return { id: config.projectId, source: "CONFIG_FILE" };
-        }
-      }
-    } catch(e) {
-      console.warn("[IDENTITY] Config file read attempt failed (expected in some serverless modes)");
-    }
-
-  // 5. Baseline Fallback
-  console.warn(`[IDENTITY] No project identity found in environment. Falling back to baseline: ${baseline}`);
-  return { id: baseline, source: "BASELINE" };
+    console.log(`[HQ CORE] Nexus Established Node: ${globalProjectId}`);
+    return true;
+  } catch (e: any) {
+    console.error("[HQ CORE FATAL] Global Handshake Failure:", e.message);
+    initializationError = e.message;
+    return false;
+  }
 }
 
-  // Metadata fetch with timeout helper
+// Metadata fetch with timeout helper
 async function fetchMetadata(metaPath: string): Promise<string | null> {
-  // Check if we even have network/reason to check
-  if (process.env.NODE_ENV === 'test' || (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.VERCEL)) {
-     // Skip metadata on typical local dev for speed
-     // return null; 
-  }
-  
   const url = `http://metadata.google.internal/computeMetadata/v1/${metaPath}`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600); // Tight 600ms timeout for metadata
+    const timeoutId = setTimeout(() => controller.abort(), 600); // Tight 600ms timeout
     
     const response = await fetch(url, {
       headers: { "Metadata-Flavor": "Google" },
@@ -132,11 +67,22 @@ async function fetchMetadata(metaPath: string): Promise<string | null> {
   }
 }
 
+/**
+ * Lazy helper to resolve the Firebase Admin SDK object without top-level imports.
+ */
+async function getAdmin() {
+  const admin = await import('firebase-admin').then(m => m.default || m);
+  return admin;
+}
+
 const AuditService = {
   log: async (userId: string, action: string, metadata: any = {}) => {
     try {
-      if (admin.apps.length === 0) return;
-      const db = admin.firestore();
+      const admin = await import('firebase-admin').then(m => m.default || m);
+      const { getAdminApp } = await import("./src/server/firebase-admin");
+      const app = getAdminApp();
+      const db = app.firestore();
+      
       const logId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       console.log(`[ORCHESTRATOR] Logging Governance Event: ${action} for Node: ${userId}`);
       await db.collection("auditLogs").doc(logId).set({
@@ -155,40 +101,11 @@ const AuditService = {
   }
 };
 
-// Initialize Firebase Admin with explicit project attribution
-console.log(`[HQ CORE] Boot sequence initiated...`);
-
-let initializationError: string | null = null;
-let identitySource: string = "CENTRALIZED_MODULE";
-
-async function initializeGovernanceLayer() {
-  try {
-    console.log(`[HQ CORE] Governance Handshake Initiated...`);
-    initializationError = null;
-    
-    const app = getAdminApp();
-    globalProjectId = app.options.projectId || "hirenest-os";
-    
-    // Set globally for other libraries
-    process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
-    process.env.GCLOUD_PROJECT = globalProjectId;
-    process.env.FIREBASE_PROJECT_ID = globalProjectId;
-
-    console.log(`[HQ CORE] Nexus Established Node: ${globalProjectId}`);
-  } catch (e: any) {
-    console.error("[HQ CORE FATAL] Global Handshake Failure:", e.message);
-    initializationError = e.message;
-    // We don't throw here to allow the server to start and serve diagnostic JSON
-  }
-}
-
-// Invoke initialization
-const initPromise = initializeGovernanceLayer();
-
 const UsageService = {
   checkQuota: async (ownerId: string, type: string): Promise<boolean> => {
     try {
-      const db = admin.firestore();
+      const { getAdminApp } = await import("./src/server/firebase-admin");
+      const db = getAdminApp().firestore();
       const snap = await db.collection("quotas")
         .where("ownerId", "==", ownerId)
         .where("quotaType", "==", type)
@@ -206,12 +123,15 @@ const UsageService = {
       }
       return true;
     } catch (e) {
-      return true; // Fail open for resilience, or fail closed for security? HireNest prefers resilience for now.
+      return true; // Fail open for resilience
     }
   },
   increment: async (ownerId: string, type: string, amount: number = 1) => {
     try {
-      const db = admin.firestore();
+      const { getAdminApp } = await import("./src/server/firebase-admin");
+      const db = getAdminApp().firestore();
+      const admin = await import('firebase-admin').then(m => m.default || m);
+      
       const snap = await db.collection("quotas")
         .where("ownerId", "==", ownerId)
         .where("quotaType", "==", type)
@@ -346,74 +266,22 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Await core initialization
-  await initPromise;
+  // --- MINIMAL DIAGNOSTIC ROUTES FIRST (No imports, no await) ---
+  app.get("/api/ping", (req, res) => res.json({ ok: true, msg: "pong", node: process.version }));
   
-  // --- Dependency Onboarding ---
-  try {
-    // Use require for pdf-parse as it's more reliable for this older package even in ESM
-    const pp = require('pdf-parse');
-    if (typeof pp === 'function') {
-      pdfParse = pp;
-    } else if (pp && typeof pp.default === 'function') {
-      pdfParse = pp.default;
-    } else {
-      pdfParse = pp; // Last resort
-    }
-    console.log("[DEP] PDF-Parse initialized, type:", typeof pdfParse);
-  } catch (e) {
-    console.warn("[DEP] PDF-Parse fallback to import...");
-    try {
-      const pp = await import('pdf-parse') as any;
-      pdfParse = pp.default || pp;
-    } catch (e2) {
-      console.warn("[DEP] PDF-Parse engine offline");
-    }
-  }
-
-  try {
-    // @ts-ignore
-    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
-    pdfjsLib = pdfjs;
-    console.log("[DEP] PDFJS-Dist initialized");
-  } catch (e) {
-    try {
-        // @ts-ignore
-        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
-        pdfjsLib = pdfjs.default || pdfjs;
-    } catch (e2) {
-        console.warn("[DEP] PDFJS fallback engine offline");
-    }
-  }
-  
-  app.use((req, res, next) => {
-    next();
-  });
-
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-  // --- PUBLIC CONFIG & SYNC ---
   app.get("/api/debug-env", (req, res) => {
-    try {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-      return res.json({
-        exists: !!raw,
-        length: raw?.length || 0,
-        startsWith: raw?.substring(0, 40),
-        containsPrivateKey: raw?.includes("BEGIN PRIVATE KEY"),
-        containsSingleEscape: raw?.includes("\\n"),
-        containsDoubleEscape: raw?.includes("\\\\n"),
-        projectIdEnv: process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
-        nodeEnv: process.env.NODE_ENV,
-        hostname: req.hostname
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: "DEBUG_ENV_ERROR", message: e.message });
-    }
+    return res.json({
+        exists: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID || "not_set",
+        node: process.version,
+        time: Date.now()
+    });
   });
 
-  app.get("/api/config/client", (req, res) => {
+  // Await core initialization AFTER minimal routes
+  await initializeGovernanceLayer();
+
+  app.get("/api/config/client", async (req, res) => {
     // Attempt to load the applet config to serve it dynamically
     let baseConfig: any = {};
     try {
@@ -423,6 +291,7 @@ async function startServer() {
       }
     } catch (e) {}
 
+    const admin = await import('firebase-admin').then(m => m.default || m);
     // Return only public-safe configuration, overriding project ID with current runtime detection
     res.json({
         ...baseConfig,
@@ -433,7 +302,8 @@ async function startServer() {
     });
   });
 
-  app.get("/api/health/node", (req, res) => {
+  app.get("/api/health/node", async (req, res) => {
+    const admin = await import('firebase-admin').then(m => m.default || m);
     res.json({ 
       status: "ok", 
       governance: admin.apps.length > 0 ? "established" : "pending",
@@ -447,6 +317,7 @@ async function startServer() {
     const requestId = Math.random().toString(36).substring(7);
     try {
       console.log(`[HQ SECURITY] [${requestId}] Handshake check: ${req.path}`);
+      const admin = await import('firebase-admin').then(m => m.default || m);
       
       const app = admin.apps.length > 0 ? admin.app() : null;
       if (!app) {
@@ -518,6 +389,7 @@ async function startServer() {
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
     try {
+        const admin = await import('firebase-admin').then(m => m.default || m);
         const results: any = { 
             status: "operational", 
             timestamp: new Date().toISOString(),
@@ -566,7 +438,8 @@ async function startServer() {
         });
     }
   });
-  app.get("/api/health", (req, res) => {
+  app.get("/api/health", async (req, res) => {
+    const admin = await import('firebase-admin').then(m => m.default || m);
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
@@ -579,6 +452,7 @@ async function startServer() {
   app.post("/api/admin/system/re-init", verifyAdmin, async (req, res) => {
     try {
       console.log("[HQ SYSTEM] Infrastructure re-initialization requested...");
+      const admin = await import('firebase-admin').then(m => m.default || m);
       
       // Detailed tracking
       const report: any = { steps: [] };
@@ -640,6 +514,7 @@ async function startServer() {
       
       if (!authHeader) return res.status(401).json({ error: "UNAUTHORIZED" });
       const token = authHeader.split('Bearer ')[1];
+      const admin = await import('firebase-admin').then(m => m.default || m);
       const decoded = await admin.auth().verifyIdToken(token);
       const uid = decoded.uid;
       const orgId = decoded.organizationId || context?.orgId;
@@ -700,6 +575,7 @@ async function startServer() {
   }
 
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
+    const admin = await import('firebase-admin').then(m => m.default || m);
     const results: any = {
       projectId: globalProjectId,
       envProjectId: process.env.GOOGLE_CLOUD_PROJECT,
@@ -863,13 +739,14 @@ async function startServer() {
 
   app.get("/api/admin/audit-logs", verifyAdmin, async (req, res) => {
     try {
+      const admin = await import('firebase-admin').then(m => m.default || m);
       const db = admin.firestore();
       // Temporarily remove orderBy to rule out missing index timeout
       const snapPromise = db.collection("auditLogs").limit(100).get();
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Audit logs fetch timed out")), 8000));
-      const snap = await Promise.race([snapPromise, timeoutPromise]) as admin.firestore.QuerySnapshot;
+      const snap = await Promise.race([snapPromise, timeoutPromise]) as any;
       
-      const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const logs = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       // Sort manually in memory if needed
       logs.sort((a: any, b: any) => {
         const tA = a.timestamp?.seconds || 0;
@@ -886,13 +763,14 @@ async function startServer() {
 
   app.get("/api/admin/risk-assessments", verifyAdmin, async (req, res) => {
     try {
+      const admin = await import('firebase-admin').then(m => m.default || m);
       const db = admin.firestore();
       // Remove orderBy temporarily
       const snapPromise = db.collection("risk_assessments").limit(50).get();
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Risk assessment fetch timed out")), 8000));
-      const snap = await Promise.race([snapPromise, timeoutPromise]) as admin.firestore.QuerySnapshot;
+      const snap = await Promise.race([snapPromise, timeoutPromise]) as any;
       
-      const risks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const risks = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       res.json(risks);
     } catch (err: any) {
       console.error("[RISK FETCH FAIL]", err.message);
@@ -906,6 +784,7 @@ async function startServer() {
       if (!uid || !role) return res.status(400).json({ error: "UID and Role are required" });
       
       console.log(`[HQ IAM] Assigning role [${role}] and org [${organizationId}] to [${uid}]`);
+      const admin = await import('firebase-admin').then(m => m.default || m);
       
       const claims: any = { role };
       if (organizationId) claims.organizationId = organizationId;
@@ -961,6 +840,7 @@ async function startServer() {
 
   app.get("/api/admin/governance-data", verifyAdmin, async (req, res) => {
     try {
+      const admin = await import('firebase-admin').then(m => m.default || m);
       const db = admin.firestore();
       const currentAdminEmail = (req as any).user?.email?.toLowerCase().trim();
       
@@ -971,7 +851,8 @@ async function startServer() {
       let mode = "LIVE";
       
       try {
-        const app = admin.app();
+        const { getAdminApp } = await import("./src/server/firebase-admin");
+        const app = getAdminApp();
         const db = app.firestore();
         const activeProjectId = app.options.projectId || globalProjectId;
         console.log(`[HQ SYNC] Attempting handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
@@ -1055,6 +936,7 @@ async function startServer() {
   app.post("/api/onboard/request", async (req, res) => {
     try {
       const { type, companyName, email, linkedin, gstNumber, aadhaarNumber, metadata } = req.body;
+      const admin = await getAdmin();
       const db = admin.firestore();
       
       const requestId = "REQ-" + Math.random().toString(36).substring(2, 11).toUpperCase();
@@ -1098,6 +980,7 @@ async function startServer() {
   app.post("/api/admin/onboard/approve", verifyAdmin, async (req, res) => {
     try {
       const { requestId, role, password } = req.body;
+      const admin = await getAdmin();
       const db = admin.firestore();
       const auth = admin.auth();
       
@@ -1221,6 +1104,7 @@ async function startServer() {
 
       console.log(`[ONBOARD] Provisioning node [${email}] with role [${role}] under authority [${(req as any).user?.email}]`);
 
+      const admin = await getAdmin();
       if (admin.apps.length === 0) {
         throw new Error("CORE_OFFLINE: Global authority layer is not initialized.");
       }
@@ -1348,6 +1232,7 @@ async function startServer() {
   app.post("/api/admin/update-user", verifyAdmin, async (req, res) => {
     try {
       const { uid, email, password, companyName, role, organizationId } = req.body;
+      const admin = await getAdmin();
       
       // Update Auth
       const updateData: any = {};
@@ -1390,6 +1275,7 @@ async function startServer() {
     try {
       const { uid, organizationId } = req.body;
       console.log(`[DELETE USER] Purging identity ${uid}...`);
+      const admin = await getAdmin();
       
       if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
       const app = admin.app();
@@ -1444,6 +1330,7 @@ async function startServer() {
 
       console.log(`[JOB STATUS] Updating ${jobId} to ${status}...`);
 
+      const admin = await getAdmin();
       if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
       const app = admin.app();
       const db = app.firestore();
