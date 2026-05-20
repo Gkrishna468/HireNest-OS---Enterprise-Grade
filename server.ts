@@ -373,72 +373,29 @@ async function startServer() {
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
     try {
-        const { getAdminApp } = await import("./src/server/firebase-admin");
-        const app = getAdminApp();
-        const activeProjectId = app.options.projectId;
-        
+        // Minimal response to confirm runtime is ALIVE
         const results: any = { 
             status: "operational", 
             timestamp: new Date().toISOString(),
-            nodeId: globalProjectId,
-            activeProjectId,
-            appsCount: (await import('firebase-admin')).default.apps.length,
-            env: process.env.NODE_ENV,
-            hostname: req.hostname,
-            identityResolved: !!globalProjectId,
-            identitySource: identitySource,
-            initializationError: initializationError,
-            runtime: "nodejs"
+            runtime: "nodejs",
+            nodeVersion: process.version,
+            projectId: globalProjectId
         };
         
-        // CHECK 1: Environment Variables
+        // Non-blocking environment check
         results.env = {
           FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT,
           FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "not_set",
-          GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT || "not_set",
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "not_set"
+          DEPLOYMENT_ENV: process.env.NODE_ENV || "unknown"
         };
 
-        // CHECK 2: ProjectID Mismatch
-        if (activeProjectId && process.env.FIREBASE_PROJECT_ID && activeProjectId !== process.env.FIREBASE_PROJECT_ID) {
-          results.status = "warning";
-          results.mismatch = `CRITICAL MISMATCH: Runtime Project (${activeProjectId}) != Env Var (${process.env.FIREBASE_PROJECT_ID})`;
-        }
-
-        try {
-          const [sa, proj] = await Promise.all([
-             fetchMetadata("instance/service-accounts/default/email"),
-             fetchMetadata("project/project-id")
-          ]);
-          results.runtimeIdentity = sa || "local-or-unknown";
-          results.runtimeProjectId = proj || globalProjectId;
-          
-          if (identitySource === "BASELINE" && !req.hostname.includes("localhost") && !req.hostname.includes("run.app") && !req.hostname.includes("aistudio")) {
-             results.status = "restricted";
-             results.advice = "Project Identity Restricted: Node is running under baseline 'hirenest-os' on a production domain. You must configure FIREBASE_SERVICE_ACCOUNT and FIREBASE_PROJECT_ID secrets in Vercel/Environment.";
-             results.isLikelyMisconfig = true;
-          }
-        } catch (metadataErr) {
-          results.metadataError = true;
-        }
-
-        if (initializationError) {
-          results.status = "error";
-          results.errorDetails = initializationError;
-        }
-        
         return res.json(results);
     } catch (e: any) {
-        console.error("[PRE-FLIGHT ERROR]", e);
+        console.error("[PRE-FLIGHT CRASH]", e);
         return res.status(500).json({ 
           status: "error",
           error: "PRE_FLIGHT_CRASH", 
-          message: e.message,
-          code: e.code,
-          stack: e.stack, // Always show stack during this recovery phase
-          nodeId: globalProjectId,
-          identitySource,
-          fullError: JSON.stringify(e, Object.getOwnPropertyNames(e))
+          message: e.message
         });
     }
   });
@@ -579,164 +536,61 @@ async function startServer() {
   }
 
   app.get("/api/admin/diagnostics", verifyAdmin, async (req, res) => {
-    const admin = await import('firebase-admin').then(m => m.default || m);
-    const results: any = {
-      projectId: globalProjectId,
-      envProjectId: process.env.GOOGLE_CLOUD_PROJECT,
-      appsInitialized: admin.apps.length,
-      auth: "checking",
-      firestore: "checking",
-      timestamp: new Date().toISOString(),
-      runtime: "nodejs"
-    };
-
     try {
-      if (admin.apps.length === 0) {
-        await initializeGovernanceLayer();
-        results.projectId = globalProjectId;
-      }
-      
-      // Ensure we have an app or fail early with JSON
-      if (admin.apps.length === 0) {
-        return res.status(503).json({
-           ...results,
-           status: "error",
-           error: "GOVERNANCE_OFFLINE",
-           message: "Governance layer failed to boot: " + initializationError
-        });
-      }
+      const admin = await getAdmin();
+      const results: any = {
+        projectId: globalProjectId,
+        appsInitialized: admin.apps.length,
+        status: "operational",
+        timestamp: new Date().toISOString(),
+        runtime: "nodejs"
+      };
 
-      // 1. Identity Discovery (Non-blocking)
-      const [metadataSA, metadataProj, metadataProjNum] = await Promise.all([
-        fetchMetadata("instance/service-accounts/default/email"),
-        fetchMetadata("project/project-id"),
-        fetchMetadata("project/numeric-project-id")
-      ]);
-      
-      results.serviceAccount = metadataSA || "system-assigned-identity";
-      results.runtimeProjectId = metadataProj || globalProjectId;
-      results.projectNumber = metadataProjNum;
-      results.nodeIdentity = metadataSA || "local-dev-node";
-
-      const activeProject = results.runtimeProjectId || globalProjectId;
-      const activeProjectNum = results.projectNumber; 
-
-      // Support identities
-      const sa = (results.serviceAccount && results.serviceAccount !== "system-assigned-identity") 
-                 ? results.serviceAccount 
-                 : (activeProjectNum ? `${activeProjectNum}-compute@developer.gserviceaccount.com` : "ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com");
-
-      const members = [
-        `serviceAccount:${sa}`,
-        `serviceAccount:${activeProject}@appspot.gserviceaccount.com`,
-        `serviceAccount:firebase-adminsdk-fbsvc@${activeProject}.iam.gserviceaccount.com`,
-        `serviceAccount:ais-sandbox@ais-asia-east1-5a5059f2763f49b.iam.gserviceaccount.com`,
-        `user:gopalkrishna0046@gmail.com`,
-        `user:gopal@hirenestworkforce.com`,
-        `user:gopalkrishna.sv46@gmail.com`,
-        `user:founder.itconsulting@outlook.com`
-      ].filter(m => m !== `serviceAccount:undefined` && m !== `serviceAccount:null`);
-
-      const memberFlags = members.map(m => `--member="${m}"`).join(" ");
-
-      // Pre-calculated easy fix (Always available)
-      results.emergencyFix = `gcloud projects add-iam-policy-binding ${activeProject} --member="serviceAccount:${sa}" --role="roles/owner"`;
-
-      // 2. Auth Handshake
+      // 1. Auth Health check
       try {
-        const auth = admin.auth();
-        const users = await auth.listUsers(1); 
-        results.auth = "healthy";
-        results.userCount = users.users.length;
-      } catch (e: any) {
-        results.auth = `failure: ${e.message || "Handshake Rejected"}`;
-        results.authCode = e.code || "governance/auth-denied";
-        results.authDetails = e.message || "The authority signal was rejected by the cloud node. Ensure Firebase Auth is enabled and permissions are granted.";
-        
-        // Extract Google Console activation link if present in error message
-        const enableLinkMatch = e.message?.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/[a-z0-9.]+\/[^?\s]*/);
-        if (enableLinkMatch) {
-            results.enableUrl = enableLinkMatch[0];
+        const app = admin.apps.length > 0 ? admin.app() : null;
+        if (app) {
+          results.auth = "checking";
+          const users = await app.auth().listUsers(1);
+          results.auth = "healthy";
+          results.userCount = users.users.length;
+        } else {
+          results.auth = "pending-init";
         }
-
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('IAM') || e.message?.includes('not been used in this project before') || e.message?.includes('Identity Toolkit') || e.message?.includes('IAM_PERMISSION_DENIED')) {
-          const roles = [
-            "roles/serviceusage.serviceUsageConsumer",
-            "roles/firebaseauth.admin",
-            "roles/firebaserules.admin",
-            "roles/datastore.user",
-            "roles/iam.serviceAccountTokenCreator",
-            "roles/firebase.admin",
-            "roles/resourcemanager.projectIamAdmin"
-          ];
-          
-          const services = [
-            "identitytoolkit.googleapis.com",
-            "firestore.googleapis.com",
-            "cloudresourcemanager.googleapis.com",
-            "iam.googleapis.com"
-          ];
-
-          results.remediation = [
-            `# OPTION A: AI Studio / Gcloud CLI`,
-            `gcloud auth login`,
-            `gcloud config set project ${activeProject}`,
-            `gcloud services enable ${services.join(" ")}`,
-            `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="roles/owner"`,
-            `# OPTION B: Vercel / External Deployment`,
-            `# 1. Download Service Account JSON from Firebase Console`,
-            `# 2. Add 'FIREBASE_SERVICE_ACCOUNT' as a Secret on Vercel (Paste the JSON string)`,
-            `# 3. Add 'PROJECT_ID' variable with value: ${activeProject}`
-          ].join(" && ");
-        }
+      } catch (authErr: any) {
+        console.warn("[DIAGNOSTIC] Auth probe failed:", authErr.message);
+        results.auth = "degraded";
+        results.authDetails = authErr.message;
       }
 
-      // 3. Firestore Handshake
+      // 2. Firestore Health check
       try {
-        const db = admin.firestore();
-        // Check connectivity deeply
-        const testCol = db.collection("_health_check_");
-        await testCol.limit(1).get();
-        results.firestore = "healthy";
-      } catch (e: any) {
-        results.firestore = `failure: ${e.message || "Mirror Sync Blocked"}`;
-        results.firestoreDetails = e.message || "The entity mirror could not be replicated. Ensure Firestore (Datastore mode) is enabled and permissions are granted.";
-        
-        if (e.message?.includes('PERMISSION_DENIED') || e.code === 7 || e.message?.includes('insufficient permissions') || e.message?.includes('Cloud Firestore API') || e.message?.includes('NOT_FOUND') || e.message?.includes('database')) {
-          const roles = [
-            "roles/datastore.user",
-            "roles/firebase.admin",
-            "roles/firebaserules.admin",
-            "roles/cloudfunctions.admin",
-            "roles/serviceusage.serviceUsageConsumer"
-          ];
-
-          const services = [
-            "firestore.googleapis.com",
-            "identitytoolkit.googleapis.com"
-          ];
-
-          results.iamCommand = [
-            `gcloud auth login`,
-            `gcloud config set project ${activeProject}`,
-            `gcloud services enable ${services.join(" ")}`,
-            `# Ensure Firestore Database exists (Default Location)`,
-            `gcloud firestore databases create --location=us-central1 || true`,
-            ...roles.map(role => `gcloud projects add-iam-policy-binding ${activeProject} ${memberFlags} --role="${role}"`)
-          ].join(" && ");
+        const app = admin.apps.length > 0 ? admin.app() : null;
+        if (app) {
+           results.firestore = "checking";
+           await app.firestore().collection("_health_ping").limit(1).get();
+           results.firestore = "healthy";
+        } else {
+           results.firestore = "pending-init";
+        }
+      } catch (fsErr: any) {
+        console.warn("[DIAGNOSTIC] Firestore probe failed:", fsErr.message);
+        results.firestore = "unreachable";
+        results.firestoreError = fsErr.message;
+        // Specific advice for common permissions issues
+        if (fsErr.message?.includes("PERMISSION_DENIED")) {
+           results.remediation = "Check IAM Roles: Ensure Service Account has 'Cloud Datastore User'.";
         }
       }
 
-      res.status(200).json(results);
-    } catch (fatalErr: any) {
-      console.error("[DIAGNOSTICS FATAL]", fatalErr);
-      res.status(500).json({ 
+      return res.json(results);
+    } catch (err: any) {
+      console.error("[DIAGNOSTICS FATAL]", err);
+      return res.status(500).json({
         status: "error",
-        error: "DIAGNOSTICS_FAILURE", 
-        message: fatalErr.message,
-        stack: process.env.NODE_ENV === 'development' ? fatalErr.stack : undefined,
-        node: globalProjectId,
-        nodeStatus: admin.apps.length > 0 ? "ONLINE" : "OFFLINE"
+        error: "DIAGNOSTICS_FAILURE",
+        message: err.message,
+        stack: err.stack
       });
     }
   });
@@ -844,99 +698,59 @@ async function startServer() {
 
   app.get("/api/admin/governance-data", verifyAdmin, async (req, res) => {
     try {
-      const admin = await import('firebase-admin').then(m => m.default || m);
-      const db = admin.firestore();
-      const currentAdminEmail = (req as any).user?.email?.toLowerCase().trim();
+      const admin = await getAdmin();
+      const currentAdminEmail = (req as any).user?.email || "unknown";
       
-      // Try to fetch real data but don't crash if it fails
       let users: any[] = [];
       let organizations: any[] = [];
-      let onboarding_requests: any[] = [];
-      let mode = "LIVE";
+      let candidates: any[] = [];
+      let dealRooms: any[] = [];
+      let requirements: any[] = [];
       
       try {
-        const { getAdminApp } = await import("./src/server/firebase-admin");
-        const app = getAdminApp();
+        const app = admin.apps.length > 0 ? admin.app() : null;
+        if (!app) throw new Error("GOVERNANCE_OFFLINE");
+        
         const db = app.firestore();
-        const activeProjectId = app.options.projectId || globalProjectId;
-        console.log(`[HQ SYNC] Attempting handshake from ${currentAdminEmail} to Node: ${activeProjectId}`);
         
-        // Timeout protection for Firebase calls
-        const timeout = <T>(promise: Promise<T>, ms: number) => {
-          return Promise.race([
-            promise,
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Firebase operation timed out after ' + ms + 'ms')), ms))
-          ]);
-        };
+        // Controlled, non-crashing data retrieval
+        const [usersSnap, orgsSnap, candSnap, roomsSnap, reqsSnap] = await Promise.all([
+          db.collection("users").limit(50).get().catch(() => ({ docs: [] })),
+          db.collection("organizations").limit(50).get().catch(() => ({ docs: [] })),
+          db.collection("candidates").limit(50).get().catch(() => ({ docs: [] })),
+          db.collection("deal_rooms").limit(50).get().catch(() => ({ docs: [] })),
+          db.collection("requirements").limit(50).get().catch(() => ({ docs: [] }))
+        ]);
 
-        const [usersSnap, orgsSnap, reqsSnap] = await timeout(Promise.all([
-          db.collection("users").limit(100).get(),
-          db.collection("organizations").limit(100).get(),
-          db.collection("onboarding_requests").limit(100).get()
-        ]), 10000); // 10s timeout
-        
-        users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        organizations = orgsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        onboarding_requests = reqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        console.log(`[HQ SYNC] Intelligence retrieval successful for project: ${activeProjectId}. Identities: ${users.length}, Nodes: ${organizations.length}, Requests: ${onboarding_requests.length}`);
-      } catch (dbErr: any) {
-        mode = "FALLBACK";
-        if (dbErr.message?.includes('PERMISSION_DENIED') || String(dbErr.code) === '7' || dbErr.message?.includes('Unauthenticated')) {
-          console.error(`[HQ SYNC PERMISSION DENIED] Authority rejected for node ${globalProjectId}. Identity: ${currentAdminEmail}. Ensure Service Account has 'Cloud Datastore User' role on project ${globalProjectId}.`);
-        } else if (dbErr.message?.includes('timed out')) {
-          console.error(`[HQ SYNC TIMEOUT] Database connection hung. Project: ${globalProjectId}`);
-        } else {
-          console.error("[HQ DB FAIL] Sync pipeline interrupted:", dbErr.message);
-        }
-        users = dbMock.users;
-        organizations = dbMock.organizations;
-        onboarding_requests = [];
+        users = usersSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        organizations = orgsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        candidates = candSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        dealRooms = roomsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        requirements = reqsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+      } catch (innerErr: any) {
+        console.warn("[GOVERNANCE SYNC] Partial failure during data retrieval:", innerErr.message);
       }
 
-      // If database is effectively empty, use mock for demo/visual consistency
-      if (mode === "LIVE" && users.length === 0) {
-         console.warn("[HQ SYNC] User list empty, seeding mock identities.");
-         users = dbMock.users;
-         mode = "HYBRID_MOCK";
-      }
-
-      if (mode === "LIVE" && organizations.length === 0) {
-         console.warn("[HQ SYNC] Organization list empty, seeding mock entities.");
-         organizations = dbMock.organizations;
-         mode = "HYBRID_MOCK";
-      }
-
-      const payload = {
-        organizations,
+      return res.json({
+        ok: true,
         users,
-        onboarding_requests,
-        requirements_public: dbMock.requirements_public || [],
-        candidatePool: dbMock.candidatePool || [],
-        submissions: dbMock.submissions || [],
-        dealRooms: dbMock.dealRooms || [],
-        metrics: dbMock.metrics || {},
-        lastSync: new Date().toISOString(),
-        isMock: mode !== "LIVE",
-        nodeId: globalProjectId,
-        mode
-      };
-      res.status(200).json(payload);
-    } catch (err: any) {
-      console.error("[HQ SYNC FATAL] Integrity breach:", err);
-      res.status(200).json({
-        organizations: dbMock.organizations,
-        users: dbMock.users,
-        requirements_public: dbMock.requirements_public || [],
-        metrics: dbMock.metrics || {},
-        error: err?.message || "Unknown retrieval error",
-        isMock: true,
-        nodeId: globalProjectId,
-        mode: "FATAL_FALLBACK"
+        organizations,
+        candidatePool: candidates,
+        dealRooms,
+        requirements_public: requirements,
+        onboarding_requests: [], // Placeholder
+        timestamp: new Date().toISOString()
       });
+    } catch (err: any) {
+       console.error("[GOVERNANCE FATAL]", err);
+       return res.status(500).json({
+         status: "error",
+         error: "GOVERNANCE_SYNC_FAILURE",
+         message: err.message
+       });
     }
   });
-
   app.post("/api/onboard/request", async (req, res) => {
     try {
       const { type, companyName, email, linkedin, gstNumber, aadhaarNumber, metadata } = req.body;
@@ -1797,6 +1611,7 @@ Candidate Profile: ${candidateProfile}`,
 
   // --- VITE / SPA FALLBACK ---
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
     app.get("*", async (req, res, next) => {
