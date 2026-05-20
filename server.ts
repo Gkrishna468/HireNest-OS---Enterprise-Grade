@@ -1,12 +1,10 @@
 import "express-async-errors";
 import express, { Request, Response, NextFunction } from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { fileURLToPath } from 'url';
 import multer from 'multer';
-import { createRequire } from 'module';
 
 export const runtime = "nodejs";
 
@@ -261,20 +259,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // --- MINIMAL DIAGNOSTIC ROUTES FIRST (No imports, no await) ---
-  app.get("/api/ping", (req, res) => res.json({ ok: true, msg: "pong", node: process.version }));
-  
-  app.get("/api/debug-env", (req, res) => {
-    return res.json({
-        exists: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-        projectId: process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID || "not_set",
-        node: process.version,
-        time: Date.now()
-    });
-  });
-
-  // Await core initialization AFTER minimal routes
-  await initializeGovernanceLayer();
+  app.get("/", (req, res) => res.send("HireNest Global OS Centralized Intelligence Layer Active."));
 
   app.get("/api/config/client", async (req, res) => {
     // Attempt to load the applet config to serve it dynamically
@@ -316,12 +301,16 @@ async function startServer() {
       
       const app = admin.apps.length > 0 ? admin.app() : null;
       if (!app) {
-        console.error(`[HQ SECURITY] [${requestId}] Critical: Firebase Admin not initialized.`);
-        return res.status(503).json({ 
-          error: "SERVICE_UNAVAILABLE", 
-          details: "Core governance layer is booting or offline.", 
-          requestId
-        });
+        // Attempt lazy init if not already done
+        await initializeGovernanceLayer();
+        if (admin.apps.length === 0) {
+            console.error(`[HQ SECURITY] [${requestId}] Critical: Firebase Admin not initialized.`);
+            return res.status(503).json({ 
+                error: "SERVICE_UNAVAILABLE", 
+                details: "Core governance layer is booting or offline.", 
+                requestId
+            });
+        }
       }
 
       const authHeader = req.headers.authorization;
@@ -448,7 +437,8 @@ async function startServer() {
           code: e.code,
           stack: e.stack, // Always show stack during this recovery phase
           nodeId: globalProjectId,
-          identitySource
+          identitySource,
+          fullError: JSON.stringify(e, Object.getOwnPropertyNames(e))
         });
     }
   });
@@ -1345,6 +1335,7 @@ async function startServer() {
       console.log(`[JOB STATUS] Updating ${jobId} to ${status}...`);
 
       const admin = await getAdmin();
+      if (admin.apps.length === 0) await initializeGovernanceLayer();
       if (admin.apps.length === 0) throw new Error("Firebase Admin not initialized");
       const app = admin.app();
       const db = app.firestore();
@@ -1844,6 +1835,11 @@ Candidate Profile: ${candidateProfile}`,
       console.log(`[OS] Server running on port ${PORT}`);
     });
   }
+
+  // Await core initialization
+  await initializeGovernanceLayer().catch(err => {
+    console.error("[BOOT] Core Initialization non-blocking failure:", err.message);
+  });
 
   return app;
 }
