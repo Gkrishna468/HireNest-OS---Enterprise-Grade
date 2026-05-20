@@ -7,13 +7,8 @@ import { GoogleGenAI } from "@google/genai";
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createRequire } from 'module';
-import mammoth from 'mammoth';
-import nlp from 'compromise';
-import natural from 'natural';
 
 export const runtime = "nodejs";
-
-const require = createRequire(import.meta.url);
 
 // --- Global Configuration ---
 let globalProjectId: string = "hirenest-os"; 
@@ -389,12 +384,16 @@ async function startServer() {
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
     try {
-        const admin = await import('firebase-admin').then(m => m.default || m);
+        const { getAdminApp } = await import("./src/server/firebase-admin");
+        const app = getAdminApp();
+        const activeProjectId = app.options.projectId;
+        
         const results: any = { 
             status: "operational", 
             timestamp: new Date().toISOString(),
             nodeId: globalProjectId,
-            appsCount: admin.apps.length,
+            activeProjectId,
+            appsCount: (await import('firebase-admin')).default.apps.length,
             env: process.env.NODE_ENV,
             hostname: req.hostname,
             identityResolved: !!globalProjectId,
@@ -403,6 +402,20 @@ async function startServer() {
             runtime: "nodejs"
         };
         
+        // CHECK 1: Environment Variables
+        results.env = {
+          FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+          FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "not_set",
+          GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT || "not_set",
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "not_set"
+        };
+
+        // CHECK 2: ProjectID Mismatch
+        if (activeProjectId && process.env.FIREBASE_PROJECT_ID && activeProjectId !== process.env.FIREBASE_PROJECT_ID) {
+          results.status = "warning";
+          results.mismatch = `CRITICAL MISMATCH: Runtime Project (${activeProjectId}) != Env Var (${process.env.FIREBASE_PROJECT_ID})`;
+        }
+
         try {
           const [sa, proj] = await Promise.all([
              fetchMetadata("instance/service-accounts/default/email"),
@@ -427,12 +440,13 @@ async function startServer() {
         
         return res.json(results);
     } catch (e: any) {
-        console.error("[PRE-FLIGHT CRASH]", e);
+        console.error("[PRE-FLIGHT ERROR]", e);
         return res.status(500).json({ 
           status: "error",
           error: "PRE_FLIGHT_CRASH", 
           message: e.message,
-          stack: process.env.NODE_ENV === 'development' ? e.stack : undefined,
+          code: e.code,
+          stack: e.stack, // Always show stack during this recovery phase
           nodeId: globalProjectId,
           identitySource
         });
@@ -1656,7 +1670,9 @@ Candidate Profile: ${candidateProfile}`,
           } else if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith(".docx")) {
             console.log("[EXTRACT] Identifying as DOCX...");
             try {
-              const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
+      // Lazy import mammoth
+      const mammoth = await import('mammoth').then(m => m.default || m);
+      const result = await mammoth.extractRawText({ buffer: anyReq.file.buffer });
               text = result.value || "";
               console.log(`[EXTRACT] Mammoth result length: ${text.length}`);
             } catch (e: any) {
