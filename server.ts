@@ -19,7 +19,25 @@ async function createServer() {
     // Detailed logging for debugging
     console.log(`[API_MAP] Path: ${apiPath} (Full: ${req.path})`);
 
+    // Consolidated routing map for Vercel Hobby limits
+    const consolidatedMap: Record<string, string> = {
+      'create-user': 'user.ts',
+      'delete-user': 'user.ts',
+      'assign-role': 'user.ts',
+      'user-context': 'user.ts',
+      'metrics': 'admin.ts',
+      'diagnostics': 'admin.ts',
+      'governance-data': 'admin.ts',
+      'pre-flight': 'admin.ts',
+      'approve-request': 'admin.ts',
+      'onboard-request': 'admin.ts',
+      'governance': 'admin.ts',
+      'user-candidates': 'candidates.ts',
+      'deal-intelligence': 'intel.ts'
+    };
+
     const possibleFiles = [
+      consolidatedMap[apiPath] || '',
       apiPath + '.ts',
       apiPath + '/index.ts',
       // Dynamic mapping for common path patterns
@@ -29,7 +47,7 @@ async function createServer() {
       apiPath.replace('user/', '') + '.ts',
       apiPath.replace('deal/', 'deal-') + '.ts',
       apiPath.split('/').pop() + '.ts' // Final fallback: just the filename
-    ];
+    ].filter(Boolean);
 
     let found = false;
     for (const file of possibleFiles) {

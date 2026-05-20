@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    { "source": "/api/create-user", "destination": "/api/user" },
+    { "source": "/api/delete-user", "destination": "/api/user" },
+    { "source": "/api/assign-role", "destination": "/api/user" },
+    { "source": "/api/user-context", "destination": "/api/user" },
+    { "source": "/api/metrics", "destination": "/api/admin" },
+    { "source": "/api/diagnostics", "destination": "/api/admin" },
+    { "source": "/api/governance-data", "destination": "/api/admin" },
+    { "source": "/api/pre-flight", "destination": "/api/admin" },
+    { "source": "/api/approve-request", "destination": "/api/admin" },
+    { "source": "/api/onboard-request", "destination": "/api/admin" },
+    { "source": "/api/governance", "destination": "/api/admin" },
+    { "source": "/api/user-candidates", "destination": "/api/candidates" },
+    { "source": "/api/deal-intelligence", "destination": "/api/intel" }
+  ]
+}
