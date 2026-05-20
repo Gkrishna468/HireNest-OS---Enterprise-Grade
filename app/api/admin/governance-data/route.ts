@@ -1,4 +1,4 @@
-import { getAdminApp } from "@/src/server/firebase-admin.ts";
+import { getAdminApp } from "@/src/server/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -8,29 +8,30 @@ export async function GET() {
     const app = getAdminApp();
     const db = app.firestore();
     
-    console.log("[GOV] STEP 2: Executing Distributed Retrieval");
-    const [usersSnap, orgsSnap, candSnap, roomsSnap, reqsSnap] = await Promise.all([
-      db.collection("users").limit(50).get().catch((e) => { console.warn("[GOV] Users poll failed:", e.message); return { docs: [] }; }),
-      db.collection("organizations").limit(50).get().catch((e) => { console.warn("[GOV] Orgs poll failed:", e.message); return { docs: [] }; }),
-      db.collection("candidates").limit(50).get().catch((e) => { console.warn("[GOV] Candidates poll failed:", e.message); return { docs: [] }; }),
-      db.collection("deal_rooms").limit(50).get().catch((e) => { console.warn("[GOV] DealRooms poll failed:", e.message); return { docs: [] }; }),
-      db.collection("requirements").limit(50).get().catch((e) => { console.warn("[GOV] ReqPublic poll failed:", e.message); return { docs: [] }; })
-    ]);
+    console.log("[GOV] STEP 2: Executing Distributed Retrieval (Fault-Tolerant)");
+    const collections = ["users", "organizations", "candidates", "deal_rooms", "requirements"];
+    
+    const results = await Promise.allSettled(
+      collections.map(col => db.collection(col).limit(50).get())
+    );
 
-    console.log("[GOV] STEP 3: Mapping Entity Mirrors");
-    const users = usersSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-    const organizations = orgsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-    const candidatePool = candSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-    const dealRooms = roomsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-    const requirements_public = reqsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const data: any = {};
+    results.forEach((result, index) => {
+      const colName = collections[index];
+      if (result.status === "fulfilled") {
+        data[colName] = result.value.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      } else {
+        console.warn(`[GOV] Partial failure for ${colName}:`, result.reason.message);
+        data[colName] = [];
+      }
+    });
 
+    console.log("[GOV] STEP 3: Finalizing Sync");
     return Response.json({
       ok: true,
-      users,
-      organizations,
-      candidatePool,
-      dealRooms,
-      requirements_public,
+      ...data,
+      candidatePool: data.candidates, // Legacy mapping
+      requirements_public: data.requirements, // Legacy mapping
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {

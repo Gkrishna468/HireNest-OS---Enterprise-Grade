@@ -175,7 +175,7 @@ export default function AdminSecurityDashboard() {
 
   // NEW TIERED HEALTH MODEL
   const runtimeStatus = preFlight?.ok ? "healthy" : "offline";
-  const governanceStatus = diagnostics?.ok ? (diagnostics.auth === "healthy" && diagnostics.firestore === "healthy" ? "healthy" : "degraded") : "offline";
+  const governanceStatus = diagnostics?.ok ? diagnostics.governance : "offline";
   
   const isBlocked = runtimeStatus === "offline"; 
   const isDegraded = runtimeStatus === "healthy" && governanceStatus !== "healthy";
