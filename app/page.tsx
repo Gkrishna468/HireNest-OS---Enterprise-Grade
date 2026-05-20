@@ -3,13 +3,13 @@ export default function HomePage() {
     <main
       style={{
         minHeight: '100vh',
-        background: '#0b1020',
+        background: '#0B1020',
         color: 'white',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         flexDirection: 'column',
-        fontFamily: 'Inter, sans-serif',
+        fontFamily: 'Arial',
       }}
     >
       <h1>HireNestOS</h1>
