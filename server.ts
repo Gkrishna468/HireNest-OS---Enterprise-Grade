@@ -19,6 +19,9 @@ let globalProjectId: string = "hirenest-os";
 
 // Identity Handshake Logic
 async function resolveIdentity() {
+  // 5. Baseline Fallback
+  const baseline = "hirenest-os";
+
   // 1. Explicit Env Override (High priority)
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PROJECT_ID !== "undefined" && process.env.FIREBASE_PROJECT_ID !== "") {
     console.log(`[IDENTITY] Resolved via FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID}`);
@@ -32,23 +35,39 @@ async function resolveIdentity() {
     console.log(`[IDENTITY] Resolved via GOOGLE_CLOUD_PROJECT: ${process.env.GOOGLE_CLOUD_PROJECT}`);
     return { id: process.env.GOOGLE_CLOUD_PROJECT, source: "ENV_VAR (GOOGLE_CLOUD_PROJECT)" };
   }
+  if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== "undefined" && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== "") {
+    console.log(`[IDENTITY] Resolved via NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}`);
+    return { id: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, source: "ENV_VAR (NEXT_PUBLIC_FIREBASE_PROJECT_ID)" };
+  }
   
   // 2. Service Account JSON lookup
-  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  if (saJson) {
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT;
+  if (saJson && saJson !== "undefined" && saJson !== "null" && saJson !== "") {
+    if (saJson.startsWith('sk_live_') || saJson.startsWith('sk_test_') || saJson.trim().startsWith('sk_')) {
+      console.error("[IDENTITY] CRITICAL: FIREBASE_SERVICE_ACCOUNT appears to be a STRIPE key, not Firebase JSON.");
+      return { id: baseline, source: "ERROR (STRIPE_KEY_MISUSE)", error: "FIREBASE_SERVICE_ACCOUNT contains a Stripe secret key (sk_...)." };
+    }
+
     try {
-      // Resilience: handle both raw JSON and escaped JSON
-      let sanitized = saJson.trim();
-      if (sanitized.includes('\\n')) {
-          sanitized = sanitized.replace(/\\n/g, '\n');
+      // Direct parse first (best practice)
+      let sa;
+      try {
+        sa = JSON.parse(saJson.trim());
+      } catch (e) {
+        // Fallback: try removing un-escaped newlines if user pasted raw JSON with breaks
+        const sanitized = saJson.trim().replace(/\n/g, '\\n');
+        sa = JSON.parse(sanitized);
       }
-      const sa = JSON.parse(sanitized);
+
       if (sa.project_id) {
         console.log(`[IDENTITY] Resolved via Service Account JSON (Project: ${sa.project_id})`);
         return { id: sa.project_id, source: "SERVICE_ACCOUNT" };
       }
     } catch(e: any) {
         console.warn(`[IDENTITY] Service Account JSON parse attempt failed: ${e.message}`);
+        // Log a small snippet to help debug format issues without exposing the full key
+        console.warn(`[IDENTITY] SA String Start: ${saJson.substring(0, 20)}...`);
+        return { id: baseline, source: "ERROR (MALFORMED_JSON)", error: `JSON Parse Error: ${e.message}. Ensure it is a complete {"type":...} object.` };
     }
   }
 
@@ -77,7 +96,6 @@ async function resolveIdentity() {
     }
 
   // 5. Baseline Fallback
-  const baseline = "hirenest-os";
   console.warn(`[IDENTITY] No project identity found in environment. Falling back to baseline: ${baseline}`);
   return { id: baseline, source: "BASELINE" };
 }
@@ -137,16 +155,24 @@ const AuditService = {
 // Initialize Firebase Admin with explicit project attribution
 console.log(`[HQ CORE] Boot sequence initiated...`);
 
+let initializationError: string | null = null;
+let identitySource: string = "UNKNOWN";
+
 async function initializeGovernanceLayer() {
   try {
     console.log(`[HQ CORE] Governance Handshake Initiated...`);
+    initializationError = null;
     
     // Resolve precise project identity
     const identity = await resolveIdentity();
     globalProjectId = identity.id;
-    const resolvedFrom = identity.source;
+    identitySource = identity.source;
     
-    console.log(`[HQ CORE] Governance Target: ${globalProjectId} (Source: ${resolvedFrom})`);
+    if (identity.error) {
+       initializationError = identity.error;
+    }
+
+    console.log(`[HQ CORE] Governance Target: ${globalProjectId} (Source: ${identitySource})`);
     
     if (!globalProjectId || globalProjectId === "" || globalProjectId === "undefined") {
        console.warn("[HQ CORE] Resolved project ID invalid, resetting to hirenest-os");
@@ -161,13 +187,24 @@ async function initializeGovernanceLayer() {
     // Initialize Admin SDK
     if (admin.apps.length === 0) {
       let credential;
-      const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+      const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT;
       
       try {
-        if (saJson) {
-          let sanitized = saJson.trim();
-          if (sanitized.includes('\\n')) sanitized = sanitized.replace(/\\n/g, '\n');
-          credential = admin.credential.cert(JSON.parse(sanitized));
+        if (saJson && saJson !== "undefined" && saJson !== "null" && saJson !== "") {
+          if (saJson.trim().startsWith('sk_')) {
+             throw new Error("FIREBASE_SERVICE_ACCOUNT is a Stripe key (sk_...), expected Firebase Service Account JSON.");
+          }
+          let sa;
+          try {
+             sa = JSON.parse(saJson.trim());
+          } catch (e) {
+             sa = JSON.parse(saJson.trim().replace(/\n/g, '\\n'));
+          }
+
+          if (sa.private_key) {
+             sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+          }
+          credential = admin.credential.cert(sa);
           console.log("[HQ CORE] Authority granted via explicit Service Account.");
         } else {
           credential = admin.credential.applicationDefault();
@@ -175,6 +212,7 @@ async function initializeGovernanceLayer() {
         }
       } catch (e: any) {
         console.warn(`[HQ CORE] Credential Resolution Restricted: ${e.message}`);
+        initializationError = initializationError ? `${initializationError} | ${e.message}` : e.message;
       }
 
       admin.initializeApp({
@@ -186,6 +224,7 @@ async function initializeGovernanceLayer() {
     }
   } catch (e: any) {
     console.error("[HQ CORE FATAL] Global Handshake Failure:", e.message);
+    initializationError = initializationError ? `${initializationError} | ${e.message}` : e.message;
   }
 }
 
@@ -513,7 +552,9 @@ async function startServer() {
             appsCount: admin.apps.length,
             env: process.env.NODE_ENV,
             hostname: req.hostname,
-            identityResolved: !!globalProjectId
+            identityResolved: !!globalProjectId,
+            identitySource: identitySource,
+            initializationError: initializationError
         };
         
         try {
@@ -524,12 +565,17 @@ async function startServer() {
           results.runtimeIdentity = sa || "local-or-unknown";
           results.runtimeProjectId = proj || globalProjectId;
           
-          if (globalProjectId === "hirenest-os" && !req.hostname.includes("localhost") && !req.hostname.includes("run.app") && !req.hostname.includes("aistudio")) {
+          if (identitySource === "BASELINE" && !req.hostname.includes("localhost") && !req.hostname.includes("run.app") && !req.hostname.includes("aistudio")) {
              results.status = "restricted";
-             results.advice = "Project ID Mismatch: Server running as 'hirenest-os' on production domain. Verify Vercel ENV vars.";
+             results.advice = "Project Identity Restricted: Node is running under baseline 'hirenest-os' on a production domain. You must configure FIREBASE_SERVICE_ACCOUNT and FIREBASE_PROJECT_ID secrets in Vercel/Environment.";
+             results.isLikelyMisconfig = true;
           }
         } catch (metadataErr) {
           results.metadataError = true;
+        }
+
+        if (initializationError) {
+          results.status = "error";
         }
         
         res.json(results);

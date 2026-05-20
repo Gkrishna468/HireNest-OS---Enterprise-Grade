@@ -94,10 +94,20 @@ export default function AdminSecurityDashboard() {
 
           // 2. Pre-flight Check (Public)
           fetch('/api/admin/pre-flight')
-            .then(r => r.ok ? r.json() : null)
+            .then(async (r) => {
+              const text = await r.text();
+              if (r.ok) {
+                try { return JSON.parse(text); } catch (e) { return null; }
+              }
+              try {
+                const err = JSON.parse(text);
+                return { status: "error", initializationError: err.message || err.details || text };
+              } catch (e) {
+                return { status: "error", initializationError: text };
+              }
+            })
             .then(data => {
-              setPreFlight(data);
-              // If we have preFlight but diagnostics haven't arrived, it helps bridge the gap
+              if (data) setPreFlight(data);
             })
             .catch(() => console.warn("Pre-flight handshake offline"));
 
@@ -171,7 +181,7 @@ export default function AdminSecurityDashboard() {
     (diagnostics?.statusCode === 500)
   );
 
-  const isProjectMismatch = isBlocked && (diagnostics?.projectId === "hirenest-os" && window.location.hostname !== "localhost" && !window.location.hostname.includes("asia-east1.run.app"));
+  const isProjectMismatch = preFlight?.status === "restricted" || (isBlocked && (diagnostics?.projectId === "hirenest-os" && window.location.hostname !== "localhost" && !window.location.hostname.includes("asia-east1.run.app")));
 
   const isDegraded = !!(
     (!isBlocked) && 
@@ -227,8 +237,8 @@ export default function AdminSecurityDashboard() {
             {[
               { label: "Authority Node", value: diagnostics?.auth || "PENDING", status: diagnostics?.auth === "healthy" ? "OK" : "ERR" },
               { label: "Entity Mirror", value: diagnostics?.firestore || "PENDING", status: diagnostics?.firestore === "healthy" ? "OK" : "ERR" },
-              { label: "Runtime Identity", value: diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING...", status: "DATA" },
-              { label: "Project Details", value: `${diagnostics?.projectId || "hirenest-os"} (#${diagnostics?.projectNumber || "..."})`, status: "DATA" }
+              { label: "Runtime Identity", value: preFlight?.identitySource ? `${diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING..."} [VIA: ${preFlight.identitySource}]` : (diagnostics?.serviceAccount || preFlight?.runtimeIdentity || "IDENTIFYING..."), status: "DATA" },
+              { label: "Project Details", value: `${diagnostics?.projectId || preFlight?.nodeId || "hirenest-os"} (#${diagnostics?.projectNumber || "..."})`, status: "DATA" }
             ].map((item, idx) => (
               <div key={idx} className="p-8 space-y-4 hover:bg-slate-50 transition-colors">
                 <div className="flex items-center justify-between">
@@ -259,12 +269,28 @@ export default function AdminSecurityDashboard() {
                  </div>
                  <div className="space-y-4">
                    <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Restricted</h2>
+                   {preFlight?.initializationError && (
+                      <div className="bg-rose-500/20 border-2 border-rose-500 p-6 rounded-2xl flex flex-col gap-4 mt-6">
+                        <div className="flex items-center gap-4">
+                           <ShieldAlert className="text-rose-400" size={24} />
+                           <p className="text-rose-100 font-black uppercase tracking-widest text-xs">Initialization Core Failure</p>
+                        </div>
+                        <div className="bg-black/40 p-4 rounded-xl border border-rose-500/30 overflow-hidden">
+                           <p className="text-rose-200 font-mono text-[10px] leading-tight break-words max-h-[200px] overflow-y-auto">{preFlight.initializationError}</p>
+                        </div>
+                        {preFlight.initializationError.includes("sk_") && (
+                           <div className="bg-amber-500/10 border border-amber-500/50 p-4 rounded-xl">
+                              <p className="text-amber-200 text-[10px] font-bold uppercase tracking-tight">Warning: Detected Stripe key in Firebase field. A Firebase Service Account must be a JSON object starting with {"{"} .</p>
+                           </div>
+                        )}
+                      </div>
+                   )}
                    {isProjectMismatch && (
                      <div className="bg-rose-500/10 border-2 border-rose-500/50 p-6 rounded-2xl flex items-center gap-6 mt-4 animate-pulse">
                         <Target className="text-rose-400 shrink-0" size={32} />
                         <div className="space-y-1">
                            <p className="text-rose-200 font-bold uppercase tracking-widest text-[10px]">Project Identity Conflict</p>
-                           <p className="text-rose-300/70 text-[11px] leading-tight">Node is requesting <span className="text-rose-100 font-mono">hirenest-os</span>, but you appear to be in production. Configure secrets.</p>
+                           <p className="text-rose-300/70 text-[11px] leading-tight">Node is requesting <span className="text-rose-100 font-mono">hirenest-os</span>, but you appear to be in production. Configure secrets and **Redeploy** on Vercel.</p>
                         </div>
                      </div>
                    )}
