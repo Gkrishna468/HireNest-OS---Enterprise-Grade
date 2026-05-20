@@ -21,46 +21,79 @@ let globalProjectId: string = "hirenest-os";
 async function resolveIdentity() {
   // 1. Explicit Env Override (High priority)
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PROJECT_ID !== "undefined" && process.env.FIREBASE_PROJECT_ID !== "") {
-    return process.env.FIREBASE_PROJECT_ID;
+    console.log(`[IDENTITY] Resolved via FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID}`);
+    return { id: process.env.FIREBASE_PROJECT_ID, source: "ENV_VAR (FIREBASE_PROJECT_ID)" };
+  }
+  if (process.env.PROJECT_ID && process.env.PROJECT_ID !== "undefined" && process.env.PROJECT_ID !== "") {
+    console.log(`[IDENTITY] Resolved via PROJECT_ID: ${process.env.PROJECT_ID}`);
+    return { id: process.env.PROJECT_ID, source: "ENV_VAR (PROJECT_ID)" };
   }
   if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== "undefined" && process.env.GOOGLE_CLOUD_PROJECT !== "") {
-    return process.env.GOOGLE_CLOUD_PROJECT;
+    console.log(`[IDENTITY] Resolved via GOOGLE_CLOUD_PROJECT: ${process.env.GOOGLE_CLOUD_PROJECT}`);
+    return { id: process.env.GOOGLE_CLOUD_PROJECT, source: "ENV_VAR (GOOGLE_CLOUD_PROJECT)" };
   }
   
   // 2. Service Account JSON lookup
-  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   if (saJson) {
     try {
-      const sa = JSON.parse(saJson);
-      if (sa.project_id) return sa.project_id;
-    } catch(e) {}
+      // Resilience: handle both raw JSON and escaped JSON
+      let sanitized = saJson.trim();
+      if (sanitized.includes('\\n')) {
+          sanitized = sanitized.replace(/\\n/g, '\n');
+      }
+      const sa = JSON.parse(sanitized);
+      if (sa.project_id) {
+        console.log(`[IDENTITY] Resolved via Service Account JSON (Project: ${sa.project_id})`);
+        return { id: sa.project_id, source: "SERVICE_ACCOUNT" };
+      }
+    } catch(e: any) {
+        console.warn(`[IDENTITY] Service Account JSON parse attempt failed: ${e.message}`);
+    }
   }
 
   // 3. Metadata fallback (AIS only)
   try {
     const metaId = await fetchMetadata("project/project-id");
-    if (metaId && metaId !== "undefined" && metaId !== "") return metaId;
-  } catch(e) {}
-
-  // 4. Config file fallback
-  try {
-    const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(firebaseConfigPath)) {
-      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
-      if (config.projectId) return config.projectId;
+    if (metaId && metaId !== "undefined" && metaId !== "") {
+      console.log(`[IDENTITY] Resolved via Cloud Metadata: ${metaId}`);
+      return { id: metaId, source: "METADATA" };
     }
   } catch(e) {}
 
-  // 5. Default baseline
-  return "hirenest-os";
+    // 4. Config file fallback
+    try {
+      const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(firebaseConfigPath)) {
+        const content = fs.readFileSync(firebaseConfigPath, 'utf-8');
+        const config = JSON.parse(content);
+        if (config.projectId && config.projectId !== "hirenest-os") {
+          console.log(`[IDENTITY] Resolved via firebase-applet-config.json: ${config.projectId}`);
+          return { id: config.projectId, source: "CONFIG_FILE" };
+        }
+      }
+    } catch(e) {
+      console.warn("[IDENTITY] Config file read attempt failed (expected in some serverless modes)");
+    }
+
+  // 5. Baseline Fallback
+  const baseline = "hirenest-os";
+  console.warn(`[IDENTITY] No project identity found in environment. Falling back to baseline: ${baseline}`);
+  return { id: baseline, source: "BASELINE" };
 }
 
-// Metadata fetch with timeout helper
-async function fetchMetadata(path: string): Promise<string | null> {
-  const url = `http://metadata.google.internal/computeMetadata/v1/${path}`;
+  // Metadata fetch with timeout helper
+async function fetchMetadata(metaPath: string): Promise<string | null> {
+  // Check if we even have network/reason to check
+  if (process.env.NODE_ENV === 'test' || (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.VERCEL)) {
+     // Skip metadata on typical local dev for speed
+     // return null; 
+  }
+  
+  const url = `http://metadata.google.internal/computeMetadata/v1/${metaPath}`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000); // 1s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 600); // Tight 600ms timeout for metadata
     
     const response = await fetch(url, {
       headers: { "Metadata-Flavor": "Google" },
@@ -68,7 +101,10 @@ async function fetchMetadata(path: string): Promise<string | null> {
     });
     
     clearTimeout(timeoutId);
-    if (response.ok) return (await response.text()).trim();
+    if (response.ok) {
+        const text = await response.text();
+        return text.trim();
+    }
     return null;
   } catch (e) {
     return null;
@@ -106,15 +142,21 @@ async function initializeGovernanceLayer() {
     console.log(`[HQ CORE] Governance Handshake Initiated...`);
     
     // Resolve precise project identity
-    globalProjectId = await resolveIdentity();
-    console.log(`[HQ CORE] Governance Target: ${globalProjectId}`);
+    const identity = await resolveIdentity();
+    globalProjectId = identity.id;
+    const resolvedFrom = identity.source;
+    
+    console.log(`[HQ CORE] Governance Target: ${globalProjectId} (Source: ${resolvedFrom})`);
     
     if (!globalProjectId || globalProjectId === "" || globalProjectId === "undefined") {
+       console.warn("[HQ CORE] Resolved project ID invalid, resetting to hirenest-os");
        globalProjectId = "hirenest-os";
     }
 
+    // Set globally for other libraries
     process.env.GOOGLE_CLOUD_PROJECT = globalProjectId;
-    process.env.GOOGLE_CLOUD_QUOTA_PROJECT = globalProjectId;
+    process.env.GCLOUD_PROJECT = globalProjectId;
+    process.env.FIREBASE_PROJECT_ID = globalProjectId;
 
     // Initialize Admin SDK
     if (admin.apps.length === 0) {
@@ -123,7 +165,9 @@ async function initializeGovernanceLayer() {
       
       try {
         if (saJson) {
-          credential = admin.credential.cert(JSON.parse(saJson));
+          let sanitized = saJson.trim();
+          if (sanitized.includes('\\n')) sanitized = sanitized.replace(/\\n/g, '\n');
+          credential = admin.credential.cert(JSON.parse(sanitized));
           console.log("[HQ CORE] Authority granted via explicit Service Account.");
         } else {
           credential = admin.credential.applicationDefault();
@@ -356,6 +400,36 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // --- PUBLIC CONFIG & SYNC ---
+  app.get("/api/config/client", (req, res) => {
+    // Attempt to load the applet config to serve it dynamically
+    let baseConfig: any = {};
+    try {
+      const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(configPath)) {
+        baseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      }
+    } catch (e) {}
+
+    // Return only public-safe configuration, overriding project ID with current runtime detection
+    res.json({
+        ...baseConfig,
+        projectId: globalProjectId,
+        env: process.env.NODE_ENV,
+        nodeStatus: admin.apps.length > 0 ? "ONLINE" : "BOOTING",
+        isProduction: !req.hostname.includes("localhost") && !req.hostname.includes("run.app") && !req.hostname.includes("aistudio")
+    });
+  });
+
+  app.get("/api/health/node", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      governance: admin.apps.length > 0 ? "established" : "pending",
+      node: globalProjectId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // --- AUTH MIDDLEWARE ---
   async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
     const requestId = Math.random().toString(36).substring(7);
@@ -387,7 +461,10 @@ async function startServer() {
       const decodedToken = await auth.verifyIdToken(token);
       const email = decodedToken.email?.toLowerCase().trim();
       
-      console.log(`[HQ SECURITY] [${requestId}] Authority Handshake Verified: ${email}`);
+      // CROSS-PROJECT AUDIENCE CHECK
+      if (decodedToken.firebase?.identities?.['google.com'] && globalProjectId === "hirenest-os") {
+         console.warn(`[HQ SECURITY] Project ID potentially misconfigured. Token for ${email} verified but base project is hirenest-os.`);
+      }
       
       const trustedNodes = [
         'gopalkrishna0046@gmail.com',
@@ -428,21 +505,38 @@ async function startServer() {
 
   // --- API ROUTES ---
   app.get("/api/admin/pre-flight", async (req, res) => {
-    const results: any = { 
-        status: "operational", 
-        timestamp: new Date().toISOString(),
-        nodeId: globalProjectId,
-        appsCount: admin.apps.length,
-        env: process.env.NODE_ENV
-    };
-    
     try {
-      results.runtimeIdentity = (await fetchMetadata("instance/service-accounts/default/email")) || "local-or-unknown";
-      results.runtimeProjectId = await fetchMetadata("project/project-id");
+        const results: any = { 
+            status: "operational", 
+            timestamp: new Date().toISOString(),
+            nodeId: globalProjectId,
+            appsCount: admin.apps.length,
+            env: process.env.NODE_ENV,
+            hostname: req.hostname,
+            identityResolved: !!globalProjectId
+        };
+        
+        try {
+          const [sa, proj] = await Promise.all([
+             fetchMetadata("instance/service-accounts/default/email"),
+             fetchMetadata("project/project-id")
+          ]);
+          results.runtimeIdentity = sa || "local-or-unknown";
+          results.runtimeProjectId = proj || globalProjectId;
+          
+          if (globalProjectId === "hirenest-os" && !req.hostname.includes("localhost") && !req.hostname.includes("run.app") && !req.hostname.includes("aistudio")) {
+             results.status = "restricted";
+             results.advice = "Project ID Mismatch: Server running as 'hirenest-os' on production domain. Verify Vercel ENV vars.";
+          }
+        } catch (metadataErr) {
+          results.metadataError = true;
+        }
+        
+        res.json(results);
     } catch (e: any) {
-      results.error = e.message;
+        console.error("[PRE-FLIGHT CRASH]", e);
+        res.status(500).json({ error: "PRE_FLIGHT_ERROR", message: e.message });
     }
-    res.json(results);
   });
   app.get("/api/health", (req, res) => {
     res.json({ 
@@ -590,6 +684,7 @@ async function startServer() {
     try {
       if (admin.apps.length === 0) {
         await initializeGovernanceLayer();
+        results.projectId = globalProjectId;
       }
 
       // 1. Identity Discovery (Non-blocking)
@@ -1799,9 +1894,13 @@ Candidate Profile: ${candidateProfile}`,
     }
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[OS] Server running on port ${PORT}`);
-  });
+  if (process.env.VERCEL || process.env.LAMBDA_TASK_ROOT || process.env.AWS_EXECUTION_ENV) {
+    console.log("[OS] Serverless Context Detected. Skipping app.listen listener.");
+  } else {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[OS] Server running on port ${PORT}`);
+    });
+  }
 
   return app;
 }
@@ -1816,13 +1915,18 @@ process.on('uncaughtException', (err) => {
 });
 
 const appPromise = startServer().catch(err => {
-  console.error("[STARTUP FATAL]", err);
-  // In serverless environments like Vercel, we might want to let the app start even if partially broken
-  // so we can still see diagnostics, but here we stay strict for startup.
-  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
-      process.exit(1);
-  }
-  return null; 
+  console.error("[STARTUP FATAL] Critical initialization failure:", err);
+  // Emergency fallback: create a minimal app to respond to requests if the main one crashed
+  const emergencyApp = express();
+  emergencyApp.all("*", (req, res) => {
+    res.status(500).json({ 
+      error: "STARTUP_CRASH", 
+      message: "The server failed to initialize governance layer.",
+      details: err.message,
+      node: process.env.GOOGLE_CLOUD_PROJECT || "unknown"
+    });
+  });
+  return emergencyApp; 
 });
 
 export default appPromise;

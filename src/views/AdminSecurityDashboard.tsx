@@ -167,8 +167,11 @@ export default function AdminSecurityDashboard() {
     (diagnostics?.auth?.includes("failure") && !diagnostics?.auth?.toLowerCase()?.includes("permission_denied")) || 
     (diagnostics?.firestore?.includes("failure") && !diagnostics?.firestore?.toLowerCase()?.includes("permission_denied")) ||
     (diagnostics?.auth === "handshake-failed") ||
-    (diagnostics?.error === "DIAGNOSTICS_FAILURE")
+    (diagnostics?.error === "DIAGNOSTICS_FAILURE") ||
+    (diagnostics?.statusCode === 500)
   );
+
+  const isProjectMismatch = isBlocked && (diagnostics?.projectId === "hirenest-os" && window.location.hostname !== "localhost" && !window.location.hostname.includes("asia-east1.run.app"));
 
   const isDegraded = !!(
     (!isBlocked) && 
@@ -256,6 +259,15 @@ export default function AdminSecurityDashboard() {
                  </div>
                  <div className="space-y-4">
                    <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Restricted</h2>
+                   {isProjectMismatch && (
+                     <div className="bg-rose-500/10 border-2 border-rose-500/50 p-6 rounded-2xl flex items-center gap-6 mt-4 animate-pulse">
+                        <Target className="text-rose-400 shrink-0" size={32} />
+                        <div className="space-y-1">
+                           <p className="text-rose-200 font-bold uppercase tracking-widest text-[10px]">Project Identity Conflict</p>
+                           <p className="text-rose-300/70 text-[11px] leading-tight">Node is requesting <span className="text-rose-100 font-mono">hirenest-os</span>, but you appear to be in production. Configure secrets.</p>
+                        </div>
+                     </div>
+                   )}
                    <p className="text-slate-400 text-xl font-medium leading-relaxed max-w-3xl">
                      The Authority Signal is being filtered. This usually indicates <span className="text-white font-bold">IAM Authorization</span> or <span className="text-white font-bold">API Access</span> is missing for the runtime node.
                    </p>
