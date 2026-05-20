@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Bell, Info, AlertTriangle, CheckCircle, Clock, Trash2, ArrowRight } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -156,7 +156,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                       {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                     {n.actionUrl && (
-                      <Link to={n.actionUrl}>
+                      <Link href={n.actionUrl || "#"}>
                         <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 p-0 h-fit flex items-center gap-1 hover:bg-transparent">
                           View Details <ArrowRight size={10} />
                         </Button>

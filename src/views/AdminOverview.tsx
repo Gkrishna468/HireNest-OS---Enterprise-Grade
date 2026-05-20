@@ -6,7 +6,7 @@ import { DollarSign, Briefcase, Users, Activity, Shield, ChevronRight } from "lu
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
 export default function AdminOverview() {
   const [data, setData] = useState<any>({ 
@@ -18,7 +18,7 @@ export default function AdminOverview() {
     onboardingRequests: [] 
   });
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Derived Financial Metrics
   const totalBilling = data.requirements.reduce((acc: number, req: any) => acc + (req.financials?.clientBudget || 0), 0);
@@ -141,7 +141,7 @@ export default function AdminOverview() {
         {[
           { label: "Verified Req Pool", value: data.requirements.length, icon: Briefcase, color: "text-indigo-600", desc: "authenticated demand" },
           { label: "Governance Volume", value: `₹${Math.round((totalMargin * 83) / 1000)}k`, icon: DollarSign, color: "text-emerald-600", desc: "platform profit capture" },
-          { label: "Onboarding Queue", value: pendingOnboarding, icon: Users, color: "text-amber-600", desc: "Awaiting Network Admission", action: () => navigate('/admin/users') },
+          { label: "Onboarding Queue", value: pendingOnboarding, icon: Users, color: "text-amber-600", desc: "Awaiting Network Admission", action: () => router.push('/admin/users') },
           { label: "Node Population", value: data.organizations.length, icon: Shield, color: "text-slate-900", desc: "entities in execution" }
         ].map((stat) => (
           <div 
@@ -196,7 +196,7 @@ export default function AdminOverview() {
                 {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').map((req: any) => (
                    <div 
                       key={req.id} 
-                      onClick={() => navigate('/admin/execution')}
+                      onClick={() => router.push('/admin/execution')}
                       className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-3xl hover:border-indigo-200 hover:bg-white hover:shadow-xl transition-all cursor-pointer group"
                    >
                       <div className="flex items-center gap-4">
@@ -249,7 +249,7 @@ export default function AdminOverview() {
                 </div>
 
                 <Button 
-                    onClick={() => navigate('/admin/execution')}
+                    onClick={() => router.push('/admin/execution')}
                     className="w-full mt-10 bg-indigo-600 hover:bg-white hover:text-slate-900 h-14 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-2xl shadow-indigo-500/20"
                 >
                     go to execution hq

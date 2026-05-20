@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+checklist.txt
+checklist.html
+ARCHITECTURE.md
+SKILL.md
+blueprint_summary.md
+DRAFT_firestore.rules

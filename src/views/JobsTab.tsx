@@ -12,10 +12,10 @@ import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
 
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
 export default function JobsTab() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
   const [jdText, setJdText] = useState("");
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
@@ -395,7 +395,7 @@ export default function JobsTab() {
       timestamp: serverTimestamp()
     });
 
-    navigate("/deals");
+    router.push("/deals");
   };
 
   return (

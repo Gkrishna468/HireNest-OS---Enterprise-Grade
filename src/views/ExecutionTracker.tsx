@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { 
   CheckSquare, 
   Calendar, 
@@ -294,7 +294,7 @@ export default function ExecutionTracker() {
                             require manual authority alignment.
                         </p>
                         <div className="mt-8 flex gap-4">
-                            <Link to="/admin/security">
+                            <Link href="/admin/security">
                                 <Button className="bg-slate-900 text-white rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 hover:scale-105 transition-transform">
                                     Open Security Dashboard
                                 </Button>
