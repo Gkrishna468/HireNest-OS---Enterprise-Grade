@@ -173,22 +173,15 @@ export default function AdminSecurityDashboard() {
     </div>
   );
 
-  const isBlocked = !!(
-    (diagnostics?.auth?.includes("failure") && !diagnostics?.auth?.toLowerCase()?.includes("permission_denied")) || 
-    (diagnostics?.firestore?.includes("failure") && !diagnostics?.firestore?.toLowerCase()?.includes("permission_denied")) ||
-    (diagnostics?.auth === "handshake-failed") ||
-    (diagnostics?.error === "DIAGNOSTICS_FAILURE") ||
-    (diagnostics?.statusCode === 500)
-  );
+  // NEW TIERED HEALTH MODEL
+  const runtimeStatus = preFlight?.ok ? "healthy" : "offline";
+  const governanceStatus = diagnostics?.ok ? (diagnostics.auth === "healthy" && diagnostics.firestore === "healthy" ? "healthy" : "degraded") : "offline";
+  
+  const isBlocked = runtimeStatus === "offline"; 
+  const isDegraded = runtimeStatus === "healthy" && governanceStatus !== "healthy";
+  const isNominal = runtimeStatus === "healthy" && governanceStatus === "healthy";
 
   const isProjectMismatch = preFlight?.status === "restricted" || (isBlocked && (diagnostics?.projectId === "hirenest-os" && window.location.hostname !== "localhost" && !window.location.hostname.includes("asia-east1.run.app")));
-
-  const isDegraded = !!(
-    (!isBlocked) && 
-    (diagnostics?.remediation || diagnostics?.iamCommand || diagnostics?.auth?.toLowerCase()?.includes("permission_denied") || diagnostics?.firestore?.toLowerCase()?.includes("permission_denied"))
-  );
-
-  const isNominal = diagnostics?.auth === "healthy" && diagnostics?.firestore === "healthy" && !isDegraded;
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-8 lg:p-16 max-w-[1920px] mx-auto font-sans flex flex-col gap-12 text-[#141414]">
@@ -213,9 +206,11 @@ export default function AdminSecurityDashboard() {
              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">State Verification</p>
              <Badge className={cn(
                "py-2 px-6 rounded-xl border-4 font-black uppercase tracking-widest text-sm",
-               isBlocked ? "bg-rose-50 border-rose-600 text-rose-600 animate-pulse" : "bg-emerald-50 border-emerald-600 text-emerald-600"
+               isBlocked ? "bg-rose-50 border-rose-600 text-rose-600 animate-pulse" : 
+               isDegraded ? "bg-amber-50 border-amber-600 text-amber-600" :
+               "bg-emerald-50 border-emerald-600 text-emerald-600"
              )}>
-                {isBlocked ? "SIGNAL_RESTRICTED" : "NOMINAL_ACTIVE"}
+                {isBlocked ? "RUNTIME_OFFLINE" : isDegraded ? "GOVERNANCE_DEGRADED" : "NOMINAL_ACTIVE"}
              </Badge>
            </div>
            
@@ -268,7 +263,7 @@ export default function AdminSecurityDashboard() {
                     <ShieldAlert size={56} strokeWidth={3} />
                  </div>
                  <div className="space-y-4">
-                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Infrastructure Restricted</h2>
+                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-rose-600 decoration-8 underline-offset-[12px]">Runtime Restricted</h2>
                    {preFlight?.initializationError && (
                       <div className="bg-rose-500/20 border-2 border-rose-500 p-6 rounded-2xl flex flex-col gap-4 mt-6">
                         <div className="flex items-center gap-4">
@@ -461,9 +456,9 @@ export default function AdminSecurityDashboard() {
                     <Activity size={56} strokeWidth={3} />
                  </div>
                  <div className="space-y-4">
-                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-amber-600 decoration-8 underline-offset-[12px]">Partial Governance Degradation</h2>
+                   <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white underline decoration-amber-600 decoration-8 underline-offset-[12px]">Governance Sync Delayed</h2>
                    <p className="text-slate-400 text-xl font-medium leading-relaxed max-w-3xl">
-                     Compute nodes are operational, but <span className="text-white font-bold">Policy Deployment (IAM/Rulesets)</span> is restricted. Automatic updates are currently inhibited.
+                     Governance synchronization is temporarily degraded. <span className="text-white font-bold">Policy Deployment</span> is restricted, but the runtime node is operational.
                    </p>
                  </div>
                </div>
