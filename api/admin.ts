@@ -1,4 +1,4 @@
-import { adminDb, adminAuth } from "../src/lib/firebase-admin";
+import { adminDb, adminAuth } from "../src/lib/firebase-admin.ts";
 import { getAuth } from "firebase-admin/auth";
 
 export default async function handler(req: any, res: any) {

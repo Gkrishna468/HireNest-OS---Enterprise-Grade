@@ -4,7 +4,7 @@ import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, serverTimestamp, where, addDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp, where, addDoc } from "firebase/firestore";
 import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
@@ -34,6 +34,164 @@ export default function JobsTab() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
+
+  // Continuous background scanner/matcher
+  useEffect(() => {
+    if (!jobs || jobs.length === 0 || !db) return;
+
+    const runAutomatedScanner = async () => {
+      console.log("[AUTO_SCANNER] Initiating background scan of candidates vs requirements...");
+      try {
+        // Fetch all candidates from active pool
+        const candidatesSnap = await getDocs(collection(db, "candidatePool"));
+        const candidateList = candidatesSnap.docs.map(doc => ({
+          id: doc.id,
+          candidateId: doc.id,
+          ...doc.data()
+        } as any));
+
+        console.log(`[AUTO_SCANNER] Scanning ${candidateList.length} candidates against ${jobs.length} roles.`);
+
+        for (const job of jobs) {
+          // Only scan published jobs
+          if (job.status !== "PUBLISHED") continue;
+
+          // Extract job skills
+          const jobSkills = (job.skills || [])
+            .map((s: string) => s.trim().toLowerCase())
+            .filter(Boolean);
+
+          for (const cand of candidateList) {
+            const candSkills = (cand.skills || [])
+              .map((s: any) => String(s).trim().toLowerCase())
+              .filter(Boolean);
+
+            // Compute skill overlap
+            let overlapCount = 0;
+            if (jobSkills.length > 0) {
+              overlapCount = candSkills.filter(s => jobSkills.includes(s)).length;
+            }
+
+            // Keyword overlap with description
+            let descOverlap = 0;
+            const jdWords = String(job.description || "").toLowerCase();
+            candSkills.forEach(s => {
+              if (jdWords.includes(s)) descOverlap++;
+            });
+
+            // Scoring formula: baseline 50, scale up to 100 based on overlap & skills matching
+            let matchScore = 65; // default baseline for listed talent
+            if (jobSkills.length > 0) {
+              const skillScore = Math.round((overlapCount / jobSkills.length) * 30);
+              const descScore = Math.min(10, descOverlap * 2);
+              matchScore = Math.min(100, matchScore + skillScore + descScore);
+            } else {
+              // fallback skill match
+              matchScore = Math.min(98, matchScore + Math.min(30, descOverlap * 4));
+            }
+
+            // Check experience range compatibility
+            const jobTitleLower = String(job.title || "").toLowerCase();
+            if (jobTitleLower.includes("senior") || jobTitleLower.includes("sr") || jobTitleLower.includes("lead")) {
+              const candExpInt = parseInt(String(cand.experience || "0"));
+              if (candExpInt > 5) {
+                matchScore = Math.min(100, matchScore + 5);
+              }
+            }
+
+            // Check if match is good (>= 75%)
+            if (matchScore >= 75) {
+              // Ensure submission document is created in Firestore
+              const subId = `SUB-${job.id.replace('REQ-', '')}-${cand.id.slice(-6)}`;
+              const subRef = doc(db, "submissions", subId);
+              const subSnap = await getDoc(subRef);
+
+              if (!subSnap.exists()) {
+                console.log(`[AUTO_SCANNER] High alignment found (${matchScore}%). Auto-submitting ${cand.name} for ${job.title}...`);
+                const newSub = {
+                  id: subId,
+                  requirementId: job.id,
+                  clientId: job.clientId || "ORG-da6tlbeo1",
+                  vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
+                  candidateId: cand.id,
+                  candidateName: cand.name || cand.candidateName,
+                  name: cand.name || cand.candidateName,
+                  email: cand.email || "talent@vendor-network.net",
+                  phone: cand.phone || "+91 91000 23144",
+                  skills: cand.skills || [],
+                  experience: cand.experience || "Not Specified",
+                  resumeText: cand.resumeText || `Candidate matching tech stack ${candSkills.join(', ')}.`,
+                  matchScore: matchScore,
+                  status: "SUBMITTED",
+                  createdAt: serverTimestamp()
+                };
+                await setDoc(subRef, newSub);
+
+                // Log execution event
+                await logExecutionEvent(
+                  ExecutionEventType.SUBMISSION_RECEIVED,
+                  subId,
+                  "candidate",
+                  { requirementId: job.id, candidateId: cand.id, matchScore },
+                  job.id
+                );
+              }
+
+              // Now automatically transition 75% to 100% matches into the Deal Room!
+              const roomId = `DR-${job.id.replace('REQ-', '')}-${cand.id.slice(-6)}`;
+              const roomRef = doc(db, "dealRooms", roomId);
+              const roomSnap = await getDoc(roomRef);
+
+              if (!roomSnap.exists()) {
+                console.log(`[AUTO_SCANNER] Moving ${cand.name} (${matchScore}%) to Deal Room ${roomId}...`);
+                await setDoc(roomRef, {
+                  id: roomId,
+                  requirementId: job.id,
+                  submissionId: subId,
+                  clientId: job.clientId || "ORG-da6tlbeo1",
+                  vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
+                  candidateName: cand.name || cand.candidateName || "Talent Match",
+                  jobTitle: job.title || "Strategic Role",
+                  experience: job.experience || "8+ YRS",
+                  status: "ACTIVE",
+                  currentStage: "Ai-Matched Pipeline",
+                  identitiesRevealed: false,
+                  createdAt: serverTimestamp()
+                });
+
+                // Add welcoming copilot message to thread
+                await addDoc(collection(db, "dealRooms", roomId, "messages"), {
+                  senderRole: "AI Copilot",
+                  senderId: "system",
+                  text: `Enterprise Core Alert: Automatic cross-boundary candidate matching completed. ${cand.name} possesses high-density skill alignment (${matchScore}%) mapped under requirements. Transitioning candidate thread into Deal Room format to expedite placement negotiations.`,
+                  timestamp: serverTimestamp()
+                });
+
+                // Trigger notification for the client
+                await addDoc(collection(db, "notifications"), {
+                  id: `NOTIF-${Date.now()}`,
+                  recipientId: job.ownerId || "default-user",
+                  title: "New Automated Marketplace Match",
+                  text: `AI Agent successfully matched and fast-tracked candidate ${cand.name || "Talent"} (${matchScore}%) for your role "${job.title}". Deal Room created.`,
+                  read: false,
+                  createdAt: serverTimestamp()
+                });
+              }
+            }
+          }
+        }
+      } catch (scanErr) {
+        console.warn("[AUTO_SCANNER] Error during automated match pass:", scanErr);
+      }
+    };
+
+    // Run first scan immediately
+    runAutomatedScanner();
+
+    // Set interval scanning under 5 minutes (every 20 seconds for hot real-time experience)
+    const scanInterval = setInterval(runAutomatedScanner, 20000);
+    return () => clearInterval(scanInterval);
+  }, [jobs, db]);
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'ops_admin';
   const isClient = userRole === 'client' || userRole?.startsWith('client_');
@@ -110,12 +268,23 @@ export default function JobsTab() {
   }, [orgId, userRole]);
 
   useEffect(() => {
-    if (selectedJob && auth.currentUser) {
-      // 1. Listen to explicit vendor submissions
-      const qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
+    if (selectedJob && auth.currentUser && orgId && userRole) {
+      // 1. Listen to explicit vendor submissions with ABAC query filtering to satisfy Firestore rules
+      let qSub;
+      const hqAuthority = userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
+      
+      if (hqAuthority) {
+        qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id));
+      } else if (isClient) {
+        qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id), where("clientId", "==", orgId));
+      } else {
+        qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id), where("vendorId", "==", orgId));
+      }
+
       const unsubSub = onSnapshot(qSub, (snap) => {
         setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }, (error) => {
+        console.warn("[SUBMISSIONS_FETCH_WARN] Complied rules but query returned error:", error.message);
         handleFirestoreError(error, OperationType.GET, "submissions");
       });
 
@@ -127,6 +296,8 @@ export default function JobsTab() {
           if (res.ok) {
             const data = await res.json();
             setGlobalMatches(data.matches || []);
+          } else {
+            console.warn("Global matching API response not OK", res.status);
           }
         } catch (e) {
           console.warn("Global matching API failed, using fallback empty state");
@@ -136,7 +307,7 @@ export default function JobsTab() {
       fetchGlobalMatches();
       return () => unsubSub();
     }
-  }, [selectedJob, auth.currentUser]);
+  }, [selectedJob, auth.currentUser, orgId, userRole]);
 
   const handleParseJD = async () => {
     if (!jdText.trim()) return;
