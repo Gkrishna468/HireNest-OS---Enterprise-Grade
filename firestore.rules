@@ -194,7 +194,7 @@ service cloud.firestore {
       allow update: if (isAdmin() || isOrganizationMember(existing().clientId)) && isValidRequirementPublic(incoming()) && (
         isAdmin() ?
           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminApproved', 'vendorVisibleBudget', 'visibility', 'updatedAt', 'financials', 'matchProcessingStatus']) :
-          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills', 'updatedAt', 'experience', 'minExp', 'maxExp', 'workMode'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'skills', 'updatedAt', 'experience', 'minExp', 'maxExp', 'workMode', 'status', 'clientTargetBudget', 'visibility', 'budget', 'matchProcessingStatus'])
       );
     }
 
@@ -205,7 +205,7 @@ service cloud.firestore {
 
     match /candidatePool/{candId} {
       allow read: if isAdmin() || isSameOrg(resource.data.vendorId);
-      allow create: if isVerified() && isSameOrg(incoming().vendorId) && isValidCandidate(incoming());
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().vendorId)) && isValidCandidate(incoming());
       allow update: if (isAdmin() || isSameOrg(existing().vendorId)) && isValidCandidate(incoming());
       allow delete: if isAdmin() || isSameOrg(existing().vendorId);
     }

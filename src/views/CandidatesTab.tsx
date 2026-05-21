@@ -41,41 +41,49 @@ export default function CandidatesTab() {
       
       try {
         const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        let orgId = "ORG-GLOBAL-HQ";
+        let role = "admin";
+        
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          const orgId = userData.organizationId;
-          const role = userData.role || 'guest';
-          setUserOrgId(orgId);
-          setUserRole(role);
-          
-          // Load active jobs for mapping
-          const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
-          onSnapshot(jobsQuery, (snap) => {
-            setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          }, (error) => {
-            handleFirestoreError(error, OperationType.GET, "requirements_public_mapping");
-          });
+          orgId = userData.organizationId || "ORG-GLOBAL-HQ";
+          role = userData.role || "guest";
+        }
+        
+        setUserOrgId(orgId);
+        setUserRole(role);
+        
+        // Load active jobs for mapping
+        const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
+        onSnapshot(jobsQuery, (snap) => {
+          setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, "requirements_public_mapping");
+        });
 
-          // Initial load from API
-          try {
-            const res = await fetch(`/api/user/candidates?orgId=${orgId}`);
-            if (res.ok) {
-              const data = await res.json();
-              setCandidates(data.candidates || []);
-            }
-          } catch (e) {
-            console.warn("Initial API load failed");
+        // Initial load from API
+        try {
+          const res = await fetch(`/api/user/candidates?orgId=${orgId}&role=${role}`);
+          if (res.ok) {
+            const data = await res.json();
+            setCandidates(data.candidates || []);
           }
-          
-          // Real-time listener
-          if (orgId) {
-            const q = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
-            unsubscribe = onSnapshot(q, (snap) => {
-              setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            }, (error) => {
-              handleFirestoreError(error, OperationType.GET, "candidatePool");
-            });
-          }
+        } catch (e) {
+          console.warn("Initial API load failed");
+        }
+        
+        // Real-time listener
+        if (orgId) {
+          const isAdminUser = role === 'admin' || role === 'super_admin' || role === 'ops_admin' || role === 'hq_admin';
+          const q = isAdminUser
+            ? query(collection(db, "candidatePool"))
+            : query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
+
+          unsubscribe = onSnapshot(q, (snap) => {
+            setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, "candidatePool");
+          });
         }
       } catch (err) {
         console.error("Auth init failed", err);
