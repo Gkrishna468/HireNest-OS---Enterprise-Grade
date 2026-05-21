@@ -1,4 +1,4 @@
-import { adminDb, adminAuth } from "../src/lib/firebase-admin.ts";
+import { adminDb, adminAuth } from "../src/lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
   // Extract action from path or query

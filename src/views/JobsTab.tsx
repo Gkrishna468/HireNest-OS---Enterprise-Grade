@@ -34,10 +34,36 @@ export default function JobsTab() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
+  const [localMatchCompleted, setLocalMatchCompleted] = useState<Record<string, boolean>>({});
+
+  // Help prevent scanning skeleton hanging infinitely in non-admin / slow loading states
+  useEffect(() => {
+    if (selectedJob && (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing')) {
+      const timer = setTimeout(() => {
+        setLocalMatchCompleted(prev => ({ ...prev, [selectedJob.id]: true }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedJob]);
 
   // Continuous background scanner/matcher
   useEffect(() => {
-    if (!jobs || jobs.length === 0 || !db) return;
+    if (!jobs || jobs.length === 0 || !db || !userRole) return;
+
+    // Only authorized system nodes/admins or HQ can perform global automated matching scans across the entire candidate pool.
+    const isScannerAuthorized = 
+      userRole === 'admin' || 
+      userRole === 'super_admin' || 
+      userRole === 'ops_admin' || 
+      userRole === 'platform_authority' ||
+      orgId === 'ORG-GLOBAL-HQ' || 
+      auth.currentUser?.email === 'gopalkrishna0046@gmail.com' || 
+      auth.currentUser?.email === 'gopal@hirenestworkforce.com';
+
+    if (!isScannerAuthorized) {
+      console.log("[AUTO_SCANNER] Current role is not authorized for global scanning. Scanner bypassed.");
+      return;
+    }
 
     const runAutomatedScanner = async () => {
       console.log("[AUTO_SCANNER] Initiating background scan of candidates vs requirements...");
@@ -191,7 +217,7 @@ export default function JobsTab() {
     // Set interval scanning under 5 minutes (every 20 seconds for hot real-time experience)
     const scanInterval = setInterval(runAutomatedScanner, 20000);
     return () => clearInterval(scanInterval);
-  }, [jobs, db]);
+  }, [jobs, db, userRole, orgId]);
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'ops_admin';
   const isClient = userRole === 'client' || userRole?.startsWith('client_');
@@ -946,7 +972,7 @@ export default function JobsTab() {
                         </Badge>
                       </div>
 
-                  { (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && [...submissions, ...globalMatches].length === 0 ? (
+                  { (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && !localMatchCompleted[selectedJob.id] && [...submissions, ...globalMatches].length === 0 ? (
                      <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                         <div className="relative mb-8">
                           <Bot size={80} className={`text-indigo-400 ${selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' ? 'animate-bounce' : 'opacity-30'}`} />

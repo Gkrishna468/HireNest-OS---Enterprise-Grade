@@ -29,6 +29,7 @@ async function createServer() {
       'user/assign-role': 'user.ts',
       'user-context': 'user.ts',
       'user/context': 'user.ts',
+      'matching/global': 'matching-global.ts',
       'metrics': 'admin.ts',
       'admin/metrics': 'admin.ts',
       'diagnostics': 'admin.ts',

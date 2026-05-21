@@ -1,4 +1,4 @@
-import { adminDb } from "../src/lib/firebase-admin.ts";
+import { adminDb } from "../src/lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
   const { orgId, role } = req.query;
