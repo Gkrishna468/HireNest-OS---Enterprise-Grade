@@ -23,6 +23,7 @@ export default function CandidatesTab() {
   const [mappingResult, setMappingResult] = useState<any | null>(null);
   const [isMapping, setIsMapping] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
+  const [userRole, setUserRole] = useState<string>("");
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -35,8 +36,9 @@ export default function CandidatesTab() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const orgId = userData.organizationId;
-          const role = userData.role;
+          const role = userData.role || 'guest';
           setUserOrgId(orgId);
+          setUserRole(role);
           
           // Load active jobs for mapping
           const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
@@ -278,6 +280,9 @@ export default function CandidatesTab() {
     }
   };
 
+  const isClient = userRole === 'client' || userRole?.startsWith('client_');
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'ops_admin';
+
   const handleMapToJob = async (jobId: string) => {
     if (!selectedCandidate || !jobId) return;
     const job = jobs.find(j => j.id === jobId);
@@ -376,21 +381,23 @@ export default function CandidatesTab() {
              </div>
           </div>
         </div>
-        <div className="flex gap-4">
-            <Button 
-                onClick={() => setShowBulkUpload(true)} 
-                variant="outline" 
-                className="border-slate-200 text-slate-600 h-12 px-6 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all font-black uppercase tracking-widest text-[11px]"
-            >
-                <Upload size={18} className="mr-2" /> Bulk Intelligence
-            </Button>
-            <Button 
-                onClick={() => setShowAddForm(true)} 
-                className="bg-indigo-600 hover:bg-slate-900 text-white h-12 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
-            >
-                <Plus size={20} className="mr-2" /> Onboard Profile
-            </Button>
-        </div>
+        {(!isClient || isAdmin) && (
+          <div className="flex gap-4">
+              <Button 
+                  onClick={() => setShowBulkUpload(true)} 
+                  variant="outline" 
+                  className="border-slate-200 text-slate-600 h-12 px-6 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all font-black uppercase tracking-widest text-[11px]"
+              >
+                  <Upload size={18} className="mr-2" /> Bulk Intelligence
+              </Button>
+              <Button 
+                  onClick={() => setShowAddForm(true)} 
+                  className="bg-indigo-600 hover:bg-slate-900 text-white h-12 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
+              >
+                  <Plus size={20} className="mr-2" /> Onboard Profile
+              </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2">
@@ -651,17 +658,21 @@ export default function CandidatesTab() {
                                   <div className="flex items-center justify-between mb-4">
                                       <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Intelligence Mapping Center</h3>
                                       {selectedCandidate.pipelineStage !== 'Deal Room' ? (
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-[9px] font-bold text-slate-500">Mapping to:</label>
-                                          <select 
-                                            value={selectedJobId}
-                                            onChange={(e) => handleMapToJob(e.target.value)}
-                                            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-bold text-indigo-600 outline-none hover:border-indigo-300 transition-colors"
-                                          >
-                                            <option value="">Select Requirement</option>
-                                            {jobs.map(j => <option key={j.id} value={j.id}>{j.requirementId}: {j.title}</option>)}
-                                          </select>
-                                        </div>
+                                        (!isClient || isAdmin) ? (
+                                          <div className="flex items-center gap-2">
+                                            <label className="text-[9px] font-bold text-slate-500">Mapping to:</label>
+                                            <select 
+                                              value={selectedJobId}
+                                              onChange={(e) => handleMapToJob(e.target.value)}
+                                              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-bold text-indigo-600 outline-none hover:border-indigo-300 transition-colors"
+                                            >
+                                              <option value="">Select Requirement</option>
+                                              {jobs.map(j => <option key={j.id} value={j.id}>{j.requirementId}: {j.title}</option>)}
+                                            </select>
+                                          </div>
+                                        ) : (
+                                          <Badge className="bg-amber-100 text-amber-700 text-[10px]">READ-ONLY VIEW</Badge>
+                                        )
                                       ) : (
                                         <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">DEAL_ACTIVE</Badge>
                                       )}
@@ -714,7 +725,7 @@ export default function CandidatesTab() {
                                               </div>
                                           </div>
                                           
-                                          {selectedCandidate.pipelineStage !== 'Deal Room' && (
+                                          {selectedCandidate.pipelineStage !== 'Deal Room' && (!isClient || isAdmin) && (
                                               <Button 
                                                 onClick={finalizeDeal}
                                                 className="w-full bg-indigo-600 hover:bg-slate-900 text-white font-black h-12 uppercase tracking-[0.2em] text-[11px] rounded-xl shadow-xl shadow-indigo-100 transition-all hover:scale-[1.01]"

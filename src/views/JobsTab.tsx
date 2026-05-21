@@ -35,8 +35,12 @@ export default function JobsTab() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
 
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'ops_admin';
   const isClient = userRole === 'client' || userRole?.startsWith('client_');
+  const isVendor = userRole === 'vendor' || userRole?.startsWith('vendor_');
+  const isRecruiter = userRole === 'recruiter' || userRole?.includes('recruiter');
+  const isIndependent = userRole === 'independent' || userRole?.startsWith('independent_') || userRole === 'independent';
+  const isSupplyLayer = isVendor || isRecruiter || isIndependent;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -83,10 +87,9 @@ export default function JobsTab() {
 
       // Real-time fallback
       const q = collection(db, "requirements_public");
-      const isVendor = userRole?.includes('vendor');
       const requirementsQuery = isAdmin 
         ? q 
-        : (isVendor 
+        : (isSupplyLayer 
             ? query(q, where("visibility", "==", "VENDOR_NETWORK"), where("status", "==", "PUBLISHED")) 
             : query(q, where("clientId", "==", orgId)));
 

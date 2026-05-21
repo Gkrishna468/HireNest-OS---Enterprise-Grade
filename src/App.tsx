@@ -95,7 +95,12 @@ const AppContent = () => {
     return <Onboarding onComplete={() => window.location.reload()} />;
   }
 
-  const isAdmin = userData?.role === 'admin' || userData?.role === 'super_admin' || userData?.role === 'ops_admin';
+  const role = userData?.role || 'guest';
+  const isAdmin = role === 'admin' || role === 'super_admin' || role === 'ops_admin';
+  const isClient = role === 'client' || role === 'client_admin' || role === 'client_hm' || role === 'client_finance' || role === 'client_recruiter';
+  const isVendor = role === 'vendor' || role === 'vendor_admin' || role === 'vendor_recruiter';
+  const isRecruiter = role === 'recruiter' || role === 'independent_recruiter' || role === 'freelancer_recruiter';
+  const isIndependent = role === 'independent' || role === 'independent_vendor' || role === 'independent_consultant';
 
   if (user && userData?.onboardingCompleted !== true && !isAdmin) {
     return <Onboarding onComplete={() => window.location.reload()} />;
@@ -118,14 +123,33 @@ const AppContent = () => {
         <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">Workspace</div>
           <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === '/'} />
-          <SidebarItem to="/hq" icon={Brain} label="Agent HQ" active={location.pathname === '/hq'} />
-          <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === '/candidates'} />
+          
+          {isAdmin && (
+            <SidebarItem to="/hq" icon={Brain} label="Agent HQ" active={location.pathname === '/hq'} />
+          )}
+
+          {/* Candidates: Show to Admin, Vendor, Recruiter, Client, but hide from Independent */}
+          {(isAdmin || isVendor || isRecruiter || isClient) && (
+            <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === '/candidates'} />
+          )}
+
           <SidebarItem to="/jobs" icon={Briefcase} label="Job Pipelines" active={location.pathname === '/jobs'} />
           
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">Partners</div>
-          <SidebarItem to="/clients" icon={Building2} label="Clients" active={location.pathname === '/clients'} />
-          <SidebarItem to="/vendors" icon={Users} label="Vendors" active={location.pathname === '/vendors'} />
-          <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Deal Rooms" active={location.pathname === '/deal-rooms'} />
+          {isAdmin && (
+            <>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">Partners</div>
+              <SidebarItem to="/clients" icon={Building2} label="Clients" active={location.pathname === '/clients'} />
+              <SidebarItem to="/vendors" icon={Users} label="Vendors" active={location.pathname === '/vendors'} />
+            </>
+          )}
+
+          {/* Deal Rooms: Everyone except guests can collaborate */}
+          {(isAdmin || isClient || isVendor || isRecruiter || isIndependent) && (
+            <>
+              {!isAdmin && <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">Collaboration</div>}
+              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Deal Rooms" active={location.pathname === '/deal-rooms'} />
+            </>
+          )}
           
           {isAdmin && (
             <>
@@ -191,16 +215,16 @@ const AppContent = () => {
         <div className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<DashboardTab />} />
-            <Route path="/hq" element={<AgentHQ />} />
-            <Route path="/candidates" element={<CandidatesTab />} />
+            {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
+            {(isAdmin || isVendor || isRecruiter || isClient) && <Route path="/candidates" element={<CandidatesTab />} />}
             <Route path="/jobs" element={<JobsTab />} />
-            <Route path="/clients" element={<ClientsTab />} />
-            <Route path="/vendors" element={<VendorsTab />} />
+            {isAdmin && <Route path="/clients" element={<ClientsTab />} />}
+            {isAdmin && <Route path="/vendors" element={<VendorsTab />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
-            <Route path="/admin" element={<AdminOverview />} />
-            <Route path="/users" element={<AdminUsersManager orgData={userData} />} />
-            <Route path="/trace" element={<TraceView />} />
-            <Route path="/map" element={<MemoryMapView />} />
+            {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
+            {isAdmin && <Route path="/users" element={<AdminUsersManager orgData={userData} />} />}
+            {isAdmin && <Route path="/trace" element={<TraceView />} />}
+            {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             <Route path="/notifications" element={<NotificationsTab org={{ id: userData?.organizationId }} />} />
             <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.reload()} />} />
             <Route path="/settings" element={<AdminSecurityDashboard />} />
