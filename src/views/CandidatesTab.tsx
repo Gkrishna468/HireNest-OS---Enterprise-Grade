@@ -7,6 +7,14 @@ import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc } from "firebase/firestore";
 import { parseBulkResumes } from "../services/aiService";
 
+const getSkillsArray = (skills: any): string[] => {
+  if (Array.isArray(skills)) return skills;
+  if (typeof skills === 'string') {
+    return skills.split(',').map((s: string) => s.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 const STAGES = ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"];
 
 export default function CandidatesTab() {
@@ -95,6 +103,7 @@ export default function CandidatesTab() {
       const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
       const initialCandidate = {
         ...formData,
+        skills: getSkillsArray(formData.skills),
         candidateId: candId,
         vendorId: userOrgId,
         pipelineStage: "Candidate Added",
@@ -293,7 +302,7 @@ export default function CandidatesTab() {
     setSelectedJobId(jobId);
 
     try {
-        const resumeToUse = selectedCandidate.resumeText || `Skills: ${selectedCandidate.skills?.join(", ")}`;
+        const resumeToUse = selectedCandidate.resumeText || `Skills: ${getSkillsArray(selectedCandidate.skills).join(", ")}`;
         const res = await fetch("/api/match-candidates-detailed", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -464,11 +473,11 @@ export default function CandidatesTab() {
                     </div>
                     
                     <div className="flex flex-wrap gap-1.5">
-                      {(cand.skills || []).slice(0, 3).map((s: string) => (
+                      {getSkillsArray(cand.skills).slice(0, 3).map((s: string) => (
                         <span key={s} className="text-[8px] font-black bg-white text-slate-500 border border-slate-100 rounded-md px-2 py-0.5 uppercase tracking-tighter group-hover:border-indigo-200 transition-colors">{s}</span>
                       ))}
-                      {(cand.skills || []).length > 3 && (
-                        <span className="text-[8px] font-black text-slate-300">+{ (cand.skills || []).length - 3 } MORE</span>
+                      {getSkillsArray(cand.skills).length > 3 && (
+                        <span className="text-[8px] font-black text-slate-300">+{ getSkillsArray(cand.skills).length - 3 } MORE</span>
                       )}
                     </div>
                     
