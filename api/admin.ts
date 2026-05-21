@@ -73,7 +73,12 @@ export default async function handler(req: any, res: any) {
     // 4. Governance Data (Detailed)
     if (action === 'governance-data' || action === 'governance') {
       const collections = ["users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests"];
-      const results: any = { ok: true, timestamp: new Date().toISOString() };
+      const results: any = { 
+        ok: true, 
+        timestamp: new Date().toISOString(),
+        nodeId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_APP_PROJECT_ID || "hirenest-os",
+        mode: "LIVE"
+      };
       await Promise.all(collections.map(async (name) => {
         try {
           const snap = await adminDb.collection(name).limit(50).get();

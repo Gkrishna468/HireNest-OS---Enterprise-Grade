@@ -179,6 +179,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     setError("");
 
     try {
+      if (password.length < 6) {
+        throw new Error("Password must be at least 6 characters for Firebase security protocols.");
+      }
+
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/create-user', {
         method: 'POST',

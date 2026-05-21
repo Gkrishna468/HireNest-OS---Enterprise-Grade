@@ -2,6 +2,22 @@ import { initializeApp, cert, getApps, App } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 
+function sanitizePrivateKey(key: string): string {
+  let s = key.trim();
+  if (s.startsWith('"')) {
+    s = s.substring(1);
+  } else if (s.startsWith("'")) {
+    s = s.substring(1);
+  }
+  if (s.endsWith('"')) {
+    s = s.substring(0, s.length - 1);
+  } else if (s.endsWith("'")) {
+    s = s.substring(0, s.length - 1);
+  }
+  s = s.replace(/\\n/g, "\n");
+  return s.trim();
+}
+
 function getCredentials() {
   // Option 1: Individual fields (Recommended for stability)
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -12,7 +28,7 @@ function getCredentials() {
     return {
       projectId,
       clientEmail,
-      privateKey: privateKey.replace(/\\n/g, "\n"),
+      privateKey: sanitizePrivateKey(privateKey),
     };
   }
 
@@ -22,7 +38,7 @@ function getCredentials() {
     try {
       const sa = JSON.parse(saJson);
       if (sa.private_key) {
-        sa.private_key = sa.private_key.replace(/\\n/g, "\n");
+        sa.private_key = sanitizePrivateKey(sa.private_key);
       }
       return sa;
     } catch (e) {

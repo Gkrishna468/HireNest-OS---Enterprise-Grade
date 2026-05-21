@@ -5,10 +5,22 @@ export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
   const action = req.body?.action || req.query?.action || (rawPath.includes('create') ? 'create' : (rawPath.includes('delete') ? 'delete' : (rawPath.includes('assign') ? 'assign' : 'context')));
 
+  console.log(`[USER_API] Action: ${action} Method: ${req.method} Path: ${rawPath}`);
+
   try {
     if (action === 'create') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       const { email, password, role, companyName } = req.body;
+      console.log(`[USER_API] Creating user: ${email} with role: ${role}`);
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+      
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
       let orgType = 'client';
       if (role.includes('vendor')) orgType = 'vendor';
       else if (role.includes('recruiter')) orgType = 'recruiter';
