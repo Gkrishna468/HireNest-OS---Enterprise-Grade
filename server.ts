@@ -43,6 +43,9 @@ async function createServer() {
       'admin/onboard-request': 'admin.ts',
       'governance': 'admin.ts',
       'admin/governance': 'admin.ts',
+      'admin/notify-approval': 'admin.ts',
+      'admin/approve-requirement': 'admin.ts',
+      'admin/notifications': 'admin.ts',
       'user-candidates': 'candidates.ts',
       'user/candidates': 'candidates.ts',
       'deal-intelligence': 'intel.ts'

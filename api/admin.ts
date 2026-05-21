@@ -3,15 +3,33 @@ import { getAuth } from "firebase-admin/auth";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
-  const action = req.body?.action || req.query?.action || (
-    rawPath.includes('metrics') ? 'metrics' : 
-    (rawPath.includes('diagnostics') ? 'diagnostics' : 
-    (rawPath.includes('governance-data') ? 'governance-data' : 
-    (rawPath.includes('pre-flight') ? 'pre-flight' : 
-    (rawPath.includes('approve-request') ? 'approve' : 
-    (rawPath.includes('onboard-request') ? 'onboard' : 
-    (rawPath.includes('governance') ? 'governance' : 'unknown'))))))
-  );
+  let action = req.body?.action || req.query?.action;
+  
+  if (!action) {
+    if (rawPath.includes('metrics')) {
+      action = 'metrics';
+    } else if (rawPath.includes('diagnostics')) {
+      action = 'diagnostics';
+    } else if (rawPath.includes('governance-data')) {
+      action = 'governance-data';
+    } else if (rawPath.includes('pre-flight')) {
+      action = 'pre-flight';
+    } else if (rawPath.includes('approve-request')) {
+      action = 'approve';
+    } else if (rawPath.includes('onboard-request')) {
+      action = 'onboard';
+    } else if (rawPath.includes('notify-approval')) {
+      action = 'notify-approval';
+    } else if (rawPath.includes('approve-requirement')) {
+      action = 'approve-requirement';
+    } else if (rawPath.includes('notifications')) {
+      action = 'notifications';
+    } else if (rawPath.includes('governance')) {
+      action = 'governance';
+    } else {
+      action = 'unknown';
+    }
+  }
 
   try {
     // 1. Diagnostics / Health
@@ -121,6 +139,76 @@ export default async function handler(req: any, res: any) {
         });
       }
       return res.status(200).json(results);
+    }
+
+    // 5. Notify approval request
+    if (action === 'notify-approval') {
+      if (!adminDb) {
+        return res.status(200).json({ ok: true, note: "Admin DB offline fallback" });
+      }
+      const { jobId, jobTitle, clientName } = req.body;
+      await adminDb.collection("admin_notifications").add({
+        message: `Pending budget approval request emitted for requirement "${jobTitle || 'unspecified'}" by client ${clientName || 'anonymous'}.`,
+        status: "DISPATCHED",
+        jobId: jobId || "",
+        createdAt: new Date().toISOString()
+      });
+      return res.status(200).json({ ok: true });
+    }
+
+    // 6. Approve Requirement in details (with dynamic platform margin deduction)
+    if (action === 'approve-requirement') {
+      if (!adminDb) {
+        return res.status(400).json({ error: "Authority node not initialized" });
+      }
+      const { id, actualBudget, marginValue, marginType, currency } = req.body;
+      
+      const rate = marginType === 'PERCENTAGE' ? (Number(marginValue) || 8.33) / 100 : 0.0833;
+      const profit = marginType === 'FIXED' ? (Number(marginValue) || Math.round(actualBudget * 0.0833)) : Math.round(actualBudget * rate);
+      const vendorPayout = actualBudget - profit;
+
+      // Update core requirement record to active / published status
+      await adminDb.collection("requirements_public").doc(id).update({
+        status: "PUBLISHED",
+        visibility: "VENDOR_NETWORK",
+        adminApproved: true,
+        financials: {
+          clientBudget: actualBudget,
+          clientCurrency: currency || "INR",
+          staffingModel: "Permanent",
+          adminMargin: profit,
+          vendorPayout: vendorPayout,
+          platformProfit: profit,
+          marginConfig: { type: marginType || "PERCENTAGE", value: marginValue || 8.33 }
+        }
+      });
+
+      // Maintain status within administrative queues
+      try {
+        await adminDb.collection("jobApprovalQueue").doc(id).update({
+          status: "APPROVED",
+          approvedAt: new Date().toISOString()
+        });
+      } catch (queueErr) {
+        console.warn("No corresponding queue document was found, bypassing non-blocking update:", queueErr);
+      }
+
+      return res.status(200).json({ ok: true });
+    }
+
+    // 7. Get Recent Dispatched Alert Notifications
+    if (action === 'notifications') {
+      if (!adminDb) {
+        return res.status(200).json([]);
+      }
+      try {
+        const snap = await adminDb.collection("admin_notifications").orderBy("createdAt", "desc").limit(20).get();
+        const notes = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        return res.status(200).json(notes);
+      } catch (err) {
+        console.warn("Notifications collection query failed:", err);
+        return res.status(200).json([]);
+      }
     }
 
     res.status(404).json({ error: "Unknown admin action" });

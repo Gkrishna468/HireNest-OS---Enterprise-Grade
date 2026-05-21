@@ -170,26 +170,83 @@ export default function JobsTab() {
       }
       
       const reqId = "REQ-" + Math.random().toString(36).substr(2, 9);
+      
+      let initialStatus = "DRAFT";
+      let initialVisibility = "INTERNAL";
+      let adminApproved = false;
+      let financials: any = null;
+
+      if (budgetPeriod === "LPA") {
+        // Direct Post: Deduct 8.33% and publish across vendor network immediately
+        const platformProfit = Math.round(budgetAmount * 0.0833);
+        const vendorVisible = budgetAmount - platformProfit;
+        initialStatus = "PUBLISHED";
+        initialVisibility = "VENDOR_NETWORK";
+        adminApproved = true;
+        financials = {
+          clientBudget: budgetAmount,
+          clientCurrency: currency,
+          staffingModel: "Permanent",
+          adminMargin: platformProfit,
+          vendorPayout: vendorVisible,
+          platformProfit: platformProfit,
+          marginConfig: { type: "PERCENTAGE", value: 8.33 }
+        };
+      } else {
+        // LPM: Mandatory Admin Approval required
+        initialStatus = "PENDING_FINANCIAL_APPROVAL";
+        initialVisibility = "INTERNAL";
+        adminApproved = false;
+      }
+
       const newReq = {
         requirementId: reqId,
-        clientId: orgId,
+        clientId: orgId || "default-client-org",
         title: manualTitle || parsed.title || fallbackTitle,
         experience: minExp && maxExp ? `${minExp}-${maxExp} Yrs` : (minExp ? `${minExp}+ Yrs` : "Not Specified"),
         minExp: minExp ? parseInt(minExp) : 0,
         maxExp: maxExp ? parseInt(maxExp) : 20,
         description: jdText,
         skills: manualSkills.length > 0 ? manualSkills : (parsed.skills || []),
-        status: "DRAFT",
-        visibility: "INTERNAL",
+        status: initialStatus,
+        visibility: initialVisibility,
         budget: { amount: budgetAmount, period: budgetPeriod, currency: currency },
         workMode: workMode,
-        adminApproved: false,
+        adminApproved: adminApproved,
+        financials: financials,
         ownerId: auth.currentUser?.uid,
         createdAt: serverTimestamp(),
         matchProcessingStatus: 'pending'
       };
       
       await setDoc(doc(db, "requirements_public", reqId), newReq);
+
+      // If it requires approval (e.g. LPM), insert into jobApprovalQueue
+      if (budgetPeriod !== "LPA") {
+        await setDoc(doc(db, "jobApprovalQueue", reqId), {
+          jobId: reqId,
+          clientId: orgId || "default-client-org",
+          title: newReq.title,
+          budget: newReq.budget,
+          status: "PENDING",
+          createdAt: serverTimestamp()
+        });
+
+        // Trigger Admin Notification
+        try {
+          await fetch("/api/admin/notify-approval", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              jobId: reqId, 
+              jobTitle: newReq.title, 
+              clientName: orgId || "Target Client"
+            })
+          });
+        } catch (notifierError) {
+          console.warn("Failed to notify admin hq of pending requirement", notifierError);
+        }
+      }
       
       // Log Execution Event
       await logExecutionEvent(
@@ -782,10 +839,12 @@ export default function JobsTab() {
                           </div>
                       ))}
                       {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)).length === 0 && (
-                         <div className="col-span-Full py-32 text-center text-slate-300">
+                         <div className="col-span-full py-32 text-center text-slate-400">
                             <Target size={64} className="mx-auto mb-6 opacity-10" />
-                            <p className="text-sm font-black uppercase tracking-[0.3em]">No High-Density Matches Found</p>
-                            <p className="text-xs font-medium text-slate-400 mt-2">Adjust your technical criteria or expand vendor network.</p>
+                            <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">No High-Density Matches Found</p>
+                            <p className="text-xs font-medium text-indigo-600 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
+                              No matches found at this moment. Please come back and check later, or we will send you a notification as soon as a verified candidate matches your requirements!
+                            </p>
                          </div>
                       )}
                     </div>
