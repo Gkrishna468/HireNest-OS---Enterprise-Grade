@@ -51,23 +51,40 @@ function getCredentials() {
 
 let app: App;
 
-if (getApps().length === 0) {
-  const credentials = getCredentials();
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "hirenest-os";
-  
-  if (credentials) {
-    app = initializeApp({
-      credential: cert(credentials),
-      projectId,
-    });
+try {
+  if (getApps().length === 0) {
+    const credentials = getCredentials();
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "hirenest-os";
+    
+    if (credentials) {
+      try {
+        app = initializeApp({
+          credential: cert(credentials),
+          projectId,
+        });
+      } catch (certError: any) {
+        console.error("[Firebase Admin] Fatal Error initializing cert, falling back to ADC:", certError.message);
+        app = initializeApp({
+          projectId,
+        });
+      }
+    } else {
+      console.warn("[Firebase Admin] Initializing with Application Default Credentials (will likely fail in sandbox)");
+      app = initializeApp({
+        projectId,
+      });
+    }
   } else {
-    console.warn("[Firebase Admin] Initializing with Application Default Credentials (will likely fail in sandbox)");
-    app = initializeApp({
-      projectId,
-    });
+    app = getApps()[0];
   }
-} else {
-  app = getApps()[0];
+} catch (globalInitError: any) {
+  console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
+  // Fallback to minimal initialization so compiling is fine and handler doesn't crash on import
+  try {
+    app = initializeApp({ projectId: "hirenest-os" });
+  } catch (_) {
+    app = (getApps()[0] || {}) as App;
+  }
 }
 
 export const adminDb = getFirestore(app);

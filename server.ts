@@ -22,17 +22,29 @@ async function createServer() {
     // Consolidated routing map for Vercel Hobby limits
     const consolidatedMap: Record<string, string> = {
       'create-user': 'user.ts',
+      'user/create': 'user.ts',
       'delete-user': 'user.ts',
+      'user/delete': 'user.ts',
       'assign-role': 'user.ts',
+      'user/assign-role': 'user.ts',
       'user-context': 'user.ts',
+      'user/context': 'user.ts',
       'metrics': 'admin.ts',
+      'admin/metrics': 'admin.ts',
       'diagnostics': 'admin.ts',
+      'admin/diagnostics': 'admin.ts',
       'governance-data': 'admin.ts',
+      'admin/governance-data': 'admin.ts',
       'pre-flight': 'admin.ts',
+      'admin/pre-flight': 'admin.ts',
       'approve-request': 'admin.ts',
+      'admin/approve-request': 'admin.ts',
       'onboard-request': 'admin.ts',
+      'admin/onboard-request': 'admin.ts',
       'governance': 'admin.ts',
+      'admin/governance': 'admin.ts',
       'user-candidates': 'candidates.ts',
+      'user/candidates': 'candidates.ts',
       'deal-intelligence': 'intel.ts'
     };
 
