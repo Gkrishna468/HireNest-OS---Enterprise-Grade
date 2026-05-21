@@ -70,16 +70,59 @@ export default async function handler(req: any, res: any) {
     }
 
     // Default to Context
+    let requirements: any[] = [];
+    if (adminDb) {
+      try {
+        const queryOrgId = req.query.orgId || req.body.orgId;
+        const queryRole = req.query.role || req.body.role;
+        if (queryOrgId) {
+          console.log(`[USER_API] Fetching proxy requirements for orgId: ${queryOrgId} under role: ${queryRole}`);
+          let requirementsSnap;
+          if (queryRole === 'admin' || queryRole === 'super_admin' || queryRole === 'ops_admin') {
+            requirementsSnap = await adminDb.collection("requirements_public").get();
+          } else if (queryRole === 'vendor' || queryRole?.includes('vendor') || queryRole?.includes('recruiter') || queryRole?.includes('independent')) {
+            requirementsSnap = await adminDb.collection("requirements_public")
+              .where("visibility", "==", "VENDOR_NETWORK")
+              .where("status", "==", "PUBLISHED")
+              .get();
+          } else {
+            requirementsSnap = await adminDb.collection("requirements_public")
+              .where("clientId", "==", queryOrgId)
+              .get();
+          }
+          requirements = requirementsSnap.docs.map((doc: any) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt ? (typeof doc.data().createdAt.toDate === 'function' ? doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : null
+          }));
+        }
+      } catch (dbErr) {
+        console.warn("[USER_API] Proxy requirements fetch failed or bypassed:", dbErr);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       user: {
-        uid: "system-init-user", name: "Enterprise Admin", email: "admin@hirenestworkforce.com", role: "super_admin", organizationId: "ORG-GLOBAL-HQ", status: "active",
+        uid: "system-init-user", 
+        name: "Enterprise Admin", 
+        email: "admin@hirenestworkforce.com", 
+        role: req.query.role || req.body.role || "super_admin", 
+        organizationId: req.query.orgId || req.body.orgId || "ORG-GLOBAL-HQ", 
+        status: "active",
         permissions: ["manage_users", "manage_requirements", "view_diagnostics", "execute_governance", "manage_vendors", "manage_clients"]
       },
-      environment: "production", platformStatus: "stable"
+      requirements,
+      environment: "production", 
+      platformStatus: "stable"
     });
 
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error(`[USER_API_CRITICAL_ERR] error during execution:`, err);
+    res.status(500).json({ 
+      error: err.message || "Internal Server Error", 
+      stack: err.stack,
+      telemetry: "API_USER_FAIL_SAFE_DUMP"
+    });
   }
 }

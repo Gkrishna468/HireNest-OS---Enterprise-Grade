@@ -89,69 +89,60 @@ service cloud.firestore {
     // =====================================================
 
     function isValidOrganization(data) {
-      return
-        (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency', 'independent_vendor', 'freelancer']) &&
-        (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending', 'suspended']) &&
-        (!data.keys().hasAny(['verificationTier']) || data.verificationTier in ['Tier 1', 'Tier 2', 'Tier 3']);
+      return (!data.keys().hasAny(['type']) || data.type in ['vendor', 'client', 'admin', 'recruitment_agency', 'independent_vendor', 'freelancer']) &&
+             (!data.keys().hasAny(['status']) || data.status in ['pending_review', 'approved', 'rejected', 'active', 'pending', 'suspended']) &&
+             (!data.keys().hasAny(['verificationTier']) || data.verificationTier in ['Tier 1', 'Tier 2', 'Tier 3']);
     }
 
     function isValidUser(data) {
-      return
-        (!data.keys().hasAny(['role']) || data.role in [
-          'admin', 'super_admin', 'platform_authority', 'hq_admin', 'ceo',
-          'client_admin', 'client_ops', 'client_hm', 'client_finance', 'client_recruiter',
-          'vendor_admin', 'vendor_manager', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer',
-          'freelancer_vendor', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor',
-          'ai_agent', 'observer', 'system_node', 'PENDING_VERIFICATION'
-        ]) &&
-        (!data.keys().hasAny(['verification']) || data.verification is map) &&
-        (!data.keys().hasAny(['identityDocs']) || data.identityDocs is map);
+      return (!data.keys().hasAny(['role']) || data.role in [
+               'admin', 'super_admin', 'platform_authority', 'hq_admin', 'ceo',
+               'client_admin', 'client_ops', 'client_hm', 'client_finance', 'client_recruiter',
+               'vendor_admin', 'vendor_manager', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer',
+               'freelancer_vendor', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor',
+               'ai_agent', 'observer', 'system_node', 'PENDING_VERIFICATION'
+             ]) &&
+             (!data.keys().hasAny(['verification']) || data.verification is map) &&
+             (!data.keys().hasAny(['identityDocs']) || data.identityDocs is map);
     }
 
     function isValidRequirementPublic(data) {
-      return
-        (!data.keys().hasAny(['status']) || data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED', 'ON_HOLD', 'REJECTED']) &&
-        (!data.keys().hasAny(['visibility']) || data.visibility in ['INTERNAL', 'VENDOR_NETWORK']) &&
-        (!data.keys().hasAny(['employmentType']) || data.employmentType in ['FULL_TIME', 'CONTRACT', 'PART_TIME', 'INTERNSHIP']) &&
-        (!data.keys().hasAny(['compensationModel']) || data.compensationModel in ['SALARY', 'HOURLY', 'COMMISSION']) &&
-        (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200));
+      return (!data.keys().hasAny(['status']) || data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED', 'ON_HOLD', 'REJECTED']) &&
+             (!data.keys().hasAny(['visibility']) || data.visibility in ['INTERNAL', 'VENDOR_NETWORK']) &&
+             (!data.keys().hasAny(['employmentType']) || data.employmentType in ['FULL_TIME', 'CONTRACT', 'PART_TIME', 'INTERNSHIP']) &&
+             (!data.keys().hasAny(['compensationModel']) || data.compensationModel in ['SALARY', 'HOURLY', 'COMMISSION']) &&
+             (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200));
     }
 
     function isValidCandidate(data) {
-      return
-        (!data.keys().hasAny(['pipelineStage']) || data.pipelineStage in ['Candidate Added', 'Duplicate Review', 'Matched', 'Client Submission', 'Deal Room']) &&
-        (!data.keys().hasAny(['distillationStatus']) || data.distillationStatus in ['PENDING', 'COMPLETED', 'FAILED']) &&
-        (!data.keys().hasAny(['matchScore']) || data.matchScore is number);
+      return (!data.keys().hasAny(['pipelineStage']) || data.pipelineStage in ['Candidate Added', 'Duplicate Review', 'Matched', 'Client Submission', 'Deal Room']) &&
+             (!data.keys().hasAny(['distillationStatus']) || data.distillationStatus in ['PENDING', 'COMPLETED', 'FAILED']) &&
+             (!data.keys().hasAny(['matchScore']) || data.matchScore is number);
     }
 
     function isValidDealRoom(data) {
-      return
-        (!data.keys().hasAny(['status']) || data.status in ['ACTIVE', 'CLOSED']) &&
-        (!data.keys().hasAny(['requirementId']) || data.requirementId is string);
+      return (!data.keys().hasAny(['status']) || data.status in ['ACTIVE', 'CLOSED']) &&
+             (!data.keys().hasAny(['requirementId']) || data.requirementId is string);
     }
 
     function isValidMessage(data) {
-      return
-        (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 5000)) &&
-        (!data.keys().hasAny(['type']) || data.type in ['text', 'system']);
+      return (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 5000)) &&
+             (!data.keys().hasAny(['type']) || data.type in ['text', 'system']);
     }
 
     function isValidJobApprovalQueue(data) {
-      return
-        (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
-        (!data.keys().hasAny(['clientId']) || data.clientId is string);
+      return (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
+             (!data.keys().hasAny(['clientId']) || data.clientId is string);
     }
 
     function isValidCandidateOwnership(data) {
-      return
-        (!data.keys().hasAny(['ownerOrgId']) || data.ownerOrgId is string) &&
-        (!data.keys().hasAny(['candidateId']) || data.candidateId is string);
+      return (!data.keys().hasAny(['ownerOrgId']) || data.ownerOrgId is string) &&
+             (!data.keys().hasAny(['candidateId']) || data.candidateId is string);
     }
 
     function isValidBudgetRequest(data) {
-      return
-        (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
-        (!data.keys().hasAny(['clientId']) || data.clientId is string);
+      return (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
+             (!data.keys().hasAny(['clientId']) || data.clientId is string);
     }
 
     // =====================================================
