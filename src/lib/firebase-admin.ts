@@ -87,8 +87,20 @@ try {
   }
 }
 
-export const adminDb = getFirestore(app);
-export const adminAuth = getAuth(app);
+export let adminDb: any = null;
+export let adminAuth: any = null;
+
+try {
+  adminDb = getFirestore(app);
+} catch (e: any) {
+  console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
+}
+
+try {
+  adminAuth = getAuth(app);
+} catch (e: any) {
+  console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message);
+}
 
 // For backwards compatibility with old src/server/firebase-admin.ts
 export const getAdminApp = () => app;

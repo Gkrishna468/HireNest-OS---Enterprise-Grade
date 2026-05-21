@@ -13,6 +13,10 @@ export default async function handler(req: any, res: any) {
       const { email, password, role, companyName } = req.body;
       console.log(`[USER_API] Creating user: ${email} with role: ${role}`);
       
+      if (!adminDb || !adminAuth) {
+        return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
+      }
+      
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
       }
@@ -42,6 +46,9 @@ export default async function handler(req: any, res: any) {
     if (action === 'delete') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       const { uid, organizationId } = req.body;
+      if (!adminDb || !adminAuth) {
+        return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
+      }
       if (uid) {
         await adminAuth.deleteUser(uid).catch(() => {});
         await adminDb.collection("users").doc(uid).delete().catch(() => {});
@@ -55,6 +62,9 @@ export default async function handler(req: any, res: any) {
     if (action === 'assign') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       const { uid, role, organizationId } = req.body;
+      if (!adminDb || !adminAuth) {
+        return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
+      }
       await adminAuth.setCustomUserClaims(uid, { role, orgId: organizationId });
       return res.status(200).json({ ok: true, message: "Custom claims updated." });
     }
