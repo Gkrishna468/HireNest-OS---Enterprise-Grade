@@ -58,12 +58,14 @@ export default function CandidatesTab() {
           }
           
           // Real-time listener
-          const q = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
-          unsubscribe = onSnapshot(q, (snap) => {
-            setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          }, (error) => {
-            handleFirestoreError(error, OperationType.GET, "candidatePool");
-          });
+          if (orgId) {
+            const q = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
+            unsubscribe = onSnapshot(q, (snap) => {
+              setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }, (error) => {
+              handleFirestoreError(error, OperationType.GET, "candidatePool");
+            });
+          }
         }
       } catch (err) {
         console.error("Auth init failed", err);

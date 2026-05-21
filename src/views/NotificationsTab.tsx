@@ -24,9 +24,15 @@ export default function NotificationsTab({ org }: { org: any }) {
     if (!auth.currentUser || !org) return;
 
     // Listen to personal and organization-level notifications
+    const recipients = [auth.currentUser.uid];
+    const orgId = org?.organizationId || org?.id;
+    if (orgId) {
+      recipients.push(orgId);
+    }
+
     const q = query(
       collection(db, "notifications"), 
-      where("recipientId", "in", [auth.currentUser.uid, org.organizationId])
+      where("recipientId", "in", recipients)
       // removed orderBy created at to avoid index error, will sort in-memory
     );
 
