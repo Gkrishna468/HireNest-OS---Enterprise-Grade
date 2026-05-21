@@ -13,7 +13,9 @@ import {
   LogOut,
   ChevronRight,
   Activity,
-  Network
+  Network,
+  UserCheck,
+  Fingerprint
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -25,6 +27,8 @@ import ClientsTab from './views/ClientsTab';
 import JobsTab from './views/JobsTab';
 import DealRoomsTab from './views/DealRoomsTab';
 import VendorsTab from './views/VendorsTab';
+import RecruitersTab from './views/RecruitersTab';
+import IndependentTab from './views/IndependentTab';
 import NotificationsTab from './views/NotificationsTab';
 import Onboarding from './views/Onboarding';
 import AdminOverview from './views/AdminOverview';
@@ -140,6 +144,8 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">Partners</div>
               <SidebarItem to="/clients" icon={Building2} label="Clients" active={location.pathname === '/clients'} />
               <SidebarItem to="/vendors" icon={Users} label="Vendors" active={location.pathname === '/vendors'} />
+              <SidebarItem to="/recruiters" icon={UserCheck} label="Recruiters" active={location.pathname === '/recruiters'} />
+              <SidebarItem to="/independent" icon={Fingerprint} label="Independent" active={location.pathname === '/independent'} />
             </>
           )}
 
@@ -220,6 +226,8 @@ const AppContent = () => {
             <Route path="/jobs" element={<JobsTab />} />
             {isAdmin && <Route path="/clients" element={<ClientsTab />} />}
             {isAdmin && <Route path="/vendors" element={<VendorsTab />} />}
+            {isAdmin && <Route path="/recruiters" element={<RecruitersTab />} />}
+            {isAdmin && <Route path="/independent" element={<IndependentTab />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
             {isAdmin && <Route path="/users" element={<AdminUsersManager orgData={userData} />} />}

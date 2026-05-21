@@ -218,7 +218,10 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       let orgId = userData?.organizationId || "";
       if (!orgId) {
         orgId = "ORG-" + Math.random().toString(36).substring(2, 11).toUpperCase();
-        const finalOrgType = orgType === 'client' ? 'client' : 'vendor';
+        let finalOrgType = 'vendor';
+        if (orgType === 'client') finalOrgType = 'client';
+        else if (orgType === 'independent_recruiter') finalOrgType = 'recruiter';
+        else if (orgType === 'independent_vendor') finalOrgType = 'independent';
         
         await setDoc(doc(db, "organizations", orgId), {
           id: orgId,
