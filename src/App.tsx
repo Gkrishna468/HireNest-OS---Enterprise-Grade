@@ -106,7 +106,10 @@ const AppContent = () => {
   const isRecruiter = role === 'recruiter' || role === 'independent_recruiter' || role === 'freelancer_recruiter';
   const isIndependent = role === 'independent' || role === 'independent_vendor' || role === 'independent_consultant';
 
-  if (user && userData?.onboardingCompleted !== true && !isAdmin) {
+  const hasCompletedOnboarding = userData?.onboardingCompleted === true || 
+    (userData?.role && userData?.role !== 'PENDING_VERIFICATION' && userData?.status === 'ACTIVE' && userData?.organizationId);
+
+  if (user && !hasCompletedOnboarding && !isAdmin) {
     return <Onboarding onComplete={() => window.location.reload()} />;
   }
 

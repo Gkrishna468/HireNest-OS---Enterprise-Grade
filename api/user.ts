@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
 
       const user = await adminAuth.createUser({ email, password, displayName: companyName });
       await adminDb.collection("users").doc(user.uid).set({
-        uid: user.uid, email, role: role || 'client_admin', organizationId: orgId, status: 'ACTIVE', createdAt: new Date().toISOString()
+        uid: user.uid, email, role: role || 'client_admin', organizationId: orgId, status: 'ACTIVE', onboardingCompleted: true, createdAt: new Date().toISOString()
       });
       await adminAuth.setCustomUserClaims(user.uid, { role: role || 'client_admin', orgId: orgId });
       return res.status(200).json({ ok: true, uid: user.uid });

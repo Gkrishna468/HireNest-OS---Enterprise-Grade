@@ -4,7 +4,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =====================================================
-    // GLOBAL HELPERS & AUTHORITY SYSTEM
+    // 1. GLOBAL SAFETY NET (DEFAULT STRICT DENY ALL MATCH)
+    // =====================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =====================================================
+    // GLOBAL HELPERS, ROLES & AUTHORITY SYSTEM
     // =====================================================
 
     function isSignedIn() {
@@ -24,21 +31,26 @@ service cloud.firestore {
       );
     }
 
+    function isSuperAdmin() {
+      return isVerified() && (
+        request.auth.token.get('role', '') in ['super_admin', 'platform_authority'] ||
+        isHQ()
+      );
+    }
+
     function isAdmin() {
       return isVerified() && (
-        request.auth.token.role in [
+        request.auth.token.get('role', '') in [
           "admin", 
           "super_admin", 
           "platform_authority", 
           "hq_admin", 
-          "ceo"
+          "ceo",
+          "ai_agent",
+          "system_node"
         ] || isHQ()
       );
     }
-
-    // =====================================================
-    // DATA ISOLATION (PII) & ORG HELPERS
-    // =====================================================
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
@@ -62,8 +74,8 @@ service cloud.firestore {
 
     function isSameOrg(orgId) {
       return isVerified() && (
-        request.auth.token.organizationId == orgId ||
-        currentOrgId() == orgId
+        request.auth.token.get('organizationId', '') == orgId ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && currentOrgId() == orgId)
       );
     }
 
@@ -86,15 +98,23 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return
-        (!data.keys().hasAny(['role']) || data.role in ['admin', 'client_hm', 'client_finance', 'client_recruiter', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor']) &&
+        (!data.keys().hasAny(['role']) || data.role in [
+          'admin', 'super_admin', 'platform_authority', 'hq_admin', 'ceo',
+          'client_admin', 'client_ops', 'client_hm', 'client_finance', 'client_recruiter',
+          'vendor_admin', 'vendor_manager', 'vendor_agency', 'vendor_recruiter', 'vendor_sourcer',
+          'freelancer_vendor', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor',
+          'ai_agent', 'observer', 'system_node', 'PENDING_VERIFICATION'
+        ]) &&
         (!data.keys().hasAny(['verification']) || data.verification is map) &&
         (!data.keys().hasAny(['identityDocs']) || data.identityDocs is map);
     }
 
     function isValidRequirementPublic(data) {
       return
-        (!data.keys().hasAny(['status']) || data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED']) &&
+        (!data.keys().hasAny(['status']) || data.status in ['DRAFT', 'PENDING_FINANCIAL_APPROVAL', 'PUBLISHED', 'CLOSED', 'ON_HOLD', 'REJECTED']) &&
         (!data.keys().hasAny(['visibility']) || data.visibility in ['INTERNAL', 'VENDOR_NETWORK']) &&
+        (!data.keys().hasAny(['employmentType']) || data.employmentType in ['FULL_TIME', 'CONTRACT', 'PART_TIME', 'INTERNSHIP']) &&
+        (!data.keys().hasAny(['compensationModel']) || data.compensationModel in ['SALARY', 'HOURLY', 'COMMISSION']) &&
         (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200));
     }
 
@@ -117,8 +137,26 @@ service cloud.firestore {
         (!data.keys().hasAny(['type']) || data.type in ['text', 'system']);
     }
 
+    function isValidJobApprovalQueue(data) {
+      return
+        (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
+        (!data.keys().hasAny(['clientId']) || data.clientId is string);
+    }
+
+    function isValidCandidateOwnership(data) {
+      return
+        (!data.keys().hasAny(['ownerOrgId']) || data.ownerOrgId is string) &&
+        (!data.keys().hasAny(['candidateId']) || data.candidateId is string);
+    }
+
+    function isValidBudgetRequest(data) {
+      return
+        (!data.keys().hasAny(['status']) || data.status in ['PENDING', 'APPROVED', 'REJECTED']) &&
+        (!data.keys().hasAny(['clientId']) || data.clientId is string);
+    }
+
     // =====================================================
-    // GOVERNANCE GUARDRAILS
+    // CORE SECURITY RULES FOR USER & ORG GOVERNANCE
     // =====================================================
 
     match /users/{userId} {
@@ -140,6 +178,12 @@ service cloud.firestore {
       );
     }
 
+    match /onboarding_requests/{reqId} {
+      allow read: if isAdmin() || (isVerified() && resource.data.email == request.auth.token.email);
+      allow create: if isVerified();
+      allow update, delete: if isAdmin();
+    }
+
     match /auditLogs/{logId} {
       allow read: if isAdmin();
       allow write: if isVerified(); // System logs entry
@@ -148,12 +192,6 @@ service cloud.firestore {
     match /execution_tracker/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();
-    }
-
-    match /onboarding_requests/{reqId} {
-      allow read: if isAdmin() || (isVerified() && resource.data.email == request.auth.token.email);
-      allow create: if isVerified();
-      allow update, delete: if isAdmin();
     }
 
     // =====================================================
@@ -171,7 +209,7 @@ service cloud.firestore {
     }
 
     match /requirements_private/{reqId} {
-      allow read: if isAdmin() || (isVerified() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role == 'client_finance');
+      allow read: if isAdmin() || (isVerified() && isOrganizationMember(get(/databases/$(database)/documents/requirements_public/$(reqId)).data.clientId) && getUserData().role in ['client_finance', 'client_admin']);
       allow write: if isAdmin();
     }
 
@@ -205,15 +243,173 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // AI + ANALYTICS + SYSTEM
+    // RESTORED GOVERNANCE, WORKFLOW & AI SYSTEM COLLECTIONS
     // =====================================================
 
-    match /predictions/{predId} { allow read: if isVerified(); allow write: if false; }
-    match /trust_metrics/{nodeId} { allow read: if isVerified(); allow write: if false; }
-    match /agent_activities/{activityId} { allow read: if isVerified(); allow create: if isVerified(); }
+    // 1. organizationHierarchy
+    match /organizationHierarchy/{docId} {
+      allow read: if isVerified() && (
+        isAdmin() || 
+        isSameOrg(docId) || 
+        (resource != null && (isSameOrg(resource.data.parentOrgId) || isSameOrg(resource.data.childOrgId)))
+      );
+      allow write: if isAdmin();
+    }
+
+    // 2. jobApprovalQueue
+    match /jobApprovalQueue/{jobId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.clientId));
+      allow create: if isVerified() && isSameOrg(incoming().clientId) && isValidJobApprovalQueue(incoming());
+      allow update: if isVerified() && (isAdmin() || (isSameOrg(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes'])));
+      allow delete: if isAdmin();
+    }
+
+    // 3. vendorNetworkBroadcasts
+    match /vendorNetworkBroadcasts/{broadcastId} {
+      allow read: if isVerified() && (
+        isAdmin() || 
+        isSameOrg(resource.data.clientId) || 
+        getUserData().role in ['vendor_admin', 'vendor_manager', 'vendor_recruiter', 'vendor_agency', 'vendor_sourcer', 'freelancer_vendor']
+      );
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().clientId));
+      allow update: if isVerified() && (isAdmin() || isSameOrg(existing().clientId));
+      allow delete: if isAdmin();
+    }
+
+    // 4. candidateOwnership
+    match /candidateOwnership/{ownershipId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.ownerOrgId));
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().ownerOrgId)) && isValidCandidateOwnership(incoming());
+      allow update: if isVerified() && (isAdmin() || isSameOrg(existing().ownerOrgId));
+      allow delete: if isAdmin();
+    }
+
+    // 5. candidateUpdates
+    match /candidateUpdates/{updateId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.vendorId) || isSameOrg(resource.data.clientId));
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().vendorId));
+      allow update: if isVerified() && (isAdmin() || isSameOrg(existing().vendorId));
+      allow delete: if isAdmin();
+    }
+
+    // 6. communicationThreads (Support both camelCase and snake_case references)
+    match /communicationThreads/{threadId} {
+      allow read: if isVerified() && (isAdmin() || request.auth.uid in resource.data.participants || isSameOrg(resource.data.orgId));
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().orgId));
+      allow update: if isVerified() && (isAdmin() || request.auth.uid in existing().participants);
+      allow delete: if isAdmin();
+    }
+    match /communication_threads/{threadId} {
+      allow read: if isVerified() && (isAdmin() || request.auth.uid in resource.data.participants || isSameOrg(resource.data.orgId));
+      allow create: if isVerified() && (isAdmin() || isSameOrg(incoming().orgId));
+      allow update: if isVerified() && (isAdmin() || request.auth.uid in existing().participants);
+      allow delete: if isAdmin();
+    }
+
+    // 7. adminChangeRequests
+    match /adminChangeRequests/{requestId} {
+      allow read: if isAdmin() || (isVerified() && isOwner(resource.data.requesterId));
+      allow create: if isVerified() && isOwner(incoming().requesterId);
+      allow update, delete: if isAdmin();
+    }
+
+    // 8. budgetRequests
+    match /budgetRequests/{requestId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.clientId) && getUserData().role in ['client_admin', 'client_finance']);
+      allow create, update, delete: if isAdmin() || (isVerified() && isSameOrg(incoming().clientId) && getUserData().role in ['client_admin', 'client_finance'] && isValidBudgetRequest(incoming()));
+    }
+
+    // 9. matchNotifications
+    match /matchNotifications/{notifId} {
+      allow read: if isVerified() && (isAdmin() || isOwner(resource.data.userId) || isSameOrg(resource.data.orgId));
+      allow write: if isAdmin(); // Driven strictly by system matching engines
+    }
+
+    // 10, 11, 12. Documents Vault Collections (client, vendor, independent)
+    match /clientDocuments/{docId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.orgId) && (isOwner(resource.data.ownerId) || getUserData().role in ['client_admin', 'client_finance', 'client_ops']));
+      allow write: if isAdmin() || (isVerified() && isSameOrg(incoming().orgId) && (isOwner(incoming().ownerId) || getUserData().role in ['client_admin', 'client_finance']));
+    }
+    match /vendorDocuments/{docId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.orgId) && (isOwner(resource.data.ownerId) || getUserData().role in ['vendor_admin', 'vendor_manager']));
+      allow write: if isAdmin() || (isVerified() && isSameOrg(incoming().orgId) && (isOwner(incoming().ownerId) || getUserData().role in ['vendor_admin']));
+    }
+    match /independentDocuments/{docId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.orgId) && (isOwner(resource.data.ownerId) || getUserData().role in ['freelancer_vendor', 'freelancer_recruiter', 'independent_recruiter', 'independent_vendor']));
+      allow write: if isAdmin() || (isVerified() && isSameOrg(incoming().orgId) && isOwner(incoming().ownerId));
+    }
+    // Backward compatibility for general compliance_documents
+    match /compliance_documents/{docId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.organizationId));
+      allow write: if isAdmin() || (isVerified() && isSameOrg(incoming().organizationId));
+    }
+
+    // 13. governance
+    match /governance/{docId} {
+      allow read: if isVerified(); // System compliance parameters readable by verified users
+      allow write: if isAdmin();
+    }
+
+    // 14. workflowEvents & execution_events & quotas
+    match /workflowEvents/{eventId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.clientId) || isSameOrg(resource.data.vendorId));
+      allow write: if isAdmin() || isVerified();
+    }
+    match /workflow_events/{eventId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.clientId) || isSameOrg(resource.data.vendorId));
+      allow write: if isAdmin() || isVerified();
+    }
+    match /execution_events/{eventId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.clientId) || isSameOrg(resource.data.vendorId));
+      allow write: if isAdmin() || isVerified();
+    }
+    match /quotas/{quotaId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.orgId));
+      allow write: if isAdmin();
+    }
+
+    // 15. systemHealth
+    match /systemHealth/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 16. _health
+    match /_health/{docId} {
+      allow read: if true; // Public DevOps health-checks endpoint
+      allow write: if isAdmin();
+    }
 
     // =====================================================
-    // GLOBAL FALLBACK
+    // AI + ANALYTICS + COGNITION
+    // =====================================================
+
+    match /slas/{slaId} {
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.clientId) || isSameOrg(resource.data.vendorId));
+      allow write: if isAdmin();
+    }
+
+    match /risk_assessments/{assessmentId} {
+      allow read: if isAdmin() || (isVerified() && isSameOrg(resource.data.orgId));
+      allow write: if isAdmin();
+    }
+
+    match /predictions/{predId} { 
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.orgId)); 
+      allow write: if isAdmin(); 
+    }
+    
+    match /trust_metrics/{nodeId} { 
+      allow read: if isVerified(); 
+      allow write: if isAdmin(); 
+    }
+    
+    match /agent_activities/{activityId} { 
+      allow read: if isVerified() && (isAdmin() || isSameOrg(resource.data.orgId)); 
+      allow create: if isVerified(); 
+    }
+
+    // =====================================================
+    // GLOBAL FALLBACK BACKWARD-COMPATIBILITY FOR HQ CORNER
     // =====================================================
 
     match /{document=**} {
@@ -221,4 +417,3 @@ service cloud.firestore {
     }
   }
 }
-

@@ -220,6 +220,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         role: roleVal || 'client_admin',
         organizationId: orgId,
         status: 'ACTIVE',
+        onboardingCompleted: true,
         createdAt: new Date().toISOString()
       });
 
