@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Activity, ShieldCheck, Bot, Users, Plus, Shield } from "lucide-react";
 import { auth } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { useNavigate } from "react-router-dom";
@@ -8,35 +9,80 @@ import { useNavigate } from "react-router-dom";
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [session, setSession] = useState<{ user: any, org: any } | null>(null);
-  const fetchInitialized = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function boot() {
-      if (fetchInitialized.current) return;
-      fetchInitialized.current = true;
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('../lib/firebase');
+          const d = await getDoc(doc(db, "users", u.uid));
+          if (d.exists()) {
+            const data = d.data();
+            setSession({
+              user: {
+                uid: u.uid,
+                name: data.companyName || u.displayName || u.email?.split("@")[0] || "Active User",
+                email: u.email || "",
+                role: data.role || "PENDING_VERIFICATION",
+                permissions: data.permissions || [],
+                organizationId: data.organizationId || ""
+              },
+              org: {
+                type: data.role
+              }
+            });
+          } else {
+            setSession({ user: { role: 'guest', permissions: [] }, org: { type: 'guest' } });
+          }
+        } catch (err) {
+          console.warn("Direct Firestore read failed, querying server-side context fallback", err);
+          fetchContextFallback();
+        }
+      } else {
+        fetchContextFallback();
+      }
+    });
 
+    async function fetchContextFallback() {
       try {
         const resp = await fetch('/api/user-context');
         if (resp.ok) {
           const data = await resp.json();
           setSession({
-            user: data.user,
+            user: {
+              ...data.user,
+              permissions: data.user?.permissions || []
+            },
             org: { type: data.user.role === 'super_admin' ? 'admin' : data.user.role }
           });
         }
       } catch (err) {
         console.warn("User context boot failed, falling back to guest mode", err);
-        setSession({ user: { role: 'guest' }, org: { type: 'guest' } });
+        setSession({ user: { role: 'guest', permissions: [] }, org: { type: 'guest' } });
       }
     }
 
-    boot();
+    return () => unsub();
   }, []);
+
+  const org = session?.org;
+  const isAdmin = org?.type === 'admin' || org?.type === 'super_admin' || org?.type === 'ops_admin' || session?.user?.role === 'super_admin';
+  const isClient = org?.type === 'client' || org?.type === 'client_admin' || org?.type?.startsWith('client_') || org?.type === 'client';
+  const isVendor = org?.type === 'vendor' || org?.type === 'vendor_admin' || org?.type?.startsWith('vendor_') || org?.type === 'vendor';
+  const isRecruiter = org?.type === 'recruiter' || org?.type?.includes('recruiter');
+  const isIndependent = org?.type === 'independent' || org?.type === 'independent_vendor' || org?.type === 'independent_consultant';
 
   useEffect(() => {
     if (session?.org) {
-      fetch(`/api/metrics?type=${session.org.type}`)
+      let queryType = "admin";
+      if (isClient) queryType = "client";
+      else if (isVendor) queryType = "vendor";
+      else if (isRecruiter) queryType = "recruiter";
+      else if (isIndependent) queryType = "independent";
+
+      fetch(`/api/metrics?type=${queryType}`)
         .then(res => res.json())
         .then(setMetrics)
         .catch(err => {
@@ -52,20 +98,13 @@ export default function DashboardTab() {
           });
         });
     }
-  }, [session?.org]);
+  }, [session?.org, isClient, isVendor, isRecruiter, isIndependent]);
 
   if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Initializing Governance Layer...</div>;
 
-  const org = session?.org;
-  const isAdmin = org?.type === 'admin' || org?.type === 'super_admin';
-  const isClient = org?.type === 'client' || org?.type === 'client_admin';
-  const isVendor = org?.type === 'vendor' || org?.type === 'vendor_admin';
-  const isRecruiter = org?.type === 'recruiter';
-  const isIndependent = org?.type === 'independent';
-
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50/50">
-      <div className="px-6 pt-6 pb-2 bg-white flex items-center justify-between border-b border-slate-100">
+      <div className="px-6 pt-6 pb-2 bg-white flex items-center justify-between border-b border-slate-100 flex-wrap gap-4">
         <div className="flex flex-col">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
              {isClient ? "Operational Recruiting Center" : isVendor ? "V-Network Marketplace OS" : isRecruiter ? "Recruiter Talent Hub" : isIndependent ? "Independent Provider Node" : "Global Governance Command"}
@@ -73,19 +112,36 @@ export default function DashboardTab() {
           </h2>
           <p className="text-[10px] text-slate-400 font-mono tracking-tighter">Strategic Ledger Sync: {new Date().toLocaleDateString()}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
             <Badge variant="outline" className="text-[9px] uppercase border-indigo-200 text-indigo-600 bg-indigo-50 font-bold px-2 py-1">
               Active Session: Secure
             </Badge>
             <Badge variant="outline" className="text-[9px] uppercase border-emerald-200 text-emerald-600 bg-emerald-50 font-bold px-2 py-1">
-              AI MATCH: ONLINE
+              ROLE: {session?.user?.role?.replace('_', ' ')}
             </Badge>
+            {session?.user?.permissions && session.user.permissions.length > 0 && (
+              <Badge variant="outline" className="text-[9px] uppercase border-amber-200 text-amber-700 bg-amber-50 font-bold px-2 py-1 flex items-center gap-1">
+                <ShieldCheck size={10} />
+                PERM COUNT: {session.user.permissions.length}
+              </Badge>
+            )}
             <Badge variant="outline" className="text-[9px] uppercase border-indigo-200 text-indigo-700 bg-indigo-50 font-bold px-2 py-1 flex items-center gap-1">
               <ShieldCheck className="h-3 w-3" />
               PWP ACTIVE
             </Badge>
         </div>
       </div>
+
+      {session?.user?.permissions && session.user.permissions.length > 0 && (
+        <div className="bg-slate-900 text-slate-400 text-[9px] font-mono px-6 py-2 border-b border-slate-800 flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          <span className="text-indigo-400 font-extrabold uppercase shrink-0">Security Profile Permissions:</span>
+          {session.user.permissions.map((p: string) => (
+            <span key={p} className="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300 font-bold">
+              {p}
+            </span>
+          ))}
+        </div>
+      )}
       
       {/* Strategic Intelligence Banner */}
       <div className="p-6">

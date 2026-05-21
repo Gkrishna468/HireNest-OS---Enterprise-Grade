@@ -97,6 +97,10 @@ const AppContent = () => {
 
   const isAdmin = userData?.role === 'admin' || userData?.role === 'super_admin' || userData?.role === 'ops_admin';
 
+  if (user && userData?.onboardingCompleted !== true && !isAdmin) {
+    return <Onboarding onComplete={() => window.location.reload()} />;
+  }
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans">
       {/* Permanent Sidebar */}
