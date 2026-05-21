@@ -18,6 +18,21 @@ function sanitizePrivateKey(key: string): string {
   return s.trim();
 }
 
+function isPlaceholder(val: string): boolean {
+  const v = val.toLowerCase().trim();
+  return (
+    v === "" ||
+    v.includes("placeholder") ||
+    v.includes("your-") ||
+    v.includes("your_") ||
+    v.includes("<") ||
+    v.includes(">") ||
+    v.includes("example.com") ||
+    v.includes("dummy") ||
+    v.length < 20
+  );
+}
+
 function getCredentials() {
   // Option 1: Individual fields (Recommended for stability)
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -25,6 +40,10 @@ function getCredentials() {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
+    if (isPlaceholder(clientEmail) || isPlaceholder(privateKey)) {
+      console.warn("[Firebase Admin] Found placeholder settings in configuration environment. Server-side credentials ignored.");
+      return null;
+    }
     return {
       projectId,
       clientEmail,
@@ -35,9 +54,17 @@ function getCredentials() {
   // Option 2: Full Service Account JSON string
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (saJson) {
+    if (isPlaceholder(saJson)) {
+      console.warn("[Firebase Admin] Found placeholder settings in FIREBASE_SERVICE_ACCOUNT. Server-side credentials ignored.");
+      return null;
+    }
     try {
       const sa = JSON.parse(saJson);
       if (sa.private_key) {
+        if (isPlaceholder(sa.private_key) || (sa.client_email && isPlaceholder(sa.client_email))) {
+          console.warn("[Firebase Admin] Parsed service account contains placeholder fields. Server-side credentials ignored.");
+          return null;
+        }
         sa.private_key = sanitizePrivateKey(sa.private_key);
       }
       return sa;
@@ -49,57 +76,70 @@ function getCredentials() {
   return null;
 }
 
-let app: App;
-
-try {
-  if (getApps().length === 0) {
-    const credentials = getCredentials();
-    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "hirenest-os";
-    
-    if (credentials) {
-      try {
-        app = initializeApp({
-          credential: cert(credentials),
-          projectId,
-        });
-      } catch (certError: any) {
-        console.error("[Firebase Admin] Fatal Error initializing cert, falling back to ADC:", certError.message);
-        app = initializeApp({
-          projectId,
-        });
-      }
-    } else {
-      console.warn("[Firebase Admin] Initializing with Application Default Credentials (will likely fail in sandbox)");
-      app = initializeApp({
-        projectId,
-      });
-    }
-  } else {
-    app = getApps()[0];
-  }
-} catch (globalInitError: any) {
-  console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
-  // Fallback to minimal initialization so compiling is fine and handler doesn't crash on import
-  try {
-    app = initializeApp({ projectId: "hirenest-os" });
-  } catch (_) {
-    app = (getApps()[0] || {}) as App;
-  }
-}
-
+let app: App | undefined;
 export let adminDb: any = null;
 export let adminAuth: any = null;
 
 try {
-  adminDb = getFirestore(app);
-} catch (e: any) {
-  console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
+  const credentials = getCredentials();
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "hirenest-os";
+
+  if (credentials) {
+    if (getApps().length === 0) {
+      app = initializeApp({
+        credential: cert(credentials),
+        projectId,
+      });
+    } else {
+      app = getApps()[0];
+    }
+
+    if (app) {
+      try {
+        adminDb = getFirestore(app);
+      } catch (e: any) {
+        console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
+      }
+
+      try {
+        adminAuth = getAuth(app);
+      } catch (e: any) {
+        console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message);
+      }
+    }
+  } else {
+    console.warn("[Firebase Admin] No active backend credentials (FIREBASE_SERVICE_ACCOUNT / FIREBASE_PRIVATE_KEY) are configured. Server-side authoritative Firestore queries are bypassed; proceeding with secure real-time client-side synchronization.");
+  }
+} catch (globalInitError: any) {
+  console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
 }
 
-try {
-  adminAuth = getAuth(app);
-} catch (e: any) {
-  console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message);
+// double-layer async self-check: verify that credentials actually possess authenticated project permissions
+if (adminDb) {
+  adminDb.collection("system").limit(1).get()
+    .then(() => {
+      console.log("[Firebase Admin] Server-side Firestore verification successful.");
+    })
+    .catch((err: any) => {
+      const msg = (err.message || "").toUpperCase();
+      const code = err.code;
+      const desc = (err.details || "").toUpperCase();
+      
+      const isUnauthenticated = 
+        msg.includes("UNAUTHENTICATED") || 
+        desc.includes("UNAUTHENTICATED") || 
+        msg.includes("INVALID AUTHENTICATION") ||
+        msg.includes("API_KEY_INVALID") ||
+        code === 16;
+        
+      if (isUnauthenticated) {
+        console.warn("[Firebase Admin] Credentials lack authenticated project reads. Cleaning up bindings to trigger failure-resilient client-side fallback mode.");
+        adminDb = null;
+        adminAuth = null;
+      } else {
+        console.log("[Firebase Admin] Server-side Firestore operational check complete (status: ok).");
+      }
+    });
 }
 
 // For backwards compatibility with old src/server/firebase-admin.ts

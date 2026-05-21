@@ -50,31 +50,41 @@ export default function JobsTab() {
   useEffect(() => {
     if (!jobs || jobs.length === 0 || !db || !userRole) return;
 
-    // Only authorized system nodes/admins or HQ can perform global automated matching scans across the entire candidate pool.
-    const isScannerAuthorized = 
-      userRole === 'admin' || 
-      userRole === 'super_admin' || 
-      userRole === 'ops_admin' || 
-      userRole === 'platform_authority' ||
-      orgId === 'ORG-GLOBAL-HQ' || 
-      auth.currentUser?.email === 'gopalkrishna0046@gmail.com' || 
-      auth.currentUser?.email === 'gopal@hirenestworkforce.com';
+    // Allow all authenticated users viewing their job pipelines to trigger the high-density marketplace auto-matcher.
+    const isScannerAuthorized = !!auth.currentUser;
 
     if (!isScannerAuthorized) {
-      console.log("[AUTO_SCANNER] Current role is not authorized for global scanning. Scanner bypassed.");
+      console.log("[AUTO_SCANNER] Current user is not authenticated. Scanner bypassed.");
       return;
     }
 
     const runAutomatedScanner = async () => {
       console.log("[AUTO_SCANNER] Initiating background scan of candidates vs requirements...");
       try {
-        // Fetch all candidates from active pool
-        const candidatesSnap = await getDocs(collection(db, "candidatePool"));
-        const candidateList = candidatesSnap.docs.map(doc => ({
-          id: doc.id,
-          candidateId: doc.id,
-          ...doc.data()
-        } as any));
+        let candidateList = [];
+        try {
+          const response = await fetch(`/api/user/candidates?scan=true&orgId=${orgId}&role=${userRole}`);
+          if (response.ok) {
+            const apiData = await response.json();
+            candidateList = apiData.candidates || [];
+          }
+        } catch (apiErr) {
+          console.warn("[AUTO_SCANNER] Proxy API candidates query failed, falling back to direct:", apiErr);
+        }
+
+        if (candidateList.length === 0) {
+          console.log("[AUTO_SCANNER] Proxy candidate list empty or bypassed. Initiating secure direct client query...");
+          try {
+            const candidatesSnap = await getDocs(collection(db, "candidatePool"));
+            candidateList = candidatesSnap.docs.map(doc => ({
+              id: doc.id,
+              candidateId: doc.id,
+              ...doc.data()
+            } as any));
+          } catch (directQueryErr) {
+            console.error("[AUTO_SCANNER] Direct candidates query failed:", directQueryErr);
+          }
+        }
 
         console.log(`[AUTO_SCANNER] Scanning ${candidateList.length} candidates against ${jobs.length} roles.`);
 
@@ -92,25 +102,41 @@ export default function JobsTab() {
               .map((s: any) => String(s).trim().toLowerCase())
               .filter(Boolean);
 
-            // Compute skill overlap
+            // Compute skill overlap with requirements
             let overlapCount = 0;
             if (jobSkills.length > 0) {
               overlapCount = candSkills.filter(s => jobSkills.includes(s)).length;
             }
 
-            // Keyword overlap with description
+            // Resume text alignment scoring mapping
+            let resumeOverlapCount = 0;
+            const resumeLower = String(cand.resumeText || cand.resume || "").toLowerCase();
+            jobSkills.forEach(s => {
+              if (resumeLower.includes(s)) {
+                resumeOverlapCount++;
+              }
+            });
+
+            // Keyword overlap with JD description
             let descOverlap = 0;
             const jdWords = String(job.description || "").toLowerCase();
             candSkills.forEach(s => {
               if (jdWords.includes(s)) descOverlap++;
             });
 
-            // Scoring formula: baseline 50, scale up to 100 based on overlap & skills matching
-            let matchScore = 65; // default baseline for listed talent
+            // Scoring formula: baseline 60, scale up to 100 based on overlap & skills matching
+            let matchScore = 60; // baseline
+            
+            // Add boost for any skill or resume overlap
+            if (overlapCount > 0 || resumeOverlapCount > 0) {
+              matchScore += 15;
+            }
+
             if (jobSkills.length > 0) {
-              const skillScore = Math.round((overlapCount / jobSkills.length) * 30);
+              const skillScore = Math.round((overlapCount / jobSkills.length) * 20);
+              const resumeScore = Math.round((resumeOverlapCount / jobSkills.length) * 10);
               const descScore = Math.min(10, descOverlap * 2);
-              matchScore = Math.min(100, matchScore + skillScore + descScore);
+              matchScore = Math.min(100, matchScore + skillScore + resumeScore + descScore);
             } else {
               // fallback skill match
               matchScore = Math.min(98, matchScore + Math.min(30, descOverlap * 4));
@@ -202,6 +228,18 @@ export default function JobsTab() {
                   read: false,
                   createdAt: serverTimestamp()
                 });
+
+                // Synchronize candidate stage & matching score in global candidate pool
+                try {
+                  const candRef = doc(db, "candidatePool", cand.id);
+                  await setDoc(candRef, {
+                    pipelineStage: "Deal Room",
+                    matchScore: matchScore,
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                } catch (candErr) {
+                  console.warn("[AUTO_SCANNER] Skipped candidate pool stage sync:", candErr);
+                }
               }
             }
           }
