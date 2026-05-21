@@ -1,6 +1,6 @@
 import multer from 'multer';
-import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
+import path from 'path';
 
 // Configure multer storage in memory
 const multerFunc = typeof multer === 'function' ? multer : (multer as any).default;
@@ -64,12 +64,36 @@ export default async function handler(req: any, res: any) {
 
       if (mimetype === 'application/pdf' || fileExtension === 'pdf') {
         try {
-          const parser = new PDFParse({ data: buffer });
-          const parsed = await parser.getText();
-          extractedText = parsed.text || '';
-          await parser.destroy();
-        } catch (pdfErr) {
-          console.warn('[EXTRACTION] Primary PDF parse failed, trying binary string extraction...', pdfErr);
+          // Dynamically import pdfjs-dist on-demand to prevent pre-load native module issues
+          const pdfjs = await import('pdfjs-dist');
+          
+          // Configure worker absolute path safely from the current server context
+          const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+          pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
+
+          const data = new Uint8Array(buffer);
+          const loadingTask = pdfjs.getDocument({
+            data,
+            useSystemFonts: true,
+            disableFontFace: true,
+          });
+          
+          const pdfDoc = await loadingTask.promise;
+          let text = '';
+          
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items
+              .map((item: any) => item.str)
+              .join(' ');
+            text += pageText + '\n';
+          }
+          
+          extractedText = text || '';
+          console.log(`[EXTRACTION] PDFJS-Dist Parsed ${pdfDoc.numPages} pages successfully from ${originalname}`);
+        } catch (pdfErr: any) {
+          console.warn('[EXTRACTION] pdfjs-dist parser failed, reverting to binary clean parsing fallback...', pdfErr);
           extractedText = cleanBufferText(buffer);
         }
       } else if (
