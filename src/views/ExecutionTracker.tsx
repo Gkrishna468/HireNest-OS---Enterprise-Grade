@@ -782,6 +782,11 @@ function OrchestrationHubView() {
     const [infrastructureShards, setInfrastructureShards] = useState<any[]>([]);
     const [billingLedgers, setBillingLedgers] = useState<any[]>([]);
     
+    // New Autonomous Frontier State
+    const [distributedTraces, setDistributedTraces] = useState<any[]>([]);
+    const [cognitiveGraphs, setCognitiveGraphs] = useState<any[]>([]);
+    const [governancePolicies, setGovernancePolicies] = useState<any[]>([]);
+
     useEffect(() => {
         fetch('/api/admin/governance-data')
             .then(r => r.json())
@@ -792,6 +797,9 @@ function OrchestrationHubView() {
                     setAgentRuntimes(data.agentRuntimePools || []);
                     setInfrastructureShards(data.tenantInfrastructureMap || []);
                     setBillingLedgers(data.billingLedgers || []);
+                    setDistributedTraces(data.distributedTraces || []);
+                    setCognitiveGraphs(data.cognitiveMemoryGraphs || []);
+                    setGovernancePolicies(data.governancePolicies || []);
                 }
             });
     }, []);
@@ -922,6 +930,42 @@ function OrchestrationHubView() {
                              ))}
                              {infrastructureShards.length === 0 && (
                                  <div className="text-center text-[10px] font-bold text-slate-500 py-4">Global Default Partition Route</div>
+                             )}
+                         </div>
+                    </div>
+
+                    {/* New Autonomous Layers */}
+                    <div className="bg-slate-900 rounded-[40px] p-8 text-white mt-8">
+                        <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-6">Cognitive Memory Matrix</h3>
+                        <div className="space-y-4">
+                            {cognitiveGraphs.map((node) => (
+                                <div key={node.id} className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                    <span className="text-slate-500 font-bold uppercase">{node.type} ({node.agentId})</span>
+                                    <span className="font-black text-emerald-400">{(node.confidence * 100).toFixed(1)}% CONF</span>
+                                </div>
+                            ))}
+                            {cognitiveGraphs.length === 0 && (
+                                <div className="text-center text-[10px] font-bold text-slate-500 py-4">No episodic memory stored.</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[40px] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 mt-8">
+                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Live Trace Propagation</h3>
+                         <div className="space-y-3">
+                             {distributedTraces.slice(0, 5).map(trace => (
+                                 <div key={trace.id} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                     <div className="flex justify-between">
+                                         <span className="text-[10px] font-black text-slate-800">{trace.service}</span>
+                                         <span className="text-[8px] font-black text-indigo-600 bg-white px-2 py-1 rounded shadow-sm">{trace.operation}</span>
+                                     </div>
+                                     <div className="text-[8px] font-bold text-slate-400 uppercase">
+                                         Trace: {trace.traceId || trace.id}
+                                     </div>
+                                 </div>
+                             ))}
+                             {distributedTraces.length === 0 && (
+                                 <div className="text-center text-[10px] font-bold text-slate-500 py-4">No traces flowing in current shard.</div>
                              )}
                          </div>
                     </div>

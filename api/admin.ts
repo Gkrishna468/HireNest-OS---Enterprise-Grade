@@ -155,7 +155,8 @@ export default async function handler(req: any, res: any) {
     if (action === 'governance-data' || action === 'governance') {
       const collections = [
         "users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests",
-        "durableExecutions", "agentRuntimePools", "billingLedgers", "tenantEconomics", "tenantInfrastructureMap"
+        "durableExecutions", "agentRuntimePools", "billingLedgers", "tenantEconomics", "tenantInfrastructureMap",
+        "distributedTraces", "arbitrationLocks", "cognitiveMemoryGraphs", "infrastructureMigrations", "governancePolicies"
       ];
       const results: any = {  
         ok: true, 
