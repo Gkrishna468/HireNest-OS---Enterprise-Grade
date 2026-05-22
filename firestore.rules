@@ -28,11 +28,21 @@ service cloud.firestore {
     }
 
     function authRole() {
-      return request.auth.token.get('role', '');
+      let r = request.auth.token.get('role', '');
+      if (r != '') {
+        return r;
+      }
+      let dbData = getUserData();
+      return dbData != null ? dbData.role : '';
     }
 
     function authOrgId() {
-      return request.auth.token.get('organizationId', '');
+      let o = request.auth.token.get('organizationId', '');
+      if (o != '') {
+        return o;
+      }
+      let dbData = getUserData();
+      return dbData != null ? dbData.organizationId : '';
     }
 
     function incoming() {
@@ -126,15 +136,9 @@ service cloud.firestore {
     }
 
     function currentOrgId() {
-      return getUserData() != null
-      ? getUserData().organizationId
-      : null;
-    }
-
-    function currentRole() {
-      return getUserData() != null
-      ? getUserData().role
-      : null;
+      // Safely fetch from user data, fallback to custom claim
+      let data = getUserData();
+      return data != null ? data.organizationId : authOrgId();
     }
 
     function isOwner(userId) {

@@ -103,7 +103,10 @@ const AppContent = () => {
   }
 
   if (!user && location.pathname !== '/onboarding') {
-    return <Onboarding onComplete={() => window.location.reload()} />;
+    return <Onboarding onComplete={async () => {
+      await auth.currentUser?.getIdToken(true);
+      window.location.reload();
+    }} />;
   }
 
   const role = userData?.role || 'guest';
@@ -129,7 +132,10 @@ const AppContent = () => {
   };
 
   if (user && !hasCompletedOnboarding && !isAdmin) {
-    return <Onboarding onComplete={() => window.location.reload()} />;
+    return <Onboarding onComplete={async () => {
+      await auth.currentUser?.getIdToken(true);
+      window.location.reload();
+    }} />;
   }
 
   return (

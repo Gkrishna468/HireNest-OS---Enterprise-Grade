@@ -497,6 +497,12 @@ export default function CandidatesTab() {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
 
+    if (!selectedCandidate.resumeText && (!selectedCandidate.skills || selectedCandidate.skills.length === 0)) {
+        alert("INTELLIGENCE GAP ERROR: AI mapping requires resume text or detailed skills. Please update the candidate profile first.");
+        setSelectedJobId("");
+        return;
+    }
+
     setIsMapping(true);
     setMappingResult(null);
     setSelectedJobId(jobId);
@@ -1096,7 +1102,7 @@ export default function CandidatesTab() {
                                   </div>
                               </section>
                               
-                              {isAdmin && (
+                               {isAdmin ? (
                                 <div className="pt-2">
                                   <Button 
                                     variant="outline"
@@ -1104,6 +1110,30 @@ export default function CandidatesTab() {
                                     className="w-full text-red-600 border-red-200 hover:bg-red-50 font-bold uppercase tracking-widest text-[10px] h-10"
                                   >
                                     Permanently Delete Candidate
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="pt-2">
+                                  <Button 
+                                    variant="outline"
+                                    onClick={async () => {
+                                      try {
+                                        await addDoc(collection(db, "adminChangeRequests"), {
+                                          type: "CANDIDATE_DELETION",
+                                          candidateId: selectedCandidate.id || selectedCandidate.candidateId,
+                                          candidateName: selectedCandidate.name,
+                                          requestedBy: auth.currentUser?.uid,
+                                          requestedAt: serverTimestamp(),
+                                          status: "PENDING"
+                                        });
+                                        alert("Request to unlock/delete this profile has been sent to HQ.");
+                                      } catch(e: any) {
+                                         alert("Failed to send request: " + e.message);
+                                      }
+                                    }}
+                                    className="w-full text-amber-600 border-amber-200 hover:bg-amber-50 font-bold uppercase tracking-widest text-[10px] h-10"
+                                  >
+                                    Request Profile Unlock / Deletion
                                   </Button>
                                 </div>
                               )}
