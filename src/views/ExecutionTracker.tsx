@@ -786,6 +786,12 @@ function OrchestrationHubView() {
     const [distributedTraces, setDistributedTraces] = useState<any[]>([]);
     const [cognitiveGraphs, setCognitiveGraphs] = useState<any[]>([]);
     const [governancePolicies, setGovernancePolicies] = useState<any[]>([]);
+    
+    // Final Sovereign Layer
+    const [consensusLeases, setConsensusLeases] = useState<any[]>([]);
+    const [recursiveTrees, setRecursiveTrees] = useState<any[]>([]);
+    const [immuneQuarantines, setImmuneQuarantines] = useState<any[]>([]);
+    const [federatedBroadcasts, setFederatedBroadcasts] = useState<any[]>([]);
 
     useEffect(() => {
         fetch('/api/admin/governance-data')
@@ -800,6 +806,10 @@ function OrchestrationHubView() {
                     setDistributedTraces(data.distributedTraces || []);
                     setCognitiveGraphs(data.cognitiveMemoryGraphs || []);
                     setGovernancePolicies(data.governancePolicies || []);
+                    setConsensusLeases(data.consensusLeases || []);
+                    setRecursiveTrees(data.recursiveReasoningTrees || []);
+                    setImmuneQuarantines(data.immuneQuarantines || []);
+                    setFederatedBroadcasts(data.federatedBroadcasts || []);
                 }
             });
     }, []);
@@ -969,8 +979,58 @@ function OrchestrationHubView() {
                              )}
                          </div>
                     </div>
+
+                    {/* Infrastructure Sovereignty Systems */}
+                    <div className="bg-rose-950 rounded-[40px] p-8 text-white mt-8 shadow-xl shadow-rose-900/20">
+                        <div className="flex items-center justify-between mb-6 border-b border-rose-900/50 pb-4">
+                            <h3 className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                                Infrastructure Immune System
+                            </h3>
+                            <span className="text-[10px] font-bold text-rose-300 uppercase bg-rose-900/50 px-2 py-1 rounded">Quarantines: {immuneQuarantines.length}</span>
+                        </div>
+                        <div className="space-y-3">
+                            {immuneQuarantines.map(q => (
+                                <div key={q.id} className="flex flex-col gap-2 p-3 bg-rose-900/30 rounded-xl border border-rose-800/50">
+                                     <div className="flex justify-between">
+                                         <span className="text-[10px] font-black text-rose-200">{q.actionType}</span>
+                                         <span className="text-[8px] font-black text-rose-100 bg-rose-800 px-2 py-1 rounded shadow-sm">{q.status}</span>
+                                     </div>
+                                     <div className="text-[8px] font-bold text-rose-400 uppercase">
+                                         Actor ID: {q.actorId} | Risk: {q.riskScore}
+                                     </div>
+                                </div>
+                            ))}
+                            {immuneQuarantines.length === 0 && (
+                                 <div className="text-center justify-center flex items-center gap-2 text-[10px] font-bold text-rose-400 py-4 opacity-50">
+                                     <ShieldCheck size={12} />
+                                     Zone is Sovereign & Secure
+                                 </div>
+                             )}
+                        </div>
+                    </div>
                 </div>
             </div>
+            
+            {/* Final Federation Layer Footer */}
+            <div className="mt-8 bg-slate-900 rounded-[40px] p-8 text-white flex flex-col lg:flex-row gap-8 justify-between items-center overflow-hidden relative">
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+                <div className="relative z-10 flex-1">
+                    <h3 className="text-lg font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">Federated Sovereign Coordination</h3>
+                    <div className="flex gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <span>Consensus Leases: {consensusLeases.length} Active</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-700 my-auto" />
+                        <span>Recursive Trees: {recursiveTrees.length} Processing</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-700 my-auto" />
+                        <span>Federated Casts: {federatedBroadcasts.length} Zones</span>
+                    </div>
+                </div>
+                <div className="relative z-10 shrink-0 flex gap-4">
+                    <div className="text-center px-6 py-2 bg-white/5 border border-white/10 rounded-2xl">
+                        <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Global State</div>
+                        <div className="text-sm font-black text-emerald-400">SYNCED</div>
+                    </div>
+                </div>
         </div>
     );
 }
