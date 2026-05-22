@@ -25,3 +25,6 @@ When generating or modifying features, you MUST verify the following before comp
 10. **Deployment Safety:** Do not deploy Firestore rules without testing. If the rules are updated, run eslint over them first.
 
 You are expected to self-enforce these 10 core constraints and refer to this document on every task.
+
+## Vibe Coding Security Audit Alignment
+In addition to the production checklist, this workspace strictly enforces and implements security policies based on the [Vibe Coding Security Checklist](https://gist.github.com/mdsaban/29ffbb6974ce2fa9acc37415b9a4b684). A comprehensive codebase audit has been executed, with explicit upload hardenings applied to `/api/extract-text.ts`. Detailed resolutions and safety vectors are logged in `/VIBE_CHECKLIST_RESOLVED.md` for continuous maintenance.

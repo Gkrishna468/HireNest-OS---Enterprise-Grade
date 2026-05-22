@@ -2,10 +2,31 @@ import multer from 'multer';
 import mammoth from 'mammoth';
 import path from 'path';
 
-// Configure multer storage in memory
+// Configure multer storage in memory with size limits to prevent Denial of Service (DoS)
 const multerFunc = typeof multer === 'function' ? multer : (multer as any).default;
 const storage = multerFunc.memoryStorage();
-const upload = multerFunc({ storage }).single('file');
+const upload = multerFunc({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // Strict 5MB limit to prevent server exhaustion
+  },
+  fileFilter: (req: any, file: any, cb: any) => {
+    // Whitelist only document-related MIME types (PDF, Word, Text)
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+      'text/markdown',
+      'application/rtf'
+    ];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Security Alert: Blocked upload with unsupported file type (${file.mimetype})`));
+    }
+  }
+}).single('file');
 
 function cleanBufferText(buffer: Buffer): string {
   // Gracefully converts buffer to UTF-8 and filters printable ASCII characters 
@@ -47,7 +68,11 @@ export default async function handler(req: any, res: any) {
   upload(req, res, async (err: any) => {
     if (err) {
       console.error('[EXTRACTION] Multer error:', err);
-      return res.status(500).json({ message: 'Error processing file upload', error: err.message });
+      const isSecurityOrLimit = err.message.includes('Security Alert') || err.code === 'LIMIT_FILE_SIZE';
+      return res.status(isSecurityOrLimit ? 400 : 500).json({ 
+        message: isSecurityOrLimit ? 'Validation/Security constraints violated' : 'Error processing file upload', 
+        error: err.message 
+      });
     }
 
     if (!req.file) {
