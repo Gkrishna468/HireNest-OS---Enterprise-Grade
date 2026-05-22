@@ -16,6 +16,8 @@ export default async function handler(req: any, res: any) {
       action = 'pre-flight';
     } else if (rawPath.includes('approve-request')) {
       action = 'approve';
+    } else if (rawPath.includes('finalize-onboarding')) {
+      action = 'finalize-onboarding';
     } else if (rawPath.includes('onboard-request')) {
       action = 'onboard';
     } else if (rawPath.includes('notify-approval')) {
@@ -115,6 +117,31 @@ export default async function handler(req: any, res: any) {
        return res.status(200).json({ ok: true });
     }
 
+    if (action === 'finalize-onboarding') {
+       if (!adminDb) {
+         return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
+       }
+       const { orgId, orgType, companyName, userProfile } = req.body;
+       
+       if (orgId) {
+         await adminDb.collection("organizations").doc(orgId).set({
+           id: orgId,
+           organizationId: orgId,
+           companyName: companyName,
+           type: orgType,
+           status: "active",
+           onboardingCompleted: true,
+           createdAt: new Date().toISOString()
+         }, { merge: true });
+       }
+       
+       if (userProfile && userProfile.uid) {
+         await adminDb.collection("users").doc(userProfile.uid).set(userProfile, { merge: true });
+       }
+       
+       return res.status(200).json({ ok: true });
+    }
+
     if (action === 'onboard') {
        if (!adminDb) {
          return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
@@ -211,17 +238,26 @@ export default async function handler(req: any, res: any) {
         console.warn("No corresponding queue document was found, bypassing non-blocking update:", queueErr);
       }
       
-      // Dispatch centralized workflow event
       try {
+        const { startSaga } = require("../api/lib/stateMachine");
+        
+        // Start saga indicating distributed broadcast workflow
+        await startSaga(
+           "PUBLISH_REQUIREMENT_SAGA",
+           { requirementId: id, orgId, budget: actualBudget },
+           ["FINANCIAL_APPRAISAL", "INDEX_VECTOR_SEARCH", "BROADCAST_TO_VENDORS", "NOTIFY_CLIENT"]
+        );
+
         const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
         await dispatchWorkflowEvent(adminDb, {
           eventType: "JOB_APPROVED",
+          eventVersion: "v2",
           producer: "api/admin",
           status: "QUEUED",
           payload: { jobId: id, marginValue, vendorPayout, timestamp: new Date().toISOString() }
         });
       } catch (evtErr) {
-         console.warn("Failed to trigger JOB_APPROVED workflow event", evtErr);
+         console.warn("Failed to trigger JOB_APPROVED workflow saga", evtErr);
       }
 
       return res.status(200).json({ ok: true });

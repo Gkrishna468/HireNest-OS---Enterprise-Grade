@@ -72,7 +72,7 @@ export default async function handler(req: any, res: any) {
              console.log(`[DAEMON] Orchestrated JOB_APPROVED broadcast for ${event.payload?.jobId}`);
           }
 
-          // Complete Event
+// Complete Event
           await adminDb.collection("workflowEvents").doc(id).update({
              status: "COMPLETED",
              completedAt: new Date().toISOString()
@@ -100,6 +100,28 @@ export default async function handler(req: any, res: any) {
              });
           }
        }
+    }
+
+    // SLA Enforcement Engine Pass
+    const delayedEvents = await adminDb.collection("workflowEvents")
+       .where("status", "==", "PROCESSING")
+       .limit(10)
+       .get();
+       
+    for (const doc of delayedEvents.docs) {
+      const data = doc.data();
+      const updatedTime = new Date(data.updatedAt).getTime();
+      const now = Date.now();
+      
+      // If stuck in processing for > 5 minutes, enforce SLA Timeout and move to QUEUED or DLQ
+      if (now - updatedTime > 5 * 60 * 1000) {
+          console.warn(`[SLA_MONITOR] Workflow SLA timeout detected on ${doc.id}`);
+          await adminDb.collection("workflowEvents").doc(doc.id).update({
+              status: "QUEUED",
+              slaBreach: true,
+              updatedAt: new Date().toISOString()
+          });
+      }
     }
 
     return res.status(200).json({ 
