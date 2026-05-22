@@ -123,36 +123,43 @@ if (adminDb) {
 
 // double-layer async self-check: verify that credentials actually possess authenticated project permissions
 if (adminDb) {
-  adminDb.collection("system").limit(1).get()
-    .then(() => {
-      console.log("[Firebase Admin] Server-side Firestore verification successful.");
-    })
-    .catch((err: any) => {
-      const msg = (err.message || "").toUpperCase();
-      const code = err.code;
-      const desc = (err.details || "").toUpperCase();
-      
-      const isUnauthenticated = 
-        msg.includes("UNAUTHENTICATED") || 
-        desc.includes("UNAUTHENTICATED") || 
-        msg.includes("INVALID AUTHENTICATION") ||
-        msg.includes("API_KEY_INVALID") ||
-        code === 16;
+  try {
+    adminDb.collection("system").limit(1).get()
+      .then(() => {
+        console.log("[Firebase Admin] Server-side Firestore verification successful.");
+      })
+      .catch((err: any) => {
+        const msg = (err.message || "").toUpperCase();
+        const code = err.code;
+        const desc = (err.details || "").toUpperCase();
         
-      if (isUnauthenticated) {
-        console.warn({
-          subsystem: "firebase-admin",
-          mode: "CLIENT_FALLBACK",
-          reason: "ADC_INVALID",
-          message: "[Firebase Admin] Credentials lack authenticated project reads. Cleaning up bindings to trigger failure-resilient client-side fallback mode."
-        });
-        adminDb = null;
-        adminAuth = null;
-        runtimeMode = "CLIENT_FALLBACK";
-      } else {
-        console.log("[Firebase Admin] Server-side Firestore operational check complete (status: ok).");
-      }
-    });
+        const isUnauthenticated = 
+          msg.includes("UNAUTHENTICATED") || 
+          desc.includes("UNAUTHENTICATED") || 
+          msg.includes("INVALID AUTHENTICATION") ||
+          msg.includes("API_KEY_INVALID") ||
+          code === 16;
+          
+        if (isUnauthenticated) {
+          console.warn({
+            subsystem: "firebase-admin",
+            mode: "CLIENT_FALLBACK",
+            reason: "ADC_INVALID",
+            message: "[Firebase Admin] Credentials lack authenticated project reads. Cleaning up bindings to trigger failure-resilient client-side fallback mode."
+          });
+          adminDb = null;
+          adminAuth = null;
+          runtimeMode = "CLIENT_FALLBACK";
+        } else {
+          console.log("[Firebase Admin] Server-side Firestore operational check complete (status: ok).");
+        }
+      });
+  } catch (syncErr: any) {
+    console.warn("[Firebase Admin] Synchronous check failed. Reverting to failure-resilient client fallback:", syncErr.message);
+    adminDb = null;
+    adminAuth = null;
+    runtimeMode = "CLIENT_FALLBACK";
+  }
 }
 
 // For backwards compatibility with old src/server/firebase-admin.ts

@@ -4,7 +4,7 @@ import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase,
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc, deleteDoc } from "firebase/firestore";
 import { parseBulkResumes } from "../services/aiService";
 
 const getSkillsArray = (skills: any): string[] => {
@@ -96,6 +96,110 @@ export default function CandidatesTab() {
     };
   }, []);
 
+  const checkDuplicate = (email: string, phone: string, currentId?: string) => {
+    if (!email && !phone) return null;
+    const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedPhone = phone?.replace(/\D/g, "");
+
+    for (const c of candidates) {
+      if (c.id === currentId || c.candidateId === currentId) continue;
+      
+      if (normalizedEmail && c.email && c.email.trim().toLowerCase() === normalizedEmail) {
+        return { candidate: c, type: "email", value: c.email };
+      }
+      
+      if (normalizedPhone && c.phone && c.phone.replace(/\D/g, "") === normalizedPhone) {
+        return { candidate: c, type: "phone", value: c.phone };
+      }
+    }
+    return null;
+  };
+
+  const handleMergeDuplicate = async (dupCand: any) => {
+    if (!dupCand.duplicateOf) {
+      alert("Missing reference to the original candidate.");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to merge this duplicate into the original candidate (${dupCand.duplicateOfName || 'Original'})? This will permanently delete this duplicate record.`)) {
+      return;
+    }
+
+    try {
+      const origRef = doc(db, "candidatePool", dupCand.duplicateOf);
+      const origSnap = await getDoc(origRef);
+      
+      if (origSnap.exists()) {
+        const origData = origSnap.data();
+        
+        // Merge skills
+        const origSkills = getSkillsArray(origData.skills);
+        const dupSkills = getSkillsArray(dupCand.skills);
+        const mergedSkills = Array.from(new Set([...origSkills, ...dupSkills]));
+        
+        // Update original document with merged details
+        const mergedData: any = {
+          skills: mergedSkills,
+          updatedAt: serverTimestamp()
+        };
+
+        // Fill in empty fields in original candidate if duplicate has them
+        if (!origData.phone && dupCand.phone) mergedData.phone = dupCand.phone;
+        if (!origData.linkedin && dupCand.linkedin) mergedData.linkedin = dupCand.linkedin;
+        if (!origData.experience && dupCand.experience) mergedData.experience = dupCand.experience;
+        if (!origData.location && dupCand.location) mergedData.location = dupCand.location;
+        
+        // Append resume text if both exist
+        if (dupCand.resumeText && dupCand.resumeText !== origData.resumeText) {
+          mergedData.resumeText = (origData.resumeText || "") + "\n\n=== Merged Context ===\n" + dupCand.resumeText;
+        }
+
+        await updateDoc(origRef, mergedData);
+      }
+
+      // Delete the duplicate candidate document
+      const candRef = doc(db, "candidatePool", dupCand.id || dupCand.candidateId);
+      await deleteDoc(candRef);
+      
+      setSelectedCandidate(null);
+      alert(`Deduplication complete. Duplicate has been merged into original.`);
+    } catch (e: any) {
+      alert("Error merging duplicate: " + e.message);
+    }
+  };
+
+  const handleVerifyAsSeparate = async (dupCand: any) => {
+    try {
+      const candRef = doc(db, "candidatePool", dupCand.id || dupCand.candidateId);
+      await updateDoc(candRef, {
+        pipelineStage: "Candidate Added",
+        isDuplicate: false,
+        duplicateOf: "",
+        duplicateOfName: "",
+        duplicateReason: "",
+        updatedAt: serverTimestamp()
+      });
+      alert("Candidate has been verified as a unique individual and returned to the standard onboarding pipeline.");
+      setSelectedCandidate(null);
+    } catch (e: any) {
+      alert("Error verifying candidate: " + e.message);
+    }
+  };
+
+  const handleIgnoreDuplicate = async (dupCand: any) => {
+    if (!confirm("Are you sure you want to discard this duplicate candidate? This action is irreversible.")) {
+      return;
+    }
+    try {
+      const candRef = doc(db, "candidatePool", dupCand.id || dupCand.candidateId);
+      await deleteDoc(candRef);
+      alert("Duplicate candidate discarded permanently.");
+      setSelectedCandidate(null);
+    } catch (e: any) {
+      alert("Error discarding candidate: " + e.message);
+    }
+  };
+
   const handleAddCandidate = async () => {
     if(!formData.name || !formData.email) {
         alert("Name and Email are required.");
@@ -109,12 +213,33 @@ export default function CandidatesTab() {
     setIsSubmitting(true);
     try {
       const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+      
+      // Perform duplicate checks
+      const dMatch = checkDuplicate(formData.email, formData.phone);
+      let targetStage = "Candidate Added";
+      let isDupe = false;
+      let dupeOfId = "";
+      let dupeOfName = "";
+      let dupeReason = "";
+
+      if (dMatch) {
+         targetStage = "Duplicate Review";
+         isDupe = true;
+         dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
+         dupeOfName = dMatch.candidate.name;
+         dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
+      }
+
       const initialCandidate = {
         ...formData,
         skills: getSkillsArray(formData.skills),
         candidateId: candId,
         vendorId: userOrgId,
-        pipelineStage: "Candidate Added",
+        pipelineStage: targetStage,
+        isDuplicate: isDupe,
+        duplicateOf: dupeOfId,
+        duplicateOfName: dupeOfName,
+        duplicateReason: dupeReason,
         matchScore: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -131,7 +256,12 @@ export default function CandidatesTab() {
       }
 
       setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "", experience: "" });
-      alert("Candidate successfully onboarded. Intelligence processing in background.");
+      
+      if (isDupe) {
+         alert("Warning: Duplicate candidate detected. This profile has been routed to 'Duplicate Review' for assessment.");
+      } else {
+         alert("Candidate successfully onboarded. Intelligence processing in background.");
+      }
     } catch (e: any) {
       alert("Manual onboarding failed: " + e.message);
       setIsSubmitting(false);
@@ -150,15 +280,38 @@ export default function CandidatesTab() {
       }
 
       let count = 0;
+      let dupeCount = 0;
       for (const profile of parsedProfiles) {
         const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+        
+        // Perform duplicate checks
+        const dMatch = checkDuplicate(profile.email, profile.phone);
+        let targetStage = "Candidate Added";
+        let isDupe = false;
+        let dupeOfId = "";
+        let dupeOfName = "";
+        let dupeReason = "";
+
+        if (dMatch) {
+           targetStage = "Duplicate Review";
+           isDupe = true;
+           dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
+           dupeOfName = dMatch.candidate.name;
+           dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
+           dupeCount++;
+        }
+
         try {
           await setDoc(doc(db, "candidatePool", candId), {
             ...profile,
             candidateId: candId,
             vendorId: userOrgId,
             matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
-            pipelineStage: "Candidate Added",
+            pipelineStage: targetStage,
+            isDuplicate: isDupe,
+            duplicateOf: dupeOfId,
+            duplicateOfName: dupeOfName,
+            duplicateReason: dupeReason,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
@@ -169,7 +322,11 @@ export default function CandidatesTab() {
       }
       setBulkText("");
       setShowBulkUpload(false);
-      alert(`Successfully added ${count} candidates to your pool.`);
+      if (dupeCount > 0) {
+        alert(`Successfully added ${count} candidates. Note: ${dupeCount} duplicates were detected and routed to 'Duplicate Review'.`);
+      } else {
+        alert(`Successfully added ${count} candidates to your pool.`);
+      }
     } catch (e: any) {
       alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
@@ -258,7 +415,24 @@ export default function CandidatesTab() {
 
         if (results && results.length > 0) {
             const profile = results[0];
-            const updateData = {
+            
+            // Perform duplicate checks
+            const dMatch = checkDuplicate(profile.email, profile.phone, candId);
+            let targetStage = "Candidate Added";
+            let isDupe = false;
+            let dupeOfId = "";
+            let dupeOfName = "";
+            let dupeReason = "";
+
+            if (dMatch) {
+               targetStage = "Duplicate Review";
+               isDupe = true;
+               dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
+               dupeOfName = dMatch.candidate.name;
+               dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
+            }
+
+            const updateData: any = {
                 ...profile,
                 distillationStatus: "COMPLETED",
                 distillationMetadata: {
@@ -268,6 +442,14 @@ export default function CandidatesTab() {
                 },
                 updatedAt: serverTimestamp()
             };
+
+            if (isDupe) {
+               updateData.pipelineStage = targetStage;
+               updateData.isDuplicate = isDupe;
+               updateData.duplicateOf = dupeOfId;
+               updateData.duplicateOfName = dupeOfName;
+               updateData.duplicateReason = dupeReason;
+            }
             
             await setDoc(doc(db, "candidatePool", candId), updateData, { merge: true });
             
@@ -457,6 +639,12 @@ export default function CandidatesTab() {
                         </div>
                     )}
                     
+                    {cand.isDuplicate && (
+                        <div className="mb-3 text-[9px] font-black text-amber-700 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-100 flex items-center gap-1.5 w-fit uppercase tracking-wider animate-pulse">
+                            <AlertTriangle size={11} className="text-amber-500" /> Duplicate Detected
+                        </div>
+                    )}
+                    
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex flex-col gap-1">
                         <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{cand.name}</div>
@@ -639,6 +827,50 @@ export default function CandidatesTab() {
                   </div>
 
                   <div className="flex-1 overflow-y-auto bg-slate-50/30">
+                      {/* DUPLICATE DEDUCTION RESOLUTION INTERFACE */}
+                      {(selectedCandidate.isDuplicate || selectedCandidate.pipelineStage === "Duplicate Review") && (
+                          <div className="bg-amber-50 border-b border-amber-200 p-6 flex flex-col gap-4 animate-in slide-in-from-top duration-300">
+                              <div className="flex items-start gap-4">
+                                  <div className="h-10 w-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
+                                      <AlertTriangle size={20} />
+                                  </div>
+                                  <div className="flex-1 space-y-1">
+                                      <h4 className="text-sm font-black text-amber-900 uppercase">Duplicate Resume Detected</h4>
+                                      <p className="text-xs font-bold text-amber-700 leading-relaxed">
+                                          {selectedCandidate.duplicateReason || "This candidate matches existing contact records in the database."}
+                                      </p>
+                                      {selectedCandidate.duplicateOfName && (
+                                          <p className="text-[11px] text-slate-500">
+                                              Duplicate reference: <strong className="text-slate-705 uppercase">{selectedCandidate.duplicateOfName}</strong> (ID: <span className="font-mono">{selectedCandidate.duplicateOf}</span>)
+                                          </p>
+                                      )}
+                                  </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-1 bg-transparent">
+                                  <Button 
+                                      onClick={() => handleMergeDuplicate(selectedCandidate)} 
+                                      className="bg-amber-600 hover:bg-slate-900 hover:text-white text-white h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-amber-100"
+                                  >
+                                      Merge & Enrich Original
+                                  </Button>
+                                  <Button 
+                                      onClick={() => handleVerifyAsSeparate(selectedCandidate)} 
+                                      variant="outline"
+                                      className="border-amber-300 text-amber-700 hover:bg-amber-100 h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-white"
+                                  >
+                                      Keep both (Verify Separate)
+                                  </Button>
+                                  <Button 
+                                      onClick={() => handleIgnoreDuplicate(selectedCandidate)} 
+                                      variant="ghost"
+                                      className="text-slate-500 hover:text-red-600 hover:bg-red-50 h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                  >
+                                      Discard Duplicate
+                                  </Button>
+                              </div>
+                          </div>
+                      )}
+
                       {/* Pipeline Pulse Flow */}
                       <div className="p-6 bg-white border-b border-slate-100 shadow-sm relative overflow-hidden">
                           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
