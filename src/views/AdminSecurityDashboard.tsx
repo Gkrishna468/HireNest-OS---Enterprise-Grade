@@ -571,6 +571,44 @@ export default function AdminSecurityDashboard() {
             </div>
           )}
 
+          {/* RUNTIME ORCHESTRATION / QUEUE HEALTH (Grid Recipe 1 extension) */}
+          <div className="bg-white border-4 border-[#141414] shadow-[16px_16px_0px_rgba(20,20,20,0.02)] rounded-[40px] overflow-hidden mt-12 p-12">
+            <h2 className="text-4xl font-black uppercase italic tracking-tighter mb-4"><span className="text-indigo-600">Runtime</span> Orchestration</h2>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Service mesh configuration and queue states</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+               <div className="p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">MODE</p>
+                  <p className="font-mono text-lg font-black text-[#141414] truncate">{diagnostics?.runtimeMode || "PENDING"}</p>
+               </div>
+               <div className="p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">SDK HEALTH</p>
+                  <p className="font-mono text-lg font-black text-emerald-600">
+                    {diagnostics?.adminSdkHealthy ? "HEALTHY" : (diagnostics?.adminSdkHealthy === false ? "FAILED" : "PENDING")}
+                  </p>
+               </div>
+               <div className="p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">QUEUE BACKLOG</p>
+                  <p className="font-mono text-lg font-black text-[#141414]">{diagnostics?.queueBacklog ?? "0"}</p>
+               </div>
+               <div className="p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">DEGRADED ROUTES</p>
+                  <p className={cn("font-mono text-lg font-black truncate", (diagnostics?.degradedRoutes?.length > 0) ? "text-amber-500" : "text-emerald-600")}>
+                    {diagnostics?.degradedRoutes?.length || "0"}
+                  </p>
+               </div>
+            </div>
+            {diagnostics?.degradedRoutes?.length > 0 && (
+              <div className="mt-8 p-6 bg-amber-50 border-2 border-amber-200 rounded-3xl">
+                <p className="text-xs font-black text-amber-600 uppercase mb-4 tracking-widest">Restricted APIs</p>
+                <div className="flex gap-2 flex-wrap">
+                  {diagnostics.degradedRoutes.map((r: string, i: number) => (
+                    <span key={i} className="px-3 py-1 bg-white border border-amber-200 rounded font-mono text-[10px] text-amber-700">{r}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* AUDIT LOGS (Visible Grid) */}
           <div className="bg-white border-4 border-[#141414] shadow-[16px_16px_0px_rgba(20,20,20,0.02)] rounded-[40px] overflow-hidden">
              <div className="p-12 border-b-4 border-[#141414] flex items-center justify-between">

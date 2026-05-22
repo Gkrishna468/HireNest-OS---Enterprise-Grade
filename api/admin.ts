@@ -1,4 +1,4 @@
-import { adminDb, adminAuth } from "../src/lib/firebase-admin";
+import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 
 export default async function handler(req: any, res: any) {
@@ -35,18 +35,29 @@ export default async function handler(req: any, res: any) {
     // 1. Diagnostics / Health
     if (action === 'diagnostics' || action === 'pre-flight') {
       try {
-        if (!adminDb) {
-          throw new Error("Firebase Admin SDK is not initialized with credentials. Operating in fallback mode.");
-        }
-        await adminDb.collection("system").doc("health").get();
-        return res.status(200).json({
-          ok: true, status: "operational", governance: "healthy", auth: "healthy", firestore: "healthy",
+        let healthData = {
+          ok: !!adminDb,
+          status: adminDb ? "operational" : "degraded",
+          governance: adminDb ? "healthy" : "offline",
+          auth: adminDb ? "healthy" : "offline",
+          firestore: adminDb ? "healthy" : "degraded",
           projectId: process.env.VITE_APP_PROJECT_ID || "hirenest-os",
           serviceAccount: process.env.FIREBASE_SERVICE_ACCOUNT ? "configured" : "missing",
-          identitySource: "Unified Admin API", timestamp: new Date().toISOString()
-        });
+          identitySource: "Unified Admin API",
+          timestamp: new Date().toISOString(),
+          runtimeMode: runtimeMode,
+          adminSdkHealthy: !!adminDb,
+          degradedRoutes: runtimeMode !== 'FULL_ADMIN' ? ["approve-requirement", "financial-policy", "orchestration", "cross-org-reads"] : [],
+          queueBacklog: 0,
+          failedMatches: 0
+        };
+
+        if (adminDb) {
+          await adminDb.collection("system").doc("health").get();
+        }
+        return res.status(200).json(healthData);
       } catch (err: any) {
-        return res.status(200).json({ ok: false, status: "degraded", error: err.message });
+        return res.status(200).json({ ok: false, status: "degraded", error: err.message, runtimeMode, adminSdkHealthy: false, degradedRoutes: ["all-privileged"], queueBacklog: 0, failedMatches: 0 });
       }
     }
 
@@ -161,11 +172,17 @@ export default async function handler(req: any, res: any) {
       if (!adminDb) {
         return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
       }
-      const { id, actualBudget, marginValue, marginType, currency } = req.body;
+      const { id, actualBudget, marginValue, marginType, currency, orgId } = req.body;
       
-      const rate = marginType === 'PERCENTAGE' ? (Number(marginValue) || 8.33) / 100 : 0.0833;
-      const profit = marginType === 'FIXED' ? (Number(marginValue) || Math.round(actualBudget * 0.0833)) : Math.round(actualBudget * rate);
-      const vendorPayout = actualBudget - profit;
+      const { computeFinancials } = require("../api/lib/policyEngine");
+      const financials = await computeFinancials(adminDb, {
+         actualBudget: Number(actualBudget) || 0,
+         currency: currency || "INR",
+         enterpriseId: orgId
+      });
+      
+      const profit = financials.profit;
+      const vendorPayout = financials.vendorPayout;
 
       // Update core requirement record to active / published status
       await adminDb.collection("requirements_public").doc(id).update({
@@ -179,8 +196,9 @@ export default async function handler(req: any, res: any) {
           adminMargin: profit,
           vendorPayout: vendorPayout,
           platformProfit: profit,
-          marginConfig: { type: marginType || "PERCENTAGE", value: marginValue || 8.33 }
-        }
+          marginConfig: { type: "POLICY_ENGINE", value: financials.marginRate, policy: financials.appliedPolicy }
+        },
+        publishedAt: new Date().toISOString()
       });
 
       // Maintain status within administrative queues
@@ -191,6 +209,19 @@ export default async function handler(req: any, res: any) {
         });
       } catch (queueErr) {
         console.warn("No corresponding queue document was found, bypassing non-blocking update:", queueErr);
+      }
+      
+      // Dispatch centralized workflow event
+      try {
+        const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
+        await dispatchWorkflowEvent(adminDb, {
+          type: "JOB_APPROVED",
+          source: "api/admin",
+          status: "QUEUED",
+          payload: { jobId: id, marginValue, vendorPayout, timestamp: new Date().toISOString() }
+        });
+      } catch (evtErr) {
+         console.warn("Failed to trigger JOB_APPROVED workflow event", evtErr);
       }
 
       return res.status(200).json({ ok: true });

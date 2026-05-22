@@ -144,6 +144,18 @@ export default async function handler(req: any, res: any) {
       .filter(c => (c.matchScore || 0) >= 50)
       .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
 
+    if (sortedMatches.length > 0) {
+       try {
+         const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
+         await dispatchWorkflowEvent(adminDb, {
+           type: "MATCH_FOUND",
+           source: "api/matching-global",
+           status: "QUEUED",
+           payload: { jobId: targetReqId, count: sortedMatches.length, topScore: sortedMatches[0]?.matchScore }
+         });
+       } catch (evtErr) {}
+    }
+
     return res.status(200).json({
       matches: sortedMatches,
       count: sortedMatches.length,
