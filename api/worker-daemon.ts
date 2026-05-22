@@ -1,4 +1,6 @@
 import { adminDb } from "../src/lib/firebase-admin";
+import { resolveTenantShard } from "./lib/infrastructureSharding";
+import { meterExecution } from "./lib/tenantBilling";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -17,6 +19,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // Advanced: Resolve regional queue partitions
+    // const { shardId, region } = await resolveTenantShard("global");
+
     const queueSnapshot = await adminDb.collection("workflowEvents")
        .where("status", "==", "QUEUED")
        .limit(20)
@@ -72,12 +77,14 @@ export default async function handler(req: any, res: any) {
              console.log(`[DAEMON] Orchestrated JOB_APPROVED broadcast for ${event.payload?.jobId}`);
           }
 
-// Complete Event
+          // Complete Event
           await adminDb.collection("workflowEvents").doc(id).update({
              status: "COMPLETED",
              completedAt: new Date().toISOString()
           });
           processedCount++;
+          
+          await meterExecution("global_sys", "WORKFLOW", 1);
 
        } catch (err: any) {
           console.error(`[DAEMON] Event ${id} failure (${err.message})`);
