@@ -833,7 +833,7 @@ export default function CandidatesTab() {
                           <div>
                               <div className="flex items-center gap-2">
                                   <h2 className="text-base font-black text-slate-800">{selectedCandidate.name}</h2>
-                                  <Badge className="bg-indigo-50 text-indigo-700 text-[10px] font-bold border-indigo-100">POOL_ID: {selectedCandidate.id?.slice(0, 8)}</Badge>
+                                  <Badge className="bg-blue-50 text-blue-700 text-[10px] font-bold border-blue-200 uppercase">{selectedCandidate.candidateId || "CAND-PENDING"}</Badge>
                               </div>
                               <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
                                   <ShieldCheck size={10} className="text-emerald-500" /> Identity Verified • <span className="text-indigo-400">Governance Level 2</span>
@@ -1075,7 +1075,15 @@ export default function CandidatesTab() {
                                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
                                           <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Source Identity</span>
                                           <div className="flex items-center gap-2 mt-1">
-                                              <Badge className="bg-slate-100 text-slate-600 text-[10px]">{(!selectedCandidate.vendorId || selectedCandidate.vendorId === 'ORG-GLOBAL-HQ' || selectedCandidate.vendorId === 'ADMIN_POOL') ? 'GLOBAL HQ' : (selectedCandidate.vendorName || selectedCandidate.vendorId || 'DIRECT_POOL')}</Badge>
+                                              {(!selectedCandidate.vendorId || selectedCandidate.vendorId === 'ORG-GLOBAL-HQ' || selectedCandidate.vendorId === 'ADMIN_POOL') ? (
+                                                  <Badge className="bg-indigo-600 text-white shadow-lg shadow-indigo-200 text-[10px] font-black uppercase tracking-widest px-3">
+                                                      GLOBAL HQ
+                                                  </Badge>
+                                              ) : (
+                                                  <Badge className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase">
+                                                      {selectedCandidate.vendorName || selectedCandidate.vendorId || 'DIRECT_POOL'}
+                                                  </Badge>
+                                              )}
                                           </div>
                                       </div>
                                   </div>
