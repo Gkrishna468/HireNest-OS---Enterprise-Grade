@@ -32,6 +32,21 @@ export default function CandidatesTab() {
   const [isMapping, setIsMapping] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
+  const isAdmin = userRole.includes('admin') || userRole === 'super_admin' || userRole === 'ops_admin';
+
+  const handleDeleteCandidate = async (candId: string) => {
+    if (!isAdmin) {
+      alert("Only administrators can delete candidates from the global pool.");
+      return;
+    }
+    if (!confirm("Are you sure you want to permanently delete this candidate?")) return;
+    try {
+      await deleteDoc(doc(db, "candidatePool", candId));
+      setSelectedCandidate(null);
+    } catch (e: any) {
+      alert("Failed to delete candidate: " + e.message);
+    }
+  };
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -476,7 +491,6 @@ export default function CandidatesTab() {
   };
 
   const isClient = userRole === 'client' || userRole?.startsWith('client_');
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'ops_admin';
 
   const handleMapToJob = async (jobId: string) => {
     if (!selectedCandidate || !jobId) return;
@@ -647,7 +661,10 @@ export default function CandidatesTab() {
                     
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex flex-col gap-1">
-                        <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{cand.name}</div>
+                        <div className="flex items-center gap-2">
+                           <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{cand.name}</div>
+                           <div className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{cand.candidateId || cand.id}</div>
+                        </div>
                         <div className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5 p-1 bg-slate-50 rounded w-fit">
                           <ShieldCheck size={10} className="text-emerald-500" /> {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : '85'}% Verified
                         </div>
@@ -1052,7 +1069,7 @@ export default function CandidatesTab() {
                                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
                                           <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Source Identity</span>
                                           <div className="flex items-center gap-2 mt-1">
-                                              <Badge className="bg-slate-100 text-slate-600 text-[10px]">{selectedCandidate.vendorName || "DIRECT_POOL"}</Badge>
+                                              <Badge className="bg-slate-100 text-slate-600 text-[10px]">{(!selectedCandidate.vendorId || selectedCandidate.vendorId === 'ORG-GLOBAL-HQ' || selectedCandidate.vendorId === 'ADMIN_POOL') ? 'GLOBAL HQ' : (selectedCandidate.vendorName || selectedCandidate.vendorId || 'DIRECT_POOL')}</Badge>
                                           </div>
                                       </div>
                                   </div>
@@ -1078,6 +1095,18 @@ export default function CandidatesTab() {
                                       </div>
                                   </div>
                               </section>
+                              
+                              {isAdmin && (
+                                <div className="pt-2">
+                                  <Button 
+                                    variant="outline"
+                                    onClick={() => handleDeleteCandidate(selectedCandidate.id || selectedCandidate.candidateId)}
+                                    className="w-full text-red-600 border-red-200 hover:bg-red-50 font-bold uppercase tracking-widest text-[10px] h-10"
+                                  >
+                                    Permanently Delete Candidate
+                                  </Button>
+                                </div>
+                              )}
                           </div>
                       </div>
                   </div>

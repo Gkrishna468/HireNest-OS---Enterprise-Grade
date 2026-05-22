@@ -36,9 +36,11 @@ import AdminSecurityDashboard from './views/AdminSecurityDashboard';
 import AdminUsersManager from './views/AdminUsersManager';
 import TraceView from './views/TraceView';
 import MemoryMapView from './views/MemoryMapView';
+import WelcomeDemo from './components/WelcomeDemo';
 
-import { auth } from './lib/firebase';
+import { auth, db } from './lib/firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const SidebarItem = ({ to, icon: Icon, label, active }: { to: string, icon: any, label: string, active?: boolean }) => (
   <Link
@@ -61,6 +63,7 @@ const AppContent = () => {
   const [user, setUser] = React.useState<any>(null);
   const [userData, setUserData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [showDemo, setShowDemo] = React.useState(false);
 
   React.useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (u) => {
@@ -71,7 +74,11 @@ const AppContent = () => {
           const { db } = await import('./lib/firebase');
           const d = await getDoc(doc(db, "users", u.uid));
           if (d.exists()) {
-            setUserData(d.data());
+            const data = d.data();
+            setUserData(data);
+            if (!data.hasSeenDemo) {
+              setShowDemo(true);
+            }
           }
         } catch (e) {
           console.error("User data sync failed", e);
@@ -109,12 +116,30 @@ const AppContent = () => {
   const hasCompletedOnboarding = userData?.onboardingCompleted === true || 
     (userData?.role && userData?.role !== 'PENDING_VERIFICATION' && userData?.status === 'ACTIVE' && userData?.organizationId);
 
+  const handleCloseDemo = async () => {
+    setShowDemo(false);
+    if (user) {
+      setUserData((prev: any) => ({ ...prev, hasSeenDemo: true }));
+      try {
+        await updateDoc(doc(db, "users", user.uid), { hasSeenDemo: true });
+      } catch (err) {
+        console.error("Failed to update demo flag:", err);
+      }
+    }
+  };
+
   if (user && !hasCompletedOnboarding && !isAdmin) {
     return <Onboarding onComplete={() => window.location.reload()} />;
   }
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans">
+      {hasCompletedOnboarding && showDemo && (
+        <WelcomeDemo 
+          type={(isAdmin || isClient) ? 'client' : 'vendor'} 
+          onClose={handleCloseDemo} 
+        />
+      )}
       {/* Permanent Sidebar */}
       <aside className="w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50">
         <div className="flex items-center gap-3 mb-10 px-2">
