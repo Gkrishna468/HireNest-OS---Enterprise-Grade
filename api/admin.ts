@@ -1,9 +1,9 @@
 import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 
-import { computeFinancials } from "../api/lib/policyEngine";
-import { startSaga } from "../api/lib/stateMachine";
-import { dispatchWorkflowEvent } from "../api/lib/workflowQueue";
+import { computeFinancials } from "./lib/policyEngine";
+import { startSaga } from "./lib/stateMachine";
+import { dispatchWorkflowEvent } from "./lib/workflowQueue";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';

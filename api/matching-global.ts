@@ -1,6 +1,6 @@
 import { adminDb } from "../src/lib/firebase-admin";
 
-import { dispatchWorkflowEvent } from "../api/lib/workflowQueue";
+import { dispatchWorkflowEvent } from "./lib/workflowQueue";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
