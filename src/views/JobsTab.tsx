@@ -92,13 +92,12 @@ export default function JobsTab() {
           // Only scan published jobs
           if (job.status !== "PUBLISHED") continue;
 
-          // Extract job skills
-          const jobSkills = (job.skills || [])
-            .map((s: string) => s.trim().toLowerCase())
+          const jobSkills = (Array.isArray(job.skills) ? job.skills : (typeof job.skills === 'string' ? job.skills.split(',') : []))
+            .map((s: string) => String(s).trim().toLowerCase())
             .filter(Boolean);
 
           for (const cand of candidateList) {
-            const candSkills = (cand.skills || [])
+            const candSkills = (Array.isArray(cand.skills) ? cand.skills : (typeof cand.skills === 'string' ? cand.skills.split(',') : []))
               .map((s: any) => String(s).trim().toLowerCase())
               .filter(Boolean);
 

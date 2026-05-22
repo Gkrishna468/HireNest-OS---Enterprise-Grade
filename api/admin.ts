@@ -1,6 +1,10 @@
 import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 
+import { computeFinancials } from "../api/lib/policyEngine";
+import { startSaga } from "../api/lib/stateMachine";
+import { dispatchWorkflowEvent } from "../api/lib/workflowQueue";
+
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
   let action = req.body?.action || req.query?.action;
@@ -206,7 +210,6 @@ export default async function handler(req: any, res: any) {
       }
       const { id, actualBudget, marginValue, marginType, currency, orgId } = req.body;
       
-      const { computeFinancials } = require("../api/lib/policyEngine");
       const financials = await computeFinancials(adminDb, {
          actualBudget: Number(actualBudget) || 0,
          currency: currency || "INR",
@@ -244,8 +247,6 @@ export default async function handler(req: any, res: any) {
       }
       
       try {
-        const { startSaga } = require("../api/lib/stateMachine");
-        
         // Start saga indicating distributed broadcast workflow
         await startSaga(
            "PUBLISH_REQUIREMENT_SAGA",
@@ -253,7 +254,6 @@ export default async function handler(req: any, res: any) {
            ["FINANCIAL_APPRAISAL", "INDEX_VECTOR_SEARCH", "BROADCAST_TO_VENDORS", "NOTIFY_CLIENT"]
         );
 
-        const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
         await dispatchWorkflowEvent(adminDb, {
           eventType: "JOB_APPROVED",
           eventVersion: "v2",

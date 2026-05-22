@@ -1,5 +1,7 @@
 import { adminDb } from "../src/lib/firebase-admin";
 
+import { dispatchWorkflowEvent } from "../api/lib/workflowQueue";
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -146,7 +148,6 @@ export default async function handler(req: any, res: any) {
 
     if (sortedMatches.length > 0) {
        try {
-         const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
          await dispatchWorkflowEvent(adminDb, {
            eventType: "MATCH_FOUND",
            producer: "api/matching-global",

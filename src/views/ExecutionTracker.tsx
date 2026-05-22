@@ -1031,6 +1031,7 @@ function OrchestrationHubView() {
                         <div className="text-sm font-black text-emerald-400">SYNCED</div>
                     </div>
                 </div>
+            </div>
         </div>
     );
 }
