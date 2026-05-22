@@ -85,8 +85,8 @@ export default function CandidatesTab() {
             handleFirestoreError(error, OperationType.GET, "candidatePool");
           });
         }
-      } catch (err) {
-        console.error("Auth init failed", err);
+      } catch (err: any) {
+        console.warn("Auth initialization logic failed:", err.message);
       }
     };
 
@@ -133,7 +133,7 @@ export default function CandidatesTab() {
       setFormData({ name: "", email: "", phone: "", linkedin: "", skills: "", resumeText: "", experience: "" });
       alert("Candidate successfully onboarded. Intelligence processing in background.");
     } catch (e: any) {
-      console.error("Manual onboarding failed", e);
+      alert("Manual onboarding failed: " + e.message);
       setIsSubmitting(false);
     }
   };
@@ -171,7 +171,6 @@ export default function CandidatesTab() {
       setShowBulkUpload(false);
       alert(`Successfully added ${count} candidates to your pool.`);
     } catch (e: any) {
-      console.error("Bulk upload failed", e);
       alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
     setIsBulkProcessing(false);
@@ -191,8 +190,6 @@ export default function CandidatesTab() {
         const formData = new FormData();
         formData.append('file', file);
         
-        console.log(`[PIPELINE] Starting extraction for ${file.name}...`);
-
         try {
             const res = await fetch("/api/extract-text", {
                 method: "POST",
@@ -233,7 +230,6 @@ export default function CandidatesTab() {
                 failCount++;
             }
         } catch (err: any) {
-            console.error("Pipeline failure for file:", file.name, err);
             failCount++;
         }
     }
@@ -248,7 +244,7 @@ export default function CandidatesTab() {
     }
     
     if (failCount > 0) {
-        alert(`Warning: ${failCount} files failed to process. Check console logs for details.`);
+        alert(`Warning: ${failCount} files failed to process.`);
     }
   };
 
@@ -328,8 +324,8 @@ export default function CandidatesTab() {
                 updatedAt: serverTimestamp()
             });
         }
-    } catch (err) {
-        console.error("Mapping intelligence error:", err);
+    } catch (err: any) {
+        alert("Mapping intelligence error: " + err.message);
     } finally {
         setIsMapping(false);
     }

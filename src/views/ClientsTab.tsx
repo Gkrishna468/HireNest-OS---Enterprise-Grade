@@ -132,10 +132,10 @@ export default function ClientsTab() {
       setShowApprovalModal(null);
       await fetchClients();
     } catch (e: any) {
-      console.error("Governance engine failure", e.message);
-      // provide meaningful feedback in UI would be better, but console error satisfies current debug
       if (e.message?.includes('permission')) {
           alert("Permission denied. Ensure you are authorized for commercial release.");
+      } else {
+          alert("Governance Error: " + e.message);
       }
     }
   };

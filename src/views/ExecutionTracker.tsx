@@ -86,7 +86,6 @@ export default function ExecutionTracker() {
         const data = await response.json();
         setItems(data.execution_tracker || []);
       } catch (error: any) {
-        console.error("Governance Data Retrieval Error:", error);
         setErrorMsg(error.message);
       } finally {
         setLoading(false);
@@ -778,12 +777,22 @@ function TrustIndexView() {
 
 function OrchestrationHubView() {
     const [requirements, setRequirements] = useState<any[]>([]);
+    const [durableExecutions, setDurableExecutions] = useState<any[]>([]);
+    const [agentRuntimes, setAgentRuntimes] = useState<any[]>([]);
+    const [infrastructureShards, setInfrastructureShards] = useState<any[]>([]);
+    const [billingLedgers, setBillingLedgers] = useState<any[]>([]);
     
     useEffect(() => {
         fetch('/api/admin/governance-data')
             .then(r => r.json())
             .then(data => {
-                if (data.ok) setRequirements(data.requirements_public || []);
+                if (data.ok) {
+                    setRequirements(data.requirements_public || data.requirements || []);
+                    setDurableExecutions(data.durableExecutions || []);
+                    setAgentRuntimes(data.agentRuntimePools || []);
+                    setInfrastructureShards(data.tenantInfrastructureMap || []);
+                    setBillingLedgers(data.billingLedgers || []);
+                }
             });
     }, []);
 
@@ -792,44 +801,74 @@ function OrchestrationHubView() {
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Autonomous Orchestration Hub</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Algorithmic Requirement Routing & Node Recommendation</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Durable Workflows & Agent Coordination Layer</p>
                 </div>
                 <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center gap-4">
                     <div className="text-center">
-                        <div className="text-[8px] font-black opacity-40 uppercase">Active Nodes</div>
-                        <div className="text-sm font-black">42 Verified</div>
+                        <div className="text-[8px] font-black opacity-40 uppercase">Durable Execs</div>
+                        <div className="text-sm font-black">{durableExecutions.length} Active</div>
                     </div>
                     <div className="h-8 w-px bg-white/10" />
                     <div className="text-center">
-                        <div className="text-[8px] font-black opacity-40 uppercase">Orchestration Rate</div>
-                        <div className="text-sm font-black">94.2% Auto</div>
+                        <div className="text-[8px] font-black opacity-40 uppercase">Agent Runtimes</div>
+                        <div className="text-sm font-black">{agentRuntimes.length} Deployed</div>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-12 gap-8">
-                {/* Routing Feed */}
+                {/* Durable Executions Feed */}
                 <div className="col-span-12 lg:col-span-8 space-y-6">
-                    {requirements.filter(r => r.status === 'PUBLISHED').map((req) => (
-                        <div key={req.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex items-center gap-8 group hover:border-indigo-200 transition-all">
+                    <h3 className="text-sm font-black uppercase tracking-widest border-b border-slate-100 pb-2">Durable Workflows</h3>
+                    {durableExecutions.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest bg-white border border-slate-100 rounded-3xl">No durable executions active</div>
+                    ) : durableExecutions.map((exec) => (
+                        <div key={exec.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex items-center gap-8 group hover:border-indigo-200 transition-all">
                             <div className="h-20 w-20 rounded-3xl bg-indigo-600 flex flex-col items-center justify-center text-white relative shrink-0">
-                                <div className="text-[xs] font-black uppercase tracking-tighter">Prob.</div>
-                                <div className="text-2xl font-black italic">84%</div>
+                                <Cpu size={32} />
+                                <div className="absolute -bottom-2 bg-slate-900 text-[10px] px-2 py-0.5 rounded shadow">
+                                    {exec.partition || "GLOBAL"}
+                                </div>
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{req.title}</h3>
-                                    <Badge variant="outline" className="text-[9px] font-black">AUTO_ROUTED</Badge>
+                                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{exec.workflowType}</h3>
+                                    <Badge variant="outline" className={cn("text-[9px] font-black", exec.state === 'COMPLETED' ? 'text-emerald-500' : 'text-indigo-500')}>{exec.state}</Badge>
                                 </div>
                                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-4">
-                                    <span>Budget: ₹{(req.clientTargetBudget * 83).toLocaleString()}</span>
+                                    <span>ID: {exec.id}</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-200" />
-                                    <span>Urgency: {req.urgency || "NORMAL"}</span>
+                                    <span>History Len: {exec.history?.length || 0}</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <Button className="bg-white text-indigo-600 border border-indigo-100 hover:bg-slate-50 font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl">
+                                    Trace
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+
+                    <h3 className="text-sm font-black uppercase tracking-widest border-b border-slate-100 pb-2 mt-8">Agent Tasks</h3>
+                    {agentRuntimes.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest bg-white border border-slate-100 rounded-3xl">No multi-agent runtimes provisioned</div>
+                    ) : agentRuntimes.map((agent) => (
+                        <div key={agent.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex items-center gap-8 group hover:border-indigo-200 transition-all">
+                            <div className="h-20 w-20 rounded-3xl bg-slate-900 flex flex-col items-center justify-center text-white relative shrink-0">
+                                <BrainCircuit size={32} />
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{agent.assignedAgentRole}</h3>
+                                    <Badge variant="outline" className="text-[9px] font-black">{agent.status}</Badge>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-4 text-ellipsis overflow-hidden whitespace-nowrap max-w-[400px]">
+                                    <span>Intent: {agent.intent}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
                                 <Button className="bg-indigo-600 hover:bg-slate-900 text-white font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl">
-                                    Optimize Route
+                                    Inspect Tools
                                 </Button>
                             </div>
                         </div>
@@ -839,59 +878,51 @@ function OrchestrationHubView() {
                 {/* Knowledge Graph Card */}
                 <div className="col-span-12 lg:col-span-4 space-y-6">
                     <div className="bg-slate-900 rounded-[40px] p-8 text-white">
-                        <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-6">Staffing Knowledge Graph</h3>
-                        <div className="relative h-64 flex items-center justify-center mb-8">
-                             {/* Abstract Graph Visualization */}
-                             <div className="absolute inset-0 flex items-center justify-center">
-                                 <div className="w-16 h-16 bg-indigo-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-                             </div>
-                             <div className="grid grid-cols-3 gap-8 relative z-10">
-                                 {[1,2,3,4,5,6].map(i => (
-                                     <div key={i} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 group cursor-pointer hover:bg-indigo-500 hover:text-white transition-all">
-                                         <Cpu size={20} />
-                                         <div className="absolute -top-12 scale-0 group-hover:scale-100 bg-white text-slate-900 text-[10px] font-black px-3 py-1 rounded shadow-xl transition-all">
-                                             NODE_ALPHA_{i}
-                                         </div>
-                                     </div>
-                                 ))}
-                             </div>
-                             {/* SVG Connectors (Simplified) */}
-                             <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                                 <line x1="20%" y1="20%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
-                                 <line x1="80%" y1="20%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
-                                 <line x1="20%" y1="80%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
-                                 <line x1="80%" y1="80%" x2="50%" y2="50%" stroke="white" strokeWidth="0.5" />
-                             </svg>
-                        </div>
+                        <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-6">Execution & Billing Metering</h3>
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
-                                <span className="text-slate-500 font-bold uppercase">Strongest Cluster</span>
-                                <span className="font-black text-indigo-400">FINTECH / HYDERABAD</span>
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
-                                <span className="text-slate-500 font-bold uppercase">Node Density</span>
-                                <span className="font-black text-indigo-400">HIGH (42 Active)</span>
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] py-1">
-                                <span className="text-slate-500 font-bold uppercase">Match Accuracy</span>
-                                <span className="font-black text-indigo-400">92.4%</span>
-                            </div>
+                            {billingLedgers.map((b) => (
+                                <div key={b.id} className="border-b border-white/5 pb-4 mb-4 line-last-hide">
+                                    <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                        <span className="text-slate-500 font-bold uppercase">Org ID</span>
+                                        <span className="font-black text-indigo-400">{b.orgId} ({b.billingPeriod})</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                        <span className="text-slate-500 font-bold uppercase">Workflow Executions</span>
+                                        <span className="font-black text-emerald-400">{b.workflowExecutions}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                        <span className="text-slate-500 font-bold uppercase">Vector Operations</span>
+                                        <span className="font-black text-indigo-400">{b.vectorQueries}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] py-1 border-b border-white/5">
+                                        <span className="text-slate-500 font-bold uppercase">AI Compute Meter</span>
+                                        <span className="font-black text-amber-400">{b.aiTokens} TKNS</span>
+                                    </div>
+                                </div>
+                            ))}
+                            {billingLedgers.length === 0 && (
+                                <div className="text-center text-[10px] font-bold text-slate-500 py-4">No recent billing ledger updates.</div>
+                            )}
                         </div>
                     </div>
 
                     <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm">
-                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Autonomous Policy</h3>
+                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Tenant Infrastructure Routing</h3>
                          <div className="space-y-3">
-                             {[
-                                 { label: "AAA Priority", status: "ENABLED" },
-                                 { label: "SLA Scaling", status: "DYNAMIC" },
-                                 { label: "Risk Mitigation", status: "AGGRESSIVE" }
-                             ].map((policy, i) => (
-                                 <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                     <span className="text-[10px] font-black text-slate-800">{policy.label}</span>
-                                     <span className="text-[8px] font-black text-indigo-600 bg-white px-2 py-1 rounded shadow-sm">{policy.status}</span>
+                             {infrastructureShards.map(shard => (
+                                 <div key={shard.id} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                     <div className="flex justify-between">
+                                         <span className="text-[10px] font-black text-slate-800">{shard.id}</span>
+                                         <span className="text-[8px] font-black text-indigo-600 bg-white px-2 py-1 rounded shadow-sm">{shard.region}</span>
+                                     </div>
+                                     <div className="text-[8px] font-bold text-slate-400 uppercase">
+                                         Tier: {shard.tier} | Shard ID: {shard.shardId}
+                                     </div>
                                  </div>
                              ))}
+                             {infrastructureShards.length === 0 && (
+                                 <div className="text-center text-[10px] font-bold text-slate-500 py-4">Global Default Partition Route</div>
+                             )}
                          </div>
                     </div>
                 </div>

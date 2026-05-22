@@ -54,8 +54,8 @@ export default function MemoryMapView() {
         };
 
         renderChart(data);
-      } catch (err) {
-        console.error("Memory Map Data Load Failed:", err);
+      } catch (err: any) {
+        console.warn("Memory Map Data Load Failed:", err.message);
       } finally {
         setLoading(false);
       }

@@ -186,11 +186,9 @@ export default function DealRoomsTab() {
         setAiIntelligence(await response.json());
       } else {
         const errText = await response.text();
-        console.error(`AI Intelligence fetch failed with status ${response.status}: ${errText}`);
+        console.warn(`AI Intelligence fetch returned status ${response.status}`);
       }
     } catch (e: any) {
-      console.error("AI Intelligence network error:", e.message || e);
-      // Fallback for UI feedback
       alert(`Network connectivity issue: ${e.message || "Failed to reach intelligence layer"}`);
     } finally {
       setIsAiLoading(false);
@@ -247,8 +245,8 @@ export default function DealRoomsTab() {
           timestamp: serverTimestamp()
         });
       }
-    } catch (e) {
-      console.error("Stage update failed", e);
+    } catch (e: any) {
+      alert(`Failed to update stage: ${e.message || 'Unknown error'}`);
     }
   };
 

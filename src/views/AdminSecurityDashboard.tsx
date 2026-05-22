@@ -84,8 +84,8 @@ export default function AdminSecurityDashboard() {
       };
       const result = await runAutonomousReasoning(intent, payload);
       setReasoningResult(result);
-    } catch (e) {
-      console.error("Reasoning failed", e);
+    } catch (e: any) {
+      console.warn("Reasoning failed:", e.message);
     } finally {
       setReasoningActive(false);
     }
@@ -191,8 +191,8 @@ export default function AdminSecurityDashboard() {
               authDetails: `Client Node unreachable: ${err.message}` 
             });
           });
-        } catch (e) {
-          console.error("Identity Verification Protocol Error:", e);
+        } catch (e: any) {
+          console.warn("Identity Verification Protocol Error:", e.message);
           setLoading(false);
         }
       });

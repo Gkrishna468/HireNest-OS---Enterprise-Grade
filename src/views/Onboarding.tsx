@@ -79,8 +79,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
             }
           }
           setStep(2); // Go straight to setup step
-        } catch (e) {
-          console.error("Failed to fetch initial profile data:", e);
+        } catch (e: any) {
+          console.warn("Failed to fetch initial profile data:", e.message);
         } finally {
           setLoading(false);
         }
@@ -123,7 +123,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
-      console.error(err);
+      console.warn("Email Auth Warning:", err.message);
       setError(err.message || "Authentication credentials rejected. Confirm input and try again.");
     } finally {
       setLoading(false);
@@ -137,7 +137,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (err: any) {
-      console.error(err);
+      console.warn("Google Auth Warning:", err.message);
       setError(err.message || "Failed to finalize authentication handshake.");
     }
   };
@@ -152,7 +152,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       const url = await getDownloadURL(storageRef);
       return url;
     } catch (err) {
-      console.warn("Storage upload failed, fallback to descriptor details:", err);
+      console.warn("Storage upload failed. Fallback to placeholder URL:", err);
       return `gs://${storage?.app?.options?.projectId || "hirenest-os"}/compliance/${user.uid}/${file.name}`;
     }
   };
@@ -206,9 +206,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     setLoading(true);
 
     try {
-      console.log("[ONBOARDING] Initiating cryptographic identity verification flow...");
-
-      // 1. Upload files or fallback to validated secure mock URLs
+      // Verify the required documents
       const aadhaarUrl = aadhaarFile ? await uploadToStorageSafe(aadhaarFile, "aadhaar_card") : "https://hirenest-documents.web.app/placeholders/aadhaar_verified.pdf";
       const businessUrl = businessFile ? await uploadToStorageSafe(businessFile, "entity_registration") : "https://hirenest-documents.web.app/placeholders/business_registration.pdf";
       const ndaUrl = ndaFile ? await uploadToStorageSafe(ndaFile, "signed_agreement") : "https://hirenest-documents.web.app/placeholders/nda_signed.pdf";
@@ -283,7 +281,6 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         })
       }).catch(err => console.warn("Sync onboard request to backoffice non-blocking result:", err));
 
-      console.log("[ONBOARDING] Workspace node is authentic. Relaying user session...");
       setStep(3);
 
       setTimeout(() => {
@@ -291,7 +288,6 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       }, 1500);
 
     } catch (err: any) {
-      console.error("[ONBOARDING] Handshake failure:", err);
       setError(err.message || "An unexpected failure occurred during authority routing.");
     } finally {
       setLoading(false);

@@ -144,7 +144,6 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       } catch (fErr: any) {
         const identity = auth.currentUser?.email?.toLowerCase() || "Unknown Identity";
         setError(`IDENTITY ACCESS DENIED: Authority Rejection for [${identity}]. Ensure your email has Admin authority and you have granted IAM permissions to the service account in GCP Console.`);
-        console.error("Firestore Fallback Error (Permission Handshake Failed):", fErr);
       }
     } finally {
       setLoading(false);
@@ -227,10 +226,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       await signOut(tempAuth);
       await deleteApp(tempApp);
 
-      console.log("[ClientOnboarding] Client-side user provisioned successfully!");
       return { ok: true, uid: newUid };
     } catch (err: any) {
-      console.error("[ClientOnboarding] Client-side fallback failed:", err);
       try {
         await deleteApp(tempApp);
       } catch (_) {}
@@ -288,7 +285,6 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
          setCompanyName("");
          await fetchUsers();
        } catch (fallbackError: any) {
-         console.error("[Onboarding] Both API and Client-side setup failed:", fallbackError);
          setError(`Onboarding failed. Details: ${fallbackError.message}`);
        }
     } finally {

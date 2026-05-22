@@ -153,8 +153,11 @@ export default async function handler(req: any, res: any) {
 
     // 4. Governance Data (Detailed)
     if (action === 'governance-data' || action === 'governance') {
-      const collections = ["users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests"];
-      const results: any = { 
+      const collections = [
+        "users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests",
+        "durableExecutions", "agentRuntimePools", "billingLedgers", "tenantEconomics", "tenantInfrastructureMap"
+      ];
+      const results: any = {  
         ok: true, 
         timestamp: new Date().toISOString(),
         nodeId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_APP_PROJECT_ID || "hirenest-os",

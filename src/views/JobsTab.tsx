@@ -81,8 +81,8 @@ export default function JobsTab() {
               candidateId: doc.id,
               ...doc.data()
             } as any));
-          } catch (directQueryErr) {
-            console.error("[AUTO_SCANNER] Direct candidates query failed:", directQueryErr);
+          } catch (directQueryErr: any) {
+            console.warn("[AUTO_SCANNER] Direct candidates query failed:", directQueryErr.message);
           }
         }
 
@@ -512,8 +512,8 @@ export default function JobsTab() {
         }, 20000);
       }, 5000); 
 
-    } catch (e) {
-      console.error("Critical submission failure", e);
+    } catch (e: any) {
+      alert(`Critical submission failure: ${e.message}`);
     }
     setIsParsing(false);
   };
@@ -539,8 +539,8 @@ export default function JobsTab() {
             if (data.text) {
                 cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
             }
-        } catch (err) {
-            console.error("Failed to parse file", file.name, err);
+        } catch (err: any) {
+            console.warn(`Failed to parse file ${file.name}:`, err.message);
         }
     }
 
@@ -567,8 +567,8 @@ export default function JobsTab() {
         })
       });
       alert("Requirement submitted for financial governance approval.");
-    } catch (err) {
-      console.error("Failed to submit budget or notify", err);
+    } catch (err: any) {
+      alert(`Failed to submit budget or notify: ${err.message}`);
     }
   };
 
@@ -620,7 +620,6 @@ export default function JobsTab() {
       setSelectedJob(null);
       alert("Requirement approved and released to Global OS.");
     } catch (e: any) {
-      console.error("Governance engine failure", e.message);
       alert("Governance Error: " + e.message);
     }
   };
@@ -631,8 +630,8 @@ export default function JobsTab() {
     try {
       const result = await analyzeCandidateMatch(selectedJob.description, sub.resumeText || "Skills: " + (sub.skills || []).join(", "));
       setAiAnalysis(result as any);
-    } catch (err) {
-      console.error("Match Engine V2 failed", err);
+    } catch (err: any) {
+      alert("Match Engine V2 failed: " + err.message);
     }
     setIsAnalyzing(false);
   };
@@ -658,8 +657,8 @@ export default function JobsTab() {
           const errorData = await response.json();
           throw new Error(errorData.error || "Server proxy update failed");
         }
-      } catch (proxyError) {
-        console.error("All status update methods failed:", proxyError);
+      } catch (proxyError: any) {
+        alert("Status update failed: " + proxyError.message);
         handleFirestoreError(proxyError, OperationType.UPDATE, `requirements_public/${jobId}`);
       }
     }
