@@ -91,7 +91,7 @@ export default async function handler(req: any, res: any) {
     // 3. Approval / Onboarding
     if (action === 'approve') {
        if (!adminDb || !adminAuth) {
-         return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
+         return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
        }
        const { requestId, role } = req.body;
        const requestDoc = await adminDb.collection("onboarding_requests").doc(requestId).get();
@@ -106,7 +106,7 @@ export default async function handler(req: any, res: any) {
 
     if (action === 'onboard') {
        if (!adminDb) {
-         return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
+         return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
        }
        const payload = req.body;
        const docRef = await adminDb.collection("onboarding_requests").add({ ...payload, verificationStatus: 'PENDING', createdAt: new Date().toISOString() });
@@ -159,7 +159,7 @@ export default async function handler(req: any, res: any) {
     // 6. Approve Requirement in details (with dynamic platform margin deduction)
     if (action === 'approve-requirement') {
       if (!adminDb) {
-        return res.status(400).json({ error: "Authority node not initialized" });
+        return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
       }
       const { id, actualBudget, marginValue, marginType, currency } = req.body;
       

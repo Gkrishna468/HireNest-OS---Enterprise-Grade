@@ -21,8 +21,11 @@ export default async function handler(req: any, res: any) {
     const matchedCandidates: any[] = [];
     
     // 1. Core live database candidate scanning
-    if (adminDb) {
-      try {
+    if (!adminDb) {
+      return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
+    }
+    
+    try {
         const snapshot = await adminDb.collection("candidatePool").get();
         snapshot.forEach((doc: any) => {
           const cand = doc.data();
@@ -56,8 +59,7 @@ export default async function handler(req: any, res: any) {
       } catch (dbErr) {
         console.warn("[MATCHING_GLOBAL_DB_WARN] Primary Firestore connection timed out or is empty:", dbErr);
       }
-    }
-
+      
     // 2. Pre-seeded high-density cross-boundary network candidates (to guarantee high-fidelity testing sandbox match results)
     const seedCandidates = [
       {

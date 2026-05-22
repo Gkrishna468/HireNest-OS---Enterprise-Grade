@@ -114,6 +114,13 @@ try {
   console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
 }
 
+export let runtimeMode: "FULL_ADMIN" | "CLIENT_FALLBACK" | "DEGRADED" = "CLIENT_FALLBACK";
+
+// Initial sync check
+if (adminDb) {
+  runtimeMode = "FULL_ADMIN";
+}
+
 // double-layer async self-check: verify that credentials actually possess authenticated project permissions
 if (adminDb) {
   adminDb.collection("system").limit(1).get()
@@ -133,9 +140,15 @@ if (adminDb) {
         code === 16;
         
       if (isUnauthenticated) {
-        console.warn("[Firebase Admin] Credentials lack authenticated project reads. Cleaning up bindings to trigger failure-resilient client-side fallback mode.");
+        console.warn({
+          subsystem: "firebase-admin",
+          mode: "CLIENT_FALLBACK",
+          reason: "ADC_INVALID",
+          message: "[Firebase Admin] Credentials lack authenticated project reads. Cleaning up bindings to trigger failure-resilient client-side fallback mode."
+        });
         adminDb = null;
         adminAuth = null;
+        runtimeMode = "CLIENT_FALLBACK";
       } else {
         console.log("[Firebase Admin] Server-side Firestore operational check complete (status: ok).");
       }

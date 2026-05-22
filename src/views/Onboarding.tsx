@@ -114,7 +114,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
           uid: userCred.user.uid,
           email: email,
           role: "PENDING_VERIFICATION",
-          status: "ACTIVE",
+          status: "active",
           onboardingCompleted: false,
           createdAt: new Date().toISOString()
         });
@@ -146,14 +146,14 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
   const uploadToStorageSafe = async (file: File, folder: string) => {
     if (!user) return "";
     try {
-      const path = `onboarding_documents/${user.uid}/${folder}_${Date.now()}_${file.name}`;
+      const path = `compliance/${user.uid}/${folder}_${Date.now()}_${file.name}`;
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       return url;
     } catch (err) {
       console.warn("Storage upload failed, fallback to descriptor details:", err);
-      return `gs://${storage?.app?.options?.projectId || "hirenest-os"}/onboarding_documents/${user.uid}/${file.name}`;
+      return `gs://${storage?.app?.options?.projectId || "hirenest-os"}/compliance/${user.uid}/${file.name}`;
     }
   };
 
@@ -227,7 +227,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
           organizationId: orgId,
           companyName: finalCompanyName,
           type: finalOrgType,
-          status: "ACTIVE",
+          status: "active",
           onboardingCompleted: true,
           createdAt: new Date().toISOString()
         });
@@ -235,7 +235,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         // Update existing org company name if changed
         await setDoc(doc(db, "organizations", orgId), {
           companyName: finalCompanyName,
-          status: "ACTIVE",
+          status: "active",
           onboardingCompleted: true
         }, { merge: true });
       }
@@ -249,7 +249,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         email: user.email,
         role: selectedRole,
         organizationId: orgId,
-        status: "ACTIVE",
+        status: "active",
         onboardingCompleted: true,
         aadhaarNumber: finalAadhaarNumber,
         linkedin: linkedinUrl || null,
