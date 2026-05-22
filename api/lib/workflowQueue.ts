@@ -1,9 +1,11 @@
 export interface WorkflowEvent {
-  type: string;
-  source: string;
+  eventType: string;
+  eventVersion: string;
+  producer: string;
   payload: any;
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "DEAD_LETTER";
   timestamp?: any;
+  retryCount?: number;
 }
 
 /**
@@ -11,18 +13,20 @@ export interface WorkflowEvent {
  * On the backend, this could trigger Pub/Sub or Cloud Tasks.
  * For now, we use a Firestore collection that acts as an event bus.
  */
-export async function dispatchWorkflowEvent(adminDb: any, event: WorkflowEvent) {
+export async function dispatchWorkflowEvent(adminDb: any, event: Omit<WorkflowEvent, "eventVersion" | "retryCount"> & { eventVersion?: string, retryCount?: number }) {
   if (!adminDb) {
-    console.warn("[QUEUE_WARN] Administrative runtime offline. Event dropped:", event.type);
+    console.warn("[QUEUE_WARN] Administrative runtime offline. Event dropped:", event.eventType);
     return false;
   }
   
   try {
     await adminDb.collection("workflowEvents").add({
       ...event,
+      eventVersion: event.eventVersion || "v1",
+      retryCount: event.retryCount || 0,
       timestamp: new Date().toISOString()
     });
-    console.log(`[QUEUE_OK] Dispatched event: ${event.type} from ${event.source}`);
+    console.log(`[QUEUE_OK] Dispatched event: ${event.eventType} from ${event.producer}`);
     return true;
   } catch (err) {
     console.error("[QUEUE_ERR] Failed to dispatch workflow event:", err);

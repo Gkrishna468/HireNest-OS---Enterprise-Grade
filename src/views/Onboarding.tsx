@@ -243,11 +243,18 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       // 3. Assemble and apply profile permissions configuration
       const grantedPermissions = getPermissionsForRole(selectedRole);
 
+      // Map legacy or broad roles to specific valid role strings as required by firestore.rules
+      let finalRoleToSave = selectedRole;
+      if (finalRoleToSave === 'client') finalRoleToSave = 'client_admin';
+      if (finalRoleToSave === 'vendor') finalRoleToSave = 'vendor_admin';
+      if (finalRoleToSave === 'independent') finalRoleToSave = 'independent_vendor';
+      if (finalRoleToSave === 'recruiter') finalRoleToSave = 'independent_recruiter';
+
       // 4. Update core user document
       const userProfile = {
         uid: user.uid,
         email: user.email,
-        role: selectedRole,
+        role: finalRoleToSave,
         organizationId: orgId,
         status: "active",
         onboardingCompleted: true,
@@ -273,7 +280,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
           uid: user.uid,
           email: user.email,
           orgId: orgId,
-          role: selectedRole,
+          role: finalRoleToSave,
           aadhaarNumber: aadhaarNumber,
           verificationStatus: 'VERIFIED'
         })

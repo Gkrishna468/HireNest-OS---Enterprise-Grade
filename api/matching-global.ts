@@ -148,8 +148,8 @@ export default async function handler(req: any, res: any) {
        try {
          const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
          await dispatchWorkflowEvent(adminDb, {
-           type: "MATCH_FOUND",
-           source: "api/matching-global",
+           eventType: "MATCH_FOUND",
+           producer: "api/matching-global",
            status: "QUEUED",
            payload: { jobId: targetReqId, count: sortedMatches.length, topScore: sortedMatches[0]?.matchScore }
          });

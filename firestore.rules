@@ -226,8 +226,11 @@ service cloud.firestore {
             'observer',
             'system_node',
 
-            // TEMP
-            'PENDING_VERIFICATION'
+            // TEMP & GENERIC
+            'PENDING_VERIFICATION',
+            'client',
+            'vendor',
+            'independent'
           ]);
     }
 

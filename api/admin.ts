@@ -215,8 +215,8 @@ export default async function handler(req: any, res: any) {
       try {
         const { dispatchWorkflowEvent } = require("../api/lib/workflowQueue");
         await dispatchWorkflowEvent(adminDb, {
-          type: "JOB_APPROVED",
-          source: "api/admin",
+          eventType: "JOB_APPROVED",
+          producer: "api/admin",
           status: "QUEUED",
           payload: { jobId: id, marginValue, vendorPayout, timestamp: new Date().toISOString() }
         });
