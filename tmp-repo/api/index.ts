@@ -1,16 +1,16 @@
-import adminHandler from "./lib/admin";
-import matchDetailedHandler from "./lib/match-candidates-detailed";
-import matchingGlobalHandler from "./lib/matching-global";
-import bulkParseHandler from "./lib/bulk-parse-resumes";
-import eventReplayHandler from "./lib/event-replay";
-import extractTextHandler from "./lib/extract-text";
-import intelHandler from "./lib/intel";
-import userHandler from "./lib/user";
-import parseJdHandler from "./lib/parse-jd";
-import candidatesHandler from "./lib/candidates";
-import telemetrySinkHandler from "./lib/telemetry-sink";
-import bigquerySinkHandler from "./lib/bigquery-sink";
-import vectorSearchHandler from "./lib/vector-search";
+import adminHandler from "../api-lib/admin";
+import matchDetailedHandler from "../api-lib/match-candidates-detailed";
+import matchingGlobalHandler from "../api-lib/matching-global";
+import bulkParseHandler from "../api-lib/bulk-parse-resumes";
+import eventReplayHandler from "../api-lib/event-replay";
+import extractTextHandler from "../api-lib/extract-text";
+import intelHandler from "../api-lib/intel";
+import userHandler from "../api-lib/user";
+import parseJdHandler from "../api-lib/parse-jd";
+import candidatesHandler from "../api-lib/candidates";
+import telemetrySinkHandler from "../api-lib/telemetry-sink";
+import bigquerySinkHandler from "../api-lib/bigquery-sink";
+import vectorSearchHandler from "../api-lib/vector-search";
 
 export default async function handler(req: any, res: any) {
   const path = req.url || "";

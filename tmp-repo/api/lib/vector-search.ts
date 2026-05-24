@@ -28,13 +28,13 @@ export default async function handler(req: any, res: any) {
     if (payload.action === 'SEMANTIC_SEARCH') {
        console.log(`[PGVECTOR] Searching vector space for query: "${payload.query}"`);
        // Return mocked search results
-       return res.status(200).json({ 
+       return NextResponse.json({ 
            success: true, 
            results: [
                { candidateId: "mock_cand_1", score: 0.92 },
                { candidateId: "mock_cand_2", score: 0.85 }
            ]
-       });
+       }, { status: 200 });
     }
 
     return res.status(400).json({ success: false, message: "Unknown semantic action" });

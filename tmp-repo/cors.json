@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://os.hirenestworkforce.com"],
+    "method": ["GET", "POST", "PUT", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]

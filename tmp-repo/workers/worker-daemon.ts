@@ -1,10 +1,10 @@
 import { adminDb } from "../src/lib/firebase-admin";
-import { resolveTenantShard } from "../api/lib/infrastructureSharding";
-import { meterExecution } from "../api/lib/tenantBilling";
+import { resolveTenantShard } from "../api-lib/infrastructureSharding";
+import { meterExecution } from "../api-lib/tenantBilling";
 import { Telemetry, SpanContext } from "../src/lib/telemetry";
-import { logAiUsage } from "../api/lib/tenantGovernance";
-import { processCandidateIdentity } from "../api/lib/identity/identityResolver";
-import { sanitizePromptInput } from "../api/lib/security/promptFirewall";
+import { logAiUsage } from "../api-lib/tenantGovernance";
+import { processCandidateIdentity } from "../api-lib/identity/identityResolver";
+import { sanitizePromptInput } from "../api-lib/security/promptFirewall";
 
 // A simplistic quota checker leveraging the admin DB
 async function checkQuota(vendorId: string, metric: string, limit: number): Promise<boolean> {

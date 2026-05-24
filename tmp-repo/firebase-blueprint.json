@@ -1,0 +1,376 @@
+{
+  "entities": {
+    "OnboardingRequest": {
+      "title": "Onboarding Request",
+      "description": "A request for a new organization or user to join the network",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "type": { "type": "string", "enum": ["vendor", "client", "recruiter", "freelancer"] },
+        "companyName": { "type": "string" },
+        "email": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "aadhaarNumber": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "VERIFIED", "REJECTED"] },
+        "riskScore": { "type": "number" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "reviewedBy": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["requestId", "type", "email", "verificationStatus", "submittedAt"]
+    },
+    "Organization": {
+      "title": "Organization",
+      "description": "Represents a client, vendor, or admin organization",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "type": { "type": "string", "enum": ["vendor", "client", "admin", "recruitment_agency"] },
+        "companyName": { "type": "string" },
+        "domain": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending_review", "approved", "rejected"] },
+        "verificationTier": { "type": "string", "enum": ["Tier 1", "Tier 2", "Tier 3"] },
+        "ndaUploaded": { "type": "boolean" },
+        "msaUploaded": { "type": "boolean" },
+        "businessDocsUploaded": { "type": "boolean" },
+        "adminApproved": { "type": "boolean" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["organizationId", "type", "companyName", "status", "ownerId", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile with trust and verification metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "client_hm", "client_finance", "client_recruiter", "vendor_recruiter", "vendor_sourcer", "freelancer", "independent_recruiter"] },
+        "organizationId": { "type": "string" },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "emailVerified": { "type": "boolean" },
+            "identityVerified": { "type": "boolean" },
+            "bgvVerified": { "type": "boolean" },
+            "aadhaarVerified": { "type": "boolean" },
+            "businessVerified": { "type": "boolean" },
+            "trustScore": { "type": "number" },
+            "badgeType": { "type": "string" }
+          }
+        },
+        "identityDocs": {
+          "type": "object",
+          "properties": {
+            "aadhaarMasked": { "type": "string" },
+            "documentUrl": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "organizationId", "createdAt"]
+    },
+    "Requirement": {
+      "title": "Requirement",
+      "description": "A job requirement posted by a client",
+      "type": "object",
+      "properties": {
+        "requirementId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "experience": { "type": "string" },
+        "minExp": { "type": "number" },
+        "maxExp": { "type": "number" },
+        "status": { "type": "string", "enum": ["DRAFT", "PENDING_FINANCIAL_APPROVAL", "PUBLISHED", "CLOSED"] },
+        "visibility": { "type": "string", "enum": ["INTERNAL", "VENDOR_NETWORK"] },
+        "vendorVisibleBudget": { "type": "number" },
+        "currency": { "type": "string" },
+        "adminApproved": { "type": "boolean" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requirementId", "clientId", "title", "status", "visibility", "ownerId", "createdAt"]
+    },
+    "FinancialRecord": {
+      "title": "FinancialRecord",
+      "description": "Sensitive financial data for a requirement, visible only to Admin and Client Finance",
+      "type": "object",
+      "properties": {
+        "requirementId": { "type": "string" },
+        "actualClientBudget": { "type": "number" },
+        "platformMargin": { "type": "number" },
+        "marginType": { "type": "string", "enum": ["fixed", "percentage"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requirementId", "actualClientBudget", "platformMargin"]
+    },
+    "Candidate": {
+      "title": "Candidate",
+      "description": "A candidate profile in the pool",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "experience": { "type": "string" },
+        "resumeText": { "type": "string" },
+        "resumeUrl": { "type": "string" },
+        "matchScore": { "type": "number" },
+        "pipelineStage": { "type": "string", "enum": ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"] },
+        "source": { "type": "string" },
+        "distillationStatus": { "type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"] },
+        "distillationMetadata": { "type": "object" },
+        "fileName": { "type": "string" },
+        "location": { "type": "string" },
+        "mappedJobId": { "type": "string" },
+        "activeDealId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["candidateId", "vendorId", "name", "createdAt"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A candidate submission to a requirement",
+      "type": "object",
+      "properties": {
+        "submissionId": { "type": "string" },
+        "requirementId": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "SCREENING", "CLIENT_REVIEW", "INTERVIEW", "OFFER", "REJECTED"] },
+        "vendorTrustScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["submissionId", "requirementId", "candidateId", "vendorId", "status", "createdAt"]
+    },
+    "DealRoom": {
+      "title": "DealRoom",
+      "description": "A collaboration space for a submission",
+      "type": "object",
+      "properties": {
+        "submissionId": { "type": "string" },
+        "requirementId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "candidateName": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "experience": { "type": "string" },
+        "currentStage": { "type": "string" },
+        "identitiesRevealed": { "type": "boolean" },
+        "adminAuthorized": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "CLOSED"] },
+        "matchData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["submissionId", "requirementId", "clientId", "vendorId", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a deal room",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "system"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["text", "senderId", "timestamp"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System-wide tracking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "action", "timestamp"]
+    },
+    "ComplianceDocument": {
+      "title": "Compliance Document",
+      "description": "Legal document metadata",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "documentType": { "type": "string", "enum": ["NDA", "MSA"] },
+        "fileUrl": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["organizationId", "documentType", "fileUrl", "ownerId"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System notification for a user or organization",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["INFO", "WARNING", "SUCCESS", "URGENT", "DEAL_ROOM"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "title", "message", "createdAt"]
+    },
+    "ExecutionTrackerItem": {
+      "title": "Execution Tracker Item",
+      "description": "A task or follow-up item in the master execution system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string", "enum": ["daily", "client", "vendor", "recruiter", "candidate", "partnership", "product", "sales"] },
+        "title": { "type": "string" },
+        "owner": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "notes": { "type": "string" },
+        "nextAction": { "type": "string" },
+        "relatedEntityId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "title", "status", "priority", "createdAt"]
+    },
+    "ExecutionEvent": {
+      "title": "Execution Event",
+      "description": "An immutable record of a lifecycle action in the system",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "eventType": { "type": "string", "enum": ["JD_CREATED", "VENDOR_ASSIGNED", "SUBMISSION_RECEIVED", "INTERVIEW_SCHEDULED", "SLA_BREACHED", "OFFER_ISSUED", "PLACEMENT_CLOSED", "PAYMENT_TRIGGERED"] },
+        "actorId": { "type": "string" },
+        "actorType": { "type": "string", "enum": ["system", "admin", "client", "vendor", "recruiter"] },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["requirement", "candidate", "deal_room", "user", "organization"] },
+        "requirementId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "eventType", "actorId", "timestamp"]
+    },
+    "TrustMetric": {
+      "title": "Trust Metric",
+      "description": "Reputation data for a network entity",
+      "type": "object",
+      "properties": {
+        "nodeId": { "type": "string" },
+        "nodeType": { "type": "string", "enum": ["organization", "user"] },
+        "score": { "type": "number" },
+        "totalClosures": { "type": "number" },
+        "avgResponseTime": { "type": "number" },
+        "interviewRate": { "type": "number" },
+        "spamScore": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nodeId", "score"]
+    },
+    "SLATracker": {
+      "title": "SLA Tracker",
+      "description": "Operational deadline tracking",
+      "type": "object",
+      "properties": {
+        "requirementId": { "type": "string" },
+        "dealId": { "type": "string" },
+        "type": { "type": "string", "enum": ["SUBMISSION", "FEEDBACK", "INTERVIEW", "OFFER"] },
+        "deadline": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["OK", "WARNING", "BREACHED"] },
+        "breachTriggered": { "type": "boolean" }
+      },
+      "required": ["requirementId", "type", "deadline", "status"]
+    },
+    "Thread": {
+      "title": "Communication Thread",
+      "description": "A container for messages related to an entity",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "messages": { "type": "array", "items": { "$ref": "Message" } }
+      },
+      "required": ["entityId"]
+    },
+    "RiskAssessment": {
+      "title": "Risk Assessment",
+      "description": "AI-detected risks for an entity (Candidate/Vendor/Requirement)",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "riskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "riskScore": { "type": "number" },
+        "signals": { "type": "array", "items": { "type": "string" } },
+        "aiJustification": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityId", "riskLevel", "riskScore"]
+    },
+    "Prediction": {
+      "title": "Operational Prediction",
+      "description": "AI-driven forecasts for execution outcomes",
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string" },
+        "predictionType": { "type": "string", "enum": ["CLOSURE_PROBABILITY", "TIME_TO_FILL", "GHOSTING_RISK", "VENDOR_DELIVERY"] },
+        "value": { "type": "number" },
+        "confidence": { "type": "number" },
+        "lastModelRun": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityId", "predictionType", "value"]
+    },
+    "AgentActivity": {
+      "title": "Agent Activity",
+      "description": "Autonomous actions taken by v5.0 AI Agents",
+      "type": "object",
+      "properties": {
+        "agentType": { "type": "string", "enum": ["VENDOR_OPTIMIZATION", "FRAUD_SENTINEL", "REVENUE_GUARDIAN", "EXECUTION_MOMENTUM"] },
+        "action": { "type": "string" },
+        "targetId": { "type": "string" },
+        "impactLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["agentType", "action", "impactLevel", "timestamp"]
+    }
+  },
+  "firestore": {
+    "onboarding_requests/{requestId}": { "schema": { "$ref": "OnboardingRequest" }, "description": "Verification queue for network admission" },
+    "organizations/{organizationId}": { "schema": { "$ref": "Organization" }, "description": "Global organizations" },
+    "users/{userId}": { "schema": { "$ref": "User" }, "description": "User profiles" },
+    "requirements_public/{requirementId}": { "schema": { "$ref": "Requirement" }, "description": "Public job requirements (Vendor safe)" },
+    "requirements_private/{requirementId}": { "schema": { "$ref": "FinancialRecord" }, "description": "Private financial metadata (Admin only)" },
+    "candidatePool/{candidateId}": { "schema": { "$ref": "Candidate" }, "description": "Global candidate database" },
+    "submissions/{submissionId}": { "schema": { "$ref": "Submission" }, "description": "Vendor submissions" },
+    "dealRooms/{dealRoomId}": { "schema": { "$ref": "DealRoom" }, "description": "Active deal rooms" },
+    "dealRooms/{dealRoomId}/messages/{messageId}": { "schema": { "$ref": "Message" }, "description": "Messages" },
+    "auditLogs/{logId}": { "schema": { "$ref": "AuditLog" }, "description": "Immutable security and operational audit trail" },
+    "quotas/{quotaId}": { "schema": { "$ref": "UsageQuota" }, "description": "Resource consumption tracking" },
+    "compliance_documents/{docId}": { "schema": { "$ref": "ComplianceDocument" }, "description": "Legal documents" },
+    "notifications/{notifId}": { "schema": { "$ref": "Notification" }, "description": "System notifications" },
+    "execution_tracker/{itemId}": { "schema": { "$ref": "ExecutionTrackerItem" }, "description": "Master execution tracking items" },
+    "execution_events/{eventId}": { "schema": { "$ref": "ExecutionEvent" }, "description": "System-wide immutable execution event logs" },
+    "trust_metrics/{nodeId}": { "schema": { "$ref": "TrustMetric" }, "description": "Accumulated reputation data for network nodes (Org/User)" },
+    "slas/{slaId}": { "schema": { "$ref": "SLATracker" }, "description": "SLA performance monitoring" },
+    "communication_threads/{threadId}": { "schema": { "$ref": "Thread" }, "description": "Unified communication feeds across requirements and deals" },
+    "risk_assessments/{assessmentId}": { "schema": { "$ref": "RiskAssessment" }, "description": "AI-driven risk scoring" },
+    "predictions/{predictionId}": { "schema": { "$ref": "Prediction" }, "description": "High-fidelity operational forecasts" },
+    "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" }
+  }
+}
