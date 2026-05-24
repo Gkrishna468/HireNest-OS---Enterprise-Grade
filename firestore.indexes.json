@@ -38,6 +38,13 @@
       "fields": [
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "global_candidate_identity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "primaryEmailHash", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

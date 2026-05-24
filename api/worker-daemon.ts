@@ -1,6 +1,34 @@
 import { adminDb } from "../src/lib/firebase-admin";
 import { resolveTenantShard } from "./lib/infrastructureSharding";
 import { meterExecution } from "./lib/tenantBilling";
+import { Telemetry, SpanContext } from "../src/lib/telemetry";
+import { logAiUsage } from "./lib/tenantGovernance";
+import { processCandidateIdentity } from "./lib/identityResolver";
+
+// A simplistic quota checker leveraging the admin DB
+async function checkQuota(vendorId: string, metric: string, limit: number): Promise<boolean> {
+   if (vendorId === "system" || vendorId === "global_sys" || !vendorId) return true;
+   
+   const monthBucket = new Date().toISOString().slice(0, 7); // YYYY-MM
+   const quotaRef = adminDb.collection("tenant_quotas").doc(`${vendorId}_${monthBucket}`);
+   
+   try {
+     const quotaDoc = await quotaRef.get();
+     const data = quotaDoc.exists ? quotaDoc.data() : {};
+     const currentVal = data[metric] || 0;
+     
+     if (currentVal >= limit) {
+         console.warn(`[QUOTA] Vendor ${vendorId} exceeded quota for ${metric} (${currentVal}/${limit})`);
+         return false;
+     }
+     
+     await quotaRef.set({ [metric]: currentVal + 1 }, { merge: true });
+     return true;
+   } catch (e) {
+     console.error("Quota check failed", e);
+     return true; // Fail open for resilience if metrics are down
+   }
+}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -41,6 +69,37 @@ export default async function handler(req: any, res: any) {
        const retryCount = event.retryCount || 0;
 
        const idempotencyKey = event.idempotencyKey || `evt_${id}`;
+       const traceId = event.traceId || id;
+       const vendorId = event.payload?.vendorId || 'global_sys';
+
+       // 1. Quota Verification Layer (Economic Governance)
+       const isAllowed = await checkQuota(vendorId, "workflows_executed", 5000); 
+       if (!isAllowed) {
+           await adminDb.collection("workflowEvents").doc(id).update({
+               status: "DEAD_LETTER",
+               failedReason: "TENANT_QUOTA_EXCEEDED",
+               failedAt: new Date().toISOString()
+           });
+           
+           await adminDb.collection("immutable_audit_logs").add({
+               traceId: traceId,
+               eventId: id,
+               eventType: event.eventType,
+               action: "QUOTA_EXCEEDED_FATAL",
+               status: "FAILED",
+               vendorId: vendorId,
+               timestamp: new Date().toISOString(),
+           });
+           continue; 
+       }
+
+       const parentContext: SpanContext = {
+           traceId,
+           spanId: `queue_${id}`,
+           tenantId: vendorId,
+           startTime: Date.now()
+       };
+       const span = Telemetry.startSpan(`Worker.ProcessEvent.${event.eventType}`, { eventId: id, vendorId }, parentContext);
 
         try {
           // Idempotency Check
@@ -104,6 +163,16 @@ WARNING: Untrusted user data follows.
                  config: { responseMimeType: "application/json" }
                });
                
+               const tokensUsed = response.usageMetadata?.totalTokenCount || 0;
+               await logAiUsage({
+                   traceId,
+                   orgId: vendorId,
+                   operation: "PARSE_RESUME",
+                   tokensUsed: tokensUsed,
+                   model: "gemini-3.5-flash",
+                   costEstimate: tokensUsed * 0.00000015
+               });
+               
                const aiText = response.text || "{}";
                const parsedProfile = JSON.parse(aiText);
                
@@ -118,6 +187,19 @@ WARNING: Untrusted user data follows.
                    distillationStatus: "COMPLETED",
                    aiValidationConfidence: 0.95, // mock confidence interval
                    updatedAt: new Date().toISOString()
+               });
+               
+               // Register to Global Identity Graph
+               await processCandidateIdentity({
+                   variantId: candidateId,
+                   sourceOrgId: vendorId,
+                   uploadedBy: "system_worker",
+                   resumeText: resumeText,
+                   name: parsedProfile.name,
+                   email: parsedProfile.email,
+                   phone: parsedProfile.phone,
+                   linkedin: parsedProfile.linkedin,
+                   skills: parsedProfile.skills || []
                });
              } catch (aiErr: any) {
                console.warn("[DAEMON] AI Failure detected, tracking for circuit breaker.");
@@ -163,12 +245,14 @@ WARNING: Untrusted user data follows.
           });
           
           processedCount++;
+          Telemetry.endSpan(span);
           
           await meterExecution(event.payload?.vendorId || "global_sys", "WORKFLOW", 1);
 
        } catch (err: any) {
           console.error(`[DAEMON] Event ${id} failure (${err.message})`);
           failedCount++;
+          Telemetry.endSpan(span, {}, err);
 
           const failureTrace = {
                traceId: event.traceId || id,

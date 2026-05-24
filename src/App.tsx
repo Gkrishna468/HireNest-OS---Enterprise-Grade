@@ -15,7 +15,8 @@ import {
   Activity,
   Network,
   UserCheck,
-  Fingerprint
+  Fingerprint,
+  Cpu
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -37,6 +38,7 @@ import AdminOpsDashboard from './views/AdminOpsDashboard';
 import AdminUsersManager from './views/AdminUsersManager';
 import TraceView from './views/TraceView';
 import MemoryMapView from './views/MemoryMapView';
+import TenantUsageDashboard from './views/TenantUsageDashboard';
 import WelcomeDemo from './components/WelcomeDemo';
 
 import { auth, db } from './lib/firebase';
@@ -202,6 +204,7 @@ const AppContent = () => {
               <SidebarItem to="/ops" icon={Activity} label="Platform Ops" active={location.pathname === '/ops'} />
             </>
           )}
+          <SidebarItem to="/usage" icon={Cpu} label="AI Cost Metering" active={location.pathname === '/usage'} />
           <SidebarItem to="/notifications" icon={Bell} label="Alerts" active={location.pathname === '/notifications'} />
         </nav>
 
@@ -270,6 +273,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            <Route path="/usage" element={<TenantUsageDashboard orgData={userData} />} />
             <Route path="/notifications" element={<NotificationsTab org={{ id: userData?.organizationId }} />} />
             <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.reload()} />} />
             <Route path="/settings" element={<AdminSecurityDashboard />} />
