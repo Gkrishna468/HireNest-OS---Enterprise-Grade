@@ -329,11 +329,25 @@ service cloud.firestore {
       allow create:
       if isVerified() &&
          request.auth.uid == userId &&
-         isValidUser(incoming());
+         isValidUser(incoming()) &&
+         (
+           !incoming().keys().hasAny(['role']) ||
+           incoming().role in ['PENDING_VERIFICATION', 'client', 'vendor', 'independent']
+         );
 
       allow update:
-      if (isOwner(userId) || isAdmin()) &&
-         isValidUser(incoming());
+      if (
+           (
+             isOwner(userId) && 
+             isValidUser(incoming()) &&
+             (
+               !incoming().keys().hasAny(['role']) ||
+               incoming().role == existing().role
+             )
+           )
+           ||
+           (isAdmin() && isValidUser(incoming()))
+         );
 
       allow delete:
       if isSuperAdmin();

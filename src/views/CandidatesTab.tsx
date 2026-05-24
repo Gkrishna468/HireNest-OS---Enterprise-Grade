@@ -1110,41 +1110,29 @@ export default function CandidatesTab() {
                                   </div>
                               </section>
                               
-                               {isAdmin ? (
-                                <div className="pt-2">
-                                  <Button 
-                                    variant="outline"
-                                    onClick={() => handleDeleteCandidate(selectedCandidate.id || selectedCandidate.candidateId)}
-                                    className="w-full text-red-600 border-red-200 hover:bg-red-50 font-bold uppercase tracking-widest text-[10px] h-10"
-                                  >
-                                    Permanently Delete Candidate
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="pt-2">
-                                  <Button 
-                                    variant="outline"
-                                    onClick={async () => {
-                                      try {
-                                        await addDoc(collection(db, "adminChangeRequests"), {
-                                          type: "CANDIDATE_DELETION",
-                                          candidateId: selectedCandidate.id || selectedCandidate.candidateId,
-                                          candidateName: selectedCandidate.name,
-                                          requestedBy: auth.currentUser?.uid,
-                                          requestedAt: serverTimestamp(),
-                                          status: "PENDING"
-                                        });
-                                        alert("Request to unlock/delete this profile has been sent to HQ.");
-                                      } catch(e: any) {
-                                         alert("Failed to send request: " + e.message);
-                                      }
-                                    }}
-                                    className="w-full text-amber-600 border-amber-200 hover:bg-amber-50 font-bold uppercase tracking-widest text-[10px] h-10"
-                                  >
-                                    Request Profile Unlock / Deletion
-                                  </Button>
-                                </div>
-                              )}
+                              <section className="bg-white rounded-xl border border-red-200 shadow-sm p-4 mt-6">
+                                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-4 flex items-center gap-2">
+                                      <ShieldAlert size={14} /> Security Protocol
+                                  </h3>
+                                  <div className="p-3 bg-red-50/50 rounded-lg border border-red-100 flex flex-col gap-3">
+                                      <p className="text-[10px] text-red-600 font-medium leading-relaxed">
+                                          Global Administrator override: Permanent pipeline destruction capability unlocked. Operations executed here are irreversible. Waiters and vendor delegates remain blocked.
+                                      </p>
+                                      {isAdmin ? (
+                                        <Button 
+                                          variant="outline"
+                                          onClick={() => handleDeleteCandidate(selectedCandidate.id || selectedCandidate.candidateId)}
+                                          className="w-full text-red-700 bg-white border-red-200 hover:bg-red-600 hover:text-white font-bold uppercase tracking-widest text-[10px] h-10 transition-all shadow-sm"
+                                        >
+                                          Permanently Delete Candidate
+                                        </Button>
+                                      ) : (
+                                          <div className="flex bg-slate-100/50 p-2 border border-slate-200 rounded text-[9px] text-slate-500 font-bold uppercase items-center justify-center text-center">
+                                              Action Restricted: Global Administrators Only
+                                          </div>
+                                      )}
+                                  </div>
+                              </section>
                           </div>
                       </div>
                   </div>

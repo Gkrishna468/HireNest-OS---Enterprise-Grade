@@ -4,7 +4,7 @@ import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp, where, addDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp, where, addDoc, limit } from "firebase/firestore";
 import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
@@ -75,7 +75,7 @@ export default function JobsTab() {
         if (candidateList.length === 0) {
           console.log("[AUTO_SCANNER] Proxy candidate list empty or bypassed. Initiating secure direct client query...");
           try {
-            const candidatesSnap = await getDocs(collection(db, "candidatePool"));
+            const candidatesSnap = await getDocs(query(collection(db, "candidatePool"), limit(50)));
             candidateList = candidatesSnap.docs.map(doc => ({
               id: doc.id,
               candidateId: doc.id,

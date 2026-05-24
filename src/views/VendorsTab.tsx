@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc, limit } from "firebase/firestore";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { Eye, Star, Briefcase, Activity, ShieldCheck, CheckCircle2 } from "lucide-react";
@@ -22,18 +22,18 @@ export default function VendorsTab() {
           if (data.candidatePool) setCandidates(data.candidatePool);
         } else {
           const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
-          const snap = await getDocs(q);
+          const snap = await getDocs(query(q, limit(50)));
           const vendorsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setVendors(vendorsData);
 
-          const candSnap = await getDocs(collection(db, "candidatePool"));
+          const candSnap = await getDocs(query(collection(db, "candidatePool"), limit(50)));
           setCandidates(candSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
       } catch (err: any) {
         console.warn("Governance API failed, attempting Firestore fallback", err);
         try {
           const q = query(collection(db, "organizations"), where("type", "==", "vendor"));
-          const snap = await getDocs(q);
+          const snap = await getDocs(query(q, limit(50)));
           setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (fErr) {
           handleFirestoreError(fErr, OperationType.LIST, "vendors_governance");

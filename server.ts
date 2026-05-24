@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,8 +12,61 @@ async function createServer() {
   const app = express();
   app.use(express.json());
 
+  // --- Rate Limiting ---
+  const standardLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per `window`
+    message: { error: 'Too many requests, please try again later.' }
+  });
+
+  const aiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 10, // Strict limit for AI
+    message: { error: 'AI request limit reached, please try again later.' }
+  });
+
+  // Apply standard limits to all /api
+  app.use('/api/', standardLimiter);
+  
+  // Apply strict limits to AI operations
+  app.use('/api/parse-jd', aiLimiter);
+  app.use('/api/extract-text', aiLimiter);
+  app.use('/api/match-candidates', aiLimiter);
+  app.use('/api/match-candidates-detailed', aiLimiter);
+  app.use('/api/matching-global', aiLimiter);
+
+  // --- Auth Middleware ---
+  const verifyAuth = async (req: any, res: any, next: any) => {
+    try {
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+      }
+
+      // Dynamically import adminAuth to avoid module resolution issues
+      const { adminAuth } = await import(path.join(__dirname, 'src', 'lib', 'firebase-admin.ts'));
+      
+      if (!adminAuth) {
+        // Fallback for development if admin SDK isn't configured
+        console.warn('adminAuth not initialized, skipping strict token validation');
+        req.user = { uid: 'dev-mode' }; 
+        return next();
+      }
+
+      const decoded = await adminAuth.verifyIdToken(token);
+      req.user = decoded;
+      next();
+    } catch (err: any) {
+      console.error('[AuthMiddleware] Token verification failed:', err.message);
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+  };
+
+  // Temporarily bypass verifyAuth for certain public routes if any existed, but user requested everywhere
+  app.use('/api/*', verifyAuth);
+
   // API Route Handler
-  app.all('/api/*', async (req, res) => {
+  app.all('/api/*', async (req: any, res: any) => {
     const apiRawPath = req.path.replace(/^\/api\//, '');
     const apiPath = apiRawPath.split('?')[0];
     
