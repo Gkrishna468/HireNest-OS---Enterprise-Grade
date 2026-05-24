@@ -3,8 +3,9 @@ import { Badge } from "../lib/Badge";
 import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase, Bot, Shield, Send, X, Plus, Upload, MapPin, ShieldAlert } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc, deleteDoc } from "firebase/firestore";
+import { db, auth, storage, handleFirestoreError, OperationType } from "../lib/firebase";
+import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc, deleteDoc, limit } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 
 const getSkillsArray = (skills: any): string[] => {
@@ -68,8 +69,8 @@ export default function CandidatesTab() {
         setUserOrgId(orgId);
         setUserRole(role);
         
-        // Load active jobs for mapping
-        const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"));
+        // Load active jobs for mapping (limited to prevent real-time explosion)
+        const jobsQuery = query(collection(db, "requirements_public"), where("status", "==", "PUBLISHED"), limit(50));
         onSnapshot(jobsQuery, (snap) => {
           setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         }, (error) => {
@@ -87,12 +88,12 @@ export default function CandidatesTab() {
           console.warn("Initial API load failed");
         }
         
-        // Real-time listener
+        // Real-time listener WITH STRICT LIMITS
         if (orgId) {
           const isAdminUser = role === 'admin' || role === 'super_admin' || role === 'ops_admin' || role === 'hq_admin';
           const q = isAdminUser
-            ? query(collection(db, "candidatePool"))
-            : query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
+            ? query(collection(db, "candidatePool"), limit(100))
+            : query(collection(db, "candidatePool"), where("vendorId", "==", orgId), limit(100));
 
           unsubscribe = onSnapshot(q, (snap) => {
             setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -288,60 +289,43 @@ export default function CandidatesTab() {
     setIsBulkProcessing(true);
     try {
       const splitResumes = bulkText.split('---').map(r => r.trim()).filter(r => r.length > 10);
-      const parsedProfiles = await parseBulkResumes(splitResumes);
       
-      if (!parsedProfiles || parsedProfiles.length === 0) {
-        throw new Error("No candidates were successfully parsed. Ensure resumes were separated by '---'.");
-      }
-
       let count = 0;
-      let dupeCount = 0;
-      for (const profile of parsedProfiles) {
-        const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-        
-        // Perform duplicate checks
-        const dMatch = checkDuplicate(profile.email, profile.phone);
-        let targetStage = "Candidate Added";
-        let isDupe = false;
-        let dupeOfId = "";
-        let dupeOfName = "";
-        let dupeReason = "";
+      for (const text of splitResumes) {
+         const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+         
+         await setDoc(doc(db, "candidatePool", candId), {
+             name: "Pending Distillation",
+             email: `pending@${candId}.local`,
+             candidateId: candId,
+             vendorId: userOrgId,
+             pipelineStage: "Candidate Added",
+             distillationStatus: "PROCESSING",
+             source: "Bulk Text Paste",
+             createdAt: serverTimestamp(),
+             updatedAt: serverTimestamp()
+         });
 
-        if (dMatch) {
-           targetStage = "Duplicate Review";
-           isDupe = true;
-           dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
-           dupeOfName = dMatch.candidate.name;
-           dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
-           dupeCount++;
-        }
-
-        try {
-          await setDoc(doc(db, "candidatePool", candId), {
-            ...profile,
-            candidateId: candId,
-            vendorId: userOrgId,
-            matchScore: profile.matchScore || Math.floor(Math.random() * 30) + 60,
-            pipelineStage: targetStage,
-            isDuplicate: isDupe,
-            duplicateOf: dupeOfId,
-            duplicateOfName: dupeOfName,
-            duplicateReason: dupeReason,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-          count++;
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `candidatePool/${candId}`);
-        }
+         await addDoc(collection(db, "workflowEvents"), {
+             eventType: "PARSE_RESUME_TEXT",
+             status: "QUEUED",
+             payload: {
+                 candidateId: candId,
+                 resumeText: text,
+                 vendorId: userOrgId
+             },
+             idempotencyKey: `parse_resume_text_${candId}_${Date.now()}`,
+             retryCount: 0,
+             createdAt: serverTimestamp(),
+             updatedAt: serverTimestamp()
+         });
+         
+         count++;
       }
+      
       setBulkText("");
       setShowBulkUpload(false);
-      if (dupeCount > 0) {
-        alert(`Successfully added ${count} candidates. Note: ${dupeCount} duplicates were detected and routed to 'Duplicate Review'.`);
-      } else {
-        alert(`Successfully added ${count} candidates to your pool.`);
-      }
+      alert(`Successfully queued ${count} candidates. AI workers will process them in the background.`);
     } catch (e: any) {
       alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
@@ -353,139 +337,106 @@ export default function CandidatesTab() {
     if (!files || files.length === 0) return;
 
     setIsBulkProcessing(true);
-    let cumulativeText = bulkText;
     let successCount = 0;
     let failCount = 0;
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
         
         try {
-            const res = await fetch("/api/extract-text", {
-                method: "POST",
-                body: formData
-            });
+            const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+            const tempName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
             
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error during extraction (${res.status})`);
-            }
+            // Upload directly to Firebase Storage bypass express buffers
+            const storagePath = `resumes/${userOrgId}/${candId}_${file.name}`;
+            const fileRef = ref(storage, storagePath);
+            await uploadBytes(fileRef, file);
+            
+            // Generate a secure view-only link for future recruiters to look at raw PDF
+            const downloadUrl = await getDownloadURL(fileRef);
 
-            const data = await res.json();
-            if (data.text) {
-                // STEP: Save initial candidate with raw text immediately to prevent data loss
-                const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
-                const tempName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
-                
-                await setDoc(doc(db, "candidatePool", candId), {
-                    name: tempName,
-                    email: "pending@extraction.io",
-                    resumeText: data.text,
+            // Create lightweight QUEUED candidate in Firestore
+            await setDoc(doc(db, "candidatePool", candId), {
+                name: tempName,
+                email: "pending@extraction.io",
+                candidateId: candId,
+                vendorId: userOrgId,
+                pipelineStage: "Candidate Added",
+                source: "Bulk Upload",
+                fileName: file.name,
+                storagePath: storagePath,
+                downloadUrl: downloadUrl,
+                status: "QUEUED",
+                distillationStatus: "PENDING",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            // Queue Workflow Event (This makes it distributed)
+            await addDoc(collection(db, "workflowEvents"), {
+                eventType: "PARSE_RESUME_FILE",
+                status: "QUEUED",
+                payload: {
                     candidateId: candId,
-                    vendorId: userOrgId,
-                    pipelineStage: "Candidate Added",
-                    source: "Bulk Upload",
+                    storagePath: storagePath,
                     fileName: file.name,
-                    distillationStatus: "PENDING",
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
+                    downloadUrl: downloadUrl,
+                    vendorId: userOrgId
+                },
+                idempotencyKey: `parse_resume_file_${candId}`,
+                retryCount: 0,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
 
-                cumulativeText += (cumulativeText ? "\n---\n" : "") + data.text;
-                successCount++;
-                
-                // Trigger background enrichment for THIS specific candidate
-                enrichCandidate(candId, data.text);
-            } else {
-                failCount++;
-            }
+            successCount++;
         } catch (err: any) {
+            console.error("File upload failed", err);
             failCount++;
         }
     }
 
-    setBulkText(cumulativeText);
     setIsBulkProcessing(false);
     
     if (successCount > 0) {
-        alert(`Success: ${successCount} candidates onboarded. AI intelligence layer is now enriching profiles in the background.`);
+        alert(`Success: ${successCount} candidates queued for processing. Backend async workers will parse and update state.`);
         setShowBulkUpload(false);
         setBulkText("");
     }
     
     if (failCount > 0) {
-        alert(`Warning: ${failCount} files failed to process.`);
+        alert(`Warning: ${failCount} files failed to upload.`);
     }
   };
 
   const enrichCandidate = async (candId: string, text: string) => {
     try {
-        console.log(`[OS INTELLIGENCE] Distilling profile for ${candId}...`);
-        const startTime = Date.now();
+        console.log(`[OS INTELLIGENCE] Queueing profile for ${candId}...`);
         
-        const results = await parseBulkResumes([text]);
-        const processingTimeMs = Date.now() - startTime;
-
-        if (results && results.length > 0) {
-            const profile = results[0];
-            
-            // Perform duplicate checks
-            const dMatch = checkDuplicate(profile.email, profile.phone, candId);
-            let targetStage = "Candidate Added";
-            let isDupe = false;
-            let dupeOfId = "";
-            let dupeOfName = "";
-            let dupeReason = "";
-
-            if (dMatch) {
-               targetStage = "Duplicate Review";
-               isDupe = true;
-               dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
-               dupeOfName = dMatch.candidate.name;
-               dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
-            }
-
-            const updateData: any = {
-                ...profile,
-                distillationStatus: "COMPLETED",
-                distillationMetadata: {
-                    processingTimeMs,
-                    confidence: 0.92,
-                    lastDistilledAt: new Date().toISOString()
-                },
-                updatedAt: serverTimestamp()
-            };
-
-            if (isDupe) {
-               updateData.pipelineStage = targetStage;
-               updateData.isDuplicate = isDupe;
-               updateData.duplicateOf = dupeOfId;
-               updateData.duplicateOfName = dupeOfName;
-               updateData.duplicateReason = dupeReason;
-            }
-            
-            await setDoc(doc(db, "candidatePool", candId), updateData, { merge: true });
-            
-            // If the currently open detail view is for this candidate, update local state
-            if (selectedCandidate?.id === candId) {
-                setSelectedCandidate((prev: any) => ({ ...prev, ...updateData }));
-            }
-
-            console.log(`[OS INTELLIGENCE] Successfully distilled ${candId} in ${processingTimeMs}ms`);
-        } else {
-            throw new Error("AI returned empty distilled profile.");
-        }
-    } catch (err: any) {
-        console.warn(`[OS INTELLIGENCE] Failure for ${candId}`, err);
         await setDoc(doc(db, "candidatePool", candId), {
-            distillationStatus: "FAILED",
-            distillationMetadata: {
-                lastError: err.message || "Unknown intelligence error",
-                lastAttemptedAt: new Date().toISOString()
+            distillationStatus: "PROCESSING"
+        }, { merge: true });
+
+        await addDoc(collection(db, "workflowEvents"), {
+            eventType: "PARSE_RESUME_TEXT",
+            status: "QUEUED",
+            payload: {
+                candidateId: candId,
+                resumeText: text,
+                vendorId: userOrgId
             },
+            idempotencyKey: `parse_resume_text_${candId}_${Date.now()}`,
+            retryCount: 0,
+            createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
+        });
+        alert("Enrichment request queued successfully!");
+    } catch (err: any) {
+        console.error("Failed to queue enrichment:", err);
+        alert("Failed to queue enrichment: " + err.message);
+        
+        await setDoc(doc(db, "candidatePool", candId), {
+            distillationStatus: "FAILED"
         }, { merge: true });
     }
   };

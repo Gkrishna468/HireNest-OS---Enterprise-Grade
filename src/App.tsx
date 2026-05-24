@@ -33,6 +33,7 @@ import NotificationsTab from './views/NotificationsTab';
 import Onboarding from './views/Onboarding';
 import AdminOverview from './views/AdminOverview';
 import AdminSecurityDashboard from './views/AdminSecurityDashboard';
+import AdminOpsDashboard from './views/AdminOpsDashboard';
 import AdminUsersManager from './views/AdminUsersManager';
 import TraceView from './views/TraceView';
 import MemoryMapView from './views/MemoryMapView';
@@ -198,6 +199,7 @@ const AppContent = () => {
               <SidebarItem to="/users" icon={Users} label="User Management" active={location.pathname === '/users'} />
               <SidebarItem to="/trace" icon={Activity} label="System Trace" active={location.pathname === '/trace'} />
               <SidebarItem to="/map" icon={Network} label="Memory Map" active={location.pathname === '/map'} />
+              <SidebarItem to="/ops" icon={Activity} label="Platform Ops" active={location.pathname === '/ops'} />
             </>
           )}
           <SidebarItem to="/notifications" icon={Bell} label="Alerts" active={location.pathname === '/notifications'} />
@@ -267,6 +269,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/users" element={<AdminUsersManager orgData={userData} />} />}
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
+            {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
             <Route path="/notifications" element={<NotificationsTab org={{ id: userData?.organizationId }} />} />
             <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.reload()} />} />
             <Route path="/settings" element={<AdminSecurityDashboard />} />
