@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 async function createServer() {
   const app = express();
+  app.set('trust proxy', 1); // Trust first proxy (required by express-rate-limit behind reverse proxy like Cloud Run)
   app.use(express.json());
 
   // --- Rate Limiting ---

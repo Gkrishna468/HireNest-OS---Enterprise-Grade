@@ -662,11 +662,20 @@ service cloud.firestore {
       allow create:
       if isAdmin();
 
-      allow update:
+      allow update, delete:
       if isSuperAdmin();
+    }
+    
+    // =====================================================
+    // IMMUTABLE AUDIT LOGS
+    // =====================================================
 
-      allow delete:
-      if isSuperAdmin();
+    match /immutable_audit_logs/{logId} {
+      allow read:
+      if isPlatformAuthority() || isAdmin();
+      
+      allow create, update, delete:
+      if false;
     }
 
     // =====================================================

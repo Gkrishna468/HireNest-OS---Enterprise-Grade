@@ -4,41 +4,43 @@ import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
-interface TraceEvent {
-  id: string;
-  timestamp: string;
-  origin: string;
-  action: string;
-  status: 'SUCCESS' | 'WARNING' | 'CRITICAL' | 'INFO';
-  payload: string;
-}
+  interface TraceEvent {
+    id: string;
+    timestamp: string;
+    origin: string;
+    action: string;
+    status: 'SUCCESS' | 'WARNING' | 'CRITICAL' | 'INFO' | 'FAILED';
+    payload: string;
+    traceId?: string;
+  }
 
-export default function TraceView() {
-  const [events, setEvents] = useState<TraceEvent[]>([]);
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  export default function TraceView() {
+    const [events, setEvents] = useState<TraceEvent[]>([]);
+    const terminalEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const q = query(
-      collection(db, "execution_events"),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
+    useEffect(() => {
+      const q = query(
+        collection(db, "immutable_audit_logs"),
+        orderBy("timestamp", "desc"),
+        limit(100)
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newEvents: TraceEvent[] = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const time = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '---';
-        return {
-          id: doc.id,
-          timestamp: time,
-          origin: data.eventType || 'SYSTEM',
-          action: data.metadata?.note || data.eventType || 'Generic execution event',
-          status: (data.eventType?.includes('BREACH') || data.eventType?.includes('LEAKAGE') ? 'CRITICAL' : 'SUCCESS') as any,
-          payload: data.targetId || '0x00000000'
-        };
-      }).reverse();
-      setEvents(newEvents);
-    });
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const newEvents: TraceEvent[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const time = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '---';
+          return {
+            id: doc.id,
+            timestamp: time,
+            origin: data.workerId || 'SYSTEM',
+            action: data.action || data.eventType || 'Generic execution event',
+            status: data.status || 'INFO',
+            payload: data.vendorId || 'global_sys',
+            traceId: data.traceId
+          };
+        }).reverse();
+        setEvents(newEvents);
+      });
 
     return () => unsubscribe();
   }, []);
@@ -98,9 +100,12 @@ export default function TraceView() {
             )}>
               <span className="text-slate-600 shrink-0">[{event.timestamp}]</span>
               <span className="text-indigo-500 font-black shrink-0 w-32">[{event.origin}]</span>
-              <span className="flex-1">{event.action}</span>
+              <span className="flex-1">
+                {event.action}
+                {event.traceId && <span className="ml-3 text-[9px] text-slate-700 bg-slate-800/50 px-1 py-0.5 rounded font-mono">TRC: {event.traceId}</span>}
+              </span>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-slate-600 font-mono italic opacity-0 group-hover:opacity-100 transition-opacity">PID: {event.payload}</span>
+                <span className="text-slate-600 font-mono italic opacity-0 group-hover:opacity-100 transition-opacity">ORG: {event.payload}</span>
                 <span className={cn(
                   "px-2 py-0.5 rounded text-[9px] font-black tracking-widest",
                   event.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-500' :

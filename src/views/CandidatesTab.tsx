@@ -306,9 +306,12 @@ export default function CandidatesTab() {
              updatedAt: serverTimestamp()
          });
 
+         const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+         
          await addDoc(collection(db, "workflowEvents"), {
              eventType: "PARSE_RESUME_TEXT",
              status: "QUEUED",
+             traceId: traceId,
              payload: {
                  candidateId: candId,
                  resumeText: text,
@@ -372,10 +375,13 @@ export default function CandidatesTab() {
                 updatedAt: serverTimestamp()
             });
 
+            const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
             // Queue Workflow Event (This makes it distributed)
             await addDoc(collection(db, "workflowEvents"), {
                 eventType: "PARSE_RESUME_FILE",
                 status: "QUEUED",
+                traceId: traceId,
                 payload: {
                     candidateId: candId,
                     storagePath: storagePath,
@@ -417,9 +423,12 @@ export default function CandidatesTab() {
             distillationStatus: "PROCESSING"
         }, { merge: true });
 
+        const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
         await addDoc(collection(db, "workflowEvents"), {
             eventType: "PARSE_RESUME_TEXT",
             status: "QUEUED",
+            traceId: traceId,
             payload: {
                 candidateId: candId,
                 resumeText: text,

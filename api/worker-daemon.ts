@@ -51,16 +51,28 @@ export default async function handler(req: any, res: any) {
               await adminDb.collection("workflowEvents").doc(id).update({ status: "COMPLETED", skipReason: "idempotency_hit" });
               continue;
           }
-          await lockRef.set({ lockedAt: new Date().toISOString(), eventId: id });
+          await lockRef.set({ lockedAt: new Date().toISOString(), eventId: id, traceId: event.traceId || id });
 
           // Queue Leasing for Isolation
           const leaseDuration = 3 * 60 * 1000; // 3 minutes lease
+          const workerId = process.env.K_REVISION || "ops-worker-alpha-01";
           await adminDb.collection("workflowEvents").doc(id).update({ 
              status: "LEASED",
-             workerId: "ops-worker-alpha-01", // Identifier for traceability
+             workerId: workerId, // Identifier for traceability
              leasedUntil: new Date(Date.now() + leaseDuration).toISOString(),
              updatedAt: new Date().toISOString() 
           });
+
+          // Immutable Event Source Header
+          const auditTrace = {
+              traceId: event.traceId || id,
+              eventId: id,
+              workerId: workerId,
+              eventType: event.eventType,
+              timestamp: new Date().toISOString(),
+              vendorId: event.payload?.vendorId || "system",
+              payload: event.payload
+          };
 
           // 1. AI Intelligent Enrichment - Parse Resume Text
           if (event.eventType === "PARSE_RESUME_TEXT") {
@@ -142,6 +154,13 @@ WARNING: Untrusted user data follows.
              status: "COMPLETED",
              completedAt: new Date().toISOString()
           });
+          
+          await adminDb.collection("immutable_audit_logs").add({
+              ...auditTrace,
+              action: "WORKFLOW_COMPLETED",
+              status: "SUCCESS"
+          });
+          
           processedCount++;
           
           await meterExecution(event.payload?.vendorId || "global_sys", "WORKFLOW", 1);
@@ -149,6 +168,18 @@ WARNING: Untrusted user data follows.
        } catch (err: any) {
           console.error(`[DAEMON] Event ${id} failure (${err.message})`);
           failedCount++;
+
+          const failureTrace = {
+               traceId: event.traceId || id,
+               eventId: id,
+               eventType: event.eventType,
+               action: "WORKFLOW_FAILED",
+               status: "FAILED",
+               errorDetails: err.message,
+               timestamp: new Date().toISOString(),
+               vendorId: event.payload?.vendorId || "system"
+          };
+          await adminDb.collection("immutable_audit_logs").add(failureTrace);
 
           // Retry logic and Dead Letter Queue enforcement
           if (retryCount >= 3) {
