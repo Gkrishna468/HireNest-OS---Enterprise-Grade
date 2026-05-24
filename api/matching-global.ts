@@ -54,8 +54,8 @@ export default async function handler(req: any, res: any) {
               matchScore: matchResult.overallScore,
               isGlobalMatch: true,
               breakdown: matchResult.breakdown,
-              strengths: matchResult.explanation.strengths,
-              gaps: matchResult.explanation.gaps,
+              strengths: matchResult.explanation.recruiterView.strengths,
+              gaps: matchResult.explanation.recruiterView.gaps,
               suitabilitySummary: "Match evaluated via Comprehensive Semantic Engine."
             });
           }
@@ -133,8 +133,8 @@ export default async function handler(req: any, res: any) {
               id: seed.candidateId,
               matchScore: matchResult.overallScore,
               breakdown: matchResult.breakdown,
-              strengths: matchResult.explanation.strengths,
-              gaps: matchResult.explanation.gaps,
+              strengths: matchResult.explanation.recruiterView.strengths,
+              gaps: matchResult.explanation.recruiterView.gaps,
               suitabilitySummary: `Possesses structural alignment utilizing semantic matching capabilities over exact keyword matches.`
             });
           }

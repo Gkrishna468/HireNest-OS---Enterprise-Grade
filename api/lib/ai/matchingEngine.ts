@@ -18,9 +18,19 @@ export interface MatchResult {
     authenticityScore: number;
   };
   explanation: {
-    strengths: string[];
-    gaps: string[];
-    risks: string[];
+    recruiterView: {
+      strengths: string[];
+      gaps: string[];
+      risks: string[];
+    };
+    clientView: {
+      summary: string;
+    };
+    adminGovernanceView: {
+      semantic: number;
+      trajectory: number;
+      authenticity: number;
+    };
   };
 }
 
@@ -96,15 +106,25 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
       domainMatchScore: dom,
       authenticityScore: auth
     },
-    explanation: await generateExplainabilityReport(overall, sem, car, dom, candidate, jd)
+    explanation: await generateExplainabilityReport(overall, sem, car, dom, auth, candidate, jd)
   };
 }
 
-async function generateExplainabilityReport(overall: number, sem: number, car: number, dom: number, candidate: any, jd: any) {
+async function generateExplainabilityReport(overall: number, sem: number, car: number, dom: number, auth: number, candidate: any, jd: any) {
   // Enterprise explanation mock using LLM explanation model conceptually.
   return {
-      strengths: overall >= 70 ? ["Strong domain overlap relative to requirement", "Semantic skills matching target technologies"] : ["Has baseline technical knowledge"],
-      gaps: overall < 85 ? ["Missing adjacent logic/middleware stacks", "Career trajectory lags slightly behind JD requirement"] : [],
-      risks: ["Notice period requires immediate verification"]
+      recruiterView: {
+          strengths: overall >= 70 ? ["Strong domain overlap relative to requirement", "Semantic skills matching target technologies"] : ["Has baseline technical knowledge"],
+          gaps: overall < 85 ? ["Missing adjacent logic/middleware stacks", "Career trajectory lags slightly behind JD requirement"] : [],
+          risks: ["Notice period requires immediate verification"]
+      },
+      clientView: {
+          summary: overall >= 85 ? "High alignment with enterprise initiatives and required domain competencies." : "Partial alignment; suitable for consideration but verify immediate operational readiness."
+      },
+      adminGovernanceView: {
+          semantic: sem,
+          trajectory: car,
+          authenticity: auth
+      }
   };
 }

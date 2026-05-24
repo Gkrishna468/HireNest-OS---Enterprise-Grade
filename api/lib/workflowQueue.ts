@@ -19,6 +19,20 @@ export async function dispatchWorkflowEvent(adminDb: any, event: Omit<WorkflowEv
     return false;
   }
   
+  // Backpressure Control: Enforce per-tenant concurrency/queue caps
+  if (event.payload?.vendorId) {
+      const activeRef = await adminDb.collection("workflowEvents")
+        .where("payload.vendorId", "==", event.payload.vendorId)
+        .where("status", "in", ["QUEUED", "PROCESSING"])
+        .count()
+        .get();
+        
+      if (activeRef.data().count >= 500) {
+          console.warn(`[BACKPRESSURE] Vendor ${event.payload.vendorId} exceeded queue limits (500). Rejecting ${event.eventType}.`);
+          return false;
+      }
+  }
+  
   try {
     await adminDb.collection("workflowEvents").add({
       ...event,
