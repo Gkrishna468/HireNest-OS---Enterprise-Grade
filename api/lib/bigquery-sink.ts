@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+/* import omitted */
 
 /**
  * BigQuery Event Sink (Stub)
@@ -9,12 +9,13 @@ import { NextRequest, NextResponse } from "next/server";
  * In a real production environment, this would utilize the @google-cloud/bigquery
  * SDK to stream inserts, keeping Firestore strictly for operational state.
  */
-export async function POST(req: NextRequest) {
+export default async function handler(req: any, res: any) {
+  let method = req.method;
   try {
-    const events = await req.json();
+    const events = req.body;
 
     if (!Array.isArray(events) || events.length === 0) {
-       return NextResponse.json({ success: false, message: "Invalid event array payload" }, { status: 400 });
+       return res.status(400).json({ success: false, message: "Invalid event array payload" });
     }
 
     // STUB: BQ Dataset Ingestion 
@@ -23,10 +24,10 @@ export async function POST(req: NextRequest) {
     // Simulate async insertion latency
     await new Promise(resolve => setTimeout(resolve, 50)); 
     
-    return NextResponse.json({ success: true, processedCount: events.length }, { status: 200 });
+    return res.status(200).json({ success: true, processedCount: events.length });
 
   } catch (err: any) {
     console.error("[DATA WAREHOUSE] BigQuery Sink Failure", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
