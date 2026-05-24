@@ -158,7 +158,8 @@ WARNING: Untrusted user data follows.
           await adminDb.collection("immutable_audit_logs").add({
               ...auditTrace,
               action: "WORKFLOW_COMPLETED",
-              status: "SUCCESS"
+              status: "SUCCESS",
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30-day TTL standard
           });
           
           processedCount++;
@@ -177,7 +178,8 @@ WARNING: Untrusted user data follows.
                status: "FAILED",
                errorDetails: err.message,
                timestamp: new Date().toISOString(),
-               vendorId: event.payload?.vendorId || "system"
+               vendorId: event.payload?.vendorId || "system",
+               expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
           };
           await adminDb.collection("immutable_audit_logs").add(failureTrace);
 
