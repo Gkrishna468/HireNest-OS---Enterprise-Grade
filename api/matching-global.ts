@@ -1,6 +1,6 @@
 import { adminDb } from "../src/lib/firebase-admin";
-
 import { dispatchWorkflowEvent } from "./lib/workflowQueue";
+import { runComprehensiveMatch } from "./lib/ai/matchingEngine";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
@@ -22,6 +22,9 @@ export default async function handler(req: any, res: any) {
   try {
     const matchedCandidates: any[] = [];
     
+    // Simulate fetching the full JD
+    const jdObject = { location: "remote", skills: reqSkills };
+    
     // 1. Core live database candidate scanning
     if (!adminDb) {
       return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
@@ -29,18 +32,14 @@ export default async function handler(req: any, res: any) {
     
     try {
         const snapshot = await adminDb.collection("candidatePool").get();
-        snapshot.forEach((doc: any) => {
+        for (const doc of snapshot.docs) {
           const cand = doc.data();
           const candSkills: string[] = (cand.skills || [])
             .map((s: any) => String(s).trim().toLowerCase());
-          
-          // Calculate exact skill overlaps
-          const overlap = candSkills.filter((s: string) => reqSkills.includes(s));
-          if (overlap.length > 0) {
-            // High fidelity dynamic score formula
-            const scorePercent = Math.round(60 + (overlap.length / Math.max(1, reqSkills.length)) * 38);
-            const score = Math.min(99, scorePercent);
             
+          const matchResult = await runComprehensiveMatch(jdObject, cand);
+          
+          if (matchResult.overallScore >= 50) {
             matchedCandidates.push({
               id: doc.id,
               candidateId: cand.candidateId || doc.id,
@@ -52,12 +51,15 @@ export default async function handler(req: any, res: any) {
               experience: cand.experience || "Not Specified",
               vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
               pipelineStage: cand.pipelineStage || "Awaiting Match Verification",
-              matchScore: score,
+              matchScore: matchResult.overallScore,
               isGlobalMatch: true,
-              suitabilitySummary: `Unparalleled fit possessing direct experience with ${overlap.slice(0, 3).join(', ')}.`
+              breakdown: matchResult.breakdown,
+              strengths: matchResult.explanation.strengths,
+              gaps: matchResult.explanation.gaps,
+              suitabilitySummary: "Match evaluated via Comprehensive Semantic Engine."
             });
           }
-        });
+        }
       } catch (dbErr) {
         console.warn("[MATCHING_GLOBAL_DB_WARN] Primary Firestore connection timed out or is empty:", dbErr);
       }
@@ -121,20 +123,19 @@ export default async function handler(req: any, res: any) {
     // Evaluate overlaps in pre-seeded candidates
     for (const seed of seedCandidates) {
       if (reqSkills.length > 0) {
-        const seedSkillsLower = seed.skills.map(s => s.toLowerCase());
-        const overlap = seedSkillsLower.filter(s => reqSkills.includes(s));
+        const matchResult = await runComprehensiveMatch(jdObject, seed);
         
-        if (overlap.length > 0) {
+        if (matchResult.overallScore >= 50) {
           // Check if candidate is already in list
           if (!matchedCandidates.some(c => c.name === seed.name)) {
-            const scorePercent = Math.round(62 + (overlap.length / Math.max(1, reqSkills.length)) * 36);
-            const score = Math.min(98, scorePercent);
-            
             matchedCandidates.push({
               ...seed,
               id: seed.candidateId,
-              matchScore: score,
-              suitabilitySummary: `Possesses matching parameters on ${overlap.join(', ')} corresponding exactly to request requirements.`
+              matchScore: matchResult.overallScore,
+              breakdown: matchResult.breakdown,
+              strengths: matchResult.explanation.strengths,
+              gaps: matchResult.explanation.gaps,
+              suitabilitySummary: `Possesses structural alignment utilizing semantic matching capabilities over exact keyword matches.`
             });
           }
         }

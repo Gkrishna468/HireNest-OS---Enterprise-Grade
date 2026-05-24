@@ -2,7 +2,7 @@ import React, { useEffect, useState, ChangeEvent } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power } from "lucide-react";
+import { Sparkles, FileText, CheckCircle, ShieldAlert, DollarSign, BrainCircuit, MessageSquare, ExternalLink, X, Bot, Activity, Upload, Target, Clock, MapPin, ListChecks, Cpu, Briefcase, Zap, ShieldCheck, Power, Network } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, getDoc, getDocs, serverTimestamp, where, addDoc, limit } from "firebase/firestore";
 import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService";
@@ -1003,9 +1003,12 @@ export default function JobsTab() {
                             Verified Scoring Architecture (70% - 100%)
                           </p>
                         </div>
-                        <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl">
-                          {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 70)).length} QUALIFIED PROFILES
-                        </Badge>
+                        <div className="flex flex-col items-end">
+                            <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
+                                {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 85)).length} High Confidence
+                            </Badge>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">+ {([...submissions, ...globalMatches].filter(s => (s.matchScore || 0) >= 70 && (s.matchScore || 0) < 85)).length} Strong Potential</div>
+                        </div>
                       </div>
 
                   { (selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing') && !localMatchCompleted[selectedJob.id] && [...submissions, ...globalMatches].length === 0 ? (
@@ -1024,14 +1027,14 @@ export default function JobsTab() {
                         </h3>
                         <p className="text-[12px] text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">
                           {selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' 
-                            ? "Our AI Agents are currently scanning 14+ verified vendor pools globally for technical skills and budget parity." 
-                            : "This requirement is currently undergoing high-fidelity mapping."}
+                            ? "Our AI Agents are scanning semantic embeddings globally for trajectory parity." 
+                            : "This requirement is undergoing deterministic & semantic mapping."}
                         </p>
                      </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {[...submissions, ...globalMatches]
-                        .filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)
+                        .filter(sub => (sub.matchScore || 0) >= 50 || sub.isGlobalMatch)
                         .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
                         .map(sub => (
                           <div 
@@ -1047,13 +1050,14 @@ export default function JobsTab() {
                                       <div>
                                           <div className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-all uppercase tracking-tight">{sub.candidateName || sub.name}</div>
                                           <div className="text-[11px] text-slate-400 font-bold flex items-center gap-2 mt-1.5 uppercase tracking-widest">
-                                              <Target size={14} className="text-slate-300" /> {sub.experience || '8+ YRS'} EXP • {sub.isGlobalMatch ? "Pre-Screened" : sub.vendorName || "Active Vendor"}
+                                              <Target size={14} className="text-slate-300" /> {sub.experience || '8+ YRS'} EXP • {sub.isGlobalMatch ? "Global Match" : sub.vendorName || "Active Vendor"}
                                           </div>
                                       </div>
                                   </div>
                                   <div className={`px-4 py-2 rounded-2xl font-black text-[14px] border shadow-sm ${
-                                    (sub.matchScore || 0) >= 90 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 
-                                    'bg-indigo-100 text-indigo-800 border-indigo-200'
+                                    (sub.matchScore || 0) >= 85 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 
+                                    (sub.matchScore || 0) >= 70 ? 'bg-indigo-100 text-indigo-800 border-indigo-200' :
+                                    'bg-amber-100 text-amber-800 border-amber-200'
                                   }`}>
                                       {sub.matchScore ? `${sub.matchScore}%` : "SYNC"}
                                   </div>
@@ -1071,12 +1075,13 @@ export default function JobsTab() {
                               </div>
                           </div>
                       ))}
-                      {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)).length === 0 && (
-                         <div className="col-span-full py-32 text-center text-slate-400">
-                            <Target size={64} className="mx-auto mb-6 opacity-10" />
-                            <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">No High-Density Matches Found</p>
-                            <p className="text-xs font-medium text-indigo-600 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
-                              No matches found at this moment. Please come back and check later, or we will send you a notification as soon as a verified candidate matches your requirements!
+                      {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 50 || sub.isGlobalMatch)).length === 0 && (
+                         <div className="col-span-full py-32 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
+                            <Network size={64} className="mx-auto mb-6 text-indigo-200 animate-pulse" />
+                            <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">Semantic Expansion Active</p>
+                            <p className="text-xs font-medium text-slate-500 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
+                              No exact hard-constraint matches found in local pools. <br/>
+                              Our semantic engine is expanding search to related trajectory skill clusters (e.g. Logic Apps, API Integration). We will notify you when confident variants are locked.
                             </p>
                          </div>
                       )}

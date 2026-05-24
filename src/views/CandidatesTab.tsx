@@ -4,7 +4,7 @@ import { Activity, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, Briefcase,
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { db, auth, storage, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, where, updateDoc, deleteDoc, limit } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, getDocs, serverTimestamp, where, updateDoc, deleteDoc, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 
@@ -95,11 +95,16 @@ export default function CandidatesTab() {
             ? query(collection(db, "candidatePool"), limit(100))
             : query(collection(db, "candidatePool"), where("vendorId", "==", orgId), limit(100));
 
-          unsubscribe = onSnapshot(q, (snap) => {
+        const fetchCandidates = async () => {
+          try {
+            const snap = await getDocs(q);
             setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          }, (error) => {
+          } catch (error: any) {
             handleFirestoreError(error, OperationType.GET, "candidatePool");
-          });
+          }
+        };
+        fetchCandidates();
+
         }
       } catch (err: any) {
         console.warn("Auth initialization logic failed:", err.message);

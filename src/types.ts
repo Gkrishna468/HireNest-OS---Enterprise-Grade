@@ -15,12 +15,15 @@ export enum DealStatus {
 }
 
 export interface MatchBreakdown {
-  skillsScore: number;
-  experienceScore: number;
+  skillsScore?: number;
+  experienceScore?: number;
   domainScore: number;
-  locationScore: number;
-  bonusScore: number;
-  totalScore: number;
+  locationScore?: number;
+  bonusScore?: number;
+  totalScore?: number;
+  semanticScore?: number;
+  careerTrajectoryScore?: number;
+  authenticityScore?: number;
 }
 
 export interface MarginConfig {

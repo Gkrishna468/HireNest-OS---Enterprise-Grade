@@ -122,13 +122,13 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                 <div className="grid grid-cols-4 gap-2">
                   <div className="text-center">
                     <Cpu size={14} className="mx-auto text-indigo-500 mb-1" />
-                    <div className="text-[9px] text-slate-400 font-bold">Skills</div>
-                    <div className="text-xs font-black">{result.breakdown?.skillsScore || 0}%</div>
+                    <div className="text-[9px] text-slate-400 font-bold">Semantic</div>
+                    <div className="text-xs font-black">{result.breakdown?.semanticScore || result.breakdown?.skillsScore || 0}%</div>
                   </div>
                   <div className="text-center">
                     <Target size={14} className="mx-auto text-emerald-500 mb-1" />
-                    <div className="text-[9px] text-slate-400 font-bold">Exp</div>
-                    <div className="text-xs font-black">{result.breakdown?.experienceScore || 0}%</div>
+                    <div className="text-[9px] text-slate-400 font-bold">Trajectory</div>
+                    <div className="text-xs font-black">{result.breakdown?.careerTrajectoryScore || result.breakdown?.experienceScore || 0}%</div>
                   </div>
                   <div className="text-center">
                     <Scale size={14} className="mx-auto text-amber-500 mb-1" />
@@ -137,8 +137,8 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                   </div>
                   <div className="text-center">
                     <MapPin size={14} className="mx-auto text-rose-500 mb-1" />
-                    <div className="text-[9px] text-slate-400 font-bold">Loc</div>
-                    <div className="text-xs font-black">{result.breakdown?.locationScore || 0}%</div>
+                    <div className="text-[9px] text-slate-400 font-bold">Hard Constraints</div>
+                    <div className="text-xs font-black">{result.breakdown?.locationScore !== undefined ? result.breakdown.locationScore + '%' : 'PASS'}</div>
                   </div>
                 </div>
               </div>
