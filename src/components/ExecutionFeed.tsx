@@ -17,15 +17,19 @@ export function ExecutionFeed({ requirementId, dealId, className }: ExecutionFee
   useEffect(() => {
     let q;
     if (dealId) {
-      q = query(collection(db, "execution_events"), where("targetId", "==", dealId), orderBy("timestamp", "desc"));
+      q = query(collection(db, "execution_events"), where("targetId", "==", dealId));
     } else if (requirementId) {
-      q = query(collection(db, "execution_events"), where("requirementId", "==", requirementId), orderBy("timestamp", "desc"));
+      q = query(collection(db, "execution_events"), where("requirementId", "==", requirementId));
     } else {
       q = query(collection(db, "execution_events"), orderBy("timestamp", "desc"));
     }
 
     return onSnapshot(q, (snap) => {
-      setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      if (dealId || requirementId) {
+        data.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+      }
+      setEvents(data);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, "execution_events");

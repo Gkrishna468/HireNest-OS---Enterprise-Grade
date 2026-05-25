@@ -1,6 +1,6 @@
 import { adminDb } from "../lib/firebase-admin";
 import { logAIExplainability, authorizeAIAction } from "./aiGovernance";
-import { VectorDatabaseConnector } from "./vectorDatabase";
+import { VectorDatabaseConnector } from "../../api/lib/vectorDatabase";
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   console.log(`[VECTOR_ENGINE] Generating simulated semantic embedding for: "${text.substring(0, 30)}..."`);

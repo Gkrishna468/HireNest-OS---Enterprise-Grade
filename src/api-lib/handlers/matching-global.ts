@@ -1,5 +1,5 @@
 import { adminDb } from "../../lib/firebase-admin";
-import { dispatchWorkflowEvent } from "../workflowQueue";
+import { dispatchWorkflowEvent } from "../../../api/lib/workflowQueue";
 import { runComprehensiveMatch } from "../ai/matchingEngine";
 
 export default async function matchingGlobalHandler(req: any, res: any) {

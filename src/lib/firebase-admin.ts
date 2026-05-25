@@ -68,8 +68,11 @@ function getCredentials() {
         sa.private_key = sanitizePrivateKey(sa.private_key);
       }
       return sa;
-    } catch (e) {
-      console.warn("[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON");
+    } catch (e: any) {
+      console.warn("[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON. It must be a valid JSON object string. Error: " + e.message);
+      if (!saJson.trim().startsWith('{')) {
+          console.warn("[Firebase Admin] User provided a string that does not start with '{'. Did you only paste a private key or client email instead of the full JSON?");
+      }
     }
   }
 

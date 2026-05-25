@@ -1,9 +1,9 @@
 import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 
-import { computeFinancials } from "../src/api-lib/policyEngine";
-import { startSaga } from "../src/api-lib/stateMachine";
-import { dispatchWorkflowEvent } from "../src/api-lib/workflowQueue";
+import { computeFinancials } from "./lib/policyEngine";
+import { startSaga } from "./lib/stateMachine";
+import { dispatchWorkflowEvent } from "./lib/workflowQueue";
 import matchingGlobalHandler from "../src/api-lib/handlers/matching-global";
 import candidatesHandler from "../src/api-lib/handlers/candidates";
 
