@@ -126,7 +126,7 @@ async function createServer() {
       if (fs.existsSync(filePath)) {
         try {
           // Use absolute path for import and add cache-buster for dev
-          const module = await import(`file://${filePath}?t=${Date.now()}`);
+          const module = await import(`file://${filePath}`);
           const handler = module.default;
           if (typeof handler === 'function') {
             console.log(`[API_MAP] Resolved to: ${file}`);

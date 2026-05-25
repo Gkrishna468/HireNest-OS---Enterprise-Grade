@@ -25,6 +25,11 @@
     { "source": "/api/admin/governance", "destination": "/api/admin?action=governance" },
     { "source": "/api/governance", "destination": "/api/admin?action=governance" },
     { "source": "/api/deal-intelligence", "destination": "/api/intel" },
+    { "source": "/api/matching/global", "destination": "/api/matching-global" },
+    { "source": "/api/admin/notify-approval", "destination": "/api/admin?action=notify-approval" },
+    { "source": "/api/admin/approve-requirement", "destination": "/api/admin?action=approve-requirement" },
+    { "source": "/api/admin/notifications", "destination": "/api/admin?action=notifications" },
+    { "source": "/api/jobs/update-status", "destination": "/api/admin?action=update-status" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
   ]
