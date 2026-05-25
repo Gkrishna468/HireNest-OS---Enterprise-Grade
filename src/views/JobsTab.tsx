@@ -67,8 +67,11 @@ export default function JobsTab() {
         try {
           const response = await fetch(`/api/candidates?scan=true&orgId=${orgId}&role=${userRole}`);
           if (response.ok) {
-            const apiData = await response.json();
+            const raw = await response.text();
+            const apiData = JSON.parse(raw);
             candidateList = apiData.candidates || [];
+          } else {
+             console.error("[Candidates] Fetch failed:", await response.text());
           }
         } catch (apiErr) {
           console.warn("[AUTO_SCANNER] Proxy API candidates query failed, falling back to direct:", apiErr);
@@ -297,7 +300,8 @@ export default function JobsTab() {
       try {
         const response = await fetch(`/api/user?action=context&orgId=${orgId}&role=${userRole}`);
         if (response.ok) {
-          const resData = await response.json();
+          const raw = await response.text();
+          const resData = JSON.parse(raw);
           if (resData.requirements) {
             setJobs(resData.requirements.sort((a: any, b: any) => 
               new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()

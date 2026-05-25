@@ -82,38 +82,48 @@ export default async function handler(req: any, res: any) {
 
     // 2. Metrics
     if (action === 'metrics') {
+      console.log("[ADMIN METRICS] request started");
       const type = req.query.type || "admin";
+      
       if (!adminDb) {
+        console.warn("[ADMIN METRICS] adminDb is falsy, returning mock metrics");
         return res.status(200).json({
-          revenue: 0,
-          spending: 0,
-          activeDeals: 0,
-          placements: 0,
+          revenue: 0, spending: 0, activeDeals: 0, placements: 0,
           avgMargin: 18.5, vendorQuality: 94, recruiterProductivity: 88, lastUpdate: new Date().toISOString()
         });
       }
+      
       try {
+        console.log("[ADMIN METRICS] querying collections...");
         const [requirementsSnap, candidatesSnap, submissionsSnap] = await Promise.all([
-          adminDb.collection("requirements_public").get().catch(() => ({ docs: [], size: 0 })),
-          adminDb.collection("candidatePool").get().catch(() => ({ docs: [], size: 0 })),
-          adminDb.collection("submissions").get().catch(() => ({ docs: [], size: 0 }))
+          adminDb.collection("requirements_public").get().catch((e: any) => { console.error("[METRICS] req err", e); return { docs: [], size: 0 }; }),
+          adminDb.collection("candidatePool").get().catch((e: any) => { console.error("[METRICS] pool err", e); return { docs: [], size: 0 }; }),
+          adminDb.collection("submissions").get().catch((e: any) => { console.error("[METRICS] sub err", e); return { docs: [], size: 0 }; })
         ]);
+        
+        console.log("[ADMIN METRICS] aggregation calculations starting");
         let totalBudget = 0;
         requirementsSnap.docs.forEach((doc: any) => {
           const data = doc.data();
           if (data.vendorVisibleBudget) totalBudget += Number(data.vendorVisibleBudget);
         });
-        return res.status(200).json({
+        
+        const result = {
           revenue: type === 'admin' ? totalBudget * 83 : (type === 'vendor' ? totalBudget * 10 : 0),
           spending: type === 'client' ? totalBudget * 83 : (type === 'admin' ? totalBudget * 40 : 0),
           activeDeals: submissionsSnap.size,
           placements: Math.floor(submissionsSnap.size * 0.2),
           avgMargin: 18.5, vendorQuality: 94, recruiterProductivity: 88, lastUpdate: new Date().toISOString()
-        });
-      } catch (err) {
-        return res.status(200).json({
-          revenue: 0, spending: 0, activeDeals: 0, placements: 0,
-          avgMargin: 18.5, vendorQuality: 94, recruiterProductivity: 88, lastUpdate: new Date().toISOString()
+        };
+        
+        console.log("[ADMIN METRICS] success", result);
+        return res.status(200).json(result);
+      } catch (err: any) {
+        console.error("[ADMIN METRICS ERROR]", err);
+        return res.status(500).json({
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+          stack: process.env.NODE_ENV === "development" ? err.stack : undefined
         });
       }
     }
@@ -298,6 +308,11 @@ export default async function handler(req: any, res: any) {
 
     res.status(404).json({ error: "Unknown admin action" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[ADMIN CATCH-ALL ERROR]", err);
+    return res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 }

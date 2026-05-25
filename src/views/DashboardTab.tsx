@@ -83,7 +83,20 @@ export default function DashboardTab() {
       else if (isIndependent) queryType = "independent";
 
       fetch(`/api/metrics?type=${queryType}`)
-        .then(res => res.json())
+        .then(async res => {
+          if (!res.ok) {
+            const errRaw = await res.text();
+            console.error("[Dashboard] Non-200 response:", errRaw);
+            throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
+          }
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error("Invalid JSON from metrics:", text);
+            throw new Error("Invalid JSON response");
+          }
+        })
         .then(setMetrics)
         .catch(err => {
           console.warn("Metrics fetch failed, using local fallback", err);

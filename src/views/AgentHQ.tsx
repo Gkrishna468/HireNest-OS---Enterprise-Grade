@@ -18,7 +18,12 @@ export default function AgentHQ() {
     try {
       // 1. Fetch live governance data
       const govRes = await fetch("/api/governance");
-      const govData = await govRes.json();
+      if (!govRes.ok) {
+        const text = await govRes.text();
+        throw new Error(`Governance failed: ${text.substring(0, 50)}`);
+      }
+      const rawText = await govRes.text();
+      const govData = JSON.parse(rawText);
       
       const requirementsList = govData.requirements || [];
       const pending = requirementsList.filter((r: any) => r.status === "PENDING_FINANCIAL_APPROVAL");
