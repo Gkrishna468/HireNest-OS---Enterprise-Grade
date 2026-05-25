@@ -76,12 +76,22 @@ const AppContent = () => {
           const { doc, getDoc } = await import('firebase/firestore');
           const { db } = await import('./lib/firebase');
           const d = await getDoc(doc(db, "users", u.uid));
+          let data: any = {};
           if (d.exists()) {
-            const data = d.data();
-            setUserData(data);
-            if (!data.hasSeenDemo) {
-              setShowDemo(true);
-            }
+            data = d.data();
+          }
+          
+          const superAdmins = ['gopal@hirenestworkforce.com', 'gopalkrishna0046@gmail.com'];
+          if (u.email && superAdmins.includes(u.email.toLowerCase())) {
+            data.role = 'super_admin';
+            data.organizationId = 'ORG-GLOBAL-HQ';
+            data.status = 'ACTIVE';
+            data.onboardingCompleted = true;
+          }
+
+          setUserData(data);
+          if (!data.hasSeenDemo && Object.keys(data).length > 0) {
+            setShowDemo(true);
           }
         } catch (e) {
           console.error("User data sync failed", e);

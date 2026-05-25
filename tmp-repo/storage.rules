@@ -1,9 +1,0 @@
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /compliance/{organizationId}/{allPaths=**} {
-      // Temporarily allow any signed-in user to verify path/bucket permissions
-      allow read, write: if request.auth != null;
-    }
-  }
-}

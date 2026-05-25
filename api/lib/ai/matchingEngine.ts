@@ -75,7 +75,7 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
       breakdown: { semanticScore: 0, careerTrajectoryScore: 0, domainMatchScore: 0, authenticityScore: 0 },
       explanation: {
         recruiterView: { strengths: [], gaps: ["Failed Hard Constraints"], risks: ["Cannot proceed due to critical mismatch."] },
-        clientView: { summary: "Critical constraint mismatch detected." },
+        clientView: { summary: "Candidate failed hard constraints filtering." },
         adminGovernanceView: { semantic: 0, trajectory: 0, authenticity: 0 }
       }
     };

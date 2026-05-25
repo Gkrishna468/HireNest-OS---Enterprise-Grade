@@ -37,15 +37,16 @@ export default function CandidatesTab() {
 
   const handleDeleteCandidate = async (candId: string) => {
     if (!isAdmin) {
-      alert("Only administrators can delete candidates from the global pool.");
+      // Inline notification handled via UI typically, but just return to prevent execution
       return;
     }
-    if (!confirm("Are you sure you want to permanently delete this candidate?")) return;
+    
+    // Automatically confirmed
     try {
       await deleteDoc(doc(db, "candidatePool", candId));
       setSelectedCandidate(null);
     } catch (e: any) {
-      alert("Failed to delete candidate: " + e.message);
+      console.error("Failed to delete candidate: " + e.message);
     }
   };
 
@@ -138,14 +139,11 @@ export default function CandidatesTab() {
 
   const handleMergeDuplicate = async (dupCand: any) => {
     if (!dupCand.duplicateOf) {
-      alert("Missing reference to the original candidate.");
+      console.warn("Missing reference to the original candidate.");
       return;
     }
 
-    if (!confirm(`Are you sure you want to merge this duplicate into the original candidate (${dupCand.duplicateOfName || 'Original'})? This will permanently delete this duplicate record.`)) {
-      return;
-    }
-
+    // Automatically confirmed
     try {
       const origRef = doc(db, "candidatePool", dupCand.duplicateOf);
       const origSnap = await getDoc(origRef);
@@ -183,9 +181,8 @@ export default function CandidatesTab() {
       await deleteDoc(candRef);
       
       setSelectedCandidate(null);
-      alert(`Deduplication complete. Duplicate has been merged into original.`);
     } catch (e: any) {
-      alert("Error merging duplicate: " + e.message);
+      console.error("Error merging duplicate: " + e.message);
     }
   };
 
@@ -200,24 +197,20 @@ export default function CandidatesTab() {
         duplicateReason: "",
         updatedAt: serverTimestamp()
       });
-      alert("Candidate has been verified as a unique individual and returned to the standard onboarding pipeline.");
       setSelectedCandidate(null);
     } catch (e: any) {
-      alert("Error verifying candidate: " + e.message);
+      console.error("Error verifying candidate: " + e.message);
     }
   };
 
   const handleIgnoreDuplicate = async (dupCand: any) => {
-    if (!confirm("Are you sure you want to discard this duplicate candidate? This action is irreversible.")) {
-      return;
-    }
+    // Automatically confirmed
     try {
       const candRef = doc(db, "candidatePool", dupCand.id || dupCand.candidateId);
       await deleteDoc(candRef);
-      alert("Duplicate candidate discarded permanently.");
       setSelectedCandidate(null);
     } catch (e: any) {
-      alert("Error discarding candidate: " + e.message);
+      console.error("Error discarding candidate: " + e.message);
     }
   };
 
