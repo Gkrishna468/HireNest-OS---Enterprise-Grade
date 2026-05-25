@@ -28,21 +28,11 @@ service cloud.firestore {
     }
 
     function authRole() {
-      let r = request.auth.token.get('role', '');
-      if (r != '') {
-        return r;
-      }
-      let dbData = getUserData();
-      return dbData != null ? dbData.role : '';
+      return request.auth.token.get('role', '') != '' ? request.auth.token.get('role', '') : (getUserData() != null ? getUserData().role : '');
     }
 
     function authOrgId() {
-      let o = request.auth.token.get('organizationId', '');
-      if (o != '') {
-        return o;
-      }
-      let dbData = getUserData();
-      return dbData != null ? dbData.organizationId : '';
+      return request.auth.token.get('organizationId', '') != '' ? request.auth.token.get('organizationId', '') : (getUserData() != null ? getUserData().organizationId : '');
     }
 
     function incoming() {
@@ -136,9 +126,7 @@ service cloud.firestore {
     }
 
     function currentOrgId() {
-      // Safely fetch from user data, fallback to custom claim
-      let data = getUserData();
-      return data != null ? data.organizationId : authOrgId();
+      return getUserData() != null ? getUserData().organizationId : authOrgId();
     }
 
     function isOwner(userId) {
@@ -165,8 +153,7 @@ service cloud.firestore {
     // =====================================================
 
     function isValidOrganization(data) {
-      return
-        (!data.keys().hasAny(['organizationType']) ||
+      return (!data.keys().hasAny(['organizationType']) ||
           data.organizationType in [
             'client',
             'vendor',
@@ -175,7 +162,6 @@ service cloud.firestore {
             'freelancer',
             'platform'
           ]) &&
-
         (!data.keys().hasAny(['status']) ||
           data.status in [
             'pending',
@@ -188,17 +174,12 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return
-
-        (!data.keys().hasAny(['email']) ||
+      return (!data.keys().hasAny(['email']) ||
           data.email is string) &&
-
         (!data.keys().hasAny(['organizationId']) ||
           data.organizationId is string) &&
-
         (!data.keys().hasAny(['role']) ||
           data.role in [
-
             'admin',
             'super_admin',
             'platform_authority',
@@ -239,12 +220,9 @@ service cloud.firestore {
     }
 
     function isValidRequirement(data) {
-      return
-
-        (!data.keys().hasAny(['title']) ||
+      return (!data.keys().hasAny(['title']) ||
           (data.title is string &&
            data.title.size() <= 200)) &&
-
         (!data.keys().hasAny(['status']) ||
           data.status in [
             'DRAFT',
@@ -256,13 +234,11 @@ service cloud.firestore {
             'CLOSED',
             'REJECTED'
           ]) &&
-
         (!data.keys().hasAny(['visibility']) ||
           data.visibility in [
             'INTERNAL',
             'VENDOR_NETWORK'
           ]) &&
-
         (!data.keys().hasAny(['employmentType']) ||
           data.employmentType in [
             'CONTRACT',
@@ -271,7 +247,6 @@ service cloud.firestore {
             'PART_TIME',
             'INTERNSHIP'
           ]) &&
-
         (!data.keys().hasAny(['compensationModel']) ||
           data.compensationModel in [
             'LPM',
@@ -283,11 +258,8 @@ service cloud.firestore {
     }
 
     function isValidCandidate(data) {
-      return
-
-        (!data.keys().hasAny(['matchScore']) ||
+      return (!data.keys().hasAny(['matchScore']) ||
           data.matchScore is number) &&
-
         (!data.keys().hasAny(['pipelineStage']) ||
           data.pipelineStage in [
             'Candidate Added',
@@ -299,20 +271,16 @@ service cloud.firestore {
     }
 
     function isValidDealRoom(data) {
-      return
-        (!data.keys().hasAny(['status']) ||
+      return (!data.keys().hasAny(['status']) ||
           data.status in ['ACTIVE', 'CLOSED']) &&
-
         (!data.keys().hasAny(['requirementId']) ||
           data.requirementId is string);
     }
 
     function isValidMessage(data) {
-      return
-        (!data.keys().hasAny(['text']) ||
+      return (!data.keys().hasAny(['text']) ||
           (data.text is string &&
            data.text.size() <= 5000)) &&
-
         (!data.keys().hasAny(['type']) ||
           data.type in ['text', 'system']);
     }
@@ -322,7 +290,6 @@ service cloud.firestore {
     // =====================================================
 
     match /users/{userId} {
-
       allow read:
       if isOwner(userId) || isAdmin();
 
@@ -358,7 +325,6 @@ service cloud.firestore {
     // =====================================================
 
     match /organizations/{orgId} {
-
       allow read:
       if isAdmin() || isSameOrg(orgId);
 
@@ -379,7 +345,6 @@ service cloud.firestore {
     // =====================================================
 
     match /organizationHierarchy/{docId} {
-
       allow read:
       if isVerified();
 
@@ -395,7 +360,6 @@ service cloud.firestore {
     // =====================================================
 
     match /onboarding_requests/{reqId} {
-
       allow read:
       if isAdmin() ||
       (
@@ -415,7 +379,6 @@ service cloud.firestore {
     // =====================================================
 
     match /requirements_public/{reqId} {
-
       allow read:
       if true;
 
@@ -445,7 +408,6 @@ service cloud.firestore {
     // =====================================================
 
     match /requirements_private/{reqId} {
-
       allow read:
       if isAdmin() ||
       (
@@ -466,7 +428,6 @@ service cloud.firestore {
     // =====================================================
 
     match /jobApprovalQueue/{jobId} {
-
       allow read:
       if isPlatformAuthority();
 
@@ -485,7 +446,6 @@ service cloud.firestore {
     // =====================================================
 
     match /vendorNetworkBroadcasts/{broadcastId} {
-
       allow read:
       if isVerified();
 
@@ -504,7 +464,6 @@ service cloud.firestore {
     // =====================================================
 
     match /candidatePool/{candidateId} {
-
       allow read:
       if isAdmin() ||
          isSameOrg(resource.data.vendorId);
@@ -531,7 +490,6 @@ service cloud.firestore {
     // =====================================================
 
     match /candidateOwnership/{ownershipId} {
-
       allow read:
       if isPlatformAuthority();
 
@@ -550,7 +508,6 @@ service cloud.firestore {
     // =====================================================
 
     match /candidateUpdates/{updateId} {
-
       allow read:
       if isVerified();
 
@@ -569,7 +526,6 @@ service cloud.firestore {
     // =====================================================
 
     match /submissions/{submissionId} {
-
       allow read:
       if isVerified() &&
       (
@@ -593,7 +549,6 @@ service cloud.firestore {
     // =====================================================
 
     match /dealRooms/{roomId} {
-
       allow read:
       if isVerified() &&
       (
@@ -615,7 +570,6 @@ service cloud.firestore {
       if isAdmin();
 
       match /messages/{messageId} {
-
         allow read:
         if isVerified();
 
@@ -636,7 +590,6 @@ service cloud.firestore {
     // =====================================================
 
     match /communicationThreads/{threadId} {
-
       allow read:
       if isVerified();
 
@@ -655,7 +608,6 @@ service cloud.firestore {
     // =====================================================
 
     match /adminChangeRequests/{requestId} {
-
       allow read:
       if isPlatformAuthority();
 
@@ -683,7 +635,6 @@ service cloud.firestore {
     // =====================================================
 
     match /budgetRequests/{requestId} {
-
       allow read:
       if isVerified();
 
@@ -702,7 +653,6 @@ service cloud.firestore {
     // =====================================================
 
     match /notifications/{notifId} {
-
       allow read:
       if isVerified() &&
       (
@@ -725,7 +675,6 @@ service cloud.firestore {
     // =====================================================
 
     match /matchNotifications/{notifId} {
-
       allow read:
       if isVerified();
 
@@ -744,7 +693,6 @@ service cloud.firestore {
     // =====================================================
 
     match /clientDocuments/{docId} {
-
       allow read:
       if isVerified();
 
@@ -759,7 +707,6 @@ service cloud.firestore {
     }
 
     match /vendorDocuments/{docId} {
-
       allow read:
       if isVerified();
 
@@ -774,7 +721,6 @@ service cloud.firestore {
     }
 
     match /independentDocuments/{docId} {
-
       allow read:
       if isVerified();
 
@@ -793,7 +739,6 @@ service cloud.firestore {
     // =====================================================
 
     match /auditLogs/{logId} {
-
       allow read:
       if isAdmin();
 
@@ -809,7 +754,6 @@ service cloud.firestore {
     // =====================================================
 
     match /governance/{docId} {
-
       allow read:
       if isAdmin();
 
@@ -825,7 +769,6 @@ service cloud.firestore {
     // =====================================================
 
     match /workflowEvents/{eventId} {
-
       allow read:
       if isPlatformAuthority();
 
@@ -841,7 +784,6 @@ service cloud.firestore {
     // =====================================================
 
     match /predictions/{predId} {
-
       allow read:
       if isVerified();
 
@@ -850,7 +792,6 @@ service cloud.firestore {
     }
 
     match /trust_metrics/{nodeId} {
-
       allow read:
       if isVerified();
 
@@ -859,7 +800,6 @@ service cloud.firestore {
     }
 
     match /agent_activities/{activityId} {
-
       allow read:
       if isVerified();
 
@@ -949,7 +889,6 @@ service cloud.firestore {
     // =====================================================
 
     match /systemHealth/{docId} {
-
       allow read:
       if isAdmin();
 
@@ -958,7 +897,6 @@ service cloud.firestore {
     }
 
     match /_health/{docId} {
-
       allow read:
       if true;
 
@@ -971,7 +909,6 @@ service cloud.firestore {
     // =====================================================
 
     match /{document=**} {
-
       allow read, write:
       if isHQ();
     }
