@@ -1,6 +1,6 @@
 import { adminDb } from "../src/lib/firebase-admin";
-import { dispatchWorkflowEvent } from "./lib/workflowQueue";
-import { runComprehensiveMatch } from "./lib/ai/matchingEngine";
+import { dispatchWorkflowEvent } from "../src/api-lib/workflowQueue";
+import { runComprehensiveMatch } from "../src/api-lib/ai/matchingEngine";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
