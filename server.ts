@@ -5,6 +5,20 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
+// Static Imports for all Handlers & Admin
+import { adminAuth } from './src/lib/firebase-admin.ts';
+import adminHandler from './api/admin.ts';
+import userHandler from './api/user.ts';
+import candidatesHandler from './src/api-lib/handlers/candidates.ts';
+import matchingGlobalHandler from './src/api-lib/handlers/matching-global.ts';
+import intelHandler from './api/intel.ts';
+import parseJdHandler from './api/parse-jd.ts';
+import extractTextHandler from './api/extract-text.ts';
+import matchDetailedHandler from './api/match-candidates-detailed.ts';
+import bulkParseHandler from './api/bulk-parse-resumes.ts';
+import telemetryHandler from './api/telemetry-sink.ts';
+import vectorSearchHandler from './api/vector-search.ts';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -44,9 +58,6 @@ async function createServer() {
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
       }
 
-      // Dynamically import adminAuth to avoid module resolution issues
-      const { adminAuth } = await import(path.join(__dirname, 'src', 'lib', 'firebase-admin.ts'));
-      
       if (!adminAuth) {
         // Fallback for development if admin SDK isn't configured
         console.warn('adminAuth not initialized, skipping strict token validation');
@@ -73,78 +84,85 @@ async function createServer() {
     
     // Detailed logging for debugging
     console.log(`[API_MAP] Path: ${apiPath} (Full: ${req.path})`);
+    
+    req.query = { ...req.query, ...req.params };
 
-    // Consolidated routing map for Vercel Hobby limits
-    const consolidatedMap: Record<string, string> = {
-      'create-user': 'user.ts',
-      'user/create': 'user.ts',
-      'delete-user': 'user.ts',
-      'user/delete': 'user.ts',
-      'assign-role': 'user.ts',
-      'user/assign-role': 'user.ts',
-      'user-context': 'user.ts',
-      'user/context': 'user.ts',
-      'matching/global': 'matching-global.ts',
-      'metrics': 'admin.ts',
-      'admin/metrics': 'admin.ts',
-      'diagnostics': 'admin.ts',
-      'admin/diagnostics': 'admin.ts',
-      'governance-data': 'admin.ts',
-      'admin/governance-data': 'admin.ts',
-      'pre-flight': 'admin.ts',
-      'admin/pre-flight': 'admin.ts',
-      'approve-request': 'admin.ts',
-      'admin/approve-request': 'admin.ts',
-      'onboard-request': 'admin.ts',
-      'admin/onboard-request': 'admin.ts',
-      'governance': 'admin.ts',
-      'admin/governance': 'admin.ts',
-      'admin/notify-approval': 'admin.ts',
-      'admin/approve-requirement': 'admin.ts',
-      'admin/notifications': 'admin.ts',
-      'user-candidates': 'candidates.ts',
-      'user/candidates': 'candidates.ts',
-      'deal-intelligence': 'intel.ts'
-    };
+    try {
+      switch (apiPath) {
+        case 'create-user':
+        case 'user/create':
+        case 'delete-user':
+        case 'user/delete':
+        case 'assign-role':
+        case 'user/assign-role':
+        case 'user-context':
+        case 'user/context':
+        case 'user':
+          return await userHandler(req, res);
+          
+        case 'metrics':
+        case 'admin/metrics':
+        case 'diagnostics':
+        case 'admin/diagnostics':
+        case 'governance-data':
+        case 'admin/governance-data':
+        case 'pre-flight':
+        case 'admin/pre-flight':
+        case 'approve-request':
+        case 'admin/approve-request':
+        case 'onboard-request':
+        case 'admin/onboard-request':
+        case 'governance':
+        case 'admin/governance':
+        case 'admin/notify-approval':
+        case 'admin/approve-requirement':
+        case 'admin/notifications':
+        case 'admin':
+          return await adminHandler(req, res);
 
-    const possibleFiles = [
-      consolidatedMap[apiPath] || '',
-      apiPath + '.ts',
-      apiPath + '/index.ts',
-      // Dynamic mapping for common path patterns
-      apiPath.replace(/\//g, '-') + '.ts',
-      apiPath.replace('admin/', '') + '.ts',
-      apiPath.replace('user/', 'user-') + '.ts',
-      apiPath.replace('user/', '') + '.ts',
-      apiPath.replace('deal/', 'deal-') + '.ts',
-      apiPath.split('/').pop() + '.ts' // Final fallback: just the filename
-    ].filter(Boolean);
+        case 'user-candidates':
+        case 'user/candidates':
+        case 'candidates':
+          return await candidatesHandler(req, res);
 
-    let found = false;
-    for (const file of possibleFiles) {
-      const filePath = path.join(__dirname, 'api', file);
-      if (fs.existsSync(filePath)) {
-        try {
-          // Use absolute path for import and add cache-buster for dev
-          const module = await import(`file://${filePath}`);
-          const handler = module.default;
-          if (typeof handler === 'function') {
-            console.log(`[API_MAP] Resolved to: ${file}`);
-            req.query = { ...req.query, ...req.params };
-            await handler(req, res);
-            found = true;
-            break;
-          }
-        } catch (err: any) {
-          console.error(`[API_ERR] Execution failed [${file}]:`, err);
-          return res.status(500).json({ error: 'Internal Server Error', details: err.message, file });
-        }
+        case 'matching/global':
+        case 'matching-global':
+          return await matchingGlobalHandler(req, res);
+
+        case 'deal-intelligence':
+        case 'intel':
+          return await intelHandler(req, res);
+
+        case 'parse-jd':
+          if (parseJdHandler) return await parseJdHandler(req, res);
+          break;
+          
+        case 'extract-text':
+          if (extractTextHandler) return await extractTextHandler(req, res);
+          break;
+          
+        case 'match-candidates-detailed':
+          if (matchDetailedHandler) return await matchDetailedHandler(req, res);
+          break;
+
+        case 'bulk-parse-resumes':
+          if (bulkParseHandler) return await bulkParseHandler(req, res);
+          break;
+
+        case 'telemetry-sink':
+          if (telemetryHandler) return await telemetryHandler(req, res);
+          break;
+          
+        case 'vector-search':
+          if (vectorSearchHandler) return await vectorSearchHandler(req, res);
+          break;
       }
-    }
-
-    if (!found) {
-      console.warn(`[API_404] No handler found for: ${apiPath}. Tried: ${possibleFiles.join(', ')}`);
-      res.status(404).json({ error: `API Route /api/${apiPath} not found`, options: possibleFiles });
+      
+      console.warn(`[API_404] No static handler explicitly configured for: ${apiPath}.`);
+      res.status(404).json({ error: `API Route /api/${apiPath} not implemented` });
+    } catch (err: any) {
+      console.error(`[API_ERR] Execution failed [${apiPath}]:`, err);
+      return res.status(500).json({ error: 'Internal Server Error', details: err.message, file: apiPath });
     }
   });
 
