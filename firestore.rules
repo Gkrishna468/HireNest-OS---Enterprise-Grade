@@ -929,6 +929,21 @@ service cloud.firestore {
       allow write: if isPlatformAuthority();
     }
 
+    match /cognitiveSLALogs/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /federatedIntelligence/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /executiveInsights/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
     // =====================================================
     // SYSTEM HEALTH
     // =====================================================

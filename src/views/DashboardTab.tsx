@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle } from "lucide-react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
@@ -460,6 +460,75 @@ export default function DashboardTab() {
                                         <span className="text-amber-400/80">Predicted Closure</span>
                                         <span className="text-emerald-400 font-bold">88%</span>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 11 & 12: Cognitive SLA & Federated Intelligence */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Gauge size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Gauge size={14} className="text-fuchsia-400" /> Cognitive SLA & Intelligence
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="bg-fuchsia-950/30 p-2 rounded border border-fuchsia-900/50 flex flex-col gap-1 text-[9px] font-mono">
+                                    <span className="text-fuchsia-400 font-bold">Latency Guarantees</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-fuchsia-300/80">Gov Response Latency</span>
+                                        <span className="text-emerald-400 font-bold">14ms</span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-1">
+                                        <span className="text-fuchsia-300/80">Arbitration Latency</span>
+                                        <span className="text-emerald-400 font-bold">22ms</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-emerald-950/30 p-2 rounded border border-emerald-900/50 flex flex-col gap-1 text-[9px] font-mono mt-2">
+                                    <span className="text-emerald-500 font-bold flex items-center justify-between">Federated Tenant Intelligence
+                                         <Badge className="bg-emerald-500/20 text-emerald-400 text-[8px]">PRIVACY: ON</Badge>
+                                    </span>
+                                    <span className="text-emerald-300/80 mt-1">Anonymized negotiation pattern identified -&gt; Deployed to global optimizer.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 13: Executive AI Layer */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden md:col-span-2 lg:col-span-1">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Briefcase size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Briefcase size={14} className="text-amber-400" /> AI Executive Layer
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                <div className="bg-amber-950/30 p-3 rounded border border-amber-900/50 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center border-b border-amber-900/30 pb-1">
+                                        <span className="text-[9px] font-bold font-mono text-amber-500">CFO Agent</span>
+                                        <Badge className="bg-amber-500/20 text-amber-400 text-[7px]">READY</Badge>
+                                    </div>
+                                    <div className="space-y-1 font-mono text-[9px] text-amber-200">
+                                        <div className="flex justify-between"><span>Margin Stability</span><span className="font-bold">94%</span></div>
+                                        <div className="flex justify-between"><span>Recruiter ROI</span><span className="font-bold">142%</span></div>
+                                    </div>
+                                    <p className="text-[8px] text-amber-400/80 leading-tight">Insight: LPM risk detected in Midwest transit. Rec 2% buffer.</p>
+                                </div>
+
+                                <div className="bg-indigo-950/30 p-3 rounded border border-indigo-900/50 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center border-b border-indigo-900/30 pb-1">
+                                        <span className="text-[9px] font-bold font-mono text-indigo-400">CRO Agent</span>
+                                        <Badge className="bg-indigo-500/20 text-indigo-400 text-[7px]">READY</Badge>
+                                    </div>
+                                    <div className="space-y-1 font-mono text-[9px] text-indigo-200">
+                                        <div className="flex justify-between"><span>Pipeline Risk</span><span className="font-bold text-emerald-400">LOW</span></div>
+                                        <div className="flex justify-between"><span>Closure Cast</span><span className="font-bold">88%</span></div>
+                                    </div>
+                                    <p className="text-[8px] text-indigo-400/80 leading-tight">Insight: Candidate Acceptance Prob stable at 78%.</p>
                                 </div>
                             </div>
                         </div>
