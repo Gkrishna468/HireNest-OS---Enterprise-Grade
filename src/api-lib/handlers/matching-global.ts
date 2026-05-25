@@ -1,6 +1,6 @@
-import { adminDb } from "../../lib/firebase-admin";
-import { dispatchWorkflowEvent } from "../../../api/lib/workflowQueue";
-import { runComprehensiveMatch } from "../ai/matchingEngine";
+import { adminDb } from "../../lib/firebase-admin.js";
+import { dispatchWorkflowEvent } from "../../../api/lib/workflowQueue.js";
+import { runComprehensiveMatch } from "../ai/matchingEngine.js";
 
 export default async function matchingGlobalHandler(req: any, res: any) {
   if (req.method !== "GET") {

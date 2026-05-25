@@ -1,11 +1,11 @@
-import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin";
+import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin.js";
 import { getAuth } from "firebase-admin/auth";
 
-import { computeFinancials } from "./lib/policyEngine";
-import { startSaga } from "./lib/stateMachine";
-import { dispatchWorkflowEvent } from "./lib/workflowQueue";
-import matchingGlobalHandler from "../src/api-lib/handlers/matching-global";
-import candidatesHandler from "../src/api-lib/handlers/candidates";
+import { computeFinancials } from "./lib/policyEngine.js";
+import { startSaga } from "./lib/stateMachine.js";
+import { dispatchWorkflowEvent } from "./lib/workflowQueue.js";
+import matchingGlobalHandler from "../src/api-lib/handlers/matching-global.js";
+import candidatesHandler from "../src/api-lib/handlers/candidates.js";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';

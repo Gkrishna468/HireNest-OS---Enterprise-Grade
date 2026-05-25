@@ -1,5 +1,5 @@
-import { getWeightProfileForJob } from "./rankingWeights";
-import { calculateAuthenticityScore } from "./authenticityScoring";
+import { getWeightProfileForJob } from "./rankingWeights.js";
+import { calculateAuthenticityScore } from "./authenticityScoring.js";
 
 export interface MatchResult {
   overallScore: number;

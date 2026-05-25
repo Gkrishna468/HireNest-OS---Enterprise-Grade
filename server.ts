@@ -5,6 +5,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
+// Add global error handlers
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 // Static Imports for all Handlers & Admin
 import { adminAuth } from './src/lib/firebase-admin.ts';
 import adminHandler from './api/admin.ts';
