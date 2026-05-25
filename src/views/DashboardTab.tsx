@@ -287,6 +287,114 @@ export default function DashboardTab() {
 
             {/* Sidebar Stats / AI Insight */}
             <div className="space-y-6">
+                    {/* Relic Identity Active Session */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Bot size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Bot size={14} className="animate-pulse text-cyan-400" /> Relic Active Identity
+                            </h3>
+                            <div className="space-y-2 text-xs">
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">SOUL.md</span>
+                                    <span className="text-cyan-300 font-bold text-[10px]">Loaded & Synced</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">USER.md</span>
+                                    <span className="text-cyan-300 font-bold text-[10px]">Synced (Recruiter)</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">MEMORY.md</span>
+                                    <span className="text-amber-400 font-bold text-[10px] flex items-center gap-1">Update Pending</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">RULES.md</span>
+                                    <span className="text-cyan-300 font-bold text-[10px]">Active</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">ETHICS.md</span>
+                                    <span className="text-emerald-400 font-bold text-[10px]">Enforcing</span>
+                                </div>
+                                <p className="text-[9px] text-slate-500 italic mt-2 border-t border-slate-800 pt-2">
+                                  System Comment: Agent personality is stable. AI is operating inside local markdown constraints.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cognitive Observability Layer */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Activity size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Activity size={14} className="animate-pulse text-fuchsia-400" /> Cognitive Observability
+                            </h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex justify-between text-[9px] mb-1 font-mono uppercase text-slate-400">
+                                        <span>System Cognitive Stability</span>
+                                        <span className="text-emerald-400">97%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-800 h-1 rounded overflow-hidden">
+                                        <div className="bg-emerald-400 h-full" style={{ width: '97%' }}></div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-[9px] font-mono">
+                                    <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
+                                        <span className="text-slate-500 uppercase">Hallucination Risk</span>
+                                        <span className="text-emerald-400 font-bold">LOW</span>
+                                    </div>
+                                    <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
+                                        <span className="text-slate-500 uppercase">Tenant Isolation</span>
+                                        <span className="text-emerald-400 font-bold">HEALTHY</span>
+                                    </div>
+                                    <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
+                                        <span className="text-slate-500 uppercase">Recruiter Drift</span>
+                                        <span className="text-cyan-400 font-bold">STABLE</span>
+                                    </div>
+                                    <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
+                                        <span className="text-slate-500 uppercase">Compression Load</span>
+                                        <span className="text-amber-400 font-bold">MODERATE</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tencent L0-L3 Memory Pyramid */}
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative group">
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <Activity size={14} className="text-indigo-600" /> Cognitive Memory State
+                            </h3>
+                            <div className="space-y-2 font-mono text-[10px]">
+                                <div className="flex bg-slate-50 p-2 justify-between border border-slate-100 rounded items-center">
+                                    <span className="text-slate-600 font-bold">L3 Persona</span>
+                                    <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[8px] uppercase tracking-widest font-black">Distilled</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 justify-between border border-slate-100 rounded items-center">
+                                    <span className="text-slate-600">L2 Scenario</span>
+                                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[8px] uppercase tracking-widest font-black">Aggregated</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 justify-between border border-slate-100 rounded items-center">
+                                    <span className="text-slate-500 text-[9px]">L1 Atom</span>
+                                    <span className="text-slate-400 text-[8px] uppercase">74 Facts Extracted</span>
+                                </div>
+                                <div className="flex bg-slate-50 p-2 justify-between border border-slate-100 rounded items-center">
+                                    <span className="text-slate-400 text-[9px]">L0 Conversation</span>
+                                    <span className="text-slate-400 text-[8px] uppercase">Archived (TCVDB)</span>
+                                </div>
+                            </div>
+                            <div className="mt-3 p-3 bg-red-50 text-red-700 border border-red-100 rounded text-[10px] italic">
+                                <strong>Alert:</strong> L1 Atomics vector space exceeding threshold. Scheduled recursive compression to L2 scenarios.
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="bg-indigo-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
                         <div className="absolute bottom-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                             <Activity size={120} />
