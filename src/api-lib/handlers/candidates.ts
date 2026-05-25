@@ -1,4 +1,4 @@
-import { adminDb } from "../src/lib/firebase-admin";
+import { adminDb } from "../../lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
   const { orgId, role, scan } = req.query;
@@ -29,7 +29,11 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({ success: true, candidates });
   } catch (error: any) {
-    console.error("[CANDIDATES_API_ERR] Error fetching candidates:", error);
+    if (error.code === 16 || error.message?.includes('UNAUTHENTICATED')) {
+      console.warn("[CANDIDATES_API_WARN] adminDb unauthenticated, falling back to client-side query.");
+    } else {
+      console.error("[CANDIDATES_API_ERR] Error fetching candidates:", error.message);
+    }
     return res.status(200).json({ success: true, candidates: [] });
   }
 }

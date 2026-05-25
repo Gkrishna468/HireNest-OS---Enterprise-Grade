@@ -640,6 +640,23 @@ export default function CandidatesTab() {
                       </div>
                     </div>
                     
+                    <div className="flex justify-between items-center bg-slate-50 border-t border-b border-slate-100 py-1.5 px-3 mb-4 -mx-5 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                            <Briefcase size={12} className="text-slate-400" />
+                            {(!cand.vendorId || cand.vendorId === 'ORG-GLOBAL-HQ' || cand.vendorId === 'ADMIN_POOL') ? (
+                                <span className="text-indigo-600">ADMIN HQ</span>
+                            ) : (
+                                <span className="text-emerald-600 truncate max-w-[120px]" title={cand.vendorName || cand.vendorId}>
+                                    {cand.vendorName || cand.vendorId}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                            <Activity size={12} className="text-indigo-400" />
+                            {cand.pipelineStage || 'Matched'}
+                        </div>
+                    </div>
+
                     <div className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-2 mb-4 bg-slate-50/50 p-2 rounded-lg">
                         <MapPin size={12} className="text-slate-300" /> {cand.location || 'Global Remote'} 
                         {cand.source === 'Bulk Upload' && <Badge className="text-[7px] font-black px-1.5 py-0 bg-slate-900 text-white border-none">UPLOAD</Badge>}
@@ -866,7 +883,29 @@ export default function CandidatesTab() {
                                   const isCurrent = selectedCandidate.pipelineStage === s;
                                   const isPast = STAGES.indexOf(selectedCandidate.pipelineStage) >= idx;
                                   return (
-                                      <div key={s} className="relative z-10 flex flex-col items-center group">
+                                      <div 
+                                        key={s} 
+                                        className="relative z-10 flex flex-col items-center group cursor-pointer"
+                                        onClick={async () => {
+                                            try {
+                                                if (s === "Deal Room") {
+                                                    if (!selectedJobId) {
+                                                        alert("Please map a requirement first before initiating the Deal Room.");
+                                                        return;
+                                                    }
+                                                    await finalizeDeal();
+                                                } else {
+                                                    await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
+                                                        pipelineStage: s,
+                                                        updatedAt: serverTimestamp()
+                                                    });
+                                                    setSelectedCandidate({ ...selectedCandidate, pipelineStage: s });
+                                                }
+                                            } catch (err: any) {
+                                                alert("Failed to update pipeline stage: " + err.message);
+                                            }
+                                        }}
+                                      >
                                           <div className={`h-8 w-8 rounded-full border-4 flex items-center justify-center transition-all duration-500 ${isCurrent ? 'bg-indigo-600 border-indigo-100 shadow-lg shadow-indigo-100' : isPast ? 'bg-emerald-500 border-emerald-100' : 'bg-white border-slate-100'}`}>
                                               {isPast && !isCurrent ? <CheckCircle size={14} className="text-white" /> : <div className={`h-1.5 w-1.5 rounded-full ${isCurrent ? 'bg-white animate-pulse' : 'bg-slate-300'}`} />}
                                           </div>

@@ -1034,7 +1034,7 @@ export default function JobsTab() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {[...submissions, ...globalMatches]
-                        .filter(sub => (sub.matchScore || 0) >= 50 || sub.isGlobalMatch)
+                        .filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)
                         .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
                         .map(sub => (
                           <div 
@@ -1075,7 +1075,7 @@ export default function JobsTab() {
                               </div>
                           </div>
                       ))}
-                      {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 50 || sub.isGlobalMatch)).length === 0 && (
+                      {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)).length === 0 && (
                          <div className="col-span-full py-32 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
                             <Network size={64} className="mx-auto mb-6 text-indigo-200 animate-pulse" />
                             <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">Semantic Expansion Active</p>
