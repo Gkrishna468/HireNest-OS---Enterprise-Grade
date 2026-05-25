@@ -1,5 +1,5 @@
 import { adminDb } from "../../src/lib/firebase-admin.js";
-import { detectRecursiveHallucination } from "./governanceEngine.js";
+import { detectRecursiveHallucination, checkMemoryContamination } from "./governanceEngine.js";
 
 /**
  * TencentDB-Inspired L0-L3 Memory Pyramid for AI Interactions
@@ -42,6 +42,9 @@ export async function insertMemoryNode(
         await detectRecursiveHallucination(layer, confidence, String(content));
     }
     
+    // Memory Bloat Prevention (Compression Governance / Archival Tiers)
+    const staleAfter = extraData.staleAfter || (layer === "L0_CONVERSATION" ? Date.now() + 7 * 24 * 60 * 60 * 1000 : null);
+    
     const nodeId = `mem_${layer}_${referenceId}_${Date.now()}`;
     try {
         await adminDb.collection("cognitiveMemoryPyramid").doc(nodeId).set({
@@ -54,7 +57,7 @@ export async function insertMemoryNode(
             confidence: confidence,
             verification: extraData.verification || false,
             source: extraData.source || "agent-generated",
-            staleAfter: extraData.staleAfter || null,
+            staleAfter: staleAfter,
             linkedEntities: extraData.linkedEntities || [],
             lineage: extraData.lineage || [],
             accessScope: extraData.accessScope || "tenant",
@@ -70,7 +73,7 @@ export async function insertMemoryNode(
     }
 }
 
-export async function fetchMemoryPyramid(referenceId: string) {
+export async function fetchMemoryPyramid(referenceId: string, requestingTenantId: string, recruiterId: string) {
     if (!adminDb) return [];
     try {
         const query = await adminDb.collection("cognitiveMemoryPyramid")
@@ -78,7 +81,22 @@ export async function fetchMemoryPyramid(referenceId: string) {
             .orderBy("createdAt", "desc")
             .limit(50)
             .get();
-        return query.docs.map(d => d.data());
+            
+        const results = [];
+        for (const doc of query.docs) {
+            const data = doc.data() as MemoryPyramidEntry;
+            
+            // Centralized Governance Verification Check during Retrieval
+            const accessPolicy = await checkMemoryContamination(requestingTenantId, data.tenantId, recruiterId);
+            if (accessPolicy.actionOverride === "BLOCK_EXECUTION") {
+                continue; // Hard block
+            } else if (accessPolicy.actionOverride === "SANDBOX_RETRIEVAL") {
+                // Return sanitized or sandboxed fragment 
+                continue; 
+            }
+            results.push(data);
+        }
+        return results;
     } catch (err) {
         console.warn("[MEMORY_PYRAMID] Fetch error:", err);
         return [];

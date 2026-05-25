@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield } from "lucide-react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
@@ -359,6 +359,32 @@ export default function DashboardTab() {
                                     <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
                                         <span className="text-slate-500 uppercase">Compression Load</span>
                                         <span className="text-amber-400 font-bold">MODERATE</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Agent Capability & Policy Execution */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <ShieldAlert size={14} className="text-indigo-400" /> Policy Execution Engine
+                            </h3>
+                            <div className="space-y-2 text-xs">
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">Conf &lt; 0.7 Action</span>
+                                    <span className="text-amber-400 font-bold text-[10px]">FORCE_EVIDENCE_MODE</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">Hallucination Risk Action</span>
+                                    <span className="text-red-400 font-bold text-[10px]">REQUIRE_HUMAN_APPROVAL</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 font-mono text-[9px] uppercase">Agent Capabilities</span>
+                                    <div className="flex gap-1">
+                                        <span className="px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded text-[8px] uppercase tracking-widest font-black">L3 Write: FALSE</span>
+                                        <span className="px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded text-[8px] uppercase tracking-widest font-black">Global Access: FALSE</span>
                                     </div>
                                 </div>
                             </div>

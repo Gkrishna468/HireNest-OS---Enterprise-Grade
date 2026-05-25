@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock, Zap, Activity } from "lucide-react";
+import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock, Zap, Activity, Network } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, orderBy, updateDoc, limit } from "firebase/firestore";
 import { logExecutionEvent, ExecutionEventType, createSLA } from "../lib/infrastructureService";
@@ -666,6 +666,37 @@ export default function DealRoomsTab() {
                                   <CheckCircle2 size={10} className="text-emerald-500 mt-0.5 shrink-0" /> {s}
                               </div>
                           ))}
+                      </div>
+                  </div>
+
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                      <h4 className="text-[9px] font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <Network size={12} /> Explainable AI Trust Evaluation
+                      </h4>
+                      <div className="space-y-1.5 mb-2">
+                        <div className="flex justify-between items-center text-[9px] font-mono bg-white p-1.5 rounded border border-indigo-50">
+                          <span className="text-slate-500 font-bold">L1 Atomic Fact Extraction</span>
+                          <span className="text-emerald-600 font-bold">Conf: 0.94</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[9px] font-mono bg-white p-1.5 rounded border border-indigo-50">
+                          <span className="text-slate-500 font-bold">L2 Scenario Synthesis</span>
+                          <span className="text-emerald-600 font-bold">Conf: 0.88</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[9px] font-mono bg-indigo-900 text-indigo-100 p-1.5 rounded border border-indigo-200">
+                          <span className="font-bold">L3 Profile Match</span>
+                          <span className="text-emerald-400 font-bold">Conf: 0.91</span>
+                        </div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-indigo-100 text-[9px] text-slate-600 italic">
+                        0.94 confidence match between L1 extracted skill [Rust, K8s] and Job Scenario. Full compliance verified without hallucination alerts.
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <button className="px-2 py-1 bg-emerald-600 text-white rounded text-[9px] font-black hover:bg-emerald-700 uppercase tracking-wider w-full flex items-center justify-center gap-1">
+                          <CheckCircle2 size={10}/> Approve
+                        </button>
+                        <button className="px-2 py-1 border border-slate-300 bg-white text-slate-700 rounded text-[9px] font-black hover:bg-slate-50 uppercase tracking-wider w-full flex items-center justify-center gap-1">
+                          Escalate
+                        </button>
                       </div>
                   </div>
 
