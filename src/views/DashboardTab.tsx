@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge } from "lucide-react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge, Database, PlayCircle } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
@@ -529,6 +529,48 @@ export default function DashboardTab() {
                                         <div className="flex justify-between"><span>Closure Cast</span><span className="font-bold">88%</span></div>
                                     </div>
                                     <p className="text-[8px] text-indigo-400/80 leading-tight">Insight: Candidate Acceptance Prob stable at 78%.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 14-16: Replication, Replay & Workforce Pods */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden md:col-span-2 lg:col-span-1">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Database size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Database size={14} className="text-teal-400" /> Distributed Infra & Workforce
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="bg-teal-950/30 p-2 rounded border border-teal-900/50 flex flex-col gap-1 text-[9px] font-mono">
+                                    <span className="text-teal-400 font-bold flex items-center gap-1"><Database size={10}/> Cognitive Replication</span>
+                                    <div className="flex justify-between items-center text-teal-200">
+                                        <span>Multi-Region Durability</span>
+                                        <Badge className="bg-teal-500/20 text-teal-400 text-[8px]">ACTIVE</Badge>
+                                    </div>
+                                    <span className="text-teal-500 text-[8px] mt-1">Snapshots replicating to us-east4, eu-west1.</span>
+                                </div>
+
+                                <div className="bg-blue-950/30 p-2 rounded border border-blue-900/50 flex flex-col gap-1 text-[9px] font-mono mt-2">
+                                    <span className="text-blue-400 font-bold flex items-center gap-1"><PlayCircle size={10}/> Explainability Replay Engine</span>
+                                    <div className="flex justify-between items-center text-blue-200 mt-1">
+                                        <span>Forensic Traces</span>
+                                        <span className="font-bold">241 logged</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-rose-950/30 p-2 rounded border border-rose-900/50 flex flex-col gap-1 text-[9px] font-mono mt-2">
+                                    <span className="text-rose-400 font-bold flex items-center gap-1"><Users size={10}/> AI Workforce Pods</span>
+                                    <div className="flex justify-between items-center text-rose-200 mt-1">
+                                        <span>Active Sourcing Swarms</span>
+                                        <span className="font-bold">3</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-rose-200">
+                                        <span>Gov Inspector Pods</span>
+                                        <span className="font-bold text-emerald-400">1 (Healthy)</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
