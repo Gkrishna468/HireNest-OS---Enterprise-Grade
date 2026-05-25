@@ -4,6 +4,8 @@ import { getAuth } from "firebase-admin/auth";
 import { computeFinancials } from "../src/api-lib/policyEngine";
 import { startSaga } from "../src/api-lib/stateMachine";
 import { dispatchWorkflowEvent } from "../src/api-lib/workflowQueue";
+import matchingGlobalHandler from "../src/api-lib/handlers/matching-global";
+import candidatesHandler from "../src/api-lib/handlers/candidates";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
@@ -32,12 +34,23 @@ export default async function handler(req: any, res: any) {
       action = 'notifications';
     } else if (rawPath.includes('governance')) {
       action = 'governance';
+    } else if (rawPath.includes('matching-global')) {
+      action = 'matching-global';
+    } else if (rawPath.includes('candidates')) {
+      action = 'candidates';
     } else {
       action = 'unknown';
     }
   }
 
   try {
+    if (action === 'matching-global') {
+      return matchingGlobalHandler(req, res);
+    }
+    if (action === 'candidates') {
+      return candidatesHandler(req, res);
+    }
+
     // 1. Diagnostics / Health
     if (action === 'diagnostics' || action === 'pre-flight') {
       try {

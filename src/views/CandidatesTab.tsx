@@ -80,7 +80,7 @@ export default function CandidatesTab() {
 
         // Initial load from API
         try {
-          const res = await fetch(`/api/user/candidates?orgId=${orgId}&role=${role}`);
+          const res = await fetch(`/api/candidates?orgId=${orgId}&role=${role}`);
           if (res.ok) {
             const data = await res.json();
             setCandidates(data.candidates || []);

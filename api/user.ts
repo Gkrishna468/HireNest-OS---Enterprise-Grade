@@ -90,11 +90,13 @@ export default async function handler(req: any, res: any) {
               .where("clientId", "==", queryOrgId)
               .get();
           }
-          requirements = requirementsSnap.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt ? (typeof doc.data().createdAt.toDate === 'function' ? doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : null
-          }));
+          if (requirementsSnap && requirementsSnap.docs) {
+            requirements = requirementsSnap.docs.map((doc: any) => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt ? (typeof doc.data().createdAt.toDate === 'function' ? doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : null
+            }));
+          }
         }
       } catch (dbErr) {
         console.warn("[USER_API] Proxy requirements fetch failed or bypassed:", dbErr);

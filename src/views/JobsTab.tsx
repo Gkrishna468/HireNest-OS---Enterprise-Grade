@@ -63,7 +63,7 @@ export default function JobsTab() {
       try {
         let candidateList = [];
         try {
-          const response = await fetch(`/api/user/candidates?scan=true&orgId=${orgId}&role=${userRole}`);
+          const response = await fetch(`/api/candidates?scan=true&orgId=${orgId}&role=${userRole}`);
           if (response.ok) {
             const apiData = await response.json();
             candidateList = apiData.candidates || [];
@@ -293,7 +293,7 @@ export default function JobsTab() {
     let unsubscribe: any;
     const loadRequirements = async () => {
       try {
-        const response = await fetch(`/api/user/context?orgId=${orgId}&role=${userRole}`);
+        const response = await fetch(`/api/user?action=context&orgId=${orgId}&role=${userRole}`);
         if (response.ok) {
           const resData = await response.json();
           if (resData.requirements) {

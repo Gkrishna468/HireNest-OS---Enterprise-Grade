@@ -27,9 +27,9 @@ export default async function handler(req: any, res: any) {
       ...doc.data()
     }));
 
-    res.status(200).json({ success: true, candidates });
+    return res.status(200).json({ success: true, candidates });
   } catch (error: any) {
     console.error("[CANDIDATES_API_ERR] Error fetching candidates:", error);
-    res.status(200).json({ success: true, candidates: [] });
+    return res.status(200).json({ success: true, candidates: [] });
   }
 }
