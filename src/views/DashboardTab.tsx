@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge, Database, PlayCircle } from "lucide-react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge, Database, PlayCircle, Zap } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
@@ -571,6 +571,56 @@ export default function DashboardTab() {
                                         <span>Gov Inspector Pods</span>
                                         <span className="font-bold text-emerald-400">1 (Healthy)</span>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 17: Infrastructure Resilience Testing */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden md:col-span-2 lg:col-span-1">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Zap size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Zap size={14} className="text-orange-400" /> Infra Resilience Testing
+                            </h3>
+                            <div className="space-y-3">
+                                <p className="text-[11px] text-slate-400 mb-2">Simulated fault injection for stability verification.</p>
+                                <div className="space-y-2">
+                                    <button 
+                                      className="w-full bg-slate-800/80 hover:bg-slate-700 text-[10px] text-orange-300 font-mono py-1.5 px-3 rounded border border-orange-900/50 flex justify-between items-center transition-colors"
+                                      onClick={() => {
+                                        console.log("[INFRA_CHAOS] Triggering network latency simulator...");
+                                        // In real usage, this would call infrastructureChaos module endpoint/function
+                                        setTimeout(() => alert("Simulated Network Timeout Triggered!"), 500);
+                                      }}
+                                    >
+                                        <span>Trigger Network Timeout</span>
+                                        <AlertTriangle size={10} className="text-orange-500" />
+                                    </button>
+                                    
+                                    <button 
+                                      className="w-full bg-slate-800/80 hover:bg-slate-700 text-[10px] text-rose-300 font-mono py-1.5 px-3 rounded border border-rose-900/50 flex justify-between items-center transition-colors"
+                                      onClick={() => {
+                                        console.log("[INFRA_CHAOS] Triggering database outage simulator...");
+                                        setTimeout(() => alert("Simulated Database Outage Triggered!"), 500);
+                                      }}
+                                    >
+                                        <span>Simulate DB Outage</span>
+                                        <Database size={10} className="text-rose-500" />
+                                    </button>
+
+                                    <button 
+                                      className="w-full bg-slate-800/80 hover:bg-slate-700 text-[10px] text-cyan-300 font-mono py-1.5 px-3 rounded border border-cyan-900/50 flex justify-between items-center transition-colors"
+                                      onClick={() => {
+                                        console.log("[INFRA_CHAOS] Triggering API rate limit simulator...");
+                                        setTimeout(() => alert("Simulated Token Rate Limit (HTTP 429) Triggered!"), 500);
+                                      }}
+                                    >
+                                        <span>Simulate API Rate Limiting</span>
+                                        <Activity size={10} className="text-cyan-500" />
+                                    </button>
                                 </div>
                             </div>
                         </div>

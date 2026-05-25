@@ -884,6 +884,11 @@ service cloud.firestore {
       allow write: if isPlatformAuthority();
     }
 
+    match /infrastructureChaosLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
     match /cognitiveReplication/{docId} {
       allow read: if isVerified();
       allow write: if isPlatformAuthority();
