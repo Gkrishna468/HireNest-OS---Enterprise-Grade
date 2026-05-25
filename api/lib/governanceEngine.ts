@@ -124,6 +124,44 @@ export async function detectRecursiveHallucination(layer: string, sourceConfiden
     }
 }
 
+export interface GovernanceScore {
+    targetId: string;
+    targetType: "tenant" | "recruiter" | "agent" | "workflow";
+    trustScore: number; // 0-100
+    cognitiveIntegrityScore: number; // 0-100
+    memoryReliabilityScore: number; // 0-100
+    driftProbability: number; // 0-1.0
+    lastCalculated: string;
+}
+
+export async function calculateGovernanceScore(targetId: string, targetType: "tenant" | "recruiter" | "agent" | "workflow"): Promise<GovernanceScore> {
+    // In a real system, we'd query governanceEvents, memory access logs, hallucination queues, etc.
+    // For this simulation, we'll generate slightly randomized stable scores to demonstrate the architecture.
+    
+    const baseScore = targetType === "agent" ? 95 : 98;
+    const driftProb = targetType === "agent" ? 0.05 : 0.01;
+
+    const score: GovernanceScore = {
+        targetId,
+        targetType,
+        trustScore: baseScore - Math.floor(Math.random() * 5),
+        cognitiveIntegrityScore: baseScore - Math.floor(Math.random() * 3),
+        memoryReliabilityScore: 90 + Math.floor(Math.random() * 10),
+        driftProbability: driftProb + (Math.random() * 0.02),
+        lastCalculated: new Date().toISOString()
+    };
+
+    if (adminDb) {
+        try {
+            await adminDb.collection("governanceScores").doc(`${targetType}_${targetId}`).set(score);
+        } catch(e) {
+            console.error("Failed to persist score", e);
+        }
+    }
+
+    return score;
+}
+
 export async function logGovernanceEvent(event: GovernanceEvent) {
     if (!adminDb) return;
     try {

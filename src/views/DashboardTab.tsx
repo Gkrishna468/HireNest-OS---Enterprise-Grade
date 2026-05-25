@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert } from "lucide-react";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
@@ -359,6 +359,106 @@ export default function DashboardTab() {
                                     <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col">
                                         <span className="text-slate-500 uppercase">Compression Load</span>
                                         <span className="text-amber-400 font-bold">MODERATE</span>
+                                    </div>
+                                    <div className="bg-slate-800/50 p-2 border border-slate-700/50 rounded flex justify-between flex-col col-span-2 mt-2">
+                                        <span className="text-slate-500 uppercase flex items-center justify-between">
+                                            Enterprise Trust Score
+                                            <Badge className="bg-emerald-500/20 text-emerald-400 text-[8px]">AA+</Badge>
+                                        </span>
+                                        <span className="text-white text-xl font-black">94</span>
+                                        <div className="text-slate-500 text-[8px] mt-1 space-y-1">
+                                            <div className="flex justify-between"><span>Cognitive Integrity:</span> <span className="text-slate-300">92/100</span></div>
+                                            <div className="flex justify-between"><span>Memory Reliability:</span> <span className="text-slate-300">98/100</span></div>
+                                            <div className="flex justify-between"><span>Drift Probability:</span> <span className="text-slate-300">4.1%</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Distributed Agent Arbitration (Phase 6) */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Network size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Network size={14} className="text-emerald-400" /> Distributed Agent Arbitration
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center text-[9px] font-mono bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 uppercase">Active Agent Locks</span>
+                                    <span className="text-emerald-400 font-bold">14</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[9px] font-mono bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 uppercase">Collisions Mitigated (1h)</span>
+                                    <span className="text-cyan-400 font-bold">3</span>
+                                </div>
+                                <div className="bg-amber-950/30 p-2 rounded border border-amber-900/50 flex flex-col gap-1 text-[9px] font-mono">
+                                    <span className="text-amber-500 font-bold flex items-center gap-1"><AlertTriangle size={10} /> Recursive Loop Blocked</span>
+                                    <span className="text-amber-400/80">RecruiterAgent blocked from duplicate write to mem_L2_Candidate.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 8: Distributed Memory Consensus */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <ShieldCheck size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Users size={14} className="text-cyan-400" /> Memory Consensus Quorum
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center text-[9px] font-mono bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 uppercase">Pending Mutators</span>
+                                    <span className="text-cyan-400 font-bold">2 L3 Nodes</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[9px] font-mono bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                    <span className="text-slate-400 uppercase">Quorum Approval Rate</span>
+                                    <span className="text-emerald-400 font-bold">98.5%</span>
+                                </div>
+                                <div className="bg-slate-800/50 p-2 rounded border border-slate-700/50 flex flex-col gap-1 text-[9px] font-mono mt-2">
+                                    <span className="text-slate-300 font-bold flex items-center justify-between">Recent Consensus
+                                        <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px]">REACHED</Badge>
+                                    </span>
+                                    <span className="text-slate-400">Recruiter, Governance, and Curator verified candidate identity.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Phase 9 & 10: Cognitive Recovery & Econ Optimization */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Bot size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Activity size={14} className="text-indigo-400" /> Recovery & Economics
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="bg-indigo-950/30 p-2 rounded border border-indigo-900/50 flex flex-col gap-1 text-[9px] font-mono">
+                                    <span className="text-indigo-400 font-bold">Git for Cognition</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-indigo-300/80">L2 Rollback Executed</span>
+                                        <span className="text-emerald-400 font-bold">SUCCESS</span>
+                                    </div>
+                                    <span className="text-slate-500 mt-1">Reverted hallucinated salary mismatch in 204ms.</span>
+                                </div>
+
+                                <div className="bg-amber-950/30 p-2 rounded border border-amber-900/50 flex flex-col gap-1 text-[9px] font-mono mt-2">
+                                    <span className="text-amber-500 font-bold">Economic Engine</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-amber-400/80">Optimal Margin Buffer</span>
+                                        <span className="text-white font-bold">14.5%</span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-1">
+                                        <span className="text-amber-400/80">Predicted Closure</span>
+                                        <span className="text-emerald-400 font-bold">88%</span>
                                     </div>
                                 </div>
                             </div>

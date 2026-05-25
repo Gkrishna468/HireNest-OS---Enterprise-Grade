@@ -871,6 +871,65 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // COGNITIVE INFRASTRUCTURE & GOVERNANCE COLLECTIONS
+    // =====================================================
+
+    match /governanceEvents/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /governanceScores/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /governanceApprovalQueue/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /consensusLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /cognitiveMemoryPyramid/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /cognitiveMemoryHistory/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /cognitiveRecoveryLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /economicOptimizations/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /arbitrationLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /arbitrationLocks/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /relicIdentities/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    // =====================================================
     // SYSTEM HEALTH
     // =====================================================
 
