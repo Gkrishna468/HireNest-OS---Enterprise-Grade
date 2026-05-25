@@ -14,6 +14,8 @@ import { HybridMatchResult } from "../types";
 
 import { useNavigate } from "react-router-dom";
 
+const STAGES = ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"];
+
 export default function JobsTab() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
@@ -1048,9 +1050,19 @@ export default function JobsTab() {
                                           {sub.candidateName?.slice(0, 2) || sub.name?.slice(0, 2)}
                                       </div>
                                       <div>
-                                          <div className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-all uppercase tracking-tight">{sub.candidateName || sub.name}</div>
+                                          <div className="flex items-center gap-2">
+                                              <div className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-all uppercase tracking-tight">{sub.candidateName || sub.name}</div>
+                                              <div className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{sub.candidateId || sub.id}</div>
+                                          </div>
                                           <div className="text-[11px] text-slate-400 font-bold flex items-center gap-2 mt-1.5 uppercase tracking-widest">
-                                              <Target size={14} className="text-slate-300" /> {sub.experience || '8+ YRS'} EXP • {sub.isGlobalMatch ? "Global Match" : sub.vendorName || "Active Vendor"}
+                                              <Target size={14} className="text-slate-300" /> {sub.experience || '8+ YRS'} EXP • 
+                                              {sub.isGlobalMatch ? "Global Match" : (!sub.vendorId || sub.vendorId === 'ORG-GLOBAL-HQ' || sub.vendorId === 'ADMIN_POOL') ? (
+                                                <span className="text-indigo-600">ADMIN HQ</span>
+                                              ) : (
+                                                <span className="text-emerald-600 truncate max-w-[120px]" title={sub.vendorName || sub.vendorId}>
+                                                    {sub.vendorName || sub.vendorId}
+                                                </span>
+                                              )}
                                           </div>
                                       </div>
                                   </div>
@@ -1113,6 +1125,51 @@ export default function JobsTab() {
                                 {aiAnalysis && (
                                    <div className="space-y-6">
                                       <AIMatching result={aiAnalysis as any} candidateName={selectedSubmission?.candidateName || selectedSubmission?.name || "Candidate"} />
+                                      
+                                      <div className="space-y-3">
+                                          <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">
+                                              <Activity size={12} className="text-indigo-500" /> Pipeline Pulse Flow
+                                          </h4>
+                                          <div className="bg-white border text-center border-slate-200 rounded-xl p-4 relative overflow-hidden">
+                                              <div className="relative flex justify-between">
+                                                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
+                                                  {STAGES.map((s, idx) => {
+                                                      const currentStage = selectedSubmission?.pipelineStage || "Matched";
+                                                      const isCurrent = currentStage === s;
+                                                      const isPast = STAGES.indexOf(currentStage) >= idx;
+                                                      return (
+                                                          <div 
+                                                            key={s} 
+                                                            className="relative z-10 flex flex-col items-center group cursor-pointer"
+                                                            onClick={async () => {
+                                                                if (s === "Deal Room") {
+                                                                    await handleCreateDealRoom(selectedSubmission);
+                                                                } else {
+                                                                    try {
+                                                                        await updateDoc(doc(db, "candidatePool", selectedSubmission.id || selectedSubmission.candidateId), {
+                                                                            pipelineStage: s,
+                                                                            updatedAt: serverTimestamp()
+                                                                        });
+                                                                        // Update deeply in state or local
+                                                                        selectedSubmission.pipelineStage = s;
+                                                                    } catch (err) {
+                                                                        console.error("Could not update pipelineStage", err);
+                                                                    }
+                                                                }
+                                                            }}
+                                                          >
+                                                              <div className={`h-6 w-6 rounded-full border-[3px] flex items-center justify-center transition-all duration-500 ${isCurrent ? 'bg-indigo-600 border-indigo-100 shadow-md shadow-indigo-100' : isPast ? 'bg-emerald-500 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                                                                  {isPast && !isCurrent ? <CheckCircle size={10} className="text-white" /> : <div className={`h-1 w-1 rounded-full ${isCurrent ? 'bg-white animate-pulse' : 'bg-slate-300'}`} />}
+                                                              </div>
+                                                              <div className="text-[6px] font-black uppercase text-slate-400 mt-2 tracking-wider text-center w-12 leading-tight">
+                                                                  {s}
+                                                              </div>
+                                                          </div>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
+                                      </div>
                                       
                                       <div className="space-y-3">
                                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Engagement Protocol</h4>
