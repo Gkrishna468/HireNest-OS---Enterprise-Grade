@@ -306,29 +306,14 @@ export default function CandidatesTab() {
              updatedAt: serverTimestamp()
          });
 
-         const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-         
-         await addDoc(collection(db, "workflowEvents"), {
-             eventType: "PARSE_RESUME_TEXT",
-             status: "QUEUED",
-             traceId: traceId,
-             payload: {
-                 candidateId: candId,
-                 resumeText: text,
-                 vendorId: userOrgId
-             },
-             idempotencyKey: `parse_resume_text_${candId}_${Date.now()}`,
-             retryCount: 0,
-             createdAt: serverTimestamp(),
-             updatedAt: serverTimestamp()
-         });
-         
+         // Process inline using the AI proxy
+         enrichCandidate(candId, text);
          count++;
       }
       
       setBulkText("");
       setShowBulkUpload(false);
-      alert(`Successfully queued ${count} candidates. AI workers will process them in the background.`);
+      alert(`Successfully queued ${count} candidates for background intelligence distillation.`);
     } catch (e: any) {
       alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
@@ -390,23 +375,8 @@ export default function CandidatesTab() {
                 updatedAt: serverTimestamp()
             });
 
-            const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-
-            // Queue Workflow Event (This makes it distributed)
-            await addDoc(collection(db, "workflowEvents"), {
-                eventType: "PARSE_RESUME_TEXT",
-                status: "QUEUED",
-                traceId: traceId,
-                payload: {
-                    candidateId: candId,
-                    resumeText: extText,
-                    vendorId: userOrgId
-                },
-                idempotencyKey: `parse_resume_file_${candId}`,
-                retryCount: 0,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            });
+            // Process inline using the AI proxy
+            enrichCandidate(candId, extText);
 
             successCount++;
         } catch (err: any) {
@@ -427,34 +397,35 @@ export default function CandidatesTab() {
     try {
         console.log(`[OS INTELLIGENCE] Queueing profile for ${candId}...`);
         
-        await setDoc(doc(db, "candidatePool", candId), {
+        await updateDoc(doc(db, "candidatePool", candId), {
             distillationStatus: "PROCESSING"
-        }, { merge: true });
-
-        const traceId = `trc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-
-        await addDoc(collection(db, "workflowEvents"), {
-            eventType: "PARSE_RESUME_TEXT",
-            status: "QUEUED",
-            traceId: traceId,
-            payload: {
-                candidateId: candId,
-                resumeText: text,
-                vendorId: userOrgId
-            },
-            idempotencyKey: `parse_resume_text_${candId}_${Date.now()}`,
-            retryCount: 0,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
         });
-        alert("Enrichment request queued successfully!");
+
+        // Use the existing proxy method to call the API
+        const parsedResults = await parseBulkResumes([text]);
+        const result = parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
+        
+        if (result && result.name && result.name !== "Pending Distillation") {
+            const updatePayload: any = {
+                ...result,
+                distillationStatus: "COMPLETED",
+                updatedAt: serverTimestamp()
+            };
+            // Do not override user original data if it exists (for manual form updates)
+            if (result.name === "Candidate " + candId) delete updatePayload.name; // Fallback name deletion
+            
+            await updateDoc(doc(db, "candidatePool", candId), updatePayload);
+        } else {
+             await updateDoc(doc(db, "candidatePool", candId), {
+                 distillationStatus: "FAILED"
+             });
+        }
     } catch (err: any) {
         console.error("Failed to queue enrichment:", err);
-        alert("Failed to queue enrichment: " + err.message);
         
-        await setDoc(doc(db, "candidatePool", candId), {
+        await updateDoc(doc(db, "candidatePool", candId), {
             distillationStatus: "FAILED"
-        }, { merge: true });
+        });
     }
   };
 
