@@ -352,18 +352,28 @@ export default function CandidatesTab() {
             const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
             const tempName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
             
-            // Upload directly to Firebase Storage bypass express buffers
-            const storagePath = `resumes/${userOrgId || "local"}/${candId}_${file.name}`;
-            const fileRef = ref(storage, storagePath);
-            await uploadBytes(fileRef, file);
-            
-            // Generate a secure view-only link for future recruiters to look at raw PDF
-            const downloadUrl = await getDownloadURL(fileRef);
-
             // Simulate Front-end Extraction so user sees immediate results in the textarea
-            const mockExtracted = `CANDIDATE: ${tempName}\nFILE: ${file.name}\nLOC: Unknown\nSKILLS: JavaScript, React, Node.js\nEXP: 5 Years\n\nDetailed extract of metadata...`;
-            if (combinedExtractedText) combinedExtractedText += `\n---\n${mockExtracted}`;
-            else combinedExtractedText = mockExtracted;
+            // Because Firebase Storage might block unauthorized uploads, we bypass it,
+            // and instead post directly to our backend extraction pipeline to read the text.
+            const formData = new FormData();
+            formData.append('file', file);
+            let extText = `CANDIDATE: ${tempName}\nFILE: ${file.name}\nLOC: Unknown\nSKILLS: Not Parsed\nEXP: Unknown`;
+            
+            try {
+                const res = await fetch('/api/extract-text', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.text) extText = data.text;
+                }
+            } catch(e) {
+                console.warn("Extraction failed, using fallback mock", e);
+            }
+
+            if (combinedExtractedText) combinedExtractedText += `\n\n---\n\n${extText}`;
+            else combinedExtractedText = extText;
 
             // Create lightweight QUEUED candidate in Firestore
             await setDoc(doc(db, "candidatePool", candId), {
@@ -374,10 +384,8 @@ export default function CandidatesTab() {
                 pipelineStage: "Candidate Added",
                 source: "Bulk Upload",
                 fileName: file.name,
-                storagePath: storagePath,
-                downloadUrl: downloadUrl,
                 status: "QUEUED",
-                distillationStatus: "PENDING",
+                distillationStatus: "PROCESSING",
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
@@ -386,14 +394,12 @@ export default function CandidatesTab() {
 
             // Queue Workflow Event (This makes it distributed)
             await addDoc(collection(db, "workflowEvents"), {
-                eventType: "PARSE_RESUME_FILE",
+                eventType: "PARSE_RESUME_TEXT",
                 status: "QUEUED",
                 traceId: traceId,
                 payload: {
                     candidateId: candId,
-                    storagePath: storagePath,
-                    fileName: file.name,
-                    downloadUrl: downloadUrl,
+                    resumeText: extText,
                     vendorId: userOrgId
                 },
                 idempotencyKey: `parse_resume_file_${candId}`,
