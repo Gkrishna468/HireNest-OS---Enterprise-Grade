@@ -799,7 +799,6 @@ function OrchestrationHubView() {
             .then(data => {
                 if (data.ok) {
                     setRequirements(data.requirements_public || data.requirements || []);
-                    setDurableExecutions(data.durableExecutions || []);
                     setAgentRuntimes(data.agentRuntimePools || []);
                     setInfrastructureShards(data.tenantInfrastructureMap || []);
                     setBillingLedgers(data.billingLedgers || []);
@@ -812,6 +811,21 @@ function OrchestrationHubView() {
                     setFederatedBroadcasts(data.federatedBroadcasts || []);
                 }
             });
+
+        // Fetch Real Durable Workflows from our new Temporal engine
+        const fetchWorkflows = () => {
+            fetch('/api/workflows')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.workflows) {
+                        setDurableExecutions(data.workflows);
+                    }
+                })
+                .catch(() => {});
+        };
+        fetchWorkflows();
+        const interval = setInterval(fetchWorkflows, 2000);
+        return () => clearInterval(interval);
     }, []);
 
     return (
@@ -820,6 +834,56 @@ function OrchestrationHubView() {
                 <div>
                     <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Autonomous Orchestration Hub</h2>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Durable Workflows & Agent Coordination Layer</p>
+                    <div className="flex gap-2 mt-4 flex-wrap">
+                        <Button
+                            onClick={() => {
+                                fetch('/api/workflows', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ action: 'start', workflowType: 'VendorGovernance', input: {} })
+                                });
+                            }}
+                            className="bg-indigo-600 hover:bg-slate-900 text-white rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest flex items-center justify-center transition-all"
+                        >
+                            Trigger Vendor Gov
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                fetch('/api/workflows', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ action: 'start', workflowType: 'AICopilotOrchestration', input: {} })
+                                });
+                            }}
+                            className="bg-emerald-600 hover:bg-slate-900 text-white rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest flex items-center justify-center transition-all"
+                        >
+                            Trigger AI Copilot
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                fetch('/api/workflows', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ action: 'start', workflowType: 'SLAEscalation', input: {} })
+                                });
+                            }}
+                            className="bg-amber-600 hover:bg-slate-900 text-white rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest flex items-center justify-center transition-all"
+                        >
+                            Trigger SLA Esc
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                fetch('/api/workflows', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ action: 'start', workflowType: 'InterviewCoordination', input: {} })
+                                });
+                            }}
+                            className="bg-rose-600 hover:bg-slate-900 text-white rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest flex items-center justify-center transition-all"
+                        >
+                            Trigger Interview Flow
+                        </Button>
+                    </div>
                 </div>
                 <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center gap-4">
                     <div className="text-center">
@@ -841,28 +905,48 @@ function OrchestrationHubView() {
                     {durableExecutions.length === 0 ? (
                         <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest bg-white border border-slate-100 rounded-3xl">No durable executions active</div>
                     ) : durableExecutions.map((exec) => (
-                        <div key={exec.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex items-center gap-8 group hover:border-indigo-200 transition-all">
-                            <div className="h-20 w-20 rounded-3xl bg-indigo-600 flex flex-col items-center justify-center text-white relative shrink-0">
-                                <Cpu size={32} />
-                                <div className="absolute -bottom-2 bg-slate-900 text-[10px] px-2 py-0.5 rounded shadow">
-                                    {exec.partition || "GLOBAL"}
+                        <div key={exec.id} className="bg-white rounded-[40px] border border-slate-100 p-8 flex items-start gap-8 group hover:border-indigo-200 transition-all flex-col lg:flex-row">
+                            <div className="flex gap-6 flex-1 w-full">
+                                <div className={cn("h-20 w-20 rounded-3xl flex flex-col items-center justify-center text-white relative shrink-0", exec.status === 'COMPLETED' ? "bg-emerald-600" : exec.status === 'RUNNING' ? "bg-indigo-600 animate-pulse" : "bg-amber-600")}>
+                                    <Cpu size={32} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{exec.type || exec.workflowType}</h3>
+                                        <Badge variant="outline" className={cn("text-[9px] font-black", exec.status === 'COMPLETED' ? 'text-emerald-500' : 'text-indigo-500')}>{exec.status}</Badge>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-4">
+                                        <span>WF-ID: <span className="font-mono text-slate-500">{exec.id}</span></span>
+                                        <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                        <span className="text-indigo-500">Current Step: {exec.currentStep || 'NONE'}</span>
+                                    </div>
+                                    <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 max-h-40 overflow-y-auto">
+                                        <div className="text-[10px] font-black tracking-widest text-slate-400 uppercase mb-2">Temporal Execution History</div>
+                                        {exec.history?.map((evt: any, i: number) => (
+                                            <div key={i} className="flex gap-4 text-[10px] font-bold text-slate-600 mb-1">
+                                                <span className="text-slate-400 font-mono w-16 shrink-0">{new Date(evt.timestamp).toISOString().split('T')[1].slice(0, 8)}</span>
+                                                <span className={evt.details?.includes('failed') ? "text-rose-500" : evt.type === 'WorkflowExecutionSignaled' ? 'text-amber-500' : "text-indigo-500"}>[{evt.type}]</span>
+                                                <span>{evt.details}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic">{exec.workflowType}</h3>
-                                    <Badge variant="outline" className={cn("text-[9px] font-black", exec.state === 'COMPLETED' ? 'text-emerald-500' : 'text-indigo-500')}>{exec.state}</Badge>
-                                </div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-4">
-                                    <span>ID: {exec.id}</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-200" />
-                                    <span>History Len: {exec.history?.length || 0}</span>
-                                </div>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Button className="bg-white text-indigo-600 border border-indigo-100 hover:bg-slate-50 font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl">
-                                    Trace
+                            <div className="flex flex-col gap-2 shrink-0">
+                            {exec.status === 'PAUSED' && (
+                                <Button 
+                                    onClick={() => {
+                                        fetch('/api/workflows', {
+                                            method: 'POST',
+                                            headers: {'Content-Type': 'application/json'},
+                                            body: JSON.stringify({ action: 'signal', workflowId: exec.id, signalName: 'CONTINUE', signalData: {} })
+                                        });
+                                    }}
+                                    className="bg-amber-100 text-amber-700 hover:bg-amber-200 font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl border border-amber-200"
+                                >
+                                    Force Signal
                                 </Button>
+                            )}
                             </div>
                         </div>
                     ))}

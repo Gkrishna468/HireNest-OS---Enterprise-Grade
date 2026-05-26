@@ -50,7 +50,7 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
         if (!name || !email) return;
         setIsSubmitting(true);
         try {
-             await addDoc(collection(db, "submissions"), {
+             const docRef = await addDoc(collection(db, "submissions"), {
                  reqId,
                  reqTitle,
                  candidateName: name,
@@ -64,6 +64,18 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                  submittedAt: serverTimestamp(),
                  stage: "NEW"
              });
+             
+             // Trigger Temporal Workflow
+             await fetch('/api/workflows', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     action: 'start',
+                     workflowType: 'CandidateLifecycle',
+                     input: { submissionId: docRef.id }
+                 })
+             });
+
              onClose();
         } catch (error) {
              console.error("Submission failed: ", error);
