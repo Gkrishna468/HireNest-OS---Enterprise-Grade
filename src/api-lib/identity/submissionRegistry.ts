@@ -1,4 +1,4 @@
-import { adminDb } from "../../lib/firebase-admin";
+import { adminDb } from '../../lib/firebase-admin.js';
 
 export async function acquireSubmissionLock(globalCandidateId: string, requirementId: string, vendorId: string): Promise<{ success: boolean; conflictOwner?: string }> {
     if (!adminDb) return { success: false };

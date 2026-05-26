@@ -1,5 +1,5 @@
-import { WorkflowRegistry } from '../engine';
-import { adminDb } from '../../../lib/firebase-admin';
+import { WorkflowRegistry } from '../engine.js';
+import { adminDb } from '../../../lib/firebase-admin.js';
 
 export const VendorSubmissionGovernanceWorkflow = {
     async executeStep(step: string, state: any, input: any, workflowId: string) {

@@ -1,4 +1,4 @@
-import { adminDb } from "../../../src/lib/firebase-admin";
+import { adminDb } from '../../../src/lib/firebase-admin.js';
 import crypto from "crypto";
 
 export async function getCachedMatchResult(globalCandidateId: string, requirementId: string, weightsVersion: string): Promise<any | null> {

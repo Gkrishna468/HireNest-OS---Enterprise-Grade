@@ -1,4 +1,4 @@
-import { WorkflowRegistry } from '../engine';
+import { WorkflowRegistry } from '../engine.js';
 
 export const AICopilotOrchestrationWorkflow = {
     async executeStep(step: string, state: any, input: any, workflowId: string) {

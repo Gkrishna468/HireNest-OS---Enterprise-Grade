@@ -1,4 +1,4 @@
-import { adminDb } from '../../lib/firebase-admin';
+import { adminDb } from '../../lib/firebase-admin.js';
 import * as admin from 'firebase-admin';
 
 export type WorkflowStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'PAUSED';

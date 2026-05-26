@@ -1,5 +1,5 @@
-import { WorkflowRegistry } from '../engine';
-import { adminDb } from '../../../lib/firebase-admin';
+import { WorkflowRegistry } from '../engine.js';
+import { adminDb } from '../../../lib/firebase-admin.js';
 import * as admin from 'firebase-admin';
 
 export const CandidateLifecycleWorkflow = {

@@ -1,4 +1,4 @@
-import { sanitizePromptInput } from "../security/promptFirewall";
+import { sanitizePromptInput } from '../security/promptFirewall.js';
 
 export async function parseJobDescription(jdText: string, aiClient: any): Promise<any> {
     const safeJdText = sanitizePromptInput(jdText);

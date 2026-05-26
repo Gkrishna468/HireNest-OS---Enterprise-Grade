@@ -1,10 +1,10 @@
-import { temporal } from '../temporal/engine';
+import { temporal } from '../temporal/engine.js';
 import '../temporal/workflows/candidate-lifecycle';
 import '../temporal/workflows/vendor-governance';
 import '../temporal/workflows/ai-copilot';
 import '../temporal/workflows/sla-escalation';
 import '../temporal/workflows/interview-coordination';
-import { adminDb } from '../../lib/firebase-admin';
+import { adminDb } from '../../lib/firebase-admin.js';
 
 export default async function workflowsHandler(req: any, res: any) {
     if (req.method === 'POST') {
