@@ -33,16 +33,17 @@ export default async function matchingGlobalHandler(req: any, res: any) {
         
         let candidatesQuery: any = adminDb.collection("candidatePool");
         
-        // Scope 1: Only check candidates explicitly mapped to this requirement to prevent leakage
-        candidatesQuery = candidatesQuery.where("mappedJobId", "==", targetReqId);
+        // Scope 2: Apply vendor isolation if not purely an admin or client
+        // Note: Clients should be able to see matches from ANY vendor if the matches are good.
+        // If role is vendor or recruiter, optionally restrict to their own candidates and ADMIN HQ.
+        // But for simplicity, let's get the whole pool and then filter out during matching if needed, 
+        // though typically Firestore query is better. Let's keep it simple: get all candidates!
+        // We evaluate every candidate contextually against the JD.
         
-        // Scope 2: Apply vendor isolation if not purely an admin
-        if (!isAdmin && orgId) {
-            // Note: Client can see all mapped candidates for this job (since they own the job)
-            // But wait, if role is vendor, restrict to their own candidates
-            if (role?.includes('vendor') || role === 'recruiter') {
-               candidatesQuery = candidatesQuery.where("vendorId", "==", orgId);
-            }
+        if (!isAdmin && orgId && (role?.includes('vendor') || role === 'recruiter')) {
+           // Wait, Firestore doesn't support logical OR for different fields easily without composite indexes or `in`,
+           // So for a vendor, let's just get their own candidates.
+           candidatesQuery = candidatesQuery.where("vendorId", "==", orgId);
         }
 
         const snapshot = await candidatesQuery.get();
@@ -53,25 +54,27 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           // Execute contextual semantic mapping
           const matchResult = await runComprehensiveMatch(jdObject, cand);
 
-          // We return requirement-scoped matches, scored contextually against the JD
-          matchedCandidates.push({
-            id: doc.id,
-            candidateId: cand.candidateId || doc.id,
-            name: cand.name || "Verified Talent",
-            email: cand.email || "talent@vendor-network.net",
-            phone: cand.phone || "+91 91000 23144",
-            linkedin: cand.linkedin || "https://linkedin.com",
-            skills: cand.skills || [],
-            experience: cand.experience || "Not Specified",
-            vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
-            pipelineStage: cand.pipelineStage || "Mapped to Requirement",
-            matchScore: matchResult.overallScore,
-            isGlobalMatch: false,
-            breakdown: matchResult.breakdown,
-            strengths: matchResult.explanation.recruiterView.strengths,
-            gaps: matchResult.explanation.recruiterView.gaps,
-            suitabilitySummary: "Match evaluated contextually for this requirement."
-          });
+          // Only return candidates that pass the intelligent threshold (>= 70%)
+          if (matchResult.overallScore >= 70) {
+              matchedCandidates.push({
+                id: doc.id,
+                candidateId: cand.candidateId || doc.id,
+                name: cand.name || "Verified Talent",
+                email: cand.email || "talent@vendor-network.net",
+                phone: cand.phone || "+91 91000 23144",
+                linkedin: cand.linkedin || "https://linkedin.com",
+                skills: cand.skills || [],
+                experience: cand.experience || "Not Specified",
+                vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
+                pipelineStage: cand.pipelineStage || "Match Identified",
+                matchScore: matchResult.overallScore,
+                isGlobalMatch: true,
+                breakdown: matchResult.breakdown,
+                strengths: matchResult.explanation.recruiterView.strengths,
+                gaps: matchResult.explanation.recruiterView.gaps,
+                suitabilitySummary: "Match evaluated contextually for this requirement."
+              });
+          }
         }
       } catch (dbErr) {
         console.warn("[MATCHING_REQUIREMENT_DB_WARN] Failed to query mapped candidates:", dbErr);

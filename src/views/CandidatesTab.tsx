@@ -550,7 +550,7 @@ export default function CandidatesTab() {
         )}
       </div>
 
-      <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2">
+      <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2 custom-scrollbar">
         {STAGES.map((stage, sIdx) => {
           const list = candidates.filter(c => c.pipelineStage === stage);
           return (

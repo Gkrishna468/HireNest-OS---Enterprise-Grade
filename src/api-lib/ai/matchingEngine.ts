@@ -40,7 +40,7 @@ export function evaluateHardConstraints(jd: any, candidate: any): boolean {
 }
 
 export function calculateSemanticScore(jdSkills: string[], candSkills: string[]): number {
-  if (!jdSkills || jdSkills.length === 0) return 85; 
+  if (!jdSkills || jdSkills.length === 0) return 0; 
   if (!candSkills || candSkills.length === 0) return 0;
   
   let matchCount = 0;
@@ -80,7 +80,7 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
     };
   }
 
-  const jdSkills: string[] = jd.skills || [];
+  const jdSkills: string[] = (jd.skills || []).map((s: any) => String(s).toLowerCase().trim());
   const candSkills: string[] = (candidate.skills || []).map((s: any) => String(s).toLowerCase().trim());
 
   const weights = getWeightProfileForJob(jd);
