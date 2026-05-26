@@ -216,10 +216,10 @@ export default function AdminSecurityDashboard() {
   );
 
   // NEW TIERED HEALTH MODEL
-  const runtimeStatus = preFlight?.ok ? "healthy" : "offline";
-  const governanceStatus = diagnostics?.ok ? diagnostics.governance : "offline";
+   const runtimeStatus = preFlight?.ok ? "healthy" : "fallback";
+  const governanceStatus = diagnostics?.ok ? diagnostics.governance : "fallback";
   
-  const isBlocked = runtimeStatus === "offline"; 
+  const isBlocked = runtimeStatus === "fallback"; 
   const isDegraded = runtimeStatus === "healthy" && governanceStatus !== "healthy";
   const isNominal = runtimeStatus === "healthy" && governanceStatus === "healthy";
 
@@ -253,7 +253,7 @@ export default function AdminSecurityDashboard() {
                isDegraded ? "bg-amber-50 border-amber-600 text-amber-600" :
                "bg-emerald-50 border-emerald-600 text-emerald-600"
              )}>
-                {isBlocked ? "RUNTIME_OFFLINE" : isDegraded ? "GOVERNANCE_DEGRADED" : "NOMINAL_ACTIVE"}
+                {isBlocked ? "CLIENT_FALLBACK" : isDegraded ? "GOVERNANCE_DEGRADED" : "NOMINAL_ACTIVE"}
              </Badge>
            </div>
            

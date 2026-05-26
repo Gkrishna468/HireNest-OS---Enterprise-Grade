@@ -98,15 +98,11 @@ export default function CandidatesTab() {
             ? query(collection(db, "candidatePool"), limit(100))
             : query(collection(db, "candidatePool"), where("vendorId", "==", orgId), limit(100));
 
-        const fetchCandidates = async () => {
-          try {
-            const snap = await getDocs(q);
-            setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          } catch (error: any) {
-            handleFirestoreError(error, OperationType.GET, "candidatePool");
-          }
-        };
-        fetchCandidates();
+        unsubscribe = onSnapshot(q, (snap) => {
+          setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }, (error: any) => {
+          handleFirestoreError(error, OperationType.GET, "candidatePool");
+        });
 
         }
       } catch (err: any) {
@@ -652,10 +648,10 @@ export default function CandidatesTab() {
                       )}
                     </div>
                     
-                    {cand.distillationStatus === 'FAILED' && (
+                    {(cand.distillationStatus === 'FAILED' || cand.distillationStatus === 'PENDING' || cand.distillationStatus === 'PROCESSING') && (
                         <div className="mt-4 pt-4 border-t border-slate-50 flex flex-col gap-2">
-                           <div className="flex items-center gap-2 text-red-500 text-[10px] font-black uppercase tracking-widest">
-                               <AlertTriangle size={12} /> Sync Failed
+                           <div className="flex items-center gap-2 text-amber-500 text-[10px] font-black uppercase tracking-widest">
+                               <AlertTriangle size={12} /> {cand.distillationStatus === 'FAILED' ? 'Sync Failed' : 'Sync Stuck in Queue'}
                            </div>
                            <button 
                              onClick={(e) => {
