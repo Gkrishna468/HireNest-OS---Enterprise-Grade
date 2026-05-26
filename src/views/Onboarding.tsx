@@ -691,19 +691,21 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     </div>
                   )}
 
-                  {/* Standard Aadhaar input (Mandatory for all roles!) */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Aadhaar Card Number (12 Digits)</label>
-                    <input 
-                      type="text" 
-                      required
-                      maxLength={12}
-                      value={aadhaarNumber}
-                      onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-black tracking-[0.2em] transition-all outline-none"
-                      placeholder="000000000000"
-                    />
-                  </div>
+                  {/* Aadhaar input (For Independents only!) */}
+                  {["independent_recruiter", "independent_vendor"].includes(orgType) && (
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Aadhaar Card Number (12 Digits)</label>
+                      <input 
+                        type="text" 
+                        required
+                        maxLength={12}
+                        value={aadhaarNumber}
+                        onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
+                        className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-black tracking-[0.2em] transition-all outline-none"
+                        placeholder="000000000000"
+                      />
+                    </div>
+                  )}
 
                   {/* LinkedIn profile URL */}
                   <div>
@@ -731,30 +733,32 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                   <p className="text-[10px] text-slate-500 font-semibold uppercase leading-snug mb-2">Each secure node is validated with supporting credentials. Base documents are encrypted end-to-end.</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Aadhaar File Upload (Required across all roles) */}
-                    <div className="space-y-1 bg-white p-3.5 rounded-xl border border-slate-200">
-                      <span className="text-[9px] font-black uppercase text-slate-400">Government ID (Aadhaar Card)</span>
-                      <div className="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-lg p-3 transition-colors text-center cursor-pointer flex flex-col items-center justify-center min-h-[70px]">
-                        <input 
-                          type="file" 
-                          required
-                          disabled={loading}
-                          accept=".pdf,image/*"
-                          onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                        {aadhaarFile ? (
-                          <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1.5">
-                            <CheckCircle size={14} /> {aadhaarFile.name.substring(0, 18)}...
-                          </div>
-                        ) : (
-                          <div className="text-slate-400 flex flex-col items-center">
-                            <UploadCloud size={18} className="text-indigo-400 mb-1" />
-                            <span className="text-[9px] font-mono leading-none">Aadhaar Card (PDF/Image)</span>
-                          </div>
-                        )}
+                    {/* Aadhaar File Upload (Independents only) */}
+                    {["independent_recruiter", "independent_vendor"].includes(orgType) && (
+                      <div className="space-y-1 bg-white p-3.5 rounded-xl border border-slate-200">
+                        <span className="text-[9px] font-black uppercase text-slate-400">Government ID (Aadhaar Card)</span>
+                        <div className="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-lg p-3 transition-colors text-center cursor-pointer flex flex-col items-center justify-center min-h-[70px]">
+                          <input 
+                            type="file" 
+                            required
+                            disabled={loading}
+                            accept=".pdf,image/*"
+                            onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          {aadhaarFile ? (
+                            <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1.5">
+                              <CheckCircle size={14} /> {aadhaarFile.name.substring(0, 18)}...
+                            </div>
+                          ) : (
+                            <div className="text-slate-400 flex flex-col items-center">
+                              <UploadCloud size={18} className="text-indigo-400 mb-1" />
+                              <span className="text-[9px] font-mono leading-none">Aadhaar Card (PDF/Image)</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Role-Specific Document Upload */}
                     {["client", "vendor_agency"].includes(orgType) && (
@@ -784,7 +788,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                         </div>
 
                         <div className="sm:col-span-2 space-y-1 bg-white p-3.5 rounded-xl border border-slate-200">
-                          <span className="text-[9px] font-black uppercase text-slate-400">Signed Master Agreement / NDA</span>
+                          <span className="text-[9px] font-black uppercase text-slate-400">MSA & NDA Agreement</span>
                           <div className="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-lg p-3 transition-colors text-center cursor-pointer flex flex-col items-center justify-center min-h-[70px]">
                             <input 
                               type="file" 
@@ -801,7 +805,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                             ) : (
                               <div className="text-slate-400 flex flex-col items-center">
                                 <FileText size={18} className="text-indigo-400 mb-1" />
-                                <span className="text-[9px] font-mono leading-none">Upload Signed Agreement Document (PDF)</span>
+                                <span className="text-[9px] font-mono leading-none">Upload Signed MSA & NDA Document (PDF)</span>
                               </div>
                             )}
                           </div>

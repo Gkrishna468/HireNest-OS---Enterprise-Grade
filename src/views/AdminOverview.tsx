@@ -181,6 +181,56 @@ export default function AdminOverview() {
                 {data.requirements.filter((r:any) => r.status === 'PENDING_FINANCIAL_APPROVAL').length === 0 && (
                    <div className="text-center py-8 text-slate-400 text-xs italic">All commercial gates are currently clear.</div>
                 )}
+
+                {/* Radar: Network Activity Alerts */}
+                <div className="mt-10 mb-4 pt-6 border-t border-slate-100 flex items-center justify-between">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center gap-2">
+                        <Activity size={14} className="animate-pulse text-indigo-400" /> Active Network Radar
+                    </h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Recently Online Nodes (approximation via recently formed reqs) */}
+                    <div className="bg-slate-50 rounded-3xl p-5 border border-slate-100">
+                        <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Recently Added Assets & Jobs</h5>
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                           {[...(data.requirements || [])].sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0,5).map((req: any, i) => (
+                             <div key={`req-${i}`} className="flex items-center gap-3 text-xs bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                <span className="h-6 w-6 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center"><Briefcase size={10} /></span>
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="truncate font-black text-slate-800 uppercase text-[10px]">{req.title || 'Untitled Req'}</div>
+                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">{req.clientId || 'Unknown Source'}</div>
+                                </div>
+                             </div>
+                           ))}
+                           {[...(data.candidates || [])].sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0,5).map((cand: any, i) => (
+                             <div key={`cand-${i}`} className="flex items-center gap-3 text-xs bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                <span className="h-6 w-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center"><Users size={10} /></span>
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="truncate font-black text-slate-800 uppercase text-[10px]">{cand.name || 'Anonymous Profile'}</div>
+                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">{cand.jobTitle || cand.vendorId || 'Raw Upload'}</div>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-3xl p-5 border border-slate-100 group">
+                        <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Recent Online Verified Nodes</h5>
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                            {[...(data.organizations || [])].sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()).slice(0,10).map((org: any, i) => (
+                                <div key={i} className="flex items-center gap-3 text-xs bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                    <span className="font-bold text-[10px] text-slate-700 uppercase">{org.companyName || org.id}</span>
+                                    <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded text-slate-500 bg-slate-100 font-mono font-black">{org.type}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
              </div>
           </div>
         </div>
