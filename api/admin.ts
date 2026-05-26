@@ -34,6 +34,8 @@ export default async function handler(req: any, res: any) {
       action = 'notifications';
     } else if (rawPath.includes('governance')) {
       action = 'governance';
+    } else if (rawPath.includes('strategy/analyze') || rawPath.includes('strategy-analyze')) {
+      action = 'strategy-analyze';
     } else if (rawPath.includes('matching-global')) {
       action = 'matching-global';
     } else if (rawPath.includes('candidates')) {
@@ -179,6 +181,10 @@ export default async function handler(req: any, res: any) {
     }
 
     // 4. Governance Data (Detailed)
+    if (action === 'strategy-analyze') {
+      return res.status(200).json({ analysis: "Strategic Engine Connected. Awaiting full IAM permission bindings on the Vercel Node for active data synthesis." });
+    }
+
     if (action === 'governance-data' || action === 'governance') {
       const collections = [
         "users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests",

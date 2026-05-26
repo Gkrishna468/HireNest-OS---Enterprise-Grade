@@ -25,6 +25,7 @@
     { "source": "/api/onboard-request", "destination": "/api/admin?action=onboard-request" },
     { "source": "/api/admin/governance", "destination": "/api/admin?action=governance" },
     { "source": "/api/governance", "destination": "/api/admin?action=governance" },
+    { "source": "/api/strategy/analyze", "destination": "/api/admin?action=strategy-analyze" },
     { "source": "/api/deal-intelligence", "destination": "/api/intel" },
     { "source": "/api/matching/global", "destination": "/api/admin?action=matching-global" },
     { "source": "/api/admin/notify-approval", "destination": "/api/admin?action=notify-approval" },
