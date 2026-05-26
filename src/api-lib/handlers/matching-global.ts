@@ -7,8 +7,12 @@ export default async function matchingGlobalHandler(req: any, res: any) {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const { requirementId, skills } = req.query;
+  const { requirementId, orgId, role, skills } = req.query;
   const targetReqId = requirementId || "";
+
+  if (!targetReqId) {
+    return res.status(400).json({ error: "requirementId is required for contextual matching" });
+  }
 
   // Parse skills array
   let reqSkills: string[] = [];
@@ -21,65 +25,67 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
   try {
     const matchedCandidates: any[] = [];
-
-    // Create stripped JD object for skills-only match
     const jdObject = { skills: reqSkills };
 
-    // Core live database candidate scanning
     if (adminDb) {
       try {
-        const snapshot = await adminDb.collection("candidatePool").get();
+        const isAdmin = role === 'admin' || role === 'super_admin' || role === 'ops_admin' || orgId === 'ORG-GLOBAL-HQ' || orgId === 'ADMIN';
+        
+        let candidatesQuery: any = adminDb.collection("candidatePool");
+        
+        // Scope 1: Only check candidates explicitly mapped to this requirement to prevent leakage
+        candidatesQuery = candidatesQuery.where("mappedJobId", "==", targetReqId);
+        
+        // Scope 2: Apply vendor isolation if not purely an admin
+        if (!isAdmin && orgId) {
+            // Note: Client can see all mapped candidates for this job (since they own the job)
+            // But wait, if role is vendor, restrict to their own candidates
+            if (role?.includes('vendor') || role === 'recruiter') {
+               candidatesQuery = candidatesQuery.where("vendorId", "==", orgId);
+            }
+        }
+
+        const snapshot = await candidatesQuery.get();
+        
         for (const doc of snapshot.docs) {
           const cand = doc.data();
-          const candSkills: string[] = (cand.skills || []).map((s: any) =>
-            String(s).trim().toLowerCase(),
-          );
 
+          // Execute contextual semantic mapping
           const matchResult = await runComprehensiveMatch(jdObject, cand);
 
-          if (matchResult.overallScore >= 70) {
-            matchedCandidates.push({
-              id: doc.id,
-              candidateId: cand.candidateId || doc.id,
-              name: cand.name || "Verified Talent",
-              email: cand.email || "talent@vendor-network.net",
-              phone: cand.phone || "+91 91000 23144",
-              linkedin: cand.linkedin || "https://linkedin.com",
-              skills: cand.skills || [],
-              experience: cand.experience || "Not Specified",
-              vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
-              pipelineStage:
-                cand.pipelineStage || "Awaiting Match Verification",
-              matchScore: matchResult.overallScore,
-              isGlobalMatch: true,
-              breakdown: matchResult.breakdown,
-              strengths: matchResult.explanation.recruiterView.strengths,
-              gaps: matchResult.explanation.recruiterView.gaps,
-              suitabilitySummary:
-                "Match evaluated via Comprehensive Semantic Engine.",
-            });
-          }
+          // We return requirement-scoped matches, scored contextually against the JD
+          matchedCandidates.push({
+            id: doc.id,
+            candidateId: cand.candidateId || doc.id,
+            name: cand.name || "Verified Talent",
+            email: cand.email || "talent@vendor-network.net",
+            phone: cand.phone || "+91 91000 23144",
+            linkedin: cand.linkedin || "https://linkedin.com",
+            skills: cand.skills || [],
+            experience: cand.experience || "Not Specified",
+            vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
+            pipelineStage: cand.pipelineStage || "Mapped to Requirement",
+            matchScore: matchResult.overallScore,
+            isGlobalMatch: false,
+            breakdown: matchResult.breakdown,
+            strengths: matchResult.explanation.recruiterView.strengths,
+            gaps: matchResult.explanation.recruiterView.gaps,
+            suitabilitySummary: "Match evaluated contextually for this requirement."
+          });
         }
       } catch (dbErr) {
-        console.warn(
-          "[MATCHING_GLOBAL_DB_WARN] Primary Firestore connection timed out or is empty:",
-          dbErr,
-        );
+        console.warn("[MATCHING_REQUIREMENT_DB_WARN] Failed to query mapped candidates:", dbErr);
       }
-    } else {
-      console.warn("[MATCHING_GLOBAL_DB_WARN] adminDb unavailable.");
     }
 
-    // Sort to show highest scores first
     const sortedMatches = matchedCandidates
-      .filter((c) => (c.matchScore || 0) >= 70)
       .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
 
     if (sortedMatches.length > 0) {
       try {
         await dispatchWorkflowEvent(adminDb, {
-          eventType: "MATCH_FOUND",
-          producer: "api/matching-global",
+          eventType: "REQUIREMENT_MATCH_EVALUATED",
+          producer: "api/matching-scoped",
           status: "QUEUED",
           payload: {
             jobId: targetReqId,
@@ -96,7 +102,8 @@ export default async function matchingGlobalHandler(req: any, res: any) {
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("[GLOBAL_MATCHING_ERR] Core execution failed:", error);
+    console.error("[SCOPED_MATCHING_ERR] Core execution failed:", error);
     return res.status(500).json({ error: error.message });
   }
 }
+

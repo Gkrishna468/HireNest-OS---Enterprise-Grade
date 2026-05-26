@@ -357,23 +357,23 @@ export default function JobsTab() {
         handleFirestoreError(error, OperationType.GET, "submissions");
       });
 
-      // 2. Cross-Vendor Global Matching via Secure API
-      const fetchGlobalMatches = async () => {
+      // 2. Requirement-Scoped Intelligence Matching via Secure API
+      const fetchRequirementIntelligence = async () => {
         try {
           const skills = (selectedJob.skills || []).join(",");
-          const res = await fetch(`/api/matching/global?requirementId=${selectedJob.id}&skills=${encodeURIComponent(skills)}`);
+          const res = await fetch(`/api/matching/global?requirementId=${selectedJob.id}&skills=${encodeURIComponent(skills)}&orgId=${orgId}&role=${userRole}`);
           if (res.ok) {
             const data = await res.json();
             setGlobalMatches(data.matches || []);
           } else {
-            console.warn("Global matching API response not OK", res.status);
+            console.warn("Requirement matching API response not OK", res.status);
           }
         } catch (e) {
-          console.warn("Global matching API failed, using fallback empty state");
+          console.warn("Requirement matching API failed, using fallback empty state");
         }
       };
 
-      fetchGlobalMatches();
+      fetchRequirementIntelligence();
       return () => unsubSub();
     }
   }, [selectedJob, auth.currentUser, orgId, userRole]);
@@ -1028,13 +1028,13 @@ export default function JobsTab() {
                           )}
                         </div>
                         <h3 className="text-base font-black uppercase tracking-[0.3em] text-indigo-600 mb-3">
-                          {selectedJob.matchProcessingStatus === 'pending' ? "Synchronizing Marketplace..." : 
-                           "Executing Neural Match Algorithm..."}
+                          {selectedJob.matchProcessingStatus === 'pending' ? "Synchronizing Requirement Profiles..." : 
+                           "Executing Contextual Neural Mapping..."}
                         </h3>
                         <p className="text-[12px] text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">
                           {selectedJob.matchProcessingStatus === 'pending' || selectedJob.matchProcessingStatus === 'processing' 
-                            ? "Our AI Agents are scanning semantic embeddings globally for trajectory parity." 
-                            : "This requirement is undergoing deterministic & semantic mapping."}
+                            ? "Our AI Agents are scoring mapped candidates specifically against this requirement's criteria." 
+                            : "This requirement is undergoing deterministic & semantic mapping isolation."}
                         </p>
                      </div>
                   ) : (
@@ -1060,7 +1060,7 @@ export default function JobsTab() {
                                           </div>
                                           <div className="text-[11px] text-slate-400 font-bold flex items-center gap-2 mt-1.5 uppercase tracking-widest">
                                               <Target size={14} className="text-slate-300" /> {sub.experience || '8+ YRS'} EXP • 
-                                              {sub.isGlobalMatch ? "Global Match" : (!sub.vendorId || sub.vendorId === 'ORG-GLOBAL-HQ' || sub.vendorId === 'ADMIN_POOL') ? (
+                                              {sub.isGlobalMatch ? "Mapped Match" : (!sub.vendorId || sub.vendorId === 'ORG-GLOBAL-HQ' || sub.vendorId === 'ADMIN_POOL') ? (
                                                 <span className="text-indigo-600">ADMIN HQ</span>
                                               ) : (
                                                 <span className="text-emerald-600 truncate max-w-[120px]" title={sub.vendorName || sub.vendorId}>
@@ -1093,11 +1093,11 @@ export default function JobsTab() {
                       ))}
                       {([...submissions, ...globalMatches].filter(sub => (sub.matchScore || 0) >= 70 || sub.isGlobalMatch)).length === 0 && (
                          <div className="col-span-full py-32 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
-                            <Network size={64} className="mx-auto mb-6 text-indigo-200 animate-pulse" />
-                            <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">Semantic Expansion Active</p>
+                            <Target size={64} className="mx-auto mb-6 text-indigo-200 animate-pulse" />
+                            <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">No Target Matches Mapped</p>
                             <p className="text-xs font-medium text-slate-500 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
-                              No exact hard-constraint matches found in local pools. <br/>
-                              Our semantic engine is expanding search to related trajectory skill clusters (e.g. Logic Apps, API Integration). We will notify you when confident variants are locked.
+                              No candidates have been explicitly mapped to this requirement yet, or current mappings do not pass our minimum 70% threshold. <br/>
+                              Please assign candidates to this JD from your active talent pool.
                             </p>
                          </div>
                       )}
