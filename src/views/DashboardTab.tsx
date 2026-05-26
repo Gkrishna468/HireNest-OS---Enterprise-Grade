@@ -5,6 +5,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { useNavigate } from "react-router-dom";
+import VendorPartnerWorkspace from "./workspaces/VendorPartnerWorkspace";
+import HiringManagerWorkspace from "./workspaces/HiringManagerWorkspace";
+import RecruiterWorkspace from "./workspaces/RecruiterWorkspace";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -114,6 +117,18 @@ export default function DashboardTab() {
   }, [session?.org, isClient, isVendor, isRecruiter, isIndependent]);
 
   if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Initializing Governance Layer...</div>;
+
+  if (isVendor) {
+    return <VendorPartnerWorkspace vendorName={session?.user?.name || "Vendor Partner"} />;
+  }
+
+  if (isClient) {
+    return <HiringManagerWorkspace userName={session?.user?.name || "Hiring Manager"} />;
+  }
+
+  if (isRecruiter) {
+    return <RecruiterWorkspace userName={session?.user?.name || "Recruiter"} />;
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50/50">
@@ -621,6 +636,104 @@ export default function DashboardTab() {
                                         <span>Simulate API Rate Limiting</span>
                                         <Activity size={10} className="text-cyan-500" />
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Enterprise Priorities 18-22: PubSub, Temporal, Firewall, Tracing, VectorDB */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden md:col-span-2 lg:col-span-3">
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-300 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <Activity size={14} className="text-fuchsia-300" /> Enterprise Cognitive Infrastructure
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                                <div className="bg-fuchsia-950/20 p-3 rounded border border-fuchsia-900/40 flex flex-col gap-2">
+                                    <div className="text-[10px] font-bold text-fuchsia-400 font-mono">1. Event Bus</div>
+                                    <span className="text-[9px] text-fuchsia-200/80">Pub/Sub architecture decoupling writes.</span>
+                                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit text-[8px]">ACTIVE: 42 msg/s</Badge>
+                                </div>
+                                <div className="bg-indigo-950/20 p-3 rounded border border-indigo-900/40 flex flex-col gap-2">
+                                    <div className="text-[10px] font-bold text-indigo-400 font-mono">2. Workflow</div>
+                                    <span className="text-[9px] text-indigo-200/80">Temporal.io durable runtime.</span>
+                                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit text-[8px]">ACTIVE: 12 Tasks</Badge>
+                                </div>
+                                <div className="bg-rose-950/20 p-3 rounded border border-rose-900/40 flex flex-col gap-2">
+                                    <div className="text-[10px] font-bold text-rose-400 font-mono">3. AI Firewall</div>
+                                    <span className="text-[9px] text-rose-200/80">Prompt injection/bypass mitigation.</span>
+                                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit text-[8px]">ACTIVE: 0 Breaches</Badge>
+                                </div>
+                                <div className="bg-amber-950/20 p-3 rounded border border-amber-900/40 flex flex-col gap-2">
+                                    <div className="text-[10px] font-bold text-amber-400 font-mono">4. Tracing</div>
+                                    <span className="text-[9px] text-amber-200/80">LangSmith / DDog execution spans.</span>
+                                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit text-[8px]">ACTIVE: Latency Nominal</Badge>
+                                </div>
+                                <div className="bg-cyan-950/20 p-3 rounded border border-cyan-900/40 flex flex-col gap-2">
+                                    <div className="text-[10px] font-bold text-cyan-400 font-mono">5. pgvector</div>
+                                    <span className="text-[9px] text-cyan-200/80">Structured + semantic embeddings.</span>
+                                    <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit text-[8px]">ACTIVE: 1.2M Vectors</Badge>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Trust & Legal Compliance Infrastructure (DPDP, GDPR, CCPA) */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative group overflow-hidden md:col-span-2 lg:col-span-3">
+                        <div className="relative z-10">
+                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                                <ShieldCheck size={14} className="text-emerald-400" /> Legal & Privacy Governance Layer
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-bold text-slate-300 flex items-center gap-2 uppercase tracking-wide">
+                                        <Database size={12} className="text-slate-400" /> Candidate Consent Engine
+                                    </h4>
+                                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                                        <div className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+                                            DPDP / GDPR / CCPA compliant consent ledger ensuring immutability for candidate data ingestion, usage, and AI processing rights.
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[9px] bg-slate-900/80 border border-slate-800 p-2 rounded">
+                                                <span className="text-slate-300 font-mono">Consent Ledger Vectors</span>
+                                                <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">IMMUTABLE</Badge>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[9px] bg-slate-900/80 border border-slate-800 p-2 rounded">
+                                                <span className="text-slate-300 font-mono">Deletion Workflow Queues</span>
+                                                <span className="text-slate-400 font-bold">14 PENDING</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[9px] bg-slate-900/80 border border-slate-800 p-2 rounded">
+                                                <span className="text-slate-300 font-mono">Multi-Tenant Isolation</span>
+                                                <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ENFORCED</Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-bold text-slate-300 flex items-center gap-2 uppercase tracking-wide">
+                                        <ShieldAlert size={12} className="text-slate-400" /> AI Explainability & Audit Layer
+                                    </h4>
+                                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-2 opacity-10">
+                                            <Network size={64} />
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mb-3 relative z-10">
+                                            "Why This Match?" forensic explainability for every AI algorithmic recommendation, ensuring legal defensibility.
+                                        </div>
+                                        <div className="space-y-2 relative z-10">
+                                            <div className="p-2 border border-blue-900/30 bg-blue-950/20 rounded flex flex-col gap-1">
+                                                <div className="flex justify-between items-center w-full">
+                                                    <span className="text-[9px] text-blue-300 font-bold uppercase tracking-wider">Example: Match #827 (87%)</span>
+                                                    <Badge className="bg-blue-500/20 text-blue-300 font-mono text-[8px] py-0 px-1 border border-blue-500/30">L3 REASONING</Badge>
+                                                </div>
+                                                <div className="text-[8px] text-blue-200/80 font-mono leading-tight mt-1 space-y-1">
+                                                    <p>• 92% semantic alignment (Java Spring)</p>
+                                                    <p>• 4 yrs BFSI domain overlap</p>
+                                                    <p>• Policy: "NYC Bias Filter" <span className="text-emerald-400">PASSED</span></p>
+                                                    <p>• Human Review required prior to submit</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

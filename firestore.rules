@@ -889,6 +889,36 @@ service cloud.firestore {
       allow write: if isPlatformAuthority();
     }
 
+    match /eventBusLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /workflowStates/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /securityAlerts/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /tracingSpans/{docId} {
+      allow read: if isAdmin();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /consentLedger/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
+    match /deletionWorkflows/{docId} {
+      allow read: if isVerified();
+      allow write: if isPlatformAuthority();
+    }
+
     match /cognitiveReplication/{docId} {
       allow read: if isVerified();
       allow write: if isPlatformAuthority();
