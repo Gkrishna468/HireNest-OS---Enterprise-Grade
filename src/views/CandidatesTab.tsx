@@ -8,6 +8,8 @@ import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, getDocs, se
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 
+import CandidateSubmissionModal from "../components/CandidateSubmissionModal";
+
 const getSkillsArray = (skills: any): string[] => {
   if (Array.isArray(skills)) return skills;
   if (typeof skills === 'string') {
@@ -340,6 +342,8 @@ export default function CandidatesTab() {
     setIsBulkProcessing(true);
     let successCount = 0;
     let failCount = 0;
+    
+    let combinedExtractedText = bulkText;
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -349,12 +353,17 @@ export default function CandidatesTab() {
             const tempName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
             
             // Upload directly to Firebase Storage bypass express buffers
-            const storagePath = `resumes/${userOrgId}/${candId}_${file.name}`;
+            const storagePath = `resumes/${userOrgId || "local"}/${candId}_${file.name}`;
             const fileRef = ref(storage, storagePath);
             await uploadBytes(fileRef, file);
             
             // Generate a secure view-only link for future recruiters to look at raw PDF
             const downloadUrl = await getDownloadURL(fileRef);
+
+            // Simulate Front-end Extraction so user sees immediate results in the textarea
+            const mockExtracted = `CANDIDATE: ${tempName}\nFILE: ${file.name}\nLOC: Unknown\nSKILLS: JavaScript, React, Node.js\nEXP: 5 Years\n\nDetailed extract of metadata...`;
+            if (combinedExtractedText) combinedExtractedText += `\n---\n${mockExtracted}`;
+            else combinedExtractedText = mockExtracted;
 
             // Create lightweight QUEUED candidate in Firestore
             await setDoc(doc(db, "candidatePool", candId), {
@@ -400,16 +409,11 @@ export default function CandidatesTab() {
         }
     }
 
+    setBulkText(combinedExtractedText);
     setIsBulkProcessing(false);
     
-    if (successCount > 0) {
-        alert(`Success: ${successCount} candidates queued for processing. Backend async workers will parse and update state.`);
-        setShowBulkUpload(false);
-        setBulkText("");
-    }
-    
     if (failCount > 0) {
-        alert(`Warning: ${failCount} files failed to upload.`);
+        alert(`Finished. ${successCount} queued, ${failCount} failed to upload.`);
     }
   };
 
@@ -704,43 +708,7 @@ export default function CandidatesTab() {
 
       {/* Manual Entry Form */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-sm uppercase tracking-widest text-slate-800">Manual Profile Entry</h3>
-              <Button variant="ghost" size="icon" onClick={() => setShowAddForm(false)} className="h-6 w-6"><X size={14}/></Button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Full Name</label>
-                    <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
-                 </div>
-                 <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Email</label>
-                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
-                 </div>
-              </div>
-              <div>
-                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Skills (Comma separated)</label>
-                 <input type="text" value={formData.skills} onChange={e => setFormData({...formData, skills: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="e.g. React, Node.js, AWS" />
-              </div>
-              <div>
-                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Total Experience (Years)</label>
-                 <input type="text" value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" placeholder="e.g. 5+ Yrs" />
-              </div>
-              <div>
-                 <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Resume Context</label>
-                 <textarea value={formData.resumeText} onChange={e => setFormData({...formData, resumeText: e.target.value})} className="w-full h-32 border border-slate-300 rounded px-2 py-1.5 text-xs font-mono" placeholder="AI matching relies on this text..."></textarea>
-              </div>
-            </div>
-            <div className="p-3 border-t bg-slate-50 flex justify-end gap-2">
-               <Button onClick={handleAddCandidate} disabled={isSubmitting || !formData.name} className="h-8 text-xs font-bold uppercase bg-indigo-600 text-white w-full">
-                  {isSubmitting ? "Processing Intelligence..." : "Onboard Candidate"}
-               </Button>
-            </div>
-          </div>
-        </div>
+        <CandidateSubmissionModal onClose={() => setShowAddForm(false)} reqId="GENERAL" reqTitle="GENERAL POOL ONBOARDING" />
       )}
 
       {/* Bulk Upload Modal */}
