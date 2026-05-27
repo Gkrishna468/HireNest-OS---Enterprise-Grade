@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
   Info,
@@ -27,13 +27,15 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: "info" | "warning" | "success" | "urgent";
+  text?: string;
+  type: "info" | "warning" | "success" | "urgent" | string;
   timestamp: string;
   read: boolean;
   actionUrl?: string;
 }
 
 export default function NotificationsTab({ org }: { org: any }) {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -162,8 +164,17 @@ export default function NotificationsTab({ org }: { org: any }) {
           notifications.map((n) => (
             <div
               key={n.id}
+              onClick={() => {
+                if (n.actionUrl) {
+                  navigate(n.actionUrl);
+                } else if (n.title.toLowerCase().includes("deal room") || n.type === "DEAL_ROOM") {
+                  navigate("/deal-rooms");
+                } else if (n.title.toLowerCase().includes("job") || n.type === "JOB_BROADCAST") {
+                  navigate("/jobs");
+                }
+              }}
               className={cn(
-                "p-5 rounded-3xl border transition-all relative overflow-hidden group",
+                "p-5 rounded-3xl border transition-all relative overflow-hidden group cursor-pointer hover:-translate-y-1 hover:shadow-lg",
                 n.read
                   ? "bg-white border-slate-100 opacity-75"
                   : "bg-white border-indigo-100 shadow-xl shadow-indigo-50/50",
@@ -196,7 +207,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => deleteNotification(n.id)}
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
                         className="h-8 w-8 text-slate-300 hover:text-red-500"
                       >
                         <Trash2 size={14} />
@@ -205,7 +216,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => markAsRead(n.id)}
+                          onClick={(e) => { e.stopPropagation(); markAsRead(n.id); }}
                           className="h-8 w-8 text-slate-300 hover:text-indigo-500"
                         >
                           <CheckCircle size={14} />
@@ -214,7 +225,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed font-medium mb-3">
-                    {n.message}
+                    {n.message || n.text}
                   </p>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
