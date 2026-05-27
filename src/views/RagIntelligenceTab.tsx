@@ -17,12 +17,24 @@ import {
   Server,
   Lock,
   Settings,
+  Network,
+  Clock,
+  Briefcase,
+  Share2,
+  Cpu,
+  Workflow,
 } from "lucide-react";
 import { Button } from "../lib/Button";
 
 export default function RagIntelligenceTab() {
   const [activeView, setActiveView] = useState<
-    "copilot" | "ingestion" | "topology" | "memory"
+    | "copilot"
+    | "ingestion"
+    | "topology"
+    | "memory"
+    | "graph"
+    | "temporal"
+    | "agents"
   >("copilot");
 
   const [query, setQuery] = useState("");
@@ -123,7 +135,7 @@ export default function RagIntelligenceTab() {
       </div>
 
       <div className="px-8 pb-6">
-        <div className="flex gap-2 p-1.5 bg-slate-200/50 rounded-xl w-fit border border-slate-200">
+        <div className="flex gap-2 p-1.5 bg-slate-200/50 rounded-xl w-fit border border-slate-200 flex-wrap overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveView("copilot")}
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === "copilot" ? "bg-white text-indigo-600 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
@@ -147,6 +159,25 @@ export default function RagIntelligenceTab() {
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === "memory" ? "bg-white text-indigo-600 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
           >
             Routing & Memory
+          </button>
+          <div className="w-px h-6 bg-slate-300 self-center mx-1"></div>
+          <button
+            onClick={() => setActiveView("graph")}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === "graph" ? "bg-white text-indigo-600 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            Graph RAG
+          </button>
+          <button
+            onClick={() => setActiveView("temporal")}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === "temporal" ? "bg-white text-indigo-600 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            Temporal RAG
+          </button>
+          <button
+            onClick={() => setActiveView("agents")}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === "agents" ? "bg-white text-indigo-600 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            Multi-Agent
           </button>
         </div>
       </div>
@@ -732,6 +763,262 @@ export default function RagIntelligenceTab() {
                     SLA breaches and system events are mapped to predict
                     workflow bottlenecks.
                   </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "graph" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl shadow-slate-100">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6 flex items-center gap-3">
+                <Network className="text-indigo-600" size={18} /> Graph
+                Retrieval Topology
+              </h2>
+              <p className="text-sm font-semibold text-slate-600 mb-6">
+                Instead of simple vector proximity, we construct connection
+                graphs to enable referral inferences, relationship trust
+                scoring, and hidden skill adjacencies.
+              </p>
+
+              <div className="relative bg-slate-900 rounded-2xl p-6 border border-slate-800 overflow-hidden flex items-center justify-center min-h-[300px]">
+                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-slate-900 to-slate-900"></div>
+                <Network size={150} className="text-indigo-500/20 absolute" />
+
+                <div className="relative z-10 w-full max-w-md">
+                  <div className="flex justify-between items-center mb-8">
+                    <div className="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-center shadow-lg">
+                      <Briefcase
+                        size={14}
+                        className="text-emerald-400 mx-auto mb-1"
+                      />
+                      <div className="text-[9px] font-black uppercase text-slate-300">
+                        Requirement
+                      </div>
+                    </div>
+                    <div className="bg-indigo-600/20 border border-indigo-500/30 px-4 py-2 rounded-xl text-center shadow-lg transform -translate-y-4">
+                      <Users
+                        size={14}
+                        className="text-indigo-400 mx-auto mb-1"
+                      />
+                      <div className="text-[9px] font-black uppercase text-indigo-300">
+                        Candidate
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center px-12">
+                    <div className="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-center shadow-lg">
+                      <Share2
+                        size={14}
+                        className="text-amber-400 mx-auto mb-1"
+                      />
+                      <div className="text-[9px] font-black uppercase text-slate-300">
+                        Vendor
+                      </div>
+                    </div>
+                    <div className="border border-slate-600 border-dashed rounded-full p-2 bg-slate-800/50">
+                      <Brain size={16} className="text-slate-400" />
+                    </div>
+                    <div className="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-center shadow-lg">
+                      <Activity
+                        size={14}
+                        className="text-blue-400 mx-auto mb-1"
+                      />
+                      <div className="text-[9px] font-black uppercase text-slate-300">
+                        Recruiter
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-3xl p-8 border-2 border-dashed border-slate-200">
+              <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest mb-6">
+                Intelligence Outcomes
+              </h3>
+              <div className="space-y-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-start gap-4">
+                  <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg shrink-0">
+                    <Share2 size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">
+                      Referral Inference
+                    </h4>
+                    <p className="text-[10px] font-mono text-slate-500 mt-1">
+                      If Vendor A submits a high-quality candidate, candidates
+                      in Vendor A's extended network gain implicit trust scores.
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-start gap-4">
+                  <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg shrink-0">
+                    <Zap size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">
+                      Hidden Skill Adjacency
+                    </h4>
+                    <p className="text-[10px] font-mono text-slate-500 mt-1">
+                      Maps tech stacks not by exact keyword match, but by
+                      organizational co-occurrence (e.g. AWS + Terraform
+                      networks).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "temporal" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl shadow-slate-100 lg:col-span-2">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6 flex items-center gap-3">
+                <Clock className="text-amber-500" size={18} /> Temporal RAG &
+                Event Memory
+              </h2>
+              <p className="text-sm font-semibold text-slate-600 mb-6 max-w-3xl">
+                Every workflow action is a retrievable intelligence point. By
+                pairing semantic retrieval with temporal windows, we unlock
+                operational awareness and predictive modeling.
+              </p>
+
+              <div className="flex gap-4 mb-8 overflow-x-auto pb-4 custom-scrollbar">
+                <div className="min-w-[250px] bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg text-white">
+                  <div className="text-[10px] font-black uppercase text-amber-500 tracking-widest flex justify-between items-center mb-3">
+                    Event-Sourced
+                    <Clock size={12} />
+                  </div>
+                  <div className="space-y-3 font-mono text-[9px] text-slate-400">
+                    <div className="bg-slate-800 p-2 rounded border border-slate-700 text-slate-300">
+                      » candidate submitted
+                    </div>
+                    <div className="bg-slate-800 p-2 rounded border border-slate-700 text-slate-300">
+                      » interview delayed
+                    </div>
+                    <div className="bg-slate-800 p-2 rounded border border-slate-700 text-slate-300">
+                      » vendor inactive
+                    </div>
+                    <div className="bg-slate-800 p-2 rounded border border-slate-700 text-slate-300">
+                      » offer accepted
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center text-slate-300 px-4">
+                  <ArrowRight size={24} />
+                </div>
+
+                <div className="min-w-[300px] flex-1 bg-white p-5 rounded-2xl border border-slate-200 shadow-xl shadow-indigo-100/50">
+                  <div className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex justify-between items-center mb-3">
+                    Time-Aware Reasoning Query
+                    <Bot size={12} />
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-xs font-semibold text-indigo-900 mb-4">
+                    "Which recruiters consistently delivered fast Java
+                    placements over the last 90 days?"
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500 border-b border-slate-100 pb-2">
+                      <span>Recruiter</span>
+                      <span>Avg Velocity (90d)</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-700 pt-1">
+                      <span>Sarah Jenkins</span>
+                      <span className="text-emerald-600">8.4 days</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-700">
+                      <span>Michael Chen</span>
+                      <span className="text-emerald-600">11.2 days</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "agents" && (
+          <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+              <Cpu size={250} />
+            </div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-3 relative z-10">
+              <Workflow className="text-emerald-400" size={18} /> Multi-Agent
+              Orchestration
+            </h2>
+            <p className="text-sm font-semibold text-slate-400 mb-8 max-w-3xl relative z-10">
+              A category-defining enterprise OS employs autonomous agents. Each
+              agent possesses a specific operational mandate and is granted
+              scoped RAG access to execute specialized reasoning.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 relative z-10">
+              <div className="bg-slate-800/80 backdrop-blur rounded-2xl border border-slate-700 p-5 hover:border-emerald-500/50 transition-colors">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
+                  <Bot size={20} />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white mb-2">
+                  Recruiter Agent
+                </h3>
+                <p className="text-[10px] font-mono text-slate-400 mb-4 line-clamp-3">
+                  Scans candidate pipelines independently. Accesses specialized
+                  JD/Resume semantic indices.
+                </p>
+                <div className="text-[9px] font-bold uppercase text-emerald-500 bg-emerald-500/10 inline-block px-2 py-1 rounded">
+                  Candidate RAG Scope
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 backdrop-blur rounded-2xl border border-slate-700 p-5 hover:border-blue-500/50 transition-colors">
+                <div className="h-10 w-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-4">
+                  <Activity size={20} />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white mb-2">
+                  Operations Agent
+                </h3>
+                <p className="text-[10px] font-mono text-slate-400 mb-4 line-clamp-3">
+                  Monitors telemetry events. Identifies bottlenecks in deal
+                  rooms based on historical SLA times.
+                </p>
+                <div className="text-[9px] font-bold uppercase text-blue-500 bg-blue-500/10 inline-block px-2 py-1 rounded">
+                  Temporal RAG Scope
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 backdrop-blur rounded-2xl border border-slate-700 p-5 hover:border-amber-500/50 transition-colors">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
+                  <ShieldCheck size={20} />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white mb-2">
+                  Compliance Agent
+                </h3>
+                <p className="text-[10px] font-mono text-slate-400 mb-4 line-clamp-3">
+                  Validates onboarding documents against master NDAs and MSAs.
+                  Triggers automated remediations.
+                </p>
+                <div className="text-[9px] font-bold uppercase text-amber-500 bg-amber-500/10 inline-block px-2 py-1 rounded">
+                  Governance RAG Scope
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 backdrop-blur rounded-2xl border border-slate-700 p-5 hover:border-purple-500/50 transition-colors">
+                <div className="h-10 w-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-4">
+                  <Network size={20} />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white mb-2">
+                  Vendor Intel Agent
+                </h3>
+                <p className="text-[10px] font-mono text-slate-400 mb-4 line-clamp-3">
+                  Evaluates relationship trust graphs. Determines the optimal
+                  vendor routing for new requirements.
+                </p>
+                <div className="text-[9px] font-bold uppercase text-purple-500 bg-purple-500/10 inline-block px-2 py-1 rounded">
+                  Graph RAG Scope
                 </div>
               </div>
             </div>
