@@ -79,11 +79,9 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           } else {
             if (cand.vendorId === orgId || cand.recruiterId === orgId) {
               canAccess = true;
-            } else if (
-              cand.visibility === "federated" ||
-              (!cand.visibility && cand.vendorId !== orgId)
-            ) {
-              canAccess = true;
+            } else {
+              // Strict vendor isolation: vendors can only see their own candidates
+              canAccess = false;
             }
           }
 

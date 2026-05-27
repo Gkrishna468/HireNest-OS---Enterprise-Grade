@@ -208,6 +208,9 @@ export default function JobsTab() {
             .filter(Boolean);
 
           for (const cand of candidateList) {
+            // PIPELINE ISOLATION: Do not auto-submit candidates to other jobs if they are mapped to a specific job
+            if (cand.mappedJobId && cand.mappedJobId !== job.id) continue;
+
             const candSkills = (
               Array.isArray(cand.skills)
                 ? cand.skills
