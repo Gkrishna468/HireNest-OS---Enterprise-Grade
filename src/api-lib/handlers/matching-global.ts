@@ -89,6 +89,14 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
           if (!canAccess) continue;
 
+          // PIPELINE ISOLATION: 
+          // If a candidate is explicitly mapped to a specific job requirement pipeline, 
+          // they belong uniquely to that pipeline and must not leak into global sweeping algorithms 
+          // for other un-related JDs.
+          if (cand.mappedJobId && cand.mappedJobId !== targetReqId) {
+            continue;
+          }
+
           // Normalize candidate skills
           if (cand.skills && Array.isArray(cand.skills)) {
             cand.skills = normalizeSkills(
