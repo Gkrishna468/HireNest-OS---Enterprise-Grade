@@ -109,7 +109,11 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           if (cand.vendorTrustScore && cand.vendorTrustScore > 80)
             enhancedScore += 2;
 
-          enhancedScore = Math.min(Math.round(enhancedScore), 100);
+          if (cand.aiMatchScore) {
+              enhancedScore = cand.aiMatchScore;
+          } else {
+              enhancedScore = Math.min(Math.round(enhancedScore), 100);
+          }
 
           const resultObj = {
             id: doc.id,

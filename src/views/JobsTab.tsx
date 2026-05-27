@@ -966,6 +966,26 @@ export default function JobsTab() {
           : "Candidate Profile details omitted.");
       const result = await analyzeCandidateMatch(safeJd, safeProfile);
       setAiAnalysis(result as any);
+      
+      if (result && result.matchScore) {
+        sub.matchScore = result.matchScore;
+        setGlobalMatches(prev => [...prev]);
+        setFallbackMatches(prev => [...prev]);
+        setSubmissions(prev => [...prev]);
+
+        // Persist the V2 score to the database so it's consistent everywhere
+        try {
+          const targetId = sub.candidateId || sub.id;
+          if (targetId) {
+             await updateDoc(doc(db, "candidatePool", targetId), {
+               aiMatchScore: result.matchScore,
+               updatedAt: serverTimestamp()
+             });
+          }
+        } catch (dbErr) {
+          console.warn("Could not persist AI match score to DB", dbErr);
+        }
+      }
     } catch (err: any) {
       alert("Match Engine V2 failed: " + err.message);
     }
@@ -1649,7 +1669,7 @@ export default function JobsTab() {
                                   <div
                                     key={sub.id}
                                     className="bg-white border hover:border-slate-300 rounded-[24px] p-5 cursor-pointer shadow-sm relative overflow-hidden"
-                                    onClick={() => setSelectedSubmission(sub)}
+                                    onClick={() => handleRunAiMatch(sub)}
                                   >
                                     <div className="flex items-center justify-between mb-4">
                                       <div className="flex items-center gap-3">

@@ -50,7 +50,9 @@ export function calculateSemanticScore(jdSkills: string[], candSkills: string[])
     }
   }
   
-  return Math.min(100, Math.round((matchCount / jdSkills.length) * 100));
+  // Make it more generous: if they match at least 4 skills from a long JD, it's basically a 100% semantic match.
+  const requiredMatches = Math.min(jdSkills.length, 4);
+  return Math.min(100, Math.round((matchCount / requiredMatches) * 100));
 }
 
 export function calculateCareerScore(jd: any, candidate: any): number {
