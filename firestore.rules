@@ -939,6 +939,20 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // TENANT GOVERNANCE & AI BILLING
+    // =====================================================
+
+    match /tenant_usage/{docId} {
+      allow read: if isVerified() && (isPlatformAuthority() || isSameOrg(resource.data.orgId));
+      allow write: if isPlatformAuthority();
+    }
+
+    match /ai_usage_logs/{docId} {
+      allow read: if isVerified() && (isPlatformAuthority() || isSameOrg(resource.data.orgId));
+      allow write: if isPlatformAuthority();
+    }
+
+    // =====================================================
     // SYSTEM HEALTH
     // =====================================================
 

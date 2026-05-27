@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { logAiUsage } from "./lib/tenantGovernance";
+import { logAiUsage, checkQuota } from "./lib/tenantGovernance";
+import { meterExecution } from "./lib/tenantBilling";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -18,6 +19,12 @@ export default async function handler(req: any, res: any) {
   const { jdText } = req.body;
   if (!jdText) {
     return res.status(400).json({ message: 'Missing jdText parameter in request body' });
+  }
+
+  const orgId = req.headers['x-org-id'] || 'system';
+  const quotaCheck = await checkQuota(orgId);
+  if (!quotaCheck.ok) {
+     return res.status(429).json({ error: quotaCheck.reason, message: "AI token limit exhausted for this billing cycle." });
   }
 
   try {
@@ -54,14 +61,20 @@ ${jdText}
 
     const parsedData = JSON.parse(response.text || "{}");
     const estimateTokens = Math.max(600, Math.round(jdText.length / 3));
-    await logAiUsage({
-      traceId: `trc_${Date.now()}`,
-      orgId: req.headers['x-org-id'] || 'system',
-      operation: "PARSE_JD",
-      tokensUsed: estimateTokens,
-      model: "gemini-1.5-pro",
-      costEstimate: (estimateTokens / 1000) * 0.00125
-    });
+    const orgId = req.headers['x-org-id'] || 'system';
+    
+    await Promise.all([
+      logAiUsage({
+        traceId: `trc_${Date.now()}`,
+        orgId: orgId,
+        operation: "PARSE_JD",
+        tokensUsed: estimateTokens,
+        model: "gemini-1.5-pro",
+        costEstimate: (estimateTokens / 1000) * 0.00125
+      }),
+      meterExecution(orgId, 'AI_INFERENCE', estimateTokens)
+    ]);
+    
     return res.status(200).json(parsedData);
 
   } catch (error: any) {

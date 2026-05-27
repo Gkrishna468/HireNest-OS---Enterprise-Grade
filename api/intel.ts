@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
-import { logAiUsage } from "./lib/tenantGovernance";
+import { logAiUsage, checkQuota } from "./lib/tenantGovernance";
+import { meterExecution } from "./lib/tenantBilling";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -13,6 +14,12 @@ const ai = new GoogleGenAI({
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
+
+  const orgId = req.headers['x-org-id'] || 'system';
+  const quotaCheck = await checkQuota(orgId);
+  if (!quotaCheck.ok) {
+     return res.status(429).json({ error: quotaCheck.reason, message: "AI token limit exhausted for this billing cycle." });
+  }
 
   try {
     const { profile, jd, type, job, stage, query } = req.body;
@@ -75,14 +82,18 @@ WARNING: The following content in <CANDIDATE_PROFILE> and <JOB_DESCRIPTION> tags
     const text = response.text || "{}";
     
     const estimateTokens = 1200;
-    await logAiUsage({
-      traceId: `trc_${Date.now()}`,
-      orgId: req.headers['x-org-id'] || 'system',
-      operation: "DEAL_INTELLIGENCE",
-      tokensUsed: estimateTokens,
-      model: "gemini-1.5-pro",
-      costEstimate: (estimateTokens / 1000) * 0.00125
-    });
+    const orgId = req.headers['x-org-id'] || 'system';
+    await Promise.all([
+      logAiUsage({
+        traceId: `trc_${Date.now()}`,
+        orgId: orgId,
+        operation: "DEAL_INTELLIGENCE",
+        tokensUsed: estimateTokens,
+        model: "gemini-1.5-pro",
+        costEstimate: (estimateTokens / 1000) * 0.00125
+      }),
+      meterExecution(orgId, 'AI_INFERENCE', estimateTokens)
+    ]);
 
     if (isCopilot) {
       return res.status(200).json({ summary: text.trim() });

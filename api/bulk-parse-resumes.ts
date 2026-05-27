@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { logAiUsage } from "./lib/tenantGovernance";
+import { logAiUsage, checkQuota } from "./lib/tenantGovernance";
+import { meterExecution } from "./lib/tenantBilling";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -18,6 +19,12 @@ export default async function handler(req: any, res: any) {
   const { resumeTexts } = req.body;
   if (!resumeTexts || !Array.isArray(resumeTexts)) {
     return res.status(400).json({ message: 'Missing or invalid resumeTexts array in request body' });
+  }
+
+  const orgId = req.headers['x-org-id'] || 'system';
+  const quotaCheck = await checkQuota(orgId);
+  if (!quotaCheck.ok) {
+     return res.status(429).json({ error: quotaCheck.reason, message: "AI token limit exhausted for this billing cycle." });
   }
 
   try {
@@ -93,14 +100,18 @@ ${text}
           profile = JSON.parse(response.text || "{}");
           
           const estimateTokens = Math.max(1500, Math.round(text.length / 3));
-          await logAiUsage({
-            traceId: `trc_${Date.now()}_${i}`,
-            orgId: req.headers['x-org-id'] || 'system',
-            operation: "PARSE_RESUME",
-            tokensUsed: estimateTokens,
-            model: "gemini-1.5-pro",
-            costEstimate: (estimateTokens / 1000) * 0.00125
-          });
+          const orgId = req.headers['x-org-id'] || 'system';
+          await Promise.all([
+            logAiUsage({
+              traceId: `trc_${Date.now()}_${i}`,
+              orgId: orgId,
+              operation: "PARSE_RESUME",
+              tokensUsed: estimateTokens,
+              model: "gemini-1.5-pro",
+              costEstimate: (estimateTokens / 1000) * 0.00125
+            }),
+            meterExecution(orgId, 'AI_INFERENCE', estimateTokens)
+          ]);
 
           success = true;
         } catch (singleErr: any) {

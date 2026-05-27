@@ -190,7 +190,8 @@ export default async function handler(req: any, res: any) {
         "users", "organizations", "requirements", "candidates", "submissions", "onboarding_requests",
         "durableExecutions", "agentRuntimePools", "billingLedgers", "tenantEconomics", "tenantInfrastructureMap",
         "distributedTraces", "arbitrationLocks", "cognitiveMemoryGraphs", "infrastructureMigrations", "governancePolicies",
-        "consensusLeases", "infrastructureSimulations", "recursiveReasoningTrees", "immuneQuarantines", "federatedBroadcasts"
+        "consensusLeases", "infrastructureSimulations", "recursiveReasoningTrees", "immuneQuarantines", "federatedBroadcasts",
+        "tenant_usage", "ai_usage_logs"
       ];
       const results: any = {  
         ok: true, 

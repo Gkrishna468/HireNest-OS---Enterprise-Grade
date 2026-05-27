@@ -1,5 +1,23 @@
 import { adminDb } from '../../src/lib/firebase-admin.js';
 
+export async function checkQuota(orgId: string): Promise<{ ok: boolean; reason?: string }> {
+  if (!adminDb) return { ok: true };
+  const billingCycle = new Date().toISOString().substring(0, 7);
+  try {
+    const usageRef = adminDb.collection("tenant_usage").doc(`${orgId}_${billingCycle}`);
+    const usageDoc = await usageRef.get();
+    if (usageDoc.exists) {
+      const data = usageDoc.data()!;
+      if (data.remainingTokens !== undefined && data.remainingTokens <= 0) {
+        return { ok: false, reason: "MONTHLY_TOKEN_QUOTA_EXHAUSTED" };
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: true };
+  }
+}
+
 export async function logAiUsage(params: {
   traceId: string;
   orgId: string;
