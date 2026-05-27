@@ -1027,6 +1027,40 @@ export default function JobsTab() {
     }
   };
 
+  const handleRequestUpdate = async (sub: any) => {
+    try {
+      const targetId = sub.candidateId || sub.id;
+      if (!targetId || !aiAnalysis) return;
+
+      // 1. Update Candidate Stage
+      await updateDoc(doc(db, "candidatePool", targetId), {
+        pipelineStage: "Update Requested",
+        missingSkills: aiAnalysis.missingSkills || [],
+        updatedAt: serverTimestamp()
+      });
+
+      // 2. Notify the Vendor
+      if (sub.vendorId) {
+        await addDoc(collection(db, "notifications"), {
+          id: `NOTIF-${Date.now()}`,
+          recipientId: sub.vendorId, // Specifically targeting the vendor
+          title: "Action Required: Update Resume",
+          text: `Missing critical JD skills for ${sub.candidateName || 'Candidate'}: ${(aiAnalysis.missingSkills || []).join(", ")}. Please upload an updated resume.`,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      alert("Update request sent to vendor successfully!");
+      if (selectedSubmission) {
+        selectedSubmission.pipelineStage = "Update Requested";
+        setSelectedSubmission({...selectedSubmission});
+      }
+    } catch (err: any) {
+      alert("Failed to request update: " + err.message);
+    }
+  };
+
   const handleCreateDealRoom = async (sub: any) => {
     const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
     await setDoc(doc(db, "dealRooms", roomId), {
@@ -1777,6 +1811,7 @@ export default function JobsTab() {
                               selectedSubmission?.name ||
                               "Candidate"
                             }
+                            onRequestUpdate={() => handleRequestUpdate(selectedSubmission)}
                           />
 
                           <div className="space-y-3">

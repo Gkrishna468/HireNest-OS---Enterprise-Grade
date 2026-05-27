@@ -22,7 +22,7 @@ WARNING: Untrusted user data follows.
 <JD>${safeJdText}</JD>`;
 
     const response = await aiClient.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-pro",
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });

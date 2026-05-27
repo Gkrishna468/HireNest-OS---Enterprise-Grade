@@ -5,11 +5,12 @@ import { HybridMatchResult } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AIMatchingProps {
-  result: HybridMatchResult;
+  result: HybridMatchResult | any;
   candidateName: string;
+  onRequestUpdate?: () => void;
 }
 
-export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName }) => {
+export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName, onRequestUpdate }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   const getBadge = () => {
@@ -40,16 +41,16 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
       <div className="p-4 flex items-center justify-between bg-slate-50/50">
         <div className="flex items-center gap-3">
           <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-white ${
-            result.score >= 80 ? 'bg-emerald-500' : result.score >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+            (result as any).matchScore >= 80 ? 'bg-emerald-500' : (result as any).matchScore >= 60 ? 'bg-amber-500' : 'bg-rose-500'
           }`}>
-            {result.score}%
+            {(result as any).matchScore}%
           </div>
           <div>
             <h4 className="text-sm font-bold text-slate-800">{candidateName}</h4>
             <div className="flex gap-2 mt-1">
               {getBadge()}
               <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                {result.breakdown?.totalScore || result.score || 0} pts
+                {result.breakdown?.totalScore || (result as any).matchScore || 0} pts
               </Badge>
             </div>
           </div>
@@ -104,7 +105,7 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                      <ShieldAlert size={14} className="animate-pulse" /> Critical Missing Skills (JD vs Resume)
                   </h5>
                   <div className="flex flex-wrap gap-2">
-                    {result.missingSkills.map((s, i) => (
+                    {result.missingSkills.map((s: string, i: number) => (
                       <Badge key={i} className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] font-mono">
                         {s}
                       </Badge>
@@ -113,6 +114,16 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName })
                   <p className="text-[9px] text-slate-500 mt-3 italic">
                     Note: These specific technical requirements from the JD were not implicitly found in the parsed profile.
                   </p>
+                  {onRequestUpdate && (
+                    <div className="mt-4 border-t border-slate-800 pt-3">
+                      <button 
+                        onClick={onRequestUpdate} 
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors uppercase tracking-widest"
+                      >
+                         Request Updated Resume
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

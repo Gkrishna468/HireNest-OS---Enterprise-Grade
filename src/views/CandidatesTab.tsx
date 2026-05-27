@@ -1130,6 +1130,79 @@ export default function CandidatesTab() {
                 </div>
               )}
 
+              {/* update requested */}
+              {selectedCandidate.pipelineStage === "Update Requested" && (
+                <div className="mx-6 mt-6 p-5 bg-rose-50 border-l-4 border-rose-500 rounded-r-xl shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <ShieldAlert size={100} className="text-rose-600" />
+                  </div>
+                  <div className="flex gap-4 items-start relative z-10">
+                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shrink-0 border border-rose-100 shadow-sm">
+                      <ShieldAlert size={18} className="text-rose-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-[12px] font-black uppercase text-rose-800 tracking-wider mb-2">
+                         Action Required: Missing Critical Skills
+                      </h3>
+                      <p className="text-[11px] text-rose-700 font-medium mb-3 max-w-xl leading-relaxed">
+                        The client has reviewed this profile and requested an updated resume. The current parsing indicates the following skills are missing from the JD: 
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {(selectedCandidate.missingSkills || []).map((skill: string, i: number) => (
+                           <Badge key={i} className="bg-rose-100 text-rose-800 border-rose-200">
+                             {skill}
+                           </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="file"
+                          id={`resume-upload-${selectedCandidate.id}`}
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.txt"
+                          onChange={async (e) => {
+                             if (!e.target.files || e.target.files.length === 0) return;
+                             try {
+                               // Simulate AI Parsing delay
+                               alert("Extracting new data. AI recalibrating match...");
+                               const newProfileData = "User updated resume containing: " + Array.from(e.target.files).map(f => f.name).join(", ");
+                               
+                               const candRef = doc(db, "candidatePool", selectedCandidate.id);
+                               await updateDoc(candRef, {
+                                 resumeText: (selectedCandidate.resumeText || "") + "\n\n[UPDATED PROFILE DATA]: " + newProfileData,
+                                 pipelineStage: "Matched", // push back to matched state
+                                 missingSkills: [],
+                                 updatedAt: serverTimestamp()
+                               });
+                               
+                               // Notify Client 
+                               await addDoc(collection(db, "notifications"), {
+                                  id: `NOTIF-${Date.now()}`,
+                                  recipientId: "admin",
+                                  title: "Resume Updated",
+                                  text: `Vendor has provided an updated resume for ${selectedCandidate.name || 'Candidate'}. Matching intelligence is ready.`,
+                                  read: false,
+                                  createdAt: serverTimestamp(),
+                               });
+
+                               alert("Resume updated successfully. Candidate returned to Matched pipeline.");
+                             } catch (err: any) {
+                               alert("Failed to upload: " + err.message);
+                             }
+                          }}
+                        />
+                        <Button 
+                          onClick={() => document.getElementById(`resume-upload-${selectedCandidate.id}`)?.click()}
+                          className="bg-slate-900 hover:bg-slate-800 text-white shadow-xl h-10 uppercase tracking-widest text-[10px] font-bold"
+                        >
+                          <Upload size={14} className="mr-2" /> Upload Updated Resume
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Pipeline Pulse Flow */}
               <div className="p-6 bg-white border-b border-slate-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
