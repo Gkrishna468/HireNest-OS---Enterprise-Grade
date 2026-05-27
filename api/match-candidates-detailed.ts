@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { logAiUsage, checkQuota } from "./lib/tenantGovernance";
-import { meterExecution } from "./lib/tenantBilling";
+import { logAiUsage, checkQuota } from "./lib/tenantGovernance.ts";
+import { meterExecution } from "./lib/tenantBilling.ts";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -26,9 +26,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const orgId = req.headers['x-org-id'] || 'system';
-  const quotaCheck = await checkQuota(orgId);
-  if (!quotaCheck.ok) {
-     return res.status(429).json({ error: quotaCheck.reason, message: "AI token limit exhausted for this billing cycle." });
+  try {
+    const quotaCheck = await checkQuota(orgId);
+    if (!quotaCheck.ok) {
+       return res.status(429).json({ error: quotaCheck.reason, message: "AI token limit exhausted for this billing cycle." });
+    }
+  } catch (err) {
+    console.error("[QUOTA_CHECK_ERR]", err);
   }
 
   try {

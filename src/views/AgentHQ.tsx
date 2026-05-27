@@ -8,6 +8,8 @@ export default function AgentHQ() {
   const [analysis, setAnalysis] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [governanceQueue, setGovernanceQueue] = useState<any[]>([]);
+  const [activeRequirements, setActiveRequirements] = useState<any[]>([]);
+  const [activeMatches, setActiveMatches] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
 
   const fetchInitialized = useRef(false);
@@ -27,6 +29,9 @@ export default function AgentHQ() {
       
       const requirementsList = govData.requirements || [];
       const pending = requirementsList.filter((r: any) => r.status === "PENDING_FINANCIAL_APPROVAL");
+      const active = requirementsList.filter((r: any) => r.status === "PUBLISHED" || r.status === "OPEN");
+      setActiveRequirements(active);
+      setActiveMatches(govData.submissions || []);
       setGovernanceQueue(pending);
 
       // 2. Run strategic agent analysis (optional - handle if API missing)
@@ -121,6 +126,45 @@ export default function AgentHQ() {
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Active Requirements & Matches */}
+            <div className="h-64 bg-white rounded-3xl p-6 shadow-xl border border-slate-200 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 flex items-center gap-2">
+                        <Activity size={14}/> Active Requirements
+                    </h3>
+                    <span className="text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
+                        {activeRequirements.length} ACTIVE
+                    </span>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-3">
+                    {activeRequirements.length === 0 ? (
+                        <div className="text-[10px] text-slate-500 italic text-center mt-8">No active requirements found across the network.</div>
+                    ) : (
+                        activeRequirements.map(req => {
+                            const reqMatches = activeMatches.filter(m => m.requirementId === req.id);
+                            return (
+                                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 gap-2">
+                                    <div>
+                                        <div className="text-xs font-black text-slate-800">{req.title}</div>
+                                        <div className="text-[10px] uppercase font-bold text-slate-500">{req.clientName || req.clientId}</div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-center">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Matches</div>
+                                            <div className="text-sm font-black text-indigo-600">{reqMatches.length}</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Budget</div>
+                                            <div className="text-sm font-black text-emerald-600">${req.clientTargetBudget || 0}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
             </div>
 
             {/* Email Dispatch Audit Log */}

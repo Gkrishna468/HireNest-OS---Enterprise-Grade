@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
-import { logAiUsage, checkQuota } from "./lib/tenantGovernance";
-import { meterExecution } from "./lib/tenantBilling";
+import { logAiUsage, checkQuota } from "./lib/tenantGovernance.ts";
+import { meterExecution } from "./lib/tenantBilling.ts";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
