@@ -23,6 +23,7 @@ import {
   UserCheck,
   Fingerprint,
   Cpu,
+  Database,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -32,6 +33,7 @@ import AgentHQ from "./views/AgentHQ";
 import CandidatesTab from "./views/CandidatesTab";
 import ClientsTab from "./views/ClientsTab";
 import JobsTab from "./views/JobsTab";
+import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import VendorsTab from "./views/VendorsTab";
 import RecruitersTab from "./views/RecruitersTab";
@@ -328,6 +330,15 @@ const AppContent = () => {
             />
           )}
 
+          {isAdmin && (
+            <SidebarItem
+              to="/rag-intel"
+              icon={Database}
+              label="RAG Intelligence"
+              active={location.pathname === "/rag-intel"}
+            />
+          )}
+
           {/* Candidates: Show to Admin, Vendor, Recruiter, Client, but hide from Independent */}
           {(isAdmin || isVendor || isRecruiter || isClient) && (
             <SidebarItem
@@ -511,6 +522,7 @@ const AppContent = () => {
           <Routes>
             <Route path="/" element={<DashboardTab />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
+            {isAdmin && <Route path="/rag-intel" element={<RagIntelligenceTab />} />}
             {(isAdmin || isVendor || isRecruiter || isClient) && (
               <Route path="/candidates" element={<CandidatesTab />} />
             )}

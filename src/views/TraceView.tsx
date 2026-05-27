@@ -20,7 +20,7 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
 
     useEffect(() => {
       const q = query(
-        collection(db, "immutable_audit_logs"),
+        collection(db, "execution_events"),
         orderBy("timestamp", "desc"),
         limit(100)
       );
@@ -29,14 +29,19 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
         const newEvents: TraceEvent[] = snapshot.docs.map(doc => {
           const data = doc.data();
           const time = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '---';
+          
+          let statusStr: any = data.metadata?.severity || 'INFO';
+          if (data.eventType?.includes("BREACH") || data.eventType?.includes("LEAKAGE")) statusStr = 'CRITICAL';
+          if (data.eventType?.includes("CLOSED") || data.eventType?.includes("REALIZED")) statusStr = 'SUCCESS';
+
           return {
             id: doc.id,
             timestamp: time,
-            origin: data.workerId || 'SYSTEM',
-            action: data.action || data.eventType || 'Generic execution event',
-            status: data.status || 'INFO',
-            payload: data.vendorId || 'global_sys',
-            traceId: data.traceId
+            origin: data.actorType || data.workerId || 'SYSTEM',
+            action: data.eventType || data.action || 'Generic execution event',
+            status: statusStr,
+            payload: data.targetId || data.vendorId || 'global_sys',
+            traceId: data.traceId || doc.id
           };
         }).reverse();
         setEvents(newEvents);
