@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -24,6 +24,8 @@ import {
   Fingerprint,
   Cpu,
   Database,
+  Menu,
+  X
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -58,14 +60,17 @@ const SidebarItem = ({
   icon: Icon,
   label,
   active,
+  onClick,
 }: {
   to: string;
   icon: any;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }) => (
   <Link
     to={to}
+    onClick={onClick}
     className={cn(
       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-sm font-bold uppercase tracking-wider",
       active
@@ -90,6 +95,7 @@ const AppContent = () => {
   const [userData, setUserData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [showDemo, setShowDemo] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   React.useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (u) => {
@@ -286,6 +292,8 @@ const AppContent = () => {
     );
   }
 
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans">
       {hasCompletedOnboarding && showDemo && (
@@ -294,20 +302,39 @@ const AppContent = () => {
           onClose={handleCloseDemo}
         />
       )}
-      {/* Permanent Sidebar */}
-      <aside className="w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50">
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
-            <ShieldCheck size={24} />
+      
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
+           onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside 
+        className={cn(
+          "w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50 fixed lg:relative h-full transition-transform duration-300 ease-in-out",
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        <div className="flex items-center justify-between mb-10 px-2">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-slate-900 tracking-tighter">
+                HireNest<span className="text-indigo-600">OS</span>
+              </h1>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Enterprise Core
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-black text-slate-900 tracking-tighter">
-              HireNest<span className="text-indigo-600">OS</span>
-            </h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              Enterprise Core
-            </p>
-          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-900">
+             <X size={24} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
@@ -319,6 +346,7 @@ const AppContent = () => {
             icon={LayoutDashboard}
             label="Dashboard"
             active={location.pathname === "/"}
+            onClick={() => setIsMobileMenuOpen(false)}
           />
 
           {isAdmin && (
@@ -327,6 +355,7 @@ const AppContent = () => {
               icon={Brain}
               label="Agent HQ"
               active={location.pathname === "/hq"}
+              onClick={() => setIsMobileMenuOpen(false)}
             />
           )}
 
@@ -336,6 +365,7 @@ const AppContent = () => {
               icon={Database}
               label="RAG Intelligence"
               active={location.pathname === "/rag-intel"}
+              onClick={() => setIsMobileMenuOpen(false)}
             />
           )}
 
@@ -346,6 +376,7 @@ const AppContent = () => {
               icon={Users}
               label="Candidates"
               active={location.pathname === "/candidates"}
+              onClick={() => setIsMobileMenuOpen(false)}
             />
           )}
 
@@ -354,6 +385,7 @@ const AppContent = () => {
             icon={Briefcase}
             label="Job Pipelines"
             active={location.pathname === "/jobs"}
+            onClick={() => setIsMobileMenuOpen(false)}
           />
 
           {isAdmin && (
@@ -366,24 +398,28 @@ const AppContent = () => {
                 icon={Building2}
                 label="Clients"
                 active={location.pathname === "/clients"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/vendors"
                 icon={Users}
                 label="Vendors"
                 active={location.pathname === "/vendors"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/recruiters"
                 icon={UserCheck}
                 label="Recruiters"
                 active={location.pathname === "/recruiters"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/independent"
                 icon={Fingerprint}
                 label="Independent"
                 active={location.pathname === "/independent"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
           )}
@@ -405,6 +441,7 @@ const AppContent = () => {
                 icon={MessageSquare}
                 label="Deal Rooms"
                 active={location.pathname === "/deal-rooms"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
           )}
@@ -419,30 +456,35 @@ const AppContent = () => {
                 icon={ShieldCheck}
                 label="Governance"
                 active={location.pathname === "/admin"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/users"
                 icon={Users}
                 label="User Management"
                 active={location.pathname === "/users"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/trace"
                 icon={Activity}
                 label="System Trace"
                 active={location.pathname === "/trace"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/map"
                 icon={Network}
                 label="Memory Map"
                 active={location.pathname === "/map"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/ops"
                 icon={Activity}
                 label="Platform Ops"
                 active={location.pathname === "/ops"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
           )}
@@ -451,12 +493,14 @@ const AppContent = () => {
             icon={Cpu}
             label="AI Cost Metering"
             active={location.pathname === "/usage"}
+            onClick={() => setIsMobileMenuOpen(false)}
           />
           <SidebarItem
             to="/notifications"
             icon={Bell}
             label="Alerts"
             active={location.pathname === "/notifications"}
+            onClick={() => setIsMobileMenuOpen(false)}
           />
         </nav>
 
@@ -466,6 +510,7 @@ const AppContent = () => {
             icon={Settings}
             label="System"
             active={location.pathname === "/settings"}
+            onClick={() => setIsMobileMenuOpen(false)}
           />
           <button
             onClick={() => signOut(auth)}
@@ -478,21 +523,27 @@ const AppContent = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      <main className="flex-1 flex flex-col relative overflow-hidden w-full lg:w-auto">
         {/* Global Navigation Hub */}
-        <header className="h-16 bg-white border-b border-slate-100 px-8 flex items-center justify-between shrink-0 z-40">
-          <div className="flex items-center gap-6">
-            <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic">
+        <header className="h-16 bg-white border-b border-slate-100 px-4 md:px-8 flex items-center justify-between shrink-0 z-40">
+          <div className="flex items-center gap-3 md:gap-6">
+            <button 
+                onClick={toggleMobileMenu} 
+                className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-50"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic hidden sm:block">
               Node: Global HQ
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline-block">
                 Protocol Active
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <div className="hidden md:flex items-center bg-slate-50 rounded-2xl px-4 py-2 border border-slate-100 gap-3">
               <ShieldCheck size={14} className="text-indigo-600" />
               <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">
@@ -502,7 +553,7 @@ const AppContent = () => {
             {isAdmin && (
               <Link
                 to="/users"
-                className="bg-slate-900 text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-200 flex items-center gap-2"
+                className="hidden sm:flex bg-slate-900 text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-200 items-center gap-2"
               >
                 <Users size={14} />
                 Onboard Nodes

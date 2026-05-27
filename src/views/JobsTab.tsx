@@ -1015,7 +1015,7 @@ export default function JobsTab() {
       <div className="flex-1 flex overflow-hidden">
         {/* Main Jobs List */}
         <div
-          className={`flex-1 flex flex-col overflow-hidden p-4 space-y-4 transition-all ${selectedJob ? "w-1/2" : "w-full"}`}
+          className={`flex-1 flex flex-col overflow-hidden p-4 space-y-4 transition-all ${selectedJob ? "hidden lg:flex lg:w-1/2" : "w-full"}`}
         >
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <div>
@@ -1328,7 +1328,7 @@ export default function JobsTab() {
 
         {/* Selected Job & Candidate Intelligence Sidebar */}
         {selectedJob && (
-          <div className="w-1/2 border-l border-slate-200 bg-white flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+          <div className="w-full lg:w-1/2 absolute lg:relative inset-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 z-10">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
               <div className="flex items-center gap-2">
                 <Button

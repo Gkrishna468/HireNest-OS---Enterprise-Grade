@@ -402,7 +402,7 @@ export default function DealRoomsTab() {
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4 pb-0 h-full">
       {/* Left: Deal Rooms List */}
-      <section className="w-1/3 bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col min-w-[320px]">
+      <section className={`${selectedRoom ? 'hidden lg:flex' : 'flex'} w-full lg:w-1/3 bg-white border border-slate-200 rounded-lg shadow-sm flex-col lg:min-w-[320px]`}>
         <div className="p-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h3 className="font-bold text-xs uppercase tracking-widest text-slate-800 tracking-tighter">Enterprise Deal Stream</h3>
           <span className="text-[9px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 italic flex items-center">
@@ -442,11 +442,14 @@ export default function DealRoomsTab() {
 
       {/* Right: Active Deal Room Chat */}
       {selectedRoom ? (
-        <div className="flex-1 flex gap-4 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden absolute lg:relative inset-0 lg:inset-auto z-10 bg-slate-50 lg:bg-transparent p-4 lg:p-0">
           <section className="flex-1 border border-slate-200 rounded-lg bg-slate-50 flex flex-col overflow-hidden shadow-sm">
             <div className="py-3 border-b bg-white flex items-center px-4 justify-between shrink-0">
               <div className="flex flex-col">
                 <div className="font-semibold text-sm text-slate-800 flex items-center mb-1">
+                  <button onClick={() => setSelectedRoom(null)} className="lg:hidden mr-2 text-slate-500 hover:text-slate-800">
+                     <ChevronRight size={18} className="rotate-180" />
+                  </button>
                   <span className="font-mono bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-xs mr-3 border border-indigo-200 uppercase tracking-tighter">DEAL_{selectedRoom.id.slice(0, 6)}</span>
                   <span className="text-sm font-black text-slate-900 mr-3">{selectedRoom.identitiesRevealed ? selectedRoom.candidateName : "MASKED_CANDIDATE"}</span>
                   {selectedRoom.identitiesRevealed ? (
@@ -718,7 +721,7 @@ export default function DealRoomsTab() {
           </section>
 
           {/* Intelligence Snapshot Sidebar */}
-          <section className="w-80 bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+          <section className="w-full lg:w-80 bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden shrink-0">
               <div className="p-3 border-b border-slate-100 bg-slate-50 shrink-0">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
                       <Bot size={14} className="text-indigo-600" /> Deal Intelligence
