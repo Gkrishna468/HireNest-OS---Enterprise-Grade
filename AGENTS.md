@@ -28,3 +28,13 @@ You are expected to self-enforce these 10 core constraints and refer to this doc
 
 ## Vibe Coding Security Audit Alignment
 In addition to the production checklist, this workspace strictly enforces and implements security policies based on the [Vibe Coding Security Checklist](https://gist.github.com/mdsaban/29ffbb6974ce2fa9acc37415b9a4b684). A comprehensive codebase audit has been executed, with explicit upload hardenings applied to `/api/extract-text.ts`. Detailed resolutions and safety vectors are logged in `/VIBE_CHECKLIST_RESOLVED.md` for continuous maintenance.
+
+## Google Agent Skills & Well-Architected Framework (WAF) Integration
+This workspace implements Google Agent Skills from `github.com/google/skills`. The following Google Cloud **Well-Architected Framework (WAF)** and enterprise principles must be enforced throughout the platform's architecture:
+
+1. **Security by Design & Zero Trust (`google-cloud-waf-security`)**: Implement deep defense layers. IAM roles (admin, client, vendor) must be strictly isolated at the database, backend, and API layers (Attribute-Based Access Control). Never trust client requests without verification. Vendors must only see their own candidates; Admins have global views.
+2. **Shift-Left Security & Cyber Defense (`google-cloud-waf-security`)**: Catch vulnerabilities early. Ensure input validation on data parsed from resumes/JDs and strictly type backend models. Monitor error logs to gracefully catch API failures securely.
+3. **Operational Excellence & Reliability (`google-cloud-waf-operational-excellence`, `google-cloud-waf-reliability`)**: Graceful state recovery, resilient API calls, scaling considerations for the active OS matching systems, and detailed status/error boundaries for loading states.
+4. **Performance & Cost Optimization (`google-cloud-waf-performance-optimization`, `google-cloud-waf-cost-optimization`)**: Minimize large payload transfers. Limit Firestore fetch operations, utilize indexes heavily for global candidate pool matching, and constrain vector search spaces.
+5. **Firebase Skills Implementation (`firebase-basics`)**: For Firebase features, rely firmly on standard client/admin setups.
+6. **AI Safety & Governance**: Use Gemini Models responsibly to augment recruitment intelligence, never to leak PII. Ensure AI outputs are sanitized and grounded.
