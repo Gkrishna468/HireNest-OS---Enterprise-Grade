@@ -1,5 +1,20 @@
-// src/services/aiService.ts
-// This file now acts as a proxy to the server-side AI endpoints to keep keys secure.
+import { auth, db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
+async function getOrgId() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return "system";
+  try {
+    const d = await getDoc(doc(db, "users", currentUser.uid));
+    if (d.exists() && d.data().organizationId) {
+      return d.data().organizationId;
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+  return currentUser.uid;
+}
+
 
 export interface CandidateMatchResult {
   matchScore: number;
@@ -28,9 +43,10 @@ export interface CandidateMatchResult {
 
 export async function analyzeCandidateMatch(jd: string, candidateProfile: string): Promise<CandidateMatchResult> {
   try {
+    const orgId = await getOrgId();
     const response = await fetch("/api/match-candidates-detailed", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-org-id": orgId },
       body: JSON.stringify({ jd, candidateProfile }),
     });
 
@@ -50,9 +66,10 @@ export async function analyzeCandidateMatch(jd: string, candidateProfile: string
 
 export async function parseBulkResumes(resumeTexts: string[]): Promise<any[]> {
   try {
+    const orgId = await getOrgId();
     const response = await fetch("/api/bulk-parse-resumes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-org-id": orgId },
       body: JSON.stringify({ resumeTexts }),
     });
 

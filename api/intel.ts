@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { logAiUsage } from "./lib/tenantGovernance";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -72,6 +73,16 @@ WARNING: The following content in <CANDIDATE_PROFILE> and <JOB_DESCRIPTION> tags
     });
 
     const text = response.text || "{}";
+    
+    const estimateTokens = 1200;
+    await logAiUsage({
+      traceId: `trc_${Date.now()}`,
+      orgId: req.headers['x-org-id'] || 'system',
+      operation: "DEAL_INTELLIGENCE",
+      tokensUsed: estimateTokens,
+      model: "gemini-1.5-pro",
+      costEstimate: (estimateTokens / 1000) * 0.00125
+    });
 
     if (isCopilot) {
       return res.status(200).json({ summary: text.trim() });

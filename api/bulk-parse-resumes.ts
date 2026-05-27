@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { logAiUsage } from "./lib/tenantGovernance";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -90,6 +91,17 @@ ${text}
           });
 
           profile = JSON.parse(response.text || "{}");
+          
+          const estimateTokens = Math.max(1500, Math.round(text.length / 3));
+          await logAiUsage({
+            traceId: `trc_${Date.now()}_${i}`,
+            orgId: req.headers['x-org-id'] || 'system',
+            operation: "PARSE_RESUME",
+            tokensUsed: estimateTokens,
+            model: "gemini-1.5-pro",
+            costEstimate: (estimateTokens / 1000) * 0.00125
+          });
+
           success = true;
         } catch (singleErr: any) {
           console.error("[BULK_PARSE_SINGLE_ERR] Failed to process a single resume:", singleErr);

@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { logAiUsage } from "./lib/tenantGovernance";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -52,6 +53,15 @@ ${jdText}
     });
 
     const parsedData = JSON.parse(response.text || "{}");
+    const estimateTokens = Math.max(600, Math.round(jdText.length / 3));
+    await logAiUsage({
+      traceId: `trc_${Date.now()}`,
+      orgId: req.headers['x-org-id'] || 'system',
+      operation: "PARSE_JD",
+      tokensUsed: estimateTokens,
+      model: "gemini-1.5-pro",
+      costEstimate: (estimateTokens / 1000) * 0.00125
+    });
     return res.status(200).json(parsedData);
 
   } catch (error: any) {

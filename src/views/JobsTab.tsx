@@ -688,7 +688,7 @@ export default function JobsTab() {
       try {
         const res = await fetch("/api/parse-jd", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-org-id": userOrgId || "system" },
           body: JSON.stringify({ jdText }),
         });
 
