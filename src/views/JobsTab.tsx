@@ -350,12 +350,55 @@ export default function JobsTab() {
         qSub = query(collection(db, "submissions"), where("requirementId", "==", selectedJob.id), where("vendorId", "==", orgId));
       }
 
-      const unsubSub = onSnapshot(qSub, (snap) => {
-        setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // Listen to candidatePool for manually mapped candidates
+      let qCand;
+      if (hqAuthority) {
+        qCand = query(collection(db, "candidatePool"), where("mappedJobId", "==", selectedJob.id));
+      } else if (isClient) {
+        qCand = query(collection(db, "candidatePool"), where("mappedJobId", "==", selectedJob.id), where("clientId", "==", orgId));
+      } else {
+        qCand = query(collection(db, "candidatePool"), where("mappedJobId", "==", selectedJob.id), where("vendorId", "==", orgId));
+      }
+
+      let currentMappedCands: any[] = [];
+      let currentSubs: any[] = [];
+      
+      const updateMergedSubmissions = () => {
+        const map = new Map();
+        for (const c of currentMappedCands) map.set(c.candidateId, c);
+        for (const s of currentSubs) map.set(s.candidateId || s.id, s);
+        setSubmissions(Array.from(map.values()));
+      };
+
+      const unsubCand = onSnapshot(qCand, (snap) => {
+        currentMappedCands = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            candidateId: d.id,
+            requirementId: selectedJob.id,
+            candidateName: data.name || "Candidate",
+            skills: data.skills || [],
+            status: data.pipelineStage || "Matched",
+            resumeText: data.resumeText || "",
+            matchScore: data.matchScore,
+            source: "manual_mapping",
+            createdAt: data.updatedAt || data.createdAt,
+            ...data
+          };
+        });
+        updateMergedSubmissions();
       }, (error) => {
-        console.warn("[SUBMISSIONS_FETCH_WARN] Complied rules but query returned error:", error.message);
-        handleFirestoreError(error, OperationType.GET, "submissions");
+        console.warn("[CANDIDATE_FETCH_WARN]", error.message);
       });
+
+      const unsubSub = onSnapshot(qSub, (snap) => {
+        currentSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateMergedSubmissions();
+      }, (error) => {
+        console.warn("[SUBMISSIONS_FETCH_WARN]", error.message);
+      });
+
 
       // 2. Requirement-Scoped Intelligence Matching via Secure API
       const fetchRequirementIntelligence = async () => {
@@ -374,7 +417,10 @@ export default function JobsTab() {
       };
 
       fetchRequirementIntelligence();
-      return () => unsubSub();
+      return () => {
+        unsubCand();
+        unsubSub();
+      };
     }
   }, [selectedJob, auth.currentUser, orgId, userRole]);
 
@@ -633,7 +679,9 @@ export default function JobsTab() {
     setIsAnalyzing(true);
     setSelectedSubmission(sub);
     try {
-      const result = await analyzeCandidateMatch(selectedJob.description, sub.resumeText || "Skills: " + (sub.skills || []).join(", "));
+      const safeJd = selectedJob.description || selectedJob.title || "Generic Job Requirement";
+      const safeProfile = sub.resumeText || (sub.skills && sub.skills.length > 0 ? "Skills: " + sub.skills.join(", ") : "Candidate Profile details omitted.");
+      const result = await analyzeCandidateMatch(safeJd, safeProfile);
       setAiAnalysis(result as any);
     } catch (err: any) {
       alert("Match Engine V2 failed: " + err.message);
