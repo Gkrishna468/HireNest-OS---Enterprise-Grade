@@ -167,10 +167,33 @@ export default function NotificationsTab({ org }: { org: any }) {
               onClick={() => {
                 if (n.actionUrl) {
                   navigate(n.actionUrl);
-                } else if (n.title.toLowerCase().includes("deal room") || n.type === "DEAL_ROOM") {
+                  return;
+                }
+                
+                const fullText = `${n.title || ""} ${n.text || ""} ${n.message || ""}`.toLowerCase();
+                
+                if (fullText.includes("deal room") || n.type === "DEAL_ROOM") {
                   navigate("/deal-rooms");
-                } else if (n.title.toLowerCase().includes("job") || n.type === "JOB_BROADCAST") {
+                } else if (
+                  fullText.includes("resume") || 
+                  fullText.includes("candidate") || 
+                  n.type === "CANDIDATE" || 
+                  n.type === "RESUME"
+                ) {
+                  navigate("/candidates");
+                } else if (
+                  fullText.includes("job") || 
+                  fullText.includes("requirement") || 
+                  n.type === "JOB_BROADCAST"
+                ) {
                   navigate("/jobs");
+                } else if (fullText.includes("vendor")) {
+                  navigate("/vendors");
+                } else if (fullText.includes("client")) {
+                  navigate("/clients");
+                } else if (fullText.includes("match")) {
+                  // Fallback for match could be jobs or candidates, Deal Room might catch it earlier. 
+                  navigate("/candidates");
                 }
               }}
               className={cn(
