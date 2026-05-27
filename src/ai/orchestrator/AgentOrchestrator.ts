@@ -65,8 +65,8 @@ export class AgentOrchestrator {
       const executionTime = Date.now() - startTime;
       
       let errorMessage = error.message || 'Unknown cognitive execution failure.';
-      if (error instanceof ZodError) {
-          errorMessage = `Contract Validation Failed: ${error.errors.map(e => e.message).join(', ')}`;
+      if (error && error.errors && Array.isArray(error.errors)) {
+          errorMessage = `Contract Validation Failed: ${error.errors.map((e: any) => e.message).join(', ')}`;
       }
       
       console.error(`[Telemetry][FAILED] Skill: ${skillId} | Tenant: ${tenantId} | Task: ${taskId} | Error: ${errorMessage} | Time: ${executionTime}ms`);

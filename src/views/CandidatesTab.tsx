@@ -530,11 +530,14 @@ export default function CandidatesTab() {
       }
     }
 
-    setBulkText(combinedExtractedText);
+    setBulkText("");
     setIsBulkProcessing(false);
+    setShowBulkUpload(false);
 
     if (failCount > 0) {
       alert(`Finished. ${successCount} queued, ${failCount} failed to upload.`);
+    } else {
+      alert(`Successfully queued ${successCount} candidates for background intelligence distillation.`);
     }
   };
 
@@ -552,8 +555,10 @@ export default function CandidatesTab() {
         parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
       if (result && result.name && result.name !== "Pending Distillation") {
+        const appendedName = result.name.includes(candId) ? result.name : `${result.name} (${candId})`;
         const updatePayload: any = {
           ...result,
+          name: appendedName,
           distillationStatus: "COMPLETED",
           updatedAt: serverTimestamp(),
         };
@@ -618,6 +623,7 @@ export default function CandidatesTab() {
           pipelineStage: "Matched",
           mappedJobId: jobId,
           matchScore: data.matchScore,
+          matchData: data,
           updatedAt: serverTimestamp(),
         });
       }
@@ -754,7 +760,7 @@ export default function CandidatesTab() {
                     key={cand.id}
                     onClick={() => {
                       setSelectedCandidate(cand);
-                      setMappingResult(null);
+                      setMappingResult(cand.matchData || null);
                       setSelectedJobId(cand.mappedJobId || "");
                     }}
                     className={cn(

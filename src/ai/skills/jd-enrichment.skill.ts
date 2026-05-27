@@ -1,17 +1,21 @@
-import { AISkill, SkillResult } from './types';
+import { AISkill, SkillResult, SkillContext } from './types';
 import { globalSkillRegistry } from '../orchestrator/SkillRegistry';
+import { z } from 'zod';
 
-export interface JDEnrichmentInput {
-  jobDescriptionText: string;
-  industry?: string;
-}
+export const JDEnrichmentInputSchema = z.object({
+  jobDescriptionText: z.string(),
+  industry: z.string().optional()
+});
 
-export interface JDEnrichmentOutput {
-  identifiedKeywords: string[];
-  suggestedSalaryRange: string;
-  requiredClearances: string[];
-  enhancedDescription: string;
-}
+export const JDEnrichmentOutputSchema = z.object({
+  identifiedKeywords: z.array(z.string()),
+  suggestedSalaryRange: z.string(),
+  requiredClearances: z.array(z.string()),
+  enhancedDescription: z.string()
+}).catchall(z.any());
+
+export type JDEnrichmentInput = z.infer<typeof JDEnrichmentInputSchema>;
+export type JDEnrichmentOutput = z.infer<typeof JDEnrichmentOutputSchema>;
 
 export class JDEnrichmentSkill implements AISkill<JDEnrichmentInput, JDEnrichmentOutput> {
   id = 'skill.jd.enricher';
@@ -19,7 +23,10 @@ export class JDEnrichmentSkill implements AISkill<JDEnrichmentInput, JDEnrichmen
   description = 'Augments raw job descriptions by inferring required credentials, salary bands, and mapping critical keywords.';
   version = '1.0.0';
 
-  async execute(input: JDEnrichmentInput, context?: any): Promise<SkillResult<JDEnrichmentOutput>> {
+  inputSchema = JDEnrichmentInputSchema;
+  outputSchema = JDEnrichmentOutputSchema;
+
+  async execute(input: JDEnrichmentInput, context?: SkillContext): Promise<SkillResult<JDEnrichmentOutput>> {
     // Scaffold phase
     return {
       success: true,

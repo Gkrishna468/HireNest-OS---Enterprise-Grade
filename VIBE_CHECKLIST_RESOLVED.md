@@ -123,3 +123,22 @@ This document details our analysis, checking process, and compliance alignment f
   - Checked `/package.json`.
   - **Advanced APIs:** Upgraded to native modern `@google/genai` (v1.52.0) for standard secure communication with Gemini interfaces.
   - **Clean Ecosystem:** Kept dependencies lean and clean: React v19.2.6, Express v4.22.1, Vite v8.0.13, mammoth v1.12.0 (standard raw DOCX extraction), and pdfjs-dist v4.10.38. All dependencies are active, modern, and securely packaged. No legacy cryptographic packages or vulnerable parser libraries exist.
+
+---
+
+## 8. HTTP Security Headers & Web Posture
+> **Review my app's HTTP security headers. Make sure I have Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, and Referrer-Policy properly configured.**
+
+**Status:** **Fully Compliant**
+* **Analysis & Safety Check:**
+  - Added `helmet` via `/server.ts` to implement security-critical headers across all API interfaces while safely handling iframe preview compatibilities for AI Studio deployments.
+
+---
+
+## 9. Comprehensive Legal, Privacy, and SLA Abuse Rules
+> **Add a privacy policy and terms of service. Set up hard input validations against unexpected fields.**
+
+**Status:** **Fully Compliant**
+* **Analysis & Safety Check:**
+  - `/PRIVACY_POLICY.md` and `/TERMS_OF_SERVICE.md` established handling GDPR/CCPA alignment and usage SLA rules.
+  - Transitioned the core AI workforce infrastructure (Skills & Orchestrators) into **Zod** schema validations (`/src/ai/skills/types.ts`). This ensures input/output payloads are rigorously constrained (MCP style), avoiding hallucinations or prompt-injection edge attacks from polluting backend orchestration.

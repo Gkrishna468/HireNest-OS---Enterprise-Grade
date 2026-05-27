@@ -178,7 +178,7 @@ export default function JobsTab() {
                 ({
                   id: doc.id,
                   candidateId: doc.id,
-                  ...doc.data(),
+                  ...(doc.data() as any),
                 }) as any,
             );
           } catch (directQueryErr: any) {

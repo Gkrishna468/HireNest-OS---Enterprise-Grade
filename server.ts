@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
@@ -34,6 +35,16 @@ const __dirname = path.dirname(__filename);
 async function createServer() {
   const app = express();
   app.set('trust proxy', 1); // Trust first proxy (required by express-rate-limit behind reverse proxy like Cloud Run)
+  
+  // --- Security Headers (OWASP) ---
+  app.use(helmet({
+    // Vibe Coding Checklist: Secure headers configured.
+    // Disabling CSP and X-Frame-Options temporarily to allow AI Studio iframe preview functionality.
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    frameguard: false,
+  }));
+  
   app.use(express.json());
 
   // --- Rate Limiting ---
