@@ -8,6 +8,7 @@ import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimes
 import { logExecutionEvent, ExecutionEventType, createSLA } from "../lib/infrastructureService";
 import { ExecutionFeed } from "../components/ExecutionFeed";
 import { motion, AnimatePresence } from "motion/react";
+import { DealRoomCopilot } from "../components/DealRoomCopilot";
 
 const STAGES = [
   { id: 'shortlisted', label: 'Shortlisted' },
@@ -27,6 +28,7 @@ export default function DealRoomsTab() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [aiIntelligence, setAiIntelligence] = useState<{ questions: string[], starters: string[] } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   useEffect(() => {
@@ -166,6 +168,34 @@ export default function DealRoomsTab() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedRoom) return;
+
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const fileDataUrl = event.target?.result as string;
+        const payload = {
+          senderRole: userRole || "User",
+          senderId: auth.currentUser?.uid || "UNKNOWN",
+          type: "file",
+          text: `Uploaded file: ${file.name}`,
+          fileUrl: fileDataUrl,
+          fileName: file.name,
+          timestamp: serverTimestamp()
+        };
+        await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), payload);
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch(err) {
+      console.error(err);
+      setIsUploading(false);
+    }
+  };
+
   const fetchIntelligence = async () => {
     if (!selectedRoom) return;
     setIsAiLoading(true);
@@ -198,12 +228,40 @@ export default function DealRoomsTab() {
   const updateStage = async (stageId: string) => {
     if (!selectedRoom || !stageId) return;
     const isFinalStage = stageId === 'hired';
+    const requiresApproval = ['offer', 'hired'].includes(stageId) && !isAdmin && !isClient;
+
     try {
+      if (requiresApproval) {
+        await addDoc(collection(db, "dealRoomApprovals"), {
+            dealRoomId: selectedRoom.id,
+            requestedStage: stageId,
+            requestedByRole: userRole,
+            requestedBy: auth.currentUser?.uid,
+            status: 'PENDING',
+            timestamp: serverTimestamp()
+        });
+        await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
+            senderRole: "System Admin",
+            senderId: "System",
+            text: `⚠️ GOVERNANCE ALERT: Moving candidate to [${STAGES.find(s => s.id === stageId)?.label}] requires Admin/Client authorization. Approval request has been securely routed.`,
+            type: "system",
+            timestamp: serverTimestamp()
+        });
+        return;
+      }
+
       await updateDoc(doc(db, "dealRooms", selectedRoom.id), {
         currentStage: stageId,
         status: isFinalStage ? "CLOSED" : selectedRoom.status,
         updatedAt: serverTimestamp()
       });
+
+      // Instant UI synchronization
+      setSelectedRoom((prev: any) => ({
+        ...prev,
+        currentStage: stageId,
+        status: isFinalStage ? "CLOSED" : prev.status
+      }));
 
       // Log to Execution Bus
       await logExecutionEvent(
@@ -221,8 +279,8 @@ export default function DealRoomsTab() {
       // Auto-message for stage update
       await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
         senderRole: "System Admin",
-        senderId: "Admin",
-        text: `📍 Pipeline update: Target moved to stage [${STAGES.find(s => s.id === stageId)?.label}].`,
+        senderId: "System",
+        text: `📍 Pipeline update: Target safely promoted to stage [${STAGES.find(s => s.id === stageId)?.label}].`,
         type: "system",
         timestamp: serverTimestamp()
       });
@@ -231,8 +289,8 @@ export default function DealRoomsTab() {
         // Simulate Match Email
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
           senderRole: "System Admin",
-          senderId: "Admin",
-          text: `🎉 MATCH FINALIZED! Sending confirmation email to Admin HQ. (Linked: Vendor ID: ${selectedRoom.vendorId} matched with ${selectedRoom.clientName || 'Client'} for candidate ${selectedRoom.candidateName}).`,
+          senderId: "System",
+          text: `🎉 MATCH FINALIZED! Secure confirmation email sent to Admin HQ (Vendor ID: ${selectedRoom.vendorId} matched with ${selectedRoom.clientName || 'Client'} for ${selectedRoom.candidateName}).`,
           type: "system",
           timestamp: serverTimestamp()
         });
@@ -240,9 +298,30 @@ export default function DealRoomsTab() {
         // Final "Happy Onboarding" message
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
           senderRole: "AI Copilot",
-          senderId: "system",
+          senderId: "System",
           text: `🏆 Deal Closed. Happy Onboarding! Please contact global_admin@hirenestworkforce.com for the final contract signing and billing reconciliation.`,
           timestamp: serverTimestamp()
+        });
+
+        // Autogenerate Onboarding Handoff Engine documents
+        await addDoc(collection(db, "onboardingHandoffs"), {
+            dealRoomId: selectedRoom.id,
+            candidateName: selectedRoom.candidateName,
+            status: "INITIATED",
+            tasks: [
+                { id: "docs", title: "Collect Documentation & NDAs", status: "PENDING" },
+                { id: "bgv", title: "Global Background Verification", status: "PENDING" },
+                { id: "it", title: "Secure IT Asset Allocation", status: "PENDING" }
+            ],
+            timestamp: serverTimestamp()
+        });
+
+        await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
+            senderRole: "System Admin",
+            senderId: "System",
+            text: `🚀 ONBOARDING ENGINE ENGAGED: Handoff protocol initiated. Compliance documentation, BGV, and IT allocation tasks auto-generated in the deployment pipeline.`,
+            type: "system",
+            timestamp: serverTimestamp()
         });
       }
     } catch (e: any) {
@@ -295,6 +374,30 @@ export default function DealRoomsTab() {
   };
 
   const filteredRooms = dealRooms.filter(room => isAdmin || room.clientId === orgId || room.vendorId === orgId);
+
+  const computeDealHealth = () => {
+    if (messages.length < 2) return 100;
+    
+    let totalLatency = 0;
+    let latencyCount = 0;
+    
+    for (let i = 1; i < messages.length; i++) {
+        const prev = messages[i-1].timestamp?.seconds;
+        const curr = messages[i].timestamp?.seconds;
+        if (prev && curr) {
+            totalLatency += (curr - prev);
+            latencyCount++;
+        }
+    }
+    
+    if (latencyCount === 0) return 95;
+    
+    const avgLatencyHours = (totalLatency / latencyCount) / 3600;
+    const score = Math.max(20, Math.min(100, 100 - (avgLatencyHours * 5))); // 5 point reduction per average latency hour
+    return Math.round(score);
+  };
+
+  const currentDealHealth = selectedRoom ? computeDealHealth() : 100;
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4 pb-0 h-full">
@@ -364,6 +467,10 @@ export default function DealRoomsTab() {
                   <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1">
                     <Clock size={12} /> {selectedRoom.experience || selectedRoom.yearsOfExperience || "8+"} YRS EXP
                   </span>
+                  <span className="text-slate-200">|</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                    <Activity size={12} /> Health: {currentDealHealth}%
+                  </span>
                 </div>
               </div>
               <div className="flex gap-2 items-center">
@@ -382,23 +489,24 @@ export default function DealRoomsTab() {
 
             {/* Pipeline Tracker */}
             <div className="bg-white border-b border-slate-100 px-4 py-3 shrink-0 overflow-x-auto">
-                <div className="mb-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    {STAGES.map((s, i) => {
-                         const currentIdx = STAGES.findIndex(st => st.id === (selectedRoom.currentStage || 'shortlisted'));
+                <div className="mb-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                    {(() => {
+                         const currentIdx = Math.max(0, STAGES.findIndex(st => st.id === (selectedRoom.currentStage || 'shortlisted')));
                          return (
                             <motion.div 
-                              key={s.id}
                               initial={{ width: 0 }}
-                              animate={{ width: '100%' }}
-                              className={`h-full border-r border-white/20 ${i <= currentIdx ? (selectedRoom.status === 'CLOSED' ? 'bg-emerald-500' : 'bg-indigo-600') : 'bg-transparent'}`}
+                              animate={{ width: `${((currentIdx + 1) / STAGES.length) * 100}%` }}
+                              transition={{ duration: 0.4 }}
+                              className={`absolute top-0 left-0 h-full ${selectedRoom.status === 'CLOSED' ? 'bg-emerald-500' : 'bg-indigo-600'}`}
                             />
                          );
-                    })}
+                    })()}
                 </div>
                 <div className="flex items-center justify-between min-w-[600px]">
                     {STAGES.map((stage, idx) => {
-                        const isCurrent = selectedRoom.currentStage === stage.id || (!selectedRoom.currentStage && stage.id === 'shortlisted');
-                        const isPast = STAGES.findIndex(s => s.id === (selectedRoom.currentStage || 'shortlisted')) > idx;
+                        const currentIdx = Math.max(0, STAGES.findIndex(st => st.id === (selectedRoom.currentStage || 'shortlisted')));
+                        const isCurrent = currentIdx === idx;
+                        const isPast = currentIdx > idx;
                         
                         return (
                             <div key={stage.id} className="flex items-center group relative">
@@ -555,22 +663,46 @@ export default function DealRoomsTab() {
                       <span className="text-[9px] font-mono text-slate-400">{msg.timestamp?.seconds ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...'}</span>
                     </div>
                     <div className={`p-2.5 rounded-lg max-w-[85%] text-[13px] leading-relaxed shadow-sm ${isMe ? 'bg-slate-900 text-white rounded-tr-none' : isAI ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-tl-none font-medium' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'}`}>
-                      {msg.text}
+                      {msg.type === "file" ? (
+                          <div className="flex items-center gap-2">
+                             <Paperclip size={14} className={isMe ? "text-indigo-300" : "text-indigo-500"} />
+                             <a href={msg.fileUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                                {msg.fileName || "View Uploaded File"}
+                             </a>
+                          </div>
+                      ) : msg.type === "email" ? (
+                          <div className="flex flex-col gap-1">
+                              <div className="text-[10px] font-bold uppercase text-slate-400 mb-1 border-b border-slate-200 pb-1">Incoming Email: {msg.subject}</div>
+                              <div className="whitespace-pre-wrap">{msg.text}</div>
+                              <div className="text-[9px] text-slate-400 mt-1">From: {msg.fromEmail || 'global_admin@hirenestworkforce.com'}</div>
+                          </div>
+                      ) : msg.text}
                     </div>
                   </div>
                 )
               })}
             </div>
 
+            <DealRoomCopilot room={selectedRoom} />
+
             <div className="p-3 bg-white border-t border-slate-200 shrink-0">
               <div className="flex gap-2">
+                <label className="flex-shrink-0 cursor-pointer p-2 flex items-center justify-center rounded border border-slate-200 hover:bg-slate-50 transition-colors text-slate-400 hover:text-indigo-600">
+                    <Paperclip size={16} />
+                    <input 
+                       type="file" 
+                       className="hidden" 
+                       onChange={handleFileUpload} 
+                       disabled={selectedRoom.status === "CLOSED" || isUploading}
+                    />
+                </label>
                 <input 
                   type="text" 
-                  disabled={selectedRoom.status === "CLOSED"}
+                  disabled={selectedRoom.status === "CLOSED" || isUploading}
                   value={inputText}
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
                   onChange={e => setInputText(e.target.value)}
-                  placeholder={selectedRoom.status === "CLOSED" ? "This room is finalized and read-only." : "Message this deal room securely..."}
+                  placeholder={selectedRoom.status === "CLOSED" ? "This room is finalized." : isUploading ? "Uploading file..." : "Message this deal room securely..."}
                   className="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 bg-slate-50/50 disabled:bg-slate-100 disabled:italic"
                 />
                 <Button 

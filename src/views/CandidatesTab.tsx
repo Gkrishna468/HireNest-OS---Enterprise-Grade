@@ -1016,10 +1016,33 @@ export default function CandidatesTab() {
                       {selectedCandidate.candidateId || "CAND-PENDING"}
                     </Badge>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-1">
                     <ShieldCheck size={10} className="text-emerald-500" />{" "}
                     Identity Verified •{" "}
-                    <span className="text-indigo-400">Governance Level 2</span>
+                    <span className="text-indigo-400">Governance Level 2</span>{" "}
+                    • <Briefcase size={10} className="text-slate-400" />
+                    {!selectedCandidate.vendorId ||
+                    selectedCandidate.vendorId === "ORG-GLOBAL-HQ" ||
+                    selectedCandidate.vendorId === "ADMIN_POOL" ? (
+                      <span className="text-indigo-600 font-black">
+                        SOURCE: ADMIN HQ
+                      </span>
+                    ) : (
+                      <span
+                        className="text-emerald-600 font-black truncate max-w-[200px]"
+                        title={
+                          selectedCandidate.vendorName ||
+                          vendorMap[selectedCandidate.vendorId] ||
+                          selectedCandidate.vendorId
+                        }
+                      >
+                        VENDOR:{" "}
+                        {selectedCandidate.vendorName ||
+                          vendorMap[selectedCandidate.vendorId] ||
+                          selectedCandidate.vendorId}{" "}
+                        (ID: {selectedCandidate.vendorId})
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

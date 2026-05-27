@@ -1194,132 +1194,135 @@ export default function JobsTab() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-2 pb-20 custom-scrollbar">
-            <div className="grid grid-cols-12 text-[10px] font-bold uppercase text-slate-400 px-4 py-2 sticky top-0 bg-slate-50 z-10">
-              <div className="col-span-1">ID</div>
-              <div className="col-span-8">Requirement Details</div>
-              <div className="col-span-3 text-right">Actions</div>
+          <div className="flex-1 overflow-y-auto min-h-0 pt-2 pr-2 pb-20 custom-scrollbar">
+            <div className="mb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">
+                Active Requirements Pipeline
+              </h2>
             </div>
-
-            {jobs
-              .filter(
-                (j) =>
-                  isAdmin ||
-                  j.clientId === orgId ||
-                  (j.visibility === "VENDOR_NETWORK" &&
-                    j.status === "PUBLISHED"),
-              )
-              .map((job) => (
-                <div
-                  key={job.id}
-                  onClick={() => setSelectedJob(job)}
-                  className={`group relative flex flex-col bg-white border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedJob?.id === job.id ? "border-indigo-600 shadow-xl shadow-indigo-50 ring-1 ring-indigo-600" : "border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-100"}`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600",
-                          selectedJob?.id === job.id &&
-                            "bg-indigo-600 text-white shadow-indigo-100",
-                        )}
-                      >
-                        <Briefcase size={20} />
-                      </div>
-                      <div>
-                        <h3
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {jobs
+                .filter(
+                  (j) =>
+                    isAdmin ||
+                    j.clientId === orgId ||
+                    (j.visibility === "VENDOR_NETWORK" &&
+                      j.status === "PUBLISHED"),
+                )
+                .map((job) => (
+                  <div
+                    key={job.id}
+                    onClick={() => setSelectedJob(job)}
+                    className={`group relative flex flex-col bg-white border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedJob?.id === job.id ? "border-indigo-600 shadow-xl shadow-indigo-50 ring-1 ring-indigo-600" : "border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-100"}`}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div
                           className={cn(
-                            "text-base font-black uppercase tracking-tight leading-none group-hover:text-indigo-600 transition-colors",
-                            selectedJob?.id === job.id
-                              ? "text-indigo-600"
-                              : "text-slate-900",
+                            "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600",
+                            selectedJob?.id === job.id &&
+                              "bg-indigo-600 text-white shadow-indigo-100",
                           )}
                         >
-                          {job.title}
-                        </h3>
-                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">
-                          ID: {job.requirementId?.replace("REQ-", "")}
-                        </p>
+                          <Briefcase size={20} />
+                        </div>
+                        <div>
+                          <h3
+                            className={cn(
+                              "text-base font-black uppercase tracking-tight leading-none group-hover:text-indigo-600 transition-colors",
+                              selectedJob?.id === job.id
+                                ? "text-indigo-600"
+                                : "text-slate-900",
+                            )}
+                          >
+                            {job.title}
+                          </h3>
+                          <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">
+                            ID: {job.requirementId?.replace("REQ-", "")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge
+                          className={cn(
+                            "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
+                            job.status === "PUBLISHED"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : job.status === "PENDING_FINANCIAL_APPROVAL"
+                                ? "bg-amber-100 text-amber-700"
+                                : job.status === "DRAFT"
+                                  ? "bg-slate-100 text-slate-500"
+                                  : job.status === "CLOSED"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-indigo-50 text-indigo-600",
+                          )}
+                        >
+                          {job.status}
+                        </Badge>
+                        {(isAdmin || (isClient && job.clientId === orgId)) &&
+                          (job.status === "PUBLISHED" ||
+                            job.status === "CLOSED") && (
+                            <div
+                              className="flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">
+                                {job.status === "PUBLISHED"
+                                  ? "Active"
+                                  : "Closed"}
+                              </span>
+                              <Switch
+                                checked={job.status === "PUBLISHED"}
+                                onCheckedChange={() =>
+                                  handleToggleStatus(job.id, job.status)
+                                }
+                              />
+                            </div>
+                          )}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge
-                        className={cn(
-                          "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
-                          job.status === "PUBLISHED"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : job.status === "PENDING_FINANCIAL_APPROVAL"
-                              ? "bg-amber-100 text-amber-700"
-                              : job.status === "DRAFT"
-                                ? "bg-slate-100 text-slate-500"
-                                : job.status === "CLOSED"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-indigo-50 text-indigo-600",
-                        )}
-                      >
-                        {job.status}
-                      </Badge>
-                      {(isAdmin || (isClient && job.clientId === orgId)) &&
-                        (job.status === "PUBLISHED" ||
-                          job.status === "CLOSED") && (
-                          <div
-                            className="flex items-center gap-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              {job.status === "PUBLISHED" ? "Active" : "Closed"}
-                            </span>
-                            <Switch
-                              checked={job.status === "PUBLISHED"}
-                              onCheckedChange={() =>
-                                handleToggleStatus(job.id, job.status)
-                              }
-                            />
-                          </div>
-                        )}
+
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase">
+                          <Clock size={12} className="text-slate-300" />{" "}
+                          {job.experience}
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
+                          <MapPin size={12} className="text-slate-300" />{" "}
+                          {job.location || job.workMode}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isAdmin &&
+                          job.status === "PENDING_FINANCIAL_APPROVAL" && (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowApprovalModal(job);
+                              }}
+                              size="sm"
+                              className="bg-amber-500 hover:bg-slate-900 text-white text-[10px] h-8 px-4 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-amber-50"
+                            >
+                              Approve
+                            </Button>
+                          )}
+                        <div className="flex -space-x-1.5 translate-x-1">
+                          {[1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              className="h-6 w-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400 overflow-hidden"
+                            >
+                              <Activity size={10} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase">
-                        <Clock size={12} className="text-slate-300" />{" "}
-                        {job.experience}
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
-                        <MapPin size={12} className="text-slate-300" />{" "}
-                        {job.location || job.workMode}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isAdmin &&
-                        job.status === "PENDING_FINANCIAL_APPROVAL" && (
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowApprovalModal(job);
-                            }}
-                            size="sm"
-                            className="bg-amber-500 hover:bg-slate-900 text-white text-[10px] h-8 px-4 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-amber-50"
-                          >
-                            Approve
-                          </Button>
-                        )}
-                      <div className="flex -space-x-1.5 translate-x-1">
-                        {[1, 2, 3].map((i) => (
-                          <div
-                            key={i}
-                            className="h-6 w-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400 overflow-hidden"
-                          >
-                            <Activity size={10} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
         </div>
 
@@ -1539,21 +1542,23 @@ export default function JobsTab() {
                                     ) : !sub.vendorId ||
                                       sub.vendorId === "ORG-GLOBAL-HQ" ||
                                       sub.vendorId === "ADMIN_POOL" ? (
-                                      <span className="text-indigo-600">
-                                        ADMIN HQ
+                                      <span className="text-indigo-600 font-black tracking-tight">
+                                        SOURCE: ADMIN HQ
                                       </span>
                                     ) : (
                                       <span
-                                        className="text-emerald-600 truncate max-w-[120px]"
+                                        className="text-emerald-600 font-black truncate max-w-[200px]"
                                         title={
                                           sub.vendorName ||
                                           vendorMap[sub.vendorId] ||
                                           sub.vendorId
                                         }
                                       >
+                                        VENDOR:{" "}
                                         {sub.vendorName ||
                                           vendorMap[sub.vendorId] ||
-                                          sub.vendorId}
+                                          sub.vendorId}{" "}
+                                        (ID: {sub.vendorId})
                                       </span>
                                     )}
                                   </div>
