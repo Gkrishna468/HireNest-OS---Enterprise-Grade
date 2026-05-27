@@ -1,15 +1,17 @@
 import { globalSkillRegistry } from './SkillRegistry';
-import { SkillResult } from '../skills/types';
+import { SkillResult, SkillContext } from '../skills/types';
+import { ZodError } from 'zod';
 
 export class AgentOrchestrator {
   /**
    * Orchestrates the execution of a single skill by resolving it from the registry,
    * injecting context (memory, vendor isolation parameters, etc), and handling tracing/errors.
+   * Enforces rigorous MCP tool contract validation for inputs and outputs.
    */
   async executeSkill<TInput, TOutput>(
     skillId: string, 
-    input: TInput, 
-    context?: any
+    rawInput: unknown, 
+    context?: SkillContext
   ): Promise<SkillResult<TOutput>> {
     const skill = globalSkillRegistry.getSkill(skillId);
     
@@ -21,13 +23,36 @@ export class AgentOrchestrator {
     }
     
     const startTime = Date.now();
+    const tenantId = context?.tenantId || 'system';
+    const taskId = context?.taskId || 'sync';
+    const timeoutMs = context?.timeoutMs || 30000; // 30s default timeout ceiling
+    
     try {
-      console.log(`[Orchestrator] Executing Cognitive Skill: [${skill.name}] (ID: ${skill.id})`);
+      console.log(`[Orchestrator][${tenantId}][${taskId}] Executing Cognitive Skill: [${skill.name}] (ID: ${skill.id})`);
       
-      // Execute the skill logic
-      const result = await skill.execute(input, context);
+      // Strict Input Validation & Coercion (MCP Standard)
+      const validatedInput = skill.inputSchema.parse(rawInput);
+      
+      // Execution ceiling wrapper
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error(`Skill execution timed out after ${timeoutMs}ms`)), timeoutMs)
+      );
+      
+      // Execute the stateless skill logic with Promise.race for timeout protection
+      const result = await Promise.race([
+        skill.execute(validatedInput, context),
+        timeoutPromise
+      ]);
+      
+      // Strict Output Validation (Ensures downstream safety)
+      if (result.success && result.data !== undefined) {
+          result.data = skill.outputSchema.parse(result.data);
+      }
       
       const executionTime = Date.now() - startTime;
+      
+      // Execution Telemetry Log
+      console.log(`[Telemetry][SUCCESS] Skill: ${skillId} | Tenant: ${tenantId} | Task: ${taskId} | Time: ${executionTime}ms`);
       
       return {
         ...result,
@@ -37,12 +62,20 @@ export class AgentOrchestrator {
         }
       };
     } catch (error: any) {
-      console.error(`[Orchestrator] Error executing sequence '${skillId}':`, error);
+      const executionTime = Date.now() - startTime;
+      
+      let errorMessage = error.message || 'Unknown cognitive execution failure.';
+      if (error instanceof ZodError) {
+          errorMessage = `Contract Validation Failed: ${error.errors.map(e => e.message).join(', ')}`;
+      }
+      
+      console.error(`[Telemetry][FAILED] Skill: ${skillId} | Tenant: ${tenantId} | Task: ${taskId} | Error: ${errorMessage} | Time: ${executionTime}ms`);
+      
       return {
         success: false,
-        error: error.message || 'Unknown cognitive execution failure.',
+        error: errorMessage,
         metadata: {
-          executionTimeMs: Date.now() - startTime
+          executionTimeMs: executionTime
         }
       };
     }
