@@ -29,7 +29,7 @@ export default function AgentHQ() {
       
       const requirementsList = govData.requirements || [];
       const pending = requirementsList.filter((r: any) => r.status === "PENDING_FINANCIAL_APPROVAL");
-      const active = requirementsList.filter((r: any) => r.status === "PUBLISHED" || r.status === "OPEN");
+      const active = requirementsList.filter((r: any) => ["PUBLISHED", "OPEN", "ACTIVE"].includes(r.status));
       setActiveRequirements(active);
       setActiveMatches(govData.submissions || []);
       setGovernanceQueue(pending);
