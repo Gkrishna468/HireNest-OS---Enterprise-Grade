@@ -20,9 +20,15 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // Process each resume in parallel with Gemini 3.5 Flash
-    const parsedResults = await Promise.all(
-      resumeTexts.map(async (text) => {
+    const parsedResults = [];
+    
+    for (let i = 0; i < resumeTexts.length; i++) {
+      const text = resumeTexts[i];
+      let profile = null;
+      let retries = 3;
+      let success = false;
+
+      while (retries > 0 && !success) {
         try {
           const response = await ai.models.generateContent({
             model: "gemini-3.5-flash",
@@ -83,16 +89,27 @@ ${text}
             }
           });
 
-          const profile = JSON.parse(response.text || "{}");
-          // Include the original resumeText in the structured object so matching retains the raw CV
-          return {
-            ...profile,
-            resumeText: text
-          };
+          profile = JSON.parse(response.text || "{}");
+          success = true;
         } catch (singleErr: any) {
           console.error("[BULK_PARSE_SINGLE_ERR] Failed to process a single resume:", singleErr);
+          
+          if (singleErr?.status === 429 || singleErr?.status === "RESOURCE_EXHAUSTED" || (singleErr?.message && singleErr.message.includes("429"))) {
+            retries--;
+             if (retries > 0) {
+              const delayMatch = singleErr.message?.match(/retry in (\d+\.?\d*)s/);
+              let delayMs = 15000; // default 15s
+              if (delayMatch && delayMatch[1]) {
+                delayMs = Math.ceil(parseFloat(delayMatch[1])) * 1000 + 1000;
+              }
+              console.log(`[BULK_PARSE_RETRY] Rate limited. Waiting ${delayMs}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+              continue;
+            }
+          }
+          
           // Return a structured graceful fallback for this resume
-          return {
+          profile = {
             name: "Candidate " + Math.random().toString(36).substring(7).toUpperCase(),
             email: "pending@extraction.io",
             phone: "Not Specified",
@@ -101,12 +118,22 @@ ${text}
             currentRole: "Technical Specialist",
             riskScore: 0,
             isRisky: false,
-            summary: "Enriched automated candidate profile generated during AI service fallback.",
-            resumeText: text
+            summary: "Enriched automated candidate profile generated during AI service fallback."
           };
+          success = true;
         }
-      })
-    );
+      }
+
+      parsedResults.push({
+        ...profile,
+        resumeText: text
+      });
+      
+      // Delay slightly between successful sequential requests to avoid hitting burst limits
+      if (i < resumeTexts.length - 1) {
+         await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
 
     return res.status(200).json(parsedResults);
 

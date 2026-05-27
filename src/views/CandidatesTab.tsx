@@ -168,13 +168,21 @@ export default function CandidatesTab() {
             role === "super_admin" ||
             role === "ops_admin" ||
             role === "hq_admin";
+          const isClientUser = role.includes("client");
+
           const q = isAdminUser
             ? query(collection(db, "candidatePool"), limit(100))
-            : query(
-                collection(db, "candidatePool"),
-                where("vendorId", "==", orgId),
-                limit(100),
-              );
+            : isClientUser
+              ? query(
+                  collection(db, "candidatePool"),
+                  where("clientId", "==", orgId),
+                  limit(100),
+                )
+              : query(
+                  collection(db, "candidatePool"),
+                  where("vendorId", "==", orgId),
+                  limit(100),
+                );
 
           unsubscribe = onSnapshot(
             q,

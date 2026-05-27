@@ -466,23 +466,27 @@ service cloud.firestore {
     match /candidatePool/{candidateId} {
       allow read:
       if isAdmin() ||
-         isSameOrg(resource.data.vendorId);
+         isSameOrg(resource.data.vendorId) ||
+         isSameOrg(resource.data.clientId);
 
       allow create:
       if isVerified() &&
          (
            isAdmin() ||
-           isSameOrg(incoming().vendorId)
+           isSameOrg(incoming().vendorId) ||
+           isSameOrg(incoming().clientId)
          ) &&
          isValidCandidate(incoming());
 
       allow update:
       if isAdmin() ||
-         isSameOrg(existing().vendorId);
+         isSameOrg(existing().vendorId) ||
+         isSameOrg(existing().clientId);
 
       allow delete:
       if isAdmin() ||
-         isSameOrg(existing().vendorId);
+         isSameOrg(existing().vendorId) ||
+         isSameOrg(existing().clientId);
     }
 
     // =====================================================

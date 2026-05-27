@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Power,
   Network,
+  User,
 } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import {
@@ -83,6 +84,7 @@ export default function JobsTab() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
+  const [fallbackMatches, setFallbackMatches] = useState<any[]>([]);
   const [localMatchCompleted, setLocalMatchCompleted] = useState<
     Record<string, boolean>
   >({});
@@ -146,9 +148,31 @@ export default function JobsTab() {
             "[AUTO_SCANNER] Proxy candidate list empty or bypassed. Initiating secure direct client query...",
           );
           try {
-            const candidatesSnap = await getDocs(
-              query(collection(db, "candidatePool"), limit(50)),
-            );
+            let qFallback;
+            const hqAuth =
+              userRole === "admin" ||
+              userRole === "super_admin" ||
+              userRole === "ops_admin" ||
+              userRole === "hq_admin" ||
+              orgId === "ORG-GLOBAL-HQ";
+
+            if (hqAuth) {
+              qFallback = query(collection(db, "candidatePool"), limit(50));
+            } else if (isClient) {
+              qFallback = query(
+                collection(db, "candidatePool"),
+                where("clientId", "==", orgId),
+                limit(50),
+              );
+            } else {
+              qFallback = query(
+                collection(db, "candidatePool"),
+                where("vendorId", "==", orgId),
+                limit(50),
+              );
+            }
+
+            const candidatesSnap = await getDocs(qFallback);
             candidateList = candidatesSnap.docs.map(
               (doc) =>
                 ({
@@ -614,6 +638,7 @@ export default function JobsTab() {
           if (res.ok) {
             const data = await res.json();
             setGlobalMatches(data.matches || []);
+            setFallbackMatches(data.fallbackMatches || []);
           } else {
             console.warn(
               "Requirement matching API response not OK",
@@ -1600,21 +1625,88 @@ export default function JobsTab() {
                         (sub) =>
                           (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
                       ).length === 0 && (
-                        <div className="col-span-full py-32 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
-                          <Target
-                            size={64}
-                            className="mx-auto mb-6 text-indigo-200 animate-pulse"
-                          />
-                          <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">
-                            No Target Matches Mapped
-                          </p>
-                          <p className="text-xs font-medium text-slate-500 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
-                            No candidates have been explicitly mapped to this
-                            requirement yet, or current mappings do not pass our
-                            minimum 70% threshold. <br />
-                            Please assign candidates to this JD from your active
-                            talent pool.
-                          </p>
+                        <div className="col-span-full mt-4">
+                          {fallbackMatches.length > 0 ? (
+                            <div className="space-y-6">
+                              <div className="flex flex-col items-center justify-center p-8 bg-indigo-50/50 rounded-[32px] border border-indigo-100/50 mb-6">
+                                <Network
+                                  className="text-indigo-400 mb-3 animate-pulse"
+                                  size={32}
+                                />
+                                <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest">
+                                  Federated Network Retrieval
+                                </h4>
+                                <p className="text-xs text-indigo-600/70 mt-1 font-medium italic">
+                                  Searching adjacent pools, vendors, and
+                                  marketplace...
+                                </p>
+                              </div>
+                              <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">
+                                Strong Potential Matches
+                              </h4>
+                              <div className="grid grid-cols-1 gap-4 opacity-75">
+                                {fallbackMatches.map((sub: any) => (
+                                  <div
+                                    key={sub.id}
+                                    className="bg-white border hover:border-slate-300 rounded-[24px] p-5 cursor-pointer shadow-sm relative overflow-hidden"
+                                    onClick={() => setSelectedSubmission(sub)}
+                                  >
+                                    <div className="flex items-center justify-between mb-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-slate-50 border flex items-center justify-center">
+                                          <User
+                                            size={18}
+                                            className="text-slate-400"
+                                          />
+                                        </div>
+                                        <div>
+                                          <h4 className="font-bold text-slate-900 text-sm">
+                                            {sub.name}
+                                          </h4>
+                                          <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">
+                                            {sub.vendorId ===
+                                            "ORG-EXTERNAL-VENDOR"
+                                              ? "Federated Talent"
+                                              : sub.vendorId}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <Badge className="bg-slate-100 text-slate-600 border-none font-mono text-[10px] px-3">
+                                        {sub.matchScore}% MATCH
+                                      </Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      {(sub.skills || [])
+                                        .slice(0, 4)
+                                        .map((s: string, i: number) => (
+                                          <span
+                                            key={i}
+                                            className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider rounded-lg"
+                                          >
+                                            {s}
+                                          </span>
+                                        ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="py-32 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
+                              <Target
+                                size={64}
+                                className="mx-auto mb-6 text-indigo-200 animate-pulse"
+                              />
+                              <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-700">
+                                No Target Matches Mapped
+                              </p>
+                              <p className="text-xs font-medium text-slate-500 mt-2 italic px-8 max-w-md mx-auto leading-relaxed">
+                                No contextual semantic matches found in
+                                federated network. <br />
+                                Please wait for fresh talent signals.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
