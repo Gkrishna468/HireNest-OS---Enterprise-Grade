@@ -369,12 +369,16 @@ const AppContent = () => {
             />
           )}
 
-          {/* Candidates: Show to Admin, Vendor, Recruiter, Client, but hide from Independent */}
-          {(isAdmin || isVendor || isRecruiter || isClient) && (
+          {/* Candidates: Show to Admin, Vendor, Recruiter */}
+          {(isAdmin || isVendor || isRecruiter) && (
             <SidebarItem
               to="/candidates"
               icon={Users}
-              label="Candidates"
+              label={
+                role === "vendor" || role === "super_admin"
+                  ? "Candidate Pipeline"
+                  : "Talent Roster"
+              }
               active={location.pathname === "/candidates"}
               onClick={() => setIsMobileMenuOpen(false)}
             />
@@ -569,7 +573,7 @@ const AppContent = () => {
             <Route path="/" element={<DashboardTab />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/rag-intel" element={<RagIntelligenceTab />} />}
-            {(isAdmin || isVendor || isRecruiter || isClient) && (
+            {(isAdmin || isVendor || isRecruiter) && (
               <Route path="/candidates" element={<CandidatesTab />} />
             )}
             <Route path="/jobs" element={<JobsTab />} />

@@ -161,7 +161,7 @@ export default function JobsTab() {
             } else if (isClient) {
               qFallback = query(
                 collection(db, "candidatePool"),
-                where("clientId", "==", orgId),
+                where("mappedJobId", "==", selectedJob?.id || "NONE"),
                 limit(50),
               );
             } else {
@@ -574,7 +574,6 @@ export default function JobsTab() {
         qCand = query(
           collection(db, "candidatePool"),
           where("mappedJobId", "==", selectedJob.id),
-          where("clientId", "==", orgId),
         );
       } else {
         qCand = query(
@@ -1529,7 +1528,7 @@ export default function JobsTab() {
                     <div className="flex flex-col items-end">
                       <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
                         {
-                          Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
+                          Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                             (s) => (s.matchScore || 0) >= 85,
                           ).length
                         }{" "}
@@ -1538,7 +1537,7 @@ export default function JobsTab() {
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         +{" "}
                         {
-                          Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
+                          Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                             (s) =>
                               (s.matchScore || 0) >= 70 &&
                               (s.matchScore || 0) < 85,
@@ -1552,7 +1551,7 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).length === 0 ? (
+                  Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -1584,7 +1583,7 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {Array.from(new Map([...globalMatches, ...submissions].map(cand => [cand.candidateId || cand.id || cand.email, cand])).values())
+                      {Array.from(new Map([...submissions, ...globalMatches].map(cand => [cand.candidateId || cand.id || cand.email, cand])).values())
                         .filter(
                           (sub) =>
                             (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
@@ -1678,7 +1677,7 @@ export default function JobsTab() {
                             </div>
                           </div>
                         ))}
-                      {Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
+                      {Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                         (sub) =>
                           (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
                       ).length === 0 && (
