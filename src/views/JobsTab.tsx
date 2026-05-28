@@ -162,6 +162,7 @@ export default function JobsTab() {
               qFallback = query(
                 collection(db, "candidatePool"),
                 where("mappedJobId", "==", selectedJob?.id || "NONE"),
+                where("clientId", "==", orgId),
                 limit(50),
               );
             } else {
@@ -574,6 +575,7 @@ export default function JobsTab() {
         qCand = query(
           collection(db, "candidatePool"),
           where("mappedJobId", "==", selectedJob.id),
+          where("clientId", "==", orgId),
         );
       } else {
         qCand = query(
