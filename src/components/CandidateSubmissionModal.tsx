@@ -118,13 +118,25 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
 
              // 2. IF NOT GENERAL, CREATE THE INTERSECTION "SUBMISSION"
              if (reqId !== "GENERAL") {
+                 let targetClientId = "";
+                 try {
+                   const { getDoc, doc } = await import("firebase/firestore");
+                   const reqSnap = await getDoc(doc(db, "requirements_public", reqId));
+                   if (reqSnap.exists()) {
+                     targetClientId = reqSnap.data().clientId || "";
+                   }
+                 } catch (err) {
+                   console.log("Could not fetch requirement for clientId", err);
+                 }
+
                  const subRef = await addDoc(collection(db, "submissions"), {
                      // Updated Submission Schema
                      candidateId: candRef.id,
                      requirementId: reqId,
                      submittedBy: "local_user",
                      vendorOrgId: "local",
-                     clientOrgId: "", // Would be determined by requirement
+                     clientOrgId: targetClientId, // Would be determined by requirement
+                     clientId: targetClientId,
                      status: "submitted",
                      timeline: [
                         { action: "submitted", timestamp: new Date().toISOString() }

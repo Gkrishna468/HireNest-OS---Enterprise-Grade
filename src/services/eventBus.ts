@@ -31,8 +31,12 @@ export async function emitEvent(
       metadata,
       timestamp: serverTimestamp()
     });
-  } catch (error) {
-    console.error(`[EventBus] Failed to emit ${type}:`, error);
+  } catch (error: any) {
+    if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
+      console.warn(`[EventBus] emit deferred (Pending Firebase Rules Update)`);
+    } else {
+      console.error(`[EventBus] Failed to emit ${type}:`, error);
+    }
   }
 }
 
@@ -50,6 +54,12 @@ export function subscribeToEvents(callback: (events: any[]) => void, limitCount 
     }));
     callback(events);
   }, (error) => {
-    console.error("[EventBus] Subscription error:", error);
+    if (error.code === 'permission-denied' || error.message.includes('Missing or insufficient permissions')) {
+      console.warn("[EventBus] Waiting for Firestore rules deployment to access operationalEvents.");
+      // Provide an empty feed gracefully until rules are deployed
+      callback([]);
+    } else {
+      console.error("[EventBus] Subscription error:", error);
+    }
   });
 }

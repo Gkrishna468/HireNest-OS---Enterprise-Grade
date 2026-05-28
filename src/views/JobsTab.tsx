@@ -308,8 +308,16 @@ export default function JobsTab() {
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
                   candidateId: cand.id,
-                  candidateName: cand.fullName || cand.name || cand.candidateName || "Unknown Candidate",
-                  name: cand.fullName || cand.name || cand.candidateName || "Unknown Candidate",
+                  candidateName:
+                    cand.fullName ||
+                    cand.name ||
+                    cand.candidateName ||
+                    "Unknown Candidate",
+                  name:
+                    cand.fullName ||
+                    cand.name ||
+                    cand.candidateName ||
+                    "Unknown Candidate",
                   email: cand.primaryEmail || cand.email || "No Email Provided",
                   phone: cand.phoneHash || cand.phone || "No Phone Provided",
                   skills: cand.skills || [],
@@ -333,8 +341,8 @@ export default function JobsTab() {
                     requirementId: job.id,
                     candidateId: cand.id,
                     matchScore,
-                    autoMatched: true
-                  }
+                    autoMatched: true,
+                  },
                 );
 
                 // Log execution event
@@ -381,11 +389,12 @@ export default function JobsTab() {
                   {
                     requirementId: job.id,
                     submissionId: subId,
-                    candidateName: cand.name || cand.candidateName || "Talent Match",
+                    candidateName:
+                      cand.name || cand.candidateName || "Talent Match",
                     clientId: job.clientId,
                     vendorId: cand.vendorId,
-                    autoMatched: true
-                  }
+                    autoMatched: true,
+                  },
                 );
 
                 // Add welcoming copilot message to thread
@@ -724,7 +733,10 @@ export default function JobsTab() {
       try {
         const res = await fetch("/api/parse-jd", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-org-id": orgId || "system" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-org-id": orgId || "system",
+          },
           body: JSON.stringify({ jdText }),
         });
 
@@ -791,7 +803,8 @@ export default function JobsTab() {
           currency: currency,
         },
         workMode: workMode,
-        location: (workMode === 'Onsite' || workMode === 'Hybrid') ? location : '',
+        location:
+          workMode === "Onsite" || workMode === "Hybrid" ? location : "",
         adminApproved: adminApproved,
         financials: financials,
         ownerId: auth.currentUser?.uid,
@@ -811,10 +824,9 @@ export default function JobsTab() {
         {
           title: newReq.title,
           clientId: newReq.clientId,
-          status: newReq.status
-        }
+          status: newReq.status,
+        },
       );
-
 
       // If it requires approval (e.g. LPM), insert into jobApprovalQueue
       if (budgetPeriod !== "LPA") {
@@ -943,22 +955,25 @@ export default function JobsTab() {
     newTitle: string,
     newDesc: string,
     newWorkMode: string,
-    newLocation?: string
+    newLocation?: string,
   ) => {
     await updateDoc(doc(db, "requirements_public", jobId), {
       title: newTitle,
       description: newDesc,
       workMode: newWorkMode,
-      ...(newWorkMode === "Onsite" || newWorkMode === "Hybrid" ? { location: newLocation || '' } : { location: '' }),
+      ...(newWorkMode === "Onsite" || newWorkMode === "Hybrid"
+        ? { location: newLocation || "" }
+        : { location: "" }),
       updatedAt: serverTimestamp(),
     });
     setIsEditing(null);
     setSelectedJob((prev: any) => ({
-       ...prev,
-       title: newTitle,
-       description: newDesc,
-       workMode: newWorkMode,
-       location: newWorkMode === "Onsite" || newWorkMode === "Hybrid" ? newLocation : ''
+      ...prev,
+      title: newTitle,
+      description: newDesc,
+      workMode: newWorkMode,
+      location:
+        newWorkMode === "Onsite" || newWorkMode === "Hybrid" ? newLocation : "",
     }));
   };
 
@@ -1029,21 +1044,21 @@ export default function JobsTab() {
           : "Candidate Profile details omitted.");
       const result = await analyzeCandidateMatch(safeJd, safeProfile);
       setAiAnalysis(result as any);
-      
+
       if (result && result.matchScore) {
         sub.matchScore = result.matchScore;
-        setGlobalMatches(prev => [...prev]);
-        setFallbackMatches(prev => [...prev]);
-        setSubmissions(prev => [...prev]);
+        setGlobalMatches((prev) => [...prev]);
+        setFallbackMatches((prev) => [...prev]);
+        setSubmissions((prev) => [...prev]);
 
         // Persist the V2 score to the database so it's consistent everywhere
         try {
           const targetId = sub.candidateId || sub.id;
           if (targetId) {
-             await updateDoc(doc(db, "candidatePool", targetId), {
-               aiMatchScore: result.matchScore,
-               updatedAt: serverTimestamp()
-             });
+            await updateDoc(doc(db, "candidatePool", targetId), {
+              aiMatchScore: result.matchScore,
+              updatedAt: serverTimestamp(),
+            });
           }
         } catch (dbErr) {
           console.warn("Could not persist AI match score to DB", dbErr);
@@ -1099,7 +1114,7 @@ export default function JobsTab() {
       await updateDoc(doc(db, "candidatePool", targetId), {
         pipelineStage: "Update Requested",
         missingSkills: aiAnalysis.missingSkills || [],
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
       // 2. Notify the Vendor
@@ -1108,7 +1123,7 @@ export default function JobsTab() {
           id: `NOTIF-${Date.now()}`,
           recipientId: sub.vendorId, // Specifically targeting the vendor
           title: "Action Required: Update Resume",
-          text: `Missing critical JD skills for ${sub.candidateName || 'Candidate'}: ${(aiAnalysis.missingSkills || []).join(", ")}. Please upload an updated resume.`,
+          text: `Missing critical JD skills for ${sub.candidateName || "Candidate"}: ${(aiAnalysis.missingSkills || []).join(", ")}. Please upload an updated resume.`,
           read: false,
           createdAt: serverTimestamp(),
         });
@@ -1117,7 +1132,7 @@ export default function JobsTab() {
       alert("Update request sent to vendor successfully!");
       if (selectedSubmission) {
         selectedSubmission.pipelineStage = "Update Requested";
-        setSelectedSubmission({...selectedSubmission});
+        setSelectedSubmission({ ...selectedSubmission });
       }
     } catch (err: any) {
       alert("Failed to request update: " + err.message);
@@ -1152,8 +1167,8 @@ export default function JobsTab() {
         submissionId: sub.id,
         candidateName: sub.candidateName || sub.name,
         clientId: selectedJob.clientId,
-        vendorId: sub.vendorId
-      }
+        vendorId: sub.vendorId,
+      },
     );
 
     // Initial AI message
@@ -1274,24 +1289,24 @@ export default function JobsTab() {
                       Work Mode
                     </label>
                     <div className="flex gap-2">
-                       <select
-                         value={workMode}
-                         onChange={(e: any) => setWorkMode(e.target.value)}
-                         className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
-                       >
-                         <option value="Onsite">Onsite</option>
-                         <option value="Remote">Remote</option>
-                         <option value="Hybrid">Hybrid</option>
-                       </select>
-                       {(workMode === "Onsite" || workMode === "Hybrid") && (
-                         <input
-                           type="text"
-                           placeholder="Location"
-                           value={location}
-                           onChange={(e) => setLocation(e.target.value)}
-                           className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
-                         />
-                       )}
+                      <select
+                        value={workMode}
+                        onChange={(e: any) => setWorkMode(e.target.value)}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="Onsite">Onsite</option>
+                        <option value="Remote">Remote</option>
+                        <option value="Hybrid">Hybrid</option>
+                      </select>
+                      {(workMode === "Onsite" || workMode === "Hybrid") && (
+                        <input
+                          type="text"
+                          placeholder="Location"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -1532,14 +1547,18 @@ export default function JobsTab() {
               </div>
               <div className="flex items-center gap-2">
                 {(isAdmin || (isClient && selectedJob.clientId === orgId)) && (
-                   <Button
-                     variant="outline"
-                     size="sm"
-                     onClick={() => setIsEditing(isEditing === selectedJob.id ? null : selectedJob.id)}
-                     className="h-6 text-[10px] uppercase font-bold tracking-widest px-3"
-                   >
-                     {isEditing === selectedJob.id ? "Cancel Edit" : "Edit Job"}
-                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setIsEditing(
+                        isEditing === selectedJob.id ? null : selectedJob.id,
+                      )
+                    }
+                    className="h-6 text-[10px] uppercase font-bold tracking-widest px-3"
+                  >
+                    {isEditing === selectedJob.id ? "Cancel Edit" : "Edit Job"}
+                  </Button>
                 )}
                 <Badge className="bg-indigo-100 text-indigo-700 text-[9px]">
                   {selectedJob.requirementId}
@@ -1551,74 +1570,111 @@ export default function JobsTab() {
               <div className="p-6 max-w-4xl mx-auto pb-24">
                 {isEditing === selectedJob.id ? (
                   <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 mb-8">
-                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Edit Requirement</h3>
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800">
+                      Edit Requirement
+                    </h3>
                     <div className="space-y-4">
-                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-bold text-slate-500 uppercase">Title</label>
-                         <input
-                           type="text"
-                           id={`edit-title-${selectedJob.id}`}
-                           defaultValue={selectedJob.title}
-                           className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
-                         />
-                       </div>
-                       <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1.5">
-                           <label className="text-[9px] font-bold text-slate-500 uppercase">Work Mode</label>
-                           <select
-                             id={`edit-mode-${selectedJob.id}`}
-                             defaultValue={selectedJob.workMode}
-                             onChange={(e) => {
-                                const locEl = document.getElementById(`edit-loc-${selectedJob.id}`);
-                                if (locEl) {
-                                  if (e.target.value === 'Remote') {
-                                     locEl.style.display = 'none';
-                                  } else {
-                                     locEl.style.display = 'block';
-                                  }
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase">
+                          Title
+                        </label>
+                        <input
+                          type="text"
+                          id={`edit-title-${selectedJob.id}`}
+                          defaultValue={selectedJob.title}
+                          className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">
+                            Work Mode
+                          </label>
+                          <select
+                            id={`edit-mode-${selectedJob.id}`}
+                            defaultValue={selectedJob.workMode}
+                            onChange={(e) => {
+                              const locEl = document.getElementById(
+                                `edit-loc-${selectedJob.id}`,
+                              );
+                              if (locEl) {
+                                if (e.target.value === "Remote") {
+                                  locEl.style.display = "none";
+                                } else {
+                                  locEl.style.display = "block";
                                 }
-                             }}
-                             className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
-                           >
-                             <option value="Onsite">Onsite</option>
-                             <option value="Remote">Remote</option>
-                             <option value="Hybrid">Hybrid</option>
-                           </select>
-                         </div>
-                         <div className="space-y-1.5" id={`edit-loc-${selectedJob.id}`} style={{ display: selectedJob.workMode === 'Remote' ? 'none' : 'block' }}>
-                            <label className="text-[9px] font-bold text-slate-500 uppercase">Location</label>
-                            <input
-                              type="text"
-                              id={`edit-loc-input-${selectedJob.id}`}
-                              defaultValue={selectedJob.location || ''}
-                              className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
-                              placeholder="City, State, etc."
-                            />
-                         </div>
-                       </div>
-                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-bold text-slate-500 uppercase">Description</label>
-                         <textarea
-                           id={`edit-desc-${selectedJob.id}`}
-                           defaultValue={selectedJob.description}
-                           className="w-full h-32 p-3 bg-slate-50 border border-slate-200 rounded text-xs"
-                         />
-                       </div>
-                       <div className="flex justify-end pt-2">
-                         <Button
-                           size="sm"
-                           onClick={() => {
-                             const t = (document.getElementById(`edit-title-${selectedJob.id}`) as HTMLInputElement).value;
-                             const m = (document.getElementById(`edit-mode-${selectedJob.id}`) as HTMLSelectElement).value;
-                             const d = (document.getElementById(`edit-desc-${selectedJob.id}`) as HTMLTextAreaElement).value;
-                             const l = (document.getElementById(`edit-loc-input-${selectedJob.id}`) as HTMLInputElement)?.value;
-                             handleUpdateJD(selectedJob.id, t, d, m, l);
-                           }}
-                           className="bg-indigo-600 text-white hover:bg-indigo-700"
-                         >
-                           Save Changes
-                         </Button>
-                       </div>
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                          >
+                            <option value="Onsite">Onsite</option>
+                            <option value="Remote">Remote</option>
+                            <option value="Hybrid">Hybrid</option>
+                          </select>
+                        </div>
+                        <div
+                          className="space-y-1.5"
+                          id={`edit-loc-${selectedJob.id}`}
+                          style={{
+                            display:
+                              selectedJob.workMode === "Remote"
+                                ? "none"
+                                : "block",
+                          }}
+                        >
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            id={`edit-loc-input-${selectedJob.id}`}
+                            defaultValue={selectedJob.location || ""}
+                            className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                            placeholder="City, State, etc."
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase">
+                          Description
+                        </label>
+                        <textarea
+                          id={`edit-desc-${selectedJob.id}`}
+                          defaultValue={selectedJob.description}
+                          className="w-full h-32 p-3 bg-slate-50 border border-slate-200 rounded text-xs"
+                        />
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const t = (
+                              document.getElementById(
+                                `edit-title-${selectedJob.id}`,
+                              ) as HTMLInputElement
+                            ).value;
+                            const m = (
+                              document.getElementById(
+                                `edit-mode-${selectedJob.id}`,
+                              ) as HTMLSelectElement
+                            ).value;
+                            const d = (
+                              document.getElementById(
+                                `edit-desc-${selectedJob.id}`,
+                              ) as HTMLTextAreaElement
+                            ).value;
+                            const l = (
+                              document.getElementById(
+                                `edit-loc-input-${selectedJob.id}`,
+                              ) as HTMLInputElement
+                            )?.value;
+                            handleUpdateJD(selectedJob.id, t, d, m, l);
+                          }}
+                          className="bg-indigo-600 text-white hover:bg-indigo-700"
+                        >
+                          Save Changes
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1714,16 +1770,28 @@ export default function JobsTab() {
                     <div className="flex flex-col items-end">
                       <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
                         {
-                          Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
-                            (s) => (s.matchScore || 0) >= 85,
-                          ).length
+                          Array.from(
+                            new Map(
+                              [...submissions, ...globalMatches].map((c) => [
+                                c.candidateId || c.id || c.email,
+                                c,
+                              ]),
+                            ).values(),
+                          ).filter((s) => (s.matchScore || 0) >= 85).length
                         }{" "}
                         High Confidence
                       </Badge>
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         +{" "}
                         {
-                          Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
+                          Array.from(
+                            new Map(
+                              [...submissions, ...globalMatches].map((c) => [
+                                c.candidateId || c.id || c.email,
+                                c,
+                              ]),
+                            ).values(),
+                          ).filter(
                             (s) =>
                               (s.matchScore || 0) >= 70 &&
                               (s.matchScore || 0) < 85,
@@ -1737,7 +1805,14 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).length === 0 ? (
+                  Array.from(
+                    new Map(
+                      [...submissions, ...globalMatches].map((c) => [
+                        c.candidateId || c.id || c.email,
+                        c,
+                      ]),
+                    ).values(),
+                  ).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -1769,7 +1844,14 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {Array.from(new Map([...submissions, ...globalMatches].map(cand => [cand.candidateId || cand.id || cand.email, cand])).values())
+                      {Array.from(
+                        new Map(
+                          [...submissions, ...globalMatches].map((cand) => [
+                            cand.candidateId || cand.id || cand.email,
+                            cand,
+                          ]),
+                        ).values(),
+                      )
                         .filter(
                           (sub) =>
                             (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
@@ -1863,7 +1945,14 @@ export default function JobsTab() {
                             </div>
                           </div>
                         ))}
-                      {Array.from(new Map([...submissions, ...globalMatches].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
+                      {Array.from(
+                        new Map(
+                          [...submissions, ...globalMatches].map((c) => [
+                            c.candidateId || c.id || c.email,
+                            c,
+                          ]),
+                        ).values(),
+                      ).filter(
                         (sub) =>
                           (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
                       ).length === 0 && (
@@ -1999,8 +2088,42 @@ export default function JobsTab() {
                               selectedSubmission?.name ||
                               "Candidate"
                             }
-                            onRequestUpdate={() => handleRequestUpdate(selectedSubmission)}
+                            onRequestUpdate={() =>
+                              handleRequestUpdate(selectedSubmission)
+                            }
                           />
+
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            <Button
+                              onClick={() => {
+                                const profileText =
+                                  selectedSubmission.resumeText ||
+                                  JSON.stringify(selectedSubmission, null, 2);
+                                const blob = new Blob([profileText], {
+                                  type: "text/plain",
+                                });
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `${selectedSubmission.candidateName || "Candidate"}_Profile.txt`;
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                              }}
+                              variant="outline"
+                              className="w-full bg-white border-slate-200 text-indigo-600 hover:text-indigo-700 h-10 text-[10px] uppercase font-bold rounded-xl shadow-sm flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle size={14} /> Download Profile
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                handleRunAiMatch(selectedSubmission)
+                              }
+                              variant="outline"
+                              className="w-full bg-slate-900 border-slate-800 text-white hover:bg-slate-800 h-10 text-[10px] uppercase font-bold rounded-xl shadow-sm flex items-center justify-center gap-2"
+                            >
+                              <Activity size={14} /> Rescan Match
+                            </Button>
+                          </div>
 
                           <div className="space-y-3">
                             <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">

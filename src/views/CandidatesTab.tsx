@@ -636,6 +636,7 @@ export default function CandidatesTab() {
         await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
           pipelineStage: "Matched",
           mappedJobId: jobId,
+          clientId: job.clientId,
           matchScore: data.matchScore,
           matchData: data,
           updatedAt: serverTimestamp(),

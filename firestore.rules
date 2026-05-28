@@ -952,6 +952,12 @@ service cloud.firestore {
       allow write: if isPlatformAuthority();
     }
 
+    match /operationalEvents/{eventId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update, delete: if false;
+    }
+
     // =====================================================
     // SYSTEM HEALTH
     // =====================================================

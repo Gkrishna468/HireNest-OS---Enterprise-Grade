@@ -62,21 +62,36 @@ export default async function matchingGlobalHandler(req: any, res: any) {
         if (isAdmin) {
           // Admin HQ: Global Graph Visibility
           const poolSnapshot = await adminDb.collection("candidatePool").get();
-          poolSnapshot.docs.forEach((d: any) => docsToEvaluate.push({ id: d.id, ...d.data() }));
+          poolSnapshot.docs.forEach((d: any) =>
+            docsToEvaluate.push({ id: d.id, ...d.data() }),
+          );
         } else if (role?.includes("client")) {
-          // Client Workspace: ONLY see candidates linked to their requirements (via submissions)
+          // Client Workspace: ONLY see candidates linked to their requirements (via submissions OR mappedJobId)
           const subsSnapshot = await adminDb
             .collection("submissions")
-            .where("jobId", "==", targetReqId)
+            .where("requirementId", "==", targetReqId)
+            // Note: In adminDb we don't need clientId filter if requirementId is secure, but let's be thorough
+            .get();
+
+          const candIds = new Set(subsSnapshot.docs.map(
+            (doc) => doc.data().candidateId,
+          ));
+          
+          const mappedCandsSnapshot = await adminDb
+            .collection("candidatePool")
+            .where("mappedJobId", "==", targetReqId)
             .get();
           
-          const candIds = subsSnapshot.docs.map(doc => doc.data().candidateId);
-          if (candIds.length > 0) {
-              const refs = candIds.map(id => adminDb.collection("candidatePool").doc(id).get());
-              const cands = await Promise.all(refs);
-              cands.forEach(c => {
-                  if (c.exists) docsToEvaluate.push({ id: c.id, ...c.data() });
-              });
+          mappedCandsSnapshot.docs.forEach((doc) => candIds.add(doc.id));
+
+          if (candIds.size > 0) {
+            const refs = Array.from(candIds).map((id) =>
+              adminDb.collection("candidatePool").doc(id as string).get(),
+            );
+            const cands = await Promise.all(refs);
+            cands.forEach((c) => {
+              if (c.exists) docsToEvaluate.push({ id: c.id, ...c.data() });
+            });
           }
         } else {
           // Vendor Workspace: 1. Their own candidates OR 2. Candidates mapped to them
@@ -85,26 +100,41 @@ export default async function matchingGlobalHandler(req: any, res: any) {
             .collection("candidatePool")
             .where("vendorId", "==", orgId)
             .get();
-          
-          vendorCandsSnapshot.docs.forEach((d: any) => docsToEvaluate.push({ id: d.id, ...d.data() }));
-          
+
+          vendorCandsSnapshot.docs.forEach((d: any) =>
+            docsToEvaluate.push({ id: d.id, ...d.data() }),
+          );
+
           // Note: Submissions logic is implicitly covered for vendors if they submitted their own candidates,
           // but if they share candidates, we fetch their submissions too.
-          const vendorSubs = await adminDb.collection("submissions").where("vendorId", "==", orgId).where("jobId", "==", targetReqId).get();
-          const subCandIds = vendorSubs.docs.map((doc: any) => doc.data().candidateId);
+          const vendorSubs = await adminDb
+            .collection("submissions")
+            .where("vendorId", "==", orgId)
+            .where("requirementId", "==", targetReqId)
+            .get();
+          const subCandIds = vendorSubs.docs.map(
+            (doc: any) => doc.data().candidateId,
+          );
           for (const cId of subCandIds) {
-             if (!docsToEvaluate.find((c: any) => c.id === cId || c.candidateId === cId)) {
-                 const candGet = await adminDb.collection("candidatePool").doc(cId).get();
-                 if (candGet.exists) docsToEvaluate.push({ id: candGet.id, ...candGet.data() });
-             }
+            if (
+              !docsToEvaluate.find(
+                (c: any) => c.id === cId || c.candidateId === cId,
+              )
+            ) {
+              const candGet = await adminDb
+                .collection("candidatePool")
+                .doc(cId)
+                .get();
+              if (candGet.exists)
+                docsToEvaluate.push({ id: candGet.id, ...candGet.data() });
+            }
           }
         }
 
         for (const cand of docsToEvaluate) {
-
-          // PIPELINE ISOLATION: 
-          // If a candidate is explicitly mapped to a specific job requirement pipeline, 
-          // they belong uniquely to that pipeline and must not leak into global sweeping algorithms 
+          // PIPELINE ISOLATION:
+          // If a candidate is explicitly mapped to a specific job requirement pipeline,
+          // they belong uniquely to that pipeline and must not leak into global sweeping algorithms
           // for other un-related JDs.
           if (cand.mappedJobId && cand.mappedJobId !== targetReqId) {
             continue;
@@ -131,9 +161,9 @@ export default async function matchingGlobalHandler(req: any, res: any) {
             enhancedScore += 2;
 
           if (cand.aiMatchScore) {
-              enhancedScore = cand.aiMatchScore;
+            enhancedScore = cand.aiMatchScore;
           } else {
-              enhancedScore = Math.min(Math.round(enhancedScore), 100);
+            enhancedScore = Math.min(Math.round(enhancedScore), 100);
           }
 
           const resultObj = {
