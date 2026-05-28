@@ -5,6 +5,7 @@ import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp, setDoc, doc } from "firebase/firestore";
 import { workflowOrchestrator } from "../services/workflow/workflowOrchestrator";
 import { SubmissionState, WorkflowInstance } from "../types/workflow";
+import { emitEvent } from "../services/eventBus";
 
 interface CandidateSubmissionModalProps {
     onClose: () => void;
@@ -102,6 +103,19 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                  createdBy: "local_user"
              });
 
+             await emitEvent(
+               "CandidateUploaded",
+               "CANDIDATE",
+               candRef.id,
+               "local_user",
+               "vendor",
+               {
+                 name: name,
+                 email: email,
+                 source: "Manual Intake UI"
+               }
+             );
+
              // 2. IF NOT GENERAL, CREATE THE INTERSECTION "SUBMISSION"
              if (reqId !== "GENERAL") {
                  const subRef = await addDoc(collection(db, "submissions"), {
@@ -135,6 +149,21 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                      stage: "NEW"
                  });
                  
+                 await emitEvent(
+                   "SubmissionCreated",
+                   "SUBMISSION",
+                   subRef.id,
+                   "local_user",
+                   "vendor",
+                   {
+                     candidateId: candRef.id,
+                     candidateName: name,
+                     requirementId: reqId,
+                     reqTitle: reqTitle,
+                     aiFitScore: aiAnalysis?.fitScore || 0
+                   }
+                 );
+
                  // 3. INITIALIZE WORKFLOW GRAPH (NEW ENGINE)
                  await workflowOrchestrator.initializeWorkflow(
                     "submission_lifecycle",

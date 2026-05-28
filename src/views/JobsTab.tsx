@@ -53,6 +53,7 @@ import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
 
 import { useNavigate } from "react-router-dom";
+import { emitEvent } from "../services/eventBus";
 
 const STAGES = [
   "Candidate Added",
@@ -321,6 +322,20 @@ export default function JobsTab() {
                 };
                 await setDoc(subRef, newSub);
 
+                await emitEvent(
+                  "SubmissionCreated",
+                  "SUBMISSION",
+                  subId,
+                  "system",
+                  "ai_agent",
+                  {
+                    requirementId: job.id,
+                    candidateId: cand.id,
+                    matchScore,
+                    autoMatched: true
+                  }
+                );
+
                 // Log execution event
                 await logExecutionEvent(
                   ExecutionEventType.SUBMISSION_RECEIVED,
@@ -355,6 +370,22 @@ export default function JobsTab() {
                   identitiesRevealed: false,
                   createdAt: serverTimestamp(),
                 });
+
+                await emitEvent(
+                  "DealRoomOpened",
+                  "DEAL_ROOM",
+                  roomId,
+                  "system",
+                  "ai_agent",
+                  {
+                    requirementId: job.id,
+                    submissionId: subId,
+                    candidateName: cand.name || cand.candidateName || "Talent Match",
+                    clientId: job.clientId,
+                    vendorId: cand.vendorId,
+                    autoMatched: true
+                  }
+                );
 
                 // Add welcoming copilot message to thread
                 await addDoc(collection(db, "dealRooms", roomId, "messages"), {
@@ -768,6 +799,21 @@ export default function JobsTab() {
 
       await setDoc(doc(db, "requirements_public", reqId), newReq);
 
+      // Ensure import is at the top of the file, not here, I will fix the import later
+      await emitEvent(
+        "JobPublished",
+        "JOB",
+        reqId,
+        auth.currentUser?.uid || "system",
+        userRole || "unknown",
+        {
+          title: newReq.title,
+          clientId: newReq.clientId,
+          status: newReq.status
+        }
+      );
+
+
       // If it requires approval (e.g. LPM), insert into jobApprovalQueue
       if (budgetPeriod !== "LPA") {
         await setDoc(doc(db, "jobApprovalQueue", reqId), {
@@ -1081,6 +1127,21 @@ export default function JobsTab() {
       identitiesRevealed: false,
       createdAt: serverTimestamp(),
     });
+
+    await emitEvent(
+      "DealRoomOpened",
+      "DEAL_ROOM",
+      roomId,
+      auth.currentUser?.uid || "system",
+      userRole || "unknown",
+      {
+        requirementId: selectedJob.id,
+        submissionId: sub.id,
+        candidateName: sub.candidateName || sub.name,
+        clientId: selectedJob.clientId,
+        vendorId: sub.vendorId
+      }
+    );
 
     // Initial AI message
     await addDoc(collection(db, "dealRooms", roomId, "messages"), {

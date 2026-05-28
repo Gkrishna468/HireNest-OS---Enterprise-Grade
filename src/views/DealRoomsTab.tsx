@@ -9,6 +9,7 @@ import { logExecutionEvent, ExecutionEventType, createSLA } from "../lib/infrast
 import { ExecutionFeed } from "../components/ExecutionFeed";
 import { motion, AnimatePresence } from "motion/react";
 import { DealRoomCopilot } from "../components/DealRoomCopilot";
+import { emitEvent } from "../services/eventBus";
 
 const STAGES = [
   { id: 'shortlisted', label: 'Shortlisted' },
@@ -294,6 +295,21 @@ export default function DealRoomsTab() {
           type: "system",
           timestamp: serverTimestamp()
         });
+
+        await emitEvent(
+          "PlacementCompleted",
+          "DEAL_ROOM",
+          selectedRoom.id,
+          auth.currentUser?.uid || "system",
+          userRole || "unknown",
+          {
+            requirementId: selectedRoom.requirementId,
+            submissionId: selectedRoom.submissionId,
+            candidateName: selectedRoom.candidateName,
+            clientId: selectedRoom.clientId,
+            vendorId: selectedRoom.vendorId
+          }
+        );
         
         // Final "Happy Onboarding" message
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
@@ -343,6 +359,20 @@ export default function DealRoomsTab() {
       type: "text",
       timestamp: serverTimestamp()
     });
+
+    await emitEvent(
+      "InterviewScheduled",
+      "DEAL_ROOM",
+      selectedRoom.id,
+      auth.currentUser?.uid || "system",
+      userRole || "unknown",
+      {
+        requirementId: selectedRoom.requirementId,
+        submissionId: selectedRoom.submissionId,
+        candidateName: selectedRoom.candidateName
+      }
+    );
+
     setShowScheduleModal(false);
   };
 

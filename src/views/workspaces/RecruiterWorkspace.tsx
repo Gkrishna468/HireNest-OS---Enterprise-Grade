@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Briefcase, Zap, Users, ShieldCheck, CheckCircle2, MapPin, AlertTriangle, Calendar, Phone, Mail, FileText } from "lucide-react";
+import { Bot, Briefcase, Zap, Users, ShieldCheck, CheckCircle2, MapPin, AlertTriangle, Calendar, Phone, Mail, FileText, Search } from "lucide-react";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
 

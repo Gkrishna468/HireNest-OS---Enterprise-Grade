@@ -8,11 +8,20 @@ import { useNavigate } from "react-router-dom";
 import VendorPartnerWorkspace from "./workspaces/VendorPartnerWorkspace";
 import HiringManagerWorkspace from "./workspaces/HiringManagerWorkspace";
 import RecruiterWorkspace from "./workspaces/RecruiterWorkspace";
+import { subscribeToEvents } from "../services/eventBus";
 
 export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [session, setSession] = useState<{ user: any, org: any } | null>(null);
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubEvents = subscribeToEvents((events) => {
+      setRecentEvents(events);
+    }, 10);
+    return () => unsubEvents();
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -225,32 +234,32 @@ export default function DashboardTab() {
 
                 {/* Metric Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {(isAdmin || isVendor || isRecruiter || isIndependent) && (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer group">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-amber-600 transition-colors">
-                                {isAdmin ? "Gross Revenue" : (isRecruiter || isIndependent) ? "Projected Earnings" : "Billable Potential"}
-                            </div>
-                            <div className="text-2xl font-black text-slate-900 font-mono">₹{metrics.revenue.toLocaleString()}</div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-amber-600 transition-colors">Profiles Uploaded</div>
+                        <div className="text-2xl font-black text-slate-900 font-mono">
+                            {recentEvents.filter(e => e.type === 'CandidateUploaded').length}
                         </div>
-                    )}
-
-                    {(isAdmin || isClient) && (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer group">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">
-                                {isAdmin ? "Total Spend" : "Budget Utilization"}
-                            </div>
-                            <div className="text-2xl font-black text-slate-900 font-mono">₹{metrics.spending.toLocaleString()}</div>
-                        </div>
-                    )}
-
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer group">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">Deal Velocity</div>
-                        <div className="text-2xl font-black text-slate-900 font-mono">{metrics.activeDeals}</div>
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer group">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-emerald-600 transition-colors">Quality Index</div>
-                        <div className="text-2xl font-black text-emerald-600 font-mono">{metrics.vendorQuality}%</div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">Client Submissions</div>
+                        <div className="text-2xl font-black text-slate-900 font-mono">
+                            {recentEvents.filter(e => e.type === 'SubmissionCreated').length}
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-fuchsia-600 transition-colors">Active Deal Rooms</div>
+                        <div className="text-2xl font-black text-slate-900 font-mono">
+                            {recentEvents.filter(e => e.type === 'DealRoomOpened').length}
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-emerald-600 transition-colors">Converted Placements</div>
+                        <div className="text-2xl font-black text-emerald-600 font-mono">
+                            {recentEvents.filter(e => e.type === 'PlacementCompleted').length}
+                        </div>
                     </div>
                 </div>
 
@@ -260,11 +269,54 @@ export default function DashboardTab() {
                         <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Operational Logs</h3>
                         <Button variant="ghost" size="sm" className="text-[9px] uppercase font-bold h-6">Full Audit →</Button>
                     </div>
-                    <div className="p-16 text-center border-t border-slate-100">
-                         <Activity size={32} className="mx-auto text-slate-300 mb-4" />
-                         <h4 className="font-bold text-slate-800 tracking-tight text-sm mb-1">Audit Stream Empty</h4>
-                         <p className="text-xs text-slate-500 font-medium">No live signals detected for current tenant.</p>
-                    </div>
+                    {recentEvents.length === 0 ? (
+                      <div className="p-16 text-center border-t border-slate-100">
+                           <Activity size={32} className="mx-auto text-slate-300 mb-4" />
+                           <h4 className="font-bold text-slate-800 tracking-tight text-sm mb-1">Audit Stream Empty</h4>
+                           <p className="text-xs text-slate-500 font-medium">No live signals detected for current tenant.</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                        {recentEvents.map((evt) => (
+                          <div key={evt.id} className="p-4 flex gap-4 hover:bg-slate-50 transition-colors">
+                            <div className="mt-1">
+                              {evt.type === 'JobPublished' && <Briefcase size={16} className="text-indigo-500" />}
+                              {evt.type === 'CandidateUploaded' && <Users size={16} className="text-emerald-500" />}
+                              {evt.type === 'SubmissionCreated' && <Combine size={16} className="text-amber-500" />}
+                              {evt.type === 'DealRoomOpened' && <ShieldCheck size={16} className="text-fuchsia-500" />}
+                              {evt.type === 'InterviewScheduled' && <PlayCircle size={16} className="text-blue-500" />}
+                              {evt.type === 'PlacementCompleted' && <Zap size={16} className="text-rose-500" />}
+                              {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted'].includes(evt.type) && <Activity size={16} className="text-slate-400" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className="text-sm font-bold text-slate-800 tracking-tight">
+                                  {evt.type.replace(/([A-Z])/g, ' $1').trim()}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {evt.timestamp?.toDate ? evt.timestamp.toDate().toLocaleTimeString() : 'Just now'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mb-2">
+                                {evt.type === 'JobPublished' && `New job "${evt.metadata?.title}" was published.`}
+                                {evt.type === 'CandidateUploaded' && `Candidate "${evt.metadata?.name}" was ingested successfully.`}
+                                {evt.type === 'SubmissionCreated' && `Candidate "${evt.metadata?.candidateName}" submitted for Job "${evt.metadata?.reqTitle}".`}
+                                {evt.type === 'DealRoomOpened' && `Deal room created for "${evt.metadata?.candidateName}".`}
+                                {evt.type === 'InterviewScheduled' && `Interview scheduled for "${evt.metadata?.candidateName}".`}
+                                {evt.type === 'PlacementCompleted' && `Placement finalized for "${evt.metadata?.candidateName}".`}
+                                {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted'].includes(evt.type) && JSON.stringify(evt.metadata)}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-[8px] uppercase tracking-widest font-bold py-0 h-4">
+                                  {evt.entityType}
+                                </Badge>
+                                <span className="text-[9px] text-slate-400 font-mono">ID: {evt.entityId.substring(0, 8)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                 </div>
             </div>
 
