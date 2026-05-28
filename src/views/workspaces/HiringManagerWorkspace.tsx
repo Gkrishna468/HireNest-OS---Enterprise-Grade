@@ -55,86 +55,12 @@ export default function HiringManagerWorkspace({ userName }: { userName: string 
 
                     {activeTab === 'reqs' && (
                         <div className="space-y-6">
-                            {/* Requisition Card 1 */}
-                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 text-white shadow-xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-8 opacity-5">
-                                    <Briefcase size={120} />
-                                </div>
-                                <div className="flex justify-between items-start mb-4 relative z-10">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Badge variant="outline" className="font-mono text-[9px] border-indigo-500/30 text-indigo-300 bg-indigo-500/10">REQ-ID: HNOS-001</Badge>
-                                            <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-[9px]">OPEN</Badge>
-                                        </div>
-                                        <h3 className="text-xl font-semibold">Senior Frontend Engineer (React/TypeScript)</h3>
-                                    </div>
-                                </div>
-                                <p className="text-sm text-slate-400 leading-relaxed mb-6 max-w-3xl relative z-10">
-                                    We are seeking a talented Senior Frontend Engineer with expert level knowledge in React, 
-                                    TypeScript, and Tailwind CSS. You will build and optimize user interfaces with AI-integrations.
+                            <div className="bg-slate-900 rounded-2xl p-12 border border-slate-800 text-white shadow-xl text-center flex flex-col items-center justify-center min-h-[300px]">
+                                <Briefcase size={48} className="text-slate-700 mb-6" />
+                                <h3 className="text-xl font-bold mb-2 text-slate-100">No Active Requisitions</h3>
+                                <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
+                                  There are currently no open requisitions published under your account manager profile. Issue a requisition to begin accepting submissions from vendors and internal recruiters.
                                 </p>
-                                
-                                <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-slate-300 mb-6 relative z-10">
-                                    <div className="flex items-center gap-2"><MapPin size={16} className="text-indigo-400" /> Bengaluru (Hybrid)</div>
-                                    <div className="flex items-center gap-2"><IndianRupee size={16} className="text-indigo-400" /> 18 - 25 LPA</div>
-                                    <div className="flex items-center gap-2"><Clock size={16} className="text-indigo-400" /> 5 - 8 Years</div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2 mb-6 relative z-10">
-                                    {['React', 'TypeScript', 'Tailwind CSS', 'Vite', 'Redux'].map(skill => (
-                                        <Badge key={skill} variant="secondary" className="bg-white/10 text-slate-200 border-none font-medium px-3 py-1">{skill}</Badge>
-                                    ))}
-                                </div>
-
-                                <div className="flex items-center justify-between border-t border-slate-800 pt-6 relative z-10 mt-2">
-                                    <div>
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Sourced Applicants</div>
-                                        <p className="text-lg font-semibold text-white">5 Active Subm. <span className="text-emerald-400 text-sm">(0 selected)</span></p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl h-10 px-6">Close Job</Button>
-                                        <Button className="bg-white text-slate-900 hover:bg-slate-100 rounded-xl h-10 px-6 font-medium shadow-none"><Settings size={16} className="mr-2"/> Parameters</Button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Requisition Card 2 */}
-                             <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 text-white shadow-xl relative overflow-hidden">
-                                <div className="flex justify-between items-start mb-4 relative z-10">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Badge variant="outline" className="font-mono text-[9px] border-indigo-500/30 text-indigo-300 bg-indigo-500/10">REQ-ID: HNOS-002</Badge>
-                                            <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-[9px]">OPEN</Badge>
-                                        </div>
-                                        <h3 className="text-xl font-semibold">DevOps & Cloud Architect</h3>
-                                    </div>
-                                </div>
-                                <p className="text-sm text-slate-400 leading-relaxed mb-6 max-w-3xl relative z-10">
-                                    Lead the design, implementation, and maintenance of our multi-cloud deployment pipelines. Strong knowledge of container orchestration.
-                                </p>
-                                
-                                <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-slate-300 mb-6 relative z-10">
-                                    <div className="flex items-center gap-2"><MapPin size={16} className="text-indigo-400" /> Remote (India)</div>
-                                    <div className="flex items-center gap-2"><IndianRupee size={16} className="text-indigo-400" /> 28 - 42 LPA</div>
-                                    <div className="flex items-center gap-2"><Clock size={16} className="text-indigo-400" /> 8 - 12 Years</div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2 mb-6 relative z-10">
-                                    {['Kubernetes', 'Docker', 'Terraform', 'GCP', 'AWS', 'GitHub Actions'].map(skill => (
-                                        <Badge key={skill} variant="secondary" className="bg-white/10 text-slate-200 border-none font-medium px-3 py-1">{skill}</Badge>
-                                    ))}
-                                </div>
-
-                                <div className="flex items-center justify-between border-t border-slate-800 pt-6 relative z-10 mt-2">
-                                    <div>
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Sourced Applicants</div>
-                                        <p className="text-lg font-semibold text-white">3 Active Subm. <span className="text-emerald-400 text-sm">(2 selected)</span></p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl h-10 px-6">Close Job</Button>
-                                        <Button className="bg-white text-slate-900 hover:bg-slate-100 rounded-xl h-10 px-6 font-medium shadow-none"><Settings size={16} className="mr-2"/> Parameters</Button>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     )}

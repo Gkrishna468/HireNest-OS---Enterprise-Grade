@@ -29,6 +29,8 @@ import telemetryHandler from './api/telemetry-sink.ts';
 import vectorSearchHandler from './api/vector-search.ts';
 import workflowsHandler from './src/api-lib/handlers/workflows.ts';
 
+import analyticsHandler from './api/analytics.ts';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -179,6 +181,12 @@ async function createServer() {
           
         case 'workflows':
           return await workflowsHandler(req, res);
+          
+        case 'analytics/client':
+        case 'analytics/vendor':
+        case 'analytics/recruiter':
+        case 'analytics/hq':
+          return await analyticsHandler(req, res);
       }
       
       console.warn(`[API_404] No static handler explicitly configured for: ${apiPath}.`);

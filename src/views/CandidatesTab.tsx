@@ -15,6 +15,7 @@ import {
   Upload,
   MapPin,
   ShieldAlert,
+  Fingerprint,
 } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -490,7 +491,7 @@ export default function CandidatesTab() {
         // and instead post directly to our backend extraction pipeline to read the text.
         const formData = new FormData();
         formData.append("file", file);
-        let extText = `CANDIDATE: ${tempName}\nFILE: ${file.name}\nLOC: Unknown\nSKILLS: Not Parsed\nEXP: Unknown`;
+        let extText = `[Parse Failure Fallback]\nThe resume text for ${tempName} could not be fully extracted. Please review the original document manually.`;
 
         try {
           const res = await fetch("/api/extract-text", {
@@ -831,7 +832,10 @@ export default function CandidatesTab() {
                           <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
                             {cand.fullName || cand.name || "Unnamed Candidate"}
                           </h3>
-                          <p className="text-xs font-medium text-slate-600">
+                          <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
+                             <Fingerprint size={12} className="text-slate-300" /> {cand.id}
+                          </div>
+                          <p className="text-xs font-medium text-slate-600 mt-1">
                             {cand.currentRole || cand.experience || "Professional Candidate"}
                           </p>
                         </div>
