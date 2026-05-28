@@ -38,6 +38,7 @@ import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
+import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import AdminOverview from "./views/AdminOverview";
@@ -399,6 +400,13 @@ const AppContent = () => {
                 active={location.pathname === "/network"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <SidebarItem
+                to="/operations"
+                icon={Activity}
+                label="Operational Timeline"
+                active={location.pathname === "/operations"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
             </>
           )}
 
@@ -490,13 +498,15 @@ const AppContent = () => {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-100 space-y-2">
-          <SidebarItem
-            to="/settings"
-            icon={Settings}
-            label="System"
-            active={location.pathname === "/settings"}
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
+          {isAdmin && (
+            <SidebarItem
+              to="/settings"
+              icon={Settings}
+              label="System"
+              active={location.pathname === "/settings"}
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
           <button
             onClick={() => signOut(auth)}
             className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-bold uppercase tracking-wider cursor-pointer"
@@ -565,6 +575,7 @@ const AppContent = () => {
             <Route path="/jobs" element={<JobsTab />} />
             {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
+            {isAdmin && <Route path="/operations" element={<WorkflowOperationsTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
             {isAdmin && (
               <Route
@@ -592,7 +603,7 @@ const AppContent = () => {
                 <Onboarding onComplete={() => window.location.reload()} />
               }
             />
-            <Route path="/settings" element={<AdminSecurityDashboard />} />
+            {isAdmin && <Route path="/settings" element={<AdminSecurityDashboard />} />}
           </Routes>
         </div>
       </main>

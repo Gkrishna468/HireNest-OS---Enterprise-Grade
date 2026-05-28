@@ -345,6 +345,39 @@
         "metadata": { "type": "object" }
       },
       "required": ["agentType", "action", "impactLevel", "timestamp"]
+    },
+    "WorkflowInstance": {
+      "title": "WorkflowInstance",
+      "description": "Unified state machine for all orchestrations",
+      "type": "object",
+      "properties": {
+        "workflowId": { "type": "string" },
+        "workflowType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "currentState": { "type": "string" },
+        "history": { "type": "array" },
+        "ownerOrgId": { "type": "string" },
+        "responsibleUsers": { "type": "array" },
+        "visibilityScopes": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workflowId", "workflowType", "entityId", "currentState"]
+    },
+    "WorkflowEvent": {
+      "title": "WorkflowEvent",
+      "description": "Immutable lifecycle events for workflows",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+         "workflowId": { "type": "string" },
+         "eventType": { "type": "string" },
+         "fromState": { "type": "string" },
+         "toState": { "type": "string" },
+         "actorId": { "type": "string" },
+         "organizationId": { "type": "string" },
+         "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "workflowId", "eventType", "fromState", "toState"]
     }
   },
   "firestore": {
@@ -368,6 +401,8 @@
     "communication_threads/{threadId}": { "schema": { "$ref": "Thread" }, "description": "Unified communication feeds across requirements and deals" },
     "risk_assessments/{assessmentId}": { "schema": { "$ref": "RiskAssessment" }, "description": "AI-driven risk scoring" },
     "predictions/{predictionId}": { "schema": { "$ref": "Prediction" }, "description": "High-fidelity operational forecasts" },
-    "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" }
+    "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" },
+    "workflow_instances/{workflowId}": { "schema": { "$ref": "WorkflowInstance" }, "description": "Unified state machine graph for all orchestrations" },
+    "workflow_events/{eventId}": { "schema": { "$ref": "WorkflowEvent" }, "description": "Immutable operational transitions" }
   }
 }

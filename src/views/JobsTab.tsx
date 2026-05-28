@@ -305,10 +305,10 @@ export default function JobsTab() {
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
                   candidateId: cand.id,
-                  candidateName: cand.name || cand.candidateName,
-                  name: cand.name || cand.candidateName,
-                  email: cand.email || "talent@vendor-network.net",
-                  phone: cand.phone || "+91 91000 23144",
+                  candidateName: cand.fullName || cand.name || cand.candidateName || "Unknown Candidate",
+                  name: cand.fullName || cand.name || cand.candidateName || "Unknown Candidate",
+                  email: cand.primaryEmail || cand.email || "No Email Provided",
+                  phone: cand.phoneHash || cand.phone || "No Phone Provided",
                   skills: cand.skills || [],
                   experience: cand.experience || "Not Specified",
                   resumeText:
@@ -1529,7 +1529,7 @@ export default function JobsTab() {
                     <div className="flex flex-col items-end">
                       <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
                         {
-                          [...submissions, ...globalMatches].filter(
+                          Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                             (s) => (s.matchScore || 0) >= 85,
                           ).length
                         }{" "}
@@ -1538,7 +1538,7 @@ export default function JobsTab() {
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         +{" "}
                         {
-                          [...submissions, ...globalMatches].filter(
+                          Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                             (s) =>
                               (s.matchScore || 0) >= 70 &&
                               (s.matchScore || 0) < 85,
@@ -1552,7 +1552,7 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  [...submissions, ...globalMatches].length === 0 ? (
+                  Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -1584,7 +1584,7 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {[...submissions, ...globalMatches]
+                      {Array.from(new Map([...globalMatches, ...submissions].map(cand => [cand.candidateId || cand.id || cand.email, cand])).values())
                         .filter(
                           (sub) =>
                             (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
@@ -1678,7 +1678,7 @@ export default function JobsTab() {
                             </div>
                           </div>
                         ))}
-                      {[...submissions, ...globalMatches].filter(
+                      {Array.from(new Map([...globalMatches, ...submissions].map(c => [c.candidateId || c.id || c.email, c])).values()).filter(
                         (sub) =>
                           (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
                       ).length === 0 && (

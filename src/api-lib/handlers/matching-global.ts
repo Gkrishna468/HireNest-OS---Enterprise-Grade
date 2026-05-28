@@ -57,35 +57,50 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           orgId === "ORG-GLOBAL-HQ" ||
           orgId === "ADMIN";
 
-        // FEDERATED CANDIDATE AGGREGATOR
-        // We aggregate from multiple simulated/actual pools by querying the unified `candidatePool` index.
-        const snapshot = await adminDb.collection("candidatePool").get();
+        const docsToEvaluate = [];
 
-        for (const doc of snapshot.docs) {
-          const cand = doc.data();
-
-          // VISIBILITY & GOVERNANCE FILTER
-          let canAccess = false;
-          if (isAdmin) {
-            canAccess = true;
-          } else if (role?.includes("client")) {
-            if (
-              cand.visibility === "private" ||
-              cand.visibility === "vendor-only"
-            ) {
-              if (cand.clientId !== orgId) continue;
-            }
-            canAccess = true;
-          } else {
-            if (cand.vendorId === orgId || cand.recruiterId === orgId) {
-              canAccess = true;
-            } else {
-              // Strict vendor isolation: vendors can only see their own candidates
-              canAccess = false;
-            }
+        if (isAdmin) {
+          // Admin HQ: Global Graph Visibility
+          const poolSnapshot = await adminDb.collection("candidatePool").get();
+          poolSnapshot.docs.forEach((d: any) => docsToEvaluate.push({ id: d.id, ...d.data() }));
+        } else if (role?.includes("client")) {
+          // Client Workspace: ONLY see candidates linked to their requirements (via submissions)
+          const subsSnapshot = await adminDb
+            .collection("submissions")
+            .where("jobId", "==", targetReqId)
+            .get();
+          
+          const candIds = subsSnapshot.docs.map(doc => doc.data().candidateId);
+          if (candIds.length > 0) {
+              const refs = candIds.map(id => adminDb.collection("candidatePool").doc(id).get());
+              const cands = await Promise.all(refs);
+              cands.forEach(c => {
+                  if (c.exists) docsToEvaluate.push({ id: c.id, ...c.data() });
+              });
           }
+        } else {
+          // Vendor Workspace: 1. Their own candidates OR 2. Candidates mapped to them
+          // Strict query isolation BEFORE ranking
+          const vendorCandsSnapshot = await adminDb
+            .collection("candidatePool")
+            .where("vendorId", "==", orgId)
+            .get();
+          
+          vendorCandsSnapshot.docs.forEach((d: any) => docsToEvaluate.push({ id: d.id, ...d.data() }));
+          
+          // Note: Submissions logic is implicitly covered for vendors if they submitted their own candidates,
+          // but if they share candidates, we fetch their submissions too.
+          const vendorSubs = await adminDb.collection("submissions").where("vendorId", "==", orgId).where("jobId", "==", targetReqId).get();
+          const subCandIds = vendorSubs.docs.map((doc: any) => doc.data().candidateId);
+          for (const cId of subCandIds) {
+             if (!docsToEvaluate.find((c: any) => c.id === cId || c.candidateId === cId)) {
+                 const candGet = await adminDb.collection("candidatePool").doc(cId).get();
+                 if (candGet.exists) docsToEvaluate.push({ id: candGet.id, ...candGet.data() });
+             }
+          }
+        }
 
-          if (!canAccess) continue;
+        for (const cand of docsToEvaluate) {
 
           // PIPELINE ISOLATION: 
           // If a candidate is explicitly mapped to a specific job requirement pipeline, 
@@ -124,10 +139,10 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           const resultObj = {
             id: doc.id,
             candidateId: cand.candidateId || doc.id,
-            name: cand.name || "Verified Talent",
-            email: cand.email || "talent@vendor-network.net",
-            phone: cand.phone || "+91 91000 23144",
-            linkedin: cand.linkedin || "https://linkedin.com",
+            name: cand.fullName || cand.name || "Unknown Candidate",
+            email: cand.primaryEmail || cand.email || "No Email Provided",
+            phone: cand.phoneHash || cand.phone || "No Phone Provided",
+            linkedin: cand.linkedin || "",
             skills: cand.skills || [],
             experience: cand.experience || "Not Specified",
             vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",

@@ -227,20 +227,23 @@ export default function CandidatesTab() {
     for (const c of candidates) {
       if (c.id === currentId || c.candidateId === currentId) continue;
 
+      const cEmail = c.primaryEmail || c.email;
+      const cPhone = c.phoneHash || c.phone;
+
       if (
         normalizedEmail &&
-        c.email &&
-        c.email.trim().toLowerCase() === normalizedEmail
+        cEmail &&
+        cEmail.trim().toLowerCase() === normalizedEmail
       ) {
-        return { candidate: c, type: "email", value: c.email };
+        return { candidate: c, type: "email", value: cEmail };
       }
 
       if (
         normalizedPhone &&
-        c.phone &&
-        c.phone.replace(/\D/g, "") === normalizedPhone
+        cPhone &&
+        cPhone.replace(/\D/g, "") === normalizedPhone
       ) {
-        return { candidate: c, type: "phone", value: c.phone };
+        return { candidate: c, type: "phone", value: cPhone };
       }
     }
     return null;
@@ -507,10 +510,13 @@ export default function CandidatesTab() {
 
         // Create lightweight QUEUED candidate in Firestore
         await setDoc(doc(db, "candidatePool", candId), {
+          fullName: tempName,
           name: tempName,
+          primaryEmail: "pending@extraction.io",
           email: "pending@extraction.io",
           candidateId: candId,
           vendorId: userOrgId,
+          sourceOrganizations: [userOrgId],
           pipelineStage: "Candidate Added",
           source: "Bulk Upload",
           fileName: file.name,
@@ -558,12 +564,18 @@ export default function CandidatesTab() {
         const appendedName = result.name.includes(candId) ? result.name : `${result.name} (${candId})`;
         const updatePayload: any = {
           ...result,
-          name: appendedName,
+          fullName: appendedName, // Map to new schema
+          name: appendedName, // Legacy
+          primaryEmail: result.email, // Map to new schema
+          phoneHash: result.phone, // Map to new schema
           distillationStatus: "COMPLETED",
           updatedAt: serverTimestamp(),
         };
         // Do not override user original data if it exists (for manual form updates)
-        if (result.name === "Candidate " + candId) delete updatePayload.name; // Fallback name deletion
+        if (result.name === "Candidate " + candId) {
+            delete updatePayload.name;
+            delete updatePayload.fullName;
+        }
 
         await updateDoc(doc(db, "candidatePool", candId), updatePayload);
       } else {
@@ -794,7 +806,7 @@ export default function CandidatesTab() {
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                            {cand.name}
+                            {cand.fullName || cand.name}
                           </div>
                           <div className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                             {cand.candidateId || cand.id}

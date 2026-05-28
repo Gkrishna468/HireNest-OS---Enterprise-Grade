@@ -2,7 +2,9 @@ import { useState, useRef } from "react";
 import { Upload, X, Bot, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "../lib/Button";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, setDoc, doc } from "firebase/firestore";
+import { workflowOrchestrator } from "../services/workflow/workflowOrchestrator";
+import { SubmissionState, WorkflowInstance } from "../types/workflow";
 
 interface CandidateSubmissionModalProps {
     onClose: () => void;
@@ -133,6 +135,17 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                      stage: "NEW"
                  });
                  
+                 // 3. INITIALIZE WORKFLOW GRAPH (NEW ENGINE)
+                 await workflowOrchestrator.initializeWorkflow(
+                    "submission_lifecycle",
+                    subRef.id,
+                    SubmissionState.SUBMITTED,
+                    "local", // Vendor org context
+                    "local_user",
+                    "vendor_recruiter", // actorRole
+                    "submissions"
+                 );
+
                  try {
                     await fetch('/api/workflows', {
                         method: 'POST',
