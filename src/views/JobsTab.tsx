@@ -71,8 +71,9 @@ export default function JobsTab() {
   const [budgetPeriod, setBudgetPeriod] = useState<"LPA" | "LPM">("LPA");
   const [currency, setCurrency] = useState<"INR" | "USD">("INR");
   const [workMode, setWorkMode] = useState<
-    "Onsite" | "Remote" | "C2C" | "C2H" | "Permanent"
+    "Onsite" | "Remote" | "Hybrid" | "C2C" | "C2H" | "Permanent"
   >("Remote");
+  const [location, setLocation] = useState<string>("");
   const [mandatorySkills, setMandatorySkills] = useState<string>("");
   const [isParsing, setIsParsing] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -790,6 +791,7 @@ export default function JobsTab() {
           currency: currency,
         },
         workMode: workMode,
+        location: (workMode === 'Onsite' || workMode === 'Hybrid') ? location : '',
         adminApproved: adminApproved,
         financials: financials,
         ownerId: auth.currentUser?.uid,
@@ -940,13 +942,24 @@ export default function JobsTab() {
     jobId: string,
     newTitle: string,
     newDesc: string,
+    newWorkMode: string,
+    newLocation?: string
   ) => {
     await updateDoc(doc(db, "requirements_public", jobId), {
       title: newTitle,
       description: newDesc,
+      workMode: newWorkMode,
+      ...(newWorkMode === "Onsite" || newWorkMode === "Hybrid" ? { location: newLocation || '' } : { location: '' }),
       updatedAt: serverTimestamp(),
     });
     setIsEditing(null);
+    setSelectedJob((prev: any) => ({
+       ...prev,
+       title: newTitle,
+       description: newDesc,
+       workMode: newWorkMode,
+       location: newWorkMode === "Onsite" || newWorkMode === "Hybrid" ? newLocation : ''
+    }));
   };
 
   const [matchingStatus, setMatchingStatus] = useState<string>("idle");
@@ -1212,7 +1225,7 @@ export default function JobsTab() {
                 </div>
               </div>
               <div className="p-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">
                       Requirement Title
@@ -1254,6 +1267,31 @@ export default function JobsTab() {
                         id="max_exp"
                         className="w-1/2 bg-slate-50 border border-slate-200 rounded p-2 text-xs outline-none"
                       />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 flex flex-col justify-end">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">
+                      Work Mode
+                    </label>
+                    <div className="flex gap-2">
+                       <select
+                         value={workMode}
+                         onChange={(e: any) => setWorkMode(e.target.value)}
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                       >
+                         <option value="Onsite">Onsite</option>
+                         <option value="Remote">Remote</option>
+                         <option value="Hybrid">Hybrid</option>
+                       </select>
+                       {(workMode === "Onsite" || workMode === "Hybrid") && (
+                         <input
+                           type="text"
+                           placeholder="Location"
+                           value={location}
+                           onChange={(e) => setLocation(e.target.value)}
+                           className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                         />
+                       )}
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -1481,6 +1519,7 @@ export default function JobsTab() {
                   onClick={() => {
                     setSelectedJob(null);
                     setAiAnalysis(null);
+                    setIsEditing(null);
                   }}
                   className="h-6 w-6"
                 >
@@ -1492,6 +1531,16 @@ export default function JobsTab() {
                 </h2>
               </div>
               <div className="flex items-center gap-2">
+                {(isAdmin || (isClient && selectedJob.clientId === orgId)) && (
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={() => setIsEditing(isEditing === selectedJob.id ? null : selectedJob.id)}
+                     className="h-6 text-[10px] uppercase font-bold tracking-widest px-3"
+                   >
+                     {isEditing === selectedJob.id ? "Cancel Edit" : "Edit Job"}
+                   </Button>
+                )}
                 <Badge className="bg-indigo-100 text-indigo-700 text-[9px]">
                   {selectedJob.requirementId}
                 </Badge>
@@ -1500,7 +1549,81 @@ export default function JobsTab() {
 
             <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
               <div className="p-6 max-w-4xl mx-auto pb-24">
-                <JDIntelligence job={selectedJob} />
+                {isEditing === selectedJob.id ? (
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 mb-8">
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Edit Requirement</h3>
+                    <div className="space-y-4">
+                       <div className="space-y-1.5">
+                         <label className="text-[9px] font-bold text-slate-500 uppercase">Title</label>
+                         <input
+                           type="text"
+                           id={`edit-title-${selectedJob.id}`}
+                           defaultValue={selectedJob.title}
+                           className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                         />
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-1.5">
+                           <label className="text-[9px] font-bold text-slate-500 uppercase">Work Mode</label>
+                           <select
+                             id={`edit-mode-${selectedJob.id}`}
+                             defaultValue={selectedJob.workMode}
+                             onChange={(e) => {
+                                const locEl = document.getElementById(`edit-loc-${selectedJob.id}`);
+                                if (locEl) {
+                                  if (e.target.value === 'Remote') {
+                                     locEl.style.display = 'none';
+                                  } else {
+                                     locEl.style.display = 'block';
+                                  }
+                                }
+                             }}
+                             className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                           >
+                             <option value="Onsite">Onsite</option>
+                             <option value="Remote">Remote</option>
+                             <option value="Hybrid">Hybrid</option>
+                           </select>
+                         </div>
+                         <div className="space-y-1.5" id={`edit-loc-${selectedJob.id}`} style={{ display: selectedJob.workMode === 'Remote' ? 'none' : 'block' }}>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase">Location</label>
+                            <input
+                              type="text"
+                              id={`edit-loc-input-${selectedJob.id}`}
+                              defaultValue={selectedJob.location || ''}
+                              className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                              placeholder="City, State, etc."
+                            />
+                         </div>
+                       </div>
+                       <div className="space-y-1.5">
+                         <label className="text-[9px] font-bold text-slate-500 uppercase">Description</label>
+                         <textarea
+                           id={`edit-desc-${selectedJob.id}`}
+                           defaultValue={selectedJob.description}
+                           className="w-full h-32 p-3 bg-slate-50 border border-slate-200 rounded text-xs"
+                         />
+                       </div>
+                       <div className="flex justify-end pt-2">
+                         <Button
+                           size="sm"
+                           onClick={() => {
+                             const t = (document.getElementById(`edit-title-${selectedJob.id}`) as HTMLInputElement).value;
+                             const m = (document.getElementById(`edit-mode-${selectedJob.id}`) as HTMLSelectElement).value;
+                             const d = (document.getElementById(`edit-desc-${selectedJob.id}`) as HTMLTextAreaElement).value;
+                             const l = (document.getElementById(`edit-loc-input-${selectedJob.id}`) as HTMLInputElement)?.value;
+                             handleUpdateJD(selectedJob.id, t, d, m, l);
+                           }}
+                           className="bg-indigo-600 text-white hover:bg-indigo-700"
+                         >
+                           Save Changes
+                         </Button>
+                       </div>
+                    </div>
+                  </div>
+                ) : (
+                  <JDIntelligence job={selectedJob} />
+                )}
 
                 {isClient && selectedJob.status === "DRAFT" && (
                   <div className="mt-8 p-8 bg-indigo-50 border border-indigo-100 rounded-3xl">

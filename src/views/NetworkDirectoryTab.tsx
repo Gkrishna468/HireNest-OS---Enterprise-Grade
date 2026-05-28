@@ -1,24 +1,220 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, query, limit } from "firebase/firestore";
+import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Network, Users, Building2, Fingerprint, Activity } from "lucide-react";
+import { Network, Users, Building2, Fingerprint, Activity, ActivityIcon, FileText } from "lucide-react";
 import { cn } from "../lib/utils";
+import { subscribeToEvents } from "../services/eventBus";
 
-type FilterType = 'organizations' | 'people' | 'candidates' | 'requirements' | 'submissions';
+type FilterType = 'organizations' | 'people' | 'candidates' | 'activity';
 
 export default function NetworkDirectoryTab() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('organizations');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    // Simulated fetching based on activeFilter
-    setLoading(true);
-    setTimeout(() => {
-        setData([]);
-        setLoading(false);
-    }, 600);
-  }, [activeFilter]);
+    const unsub = subscribeToEvents((evts) => {
+      setEvents(evts);
+    }, 100);
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        let q;
+        if (activeFilter === 'organizations') {
+          q = query(collection(db, "organizations"), limit(50));
+        } else if (activeFilter === 'people') {
+          q = query(collection(db, "users"), limit(50));
+        } else if (activeFilter === 'candidates') {
+          q = query(collection(db, "candidatePool"), limit(50));
+        } else if (activeFilter === 'activity') {
+          // Just use the events we already have subscription for
+          setData(events);
+          setLoading(false);
+          return;
+        }
+        
+        if (q) {
+          const snap = await getDocs(q);
+          setData(snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })));
+        }
+      } catch (err) {
+        console.error("Failed to load network data", err);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [activeFilter, events]);
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex h-full items-center justify-center p-20">
+          <div className="flex flex-col items-center gap-4">
+            <Activity className="h-8 w-8 animate-bounce text-indigo-600" />
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+              Syncing Network Graph...
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeFilter === 'organizations') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data.map(org => {
+             // Calculate stats for this org from events
+             const orgEvents = events.filter(e => e.actorRole === org.type || e.metadata?.vendorId === org.id || e.metadata?.clientId === org.id);
+             const profilesUploads = orgEvents.filter(e => e.type === 'CandidateUploaded').length;
+             const placements = orgEvents.filter(e => e.type === 'PlacementCompleted').length;
+             return (
+              <div key={org.id} className="p-6 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white transition-all shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    {org.name?.charAt(0) || org.id.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">{org.name || org.id}</h3>
+                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider flex items-center gap-1">
+                      <Building2 size={12}/> {org.type || 'Organization'}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
+                  <div>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Profiles Added</p>
+                    <p className="text-lg font-black text-slate-800">{profilesUploads}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Placements</p>
+                    <p className="text-lg font-black text-slate-800">{placements}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {data.length === 0 && <p className="text-center text-slate-500 col-span-3">No organizations found.</p>}
+        </div>
+      );
+    }
+
+    if (activeFilter === 'people') {
+      return (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {data.map(person => {
+             const userEvents = events.filter(e => e.actorId === person.id);
+             
+             let activityLabel = "Activity Count";
+             let activityValue = userEvents.length;
+
+             if (person.role?.includes('CLIENT')) {
+                 activityLabel = "Requirements Posted";
+                 activityValue = userEvents.filter(e => e.type === 'JobPublished').length;
+             } else if (person.role?.includes('VENDOR')) {
+                 activityLabel = "Profiles Uploaded";
+                 activityValue = userEvents.filter(e => e.type === 'CandidateUploaded').length;
+             }
+
+             return (
+               <div key={person.id} className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Users size={20}/>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900">{person.email || person.id}</h4>
+                      <div className="flex gap-2 items-center mt-1">
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">{person.role || 'Unknown'}</span>
+                        {person.organizationId && <span className="text-[10px] text-slate-400 font-mono tracking-tighter">ORG: {person.organizationId}</span>}
+                      </div>
+                    </div>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{activityLabel}</p>
+                    <p className="text-xl font-black text-indigo-600">{activityValue}</p>
+                 </div>
+               </div>
+             )
+          })}
+          {data.length === 0 && <p className="text-center text-slate-500 col-span-2">No people found.</p>}
+        </div>
+      );
+    }
+
+    if (activeFilter === 'candidates') {
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+           {data.map(cand => {
+              const displayName = cand.fullName || cand.name || cand.candidateName || 
+                (cand.firstName && cand.lastName ? `${cand.firstName} ${cand.lastName}` : null) ||
+                `Candidate ${cand.id.substring(0,8).toUpperCase()}`;
+                
+              return (
+                <div key={cand.id} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm flex items-start gap-4">
+                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                      <Fingerprint size={24} />
+                   </div>
+                   <div className="flex-1">
+                      <h4 className="font-bold text-slate-900">{displayName}</h4>
+                      <p className="text-xs text-slate-500 mb-2">{cand.primaryEmail || cand.email || 'No email provided'}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                         {cand.skills?.slice(0,4).map((sk: string) => (
+                            <span key={sk} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">{sk}</span>
+                         ))}
+                      </div>
+                   </div>
+                   <div className="text-right">
+                       <p className="text-[9px] font-mono text-slate-400">ID: {cand.id.substring(0,6)}</p>
+                       {cand.vendorId && (
+                           <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 mt-1 inline-block rounded font-bold uppercase">
+                               From: {cand.vendorId.replace('ORG-','')}
+                           </span>
+                       )}
+                   </div>
+                </div>
+              );
+           })}
+           {data.length === 0 && <p className="text-center text-slate-500 col-span-2">No candidates found.</p>}
+        </div>
+      )
+    }
+
+    if (activeFilter === 'activity') {
+      return (
+        <div className="space-y-4">
+          {events.map(ev => (
+            <div key={ev.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm">
+                <div className="flex justify-between items-start">
+                   <div className="flex gap-3">
+                      <ActivityIcon size={16} className="text-indigo-500 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-slate-800">{ev.type}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Role: {ev.actorRole} | Entity: {ev.entityType} ({ev.entityId})
+                        </p>
+                        <div className="mt-2 text-xs text-slate-600 font-mono">
+                           {JSON.stringify(ev.metadata)}
+                        </div>
+                      </div>
+                   </div>
+                   <div className="text-[10px] text-slate-400 font-mono">
+                      {ev.timestamp?.toDate ? ev.timestamp.toDate().toLocaleString() : 'Just now'}
+                   </div>
+                </div>
+            </div>
+          ))}
+          {events.length === 0 && <p className="text-center text-slate-500">No recent activity.</p>}
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8">
@@ -35,6 +231,7 @@ export default function NetworkDirectoryTab() {
           { id: 'organizations', label: 'Organizations', icon: Building2 },
           { id: 'people', label: 'People & Recruiters', icon: Users },
           { id: 'candidates', label: 'Global Candidates', icon: Fingerprint },
+          { id: 'activity', label: 'Activity Logs', icon: FileText },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -54,22 +251,7 @@ export default function NetworkDirectoryTab() {
 
       {/* Content Area */}
       <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-8 min-h-[400px]">
-        {loading ? (
-             <div className="flex h-full items-center justify-center p-20">
-             <div className="flex flex-col items-center gap-4">
-               <Activity className="h-8 w-8 animate-bounce text-indigo-600" />
-               <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-                 Syncing Network Graph...
-               </p>
-             </div>
-           </div>
-        ) : (
-            <div className="text-center py-20 text-slate-400">
-                <Network className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <p className="text-xs font-bold uppercase tracking-widest mb-1">Graph Synced</p>
-                <p className="text-[10px]">Populating {activeFilter} data based on unified visibility RBAC.</p>
-            </div>
-        )}
+         {renderContent()}
       </div>
     </div>
   );
