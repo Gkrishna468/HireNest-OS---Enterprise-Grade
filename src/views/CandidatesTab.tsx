@@ -445,6 +445,7 @@ export default function CandidatesTab() {
           pipelineStage: "Candidate Added",
           distillationStatus: "PROCESSING",
           source: "Bulk Text Paste",
+          resumeText: text,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -519,6 +520,7 @@ export default function CandidatesTab() {
           sourceOrganizations: [userOrgId],
           pipelineStage: "Candidate Added",
           source: "Bulk Upload",
+          resumeText: extText,
           fileName: file.name,
           status: "QUEUED",
           distillationStatus: "PROCESSING",
@@ -561,18 +563,17 @@ export default function CandidatesTab() {
         parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
       if (result && result.name && result.name !== "Pending Distillation") {
-        const appendedName = result.name.includes(candId) ? result.name : `${result.name} (${candId})`;
         const updatePayload: any = {
           ...result,
-          fullName: appendedName, // Map to new schema
-          name: appendedName, // Legacy
+          fullName: result.name, // Map to new schema
+          name: result.name, // Legacy
           primaryEmail: result.email, // Map to new schema
           phoneHash: result.phone, // Map to new schema
           distillationStatus: "COMPLETED",
           updatedAt: serverTimestamp(),
         };
         // Do not override user original data if it exists (for manual form updates)
-        if (result.name === "Candidate " + candId) {
+        if (result.name === "Unnamed Candidate") {
             delete updatePayload.name;
             delete updatePayload.fullName;
         }
@@ -729,6 +730,20 @@ export default function CandidatesTab() {
             >
               <Plus size={20} className="mr-2" /> Onboard Profile
             </Button>
+            <Button
+              onClick={() => {
+                candidates.forEach((c) => {
+                  if (c.name?.toUpperCase().startsWith("CANDIDATE ") || c.name === "Pending Distillation" || c.name === "Unnamed Candidate") {
+                    if (c.resumeText) enrichCandidate(c.id, c.resumeText);
+                  }
+                });
+                alert("Triggered intelligence extraction for all placeholder candidates with resumes.");
+              }}
+              variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-700 h-12 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all font-black uppercase tracking-widest text-[11px]"
+            >
+              <Activity size={18} className="mr-2" /> Migrate Identities
+            </Button>
           </div>
         )}
       </div>
@@ -801,88 +816,102 @@ export default function CandidatesTab() {
                         Duplicate Detected
                       </div>
                     )}
+                    
+                    {cand.name === "Unnamed Candidate" && (
+                      <div className="mb-3 text-[9px] font-black text-rose-700 bg-rose-50/80 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center gap-1.5 w-fit uppercase tracking-wider">
+                        <AlertTriangle size={11} className="text-rose-500" />{" "}
+                        Name Extraction Needs Review
+                      </div>
+                    )}
 
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-black text-xs text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                            {cand.fullName || cand.name}
-                          </div>
-                          <div className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                            {cand.candidateId || cand.id}
-                          </div>
-                        </div>
-                        <div className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5 p-1 bg-slate-50 rounded w-fit">
-                          <ShieldCheck size={10} className="text-emerald-500" />{" "}
-                          {cand.distillationMetadata?.confidence
-                            ? Math.round(
-                                cand.distillationMetadata.confidence * 100,
-                              )
-                            : "85"}
-                          % Verified
+                    <div className="flex flex-col mb-4 bg-white rounded-xl">
+                      {/* HEADER */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex flex-col gap-1">
+                          <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                            {cand.fullName || cand.name || "Unnamed Candidate"}
+                          </h3>
+                          <p className="text-xs font-medium text-slate-600">
+                            {cand.currentRole || cand.experience || "Professional Candidate"}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
-                          {cand.matchScore || "0"}%
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="flex justify-between items-center bg-slate-50 border-t border-b border-slate-100 py-1.5 px-3 mb-4 -mx-5 text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                      <div className="flex items-center gap-1.5">
-                        <Briefcase size={12} className="text-slate-400" />
-                        {!cand.vendorId ||
-                        cand.vendorId === "ORG-GLOBAL-HQ" ||
-                        cand.vendorId === "ADMIN_POOL" ? (
-                          <span className="text-indigo-600">ADMIN HQ</span>
-                        ) : (
-                          <span
-                            className="text-emerald-600 truncate max-w-[120px]"
-                            title={
-                              cand.vendorName ||
-                              vendorMap[cand.vendorId] ||
-                              cand.vendorId
-                            }
-                          >
-                            {cand.vendorName ||
-                              vendorMap[cand.vendorId] ||
-                              cand.vendorId}
+                      {/* INTELLIGENCE */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">
+                          {cand.matchScore || "0"}% AI Match
+                        </Badge>
+                        <Badge variant="outline" className="text-slate-600 border-slate-200 text-[10px]">
+                          {cand.experience || "Experience N/A"}
+                        </Badge>
+                        <Badge variant="outline" className="text-slate-600 border-slate-200 text-[10px]">
+                          {cand.location || "Location Flexible"}
+                        </Badge>
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] flex items-center gap-1">
+                          <ShieldCheck size={10} />
+                          {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : "85"}% Verified
+                        </Badge>
+                      </div>
+
+                      {/* SOURCE SECTION */}
+                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-[10px] font-medium text-slate-600 mb-4 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-400 w-16">Source:</span>
+                          {!cand.vendorId || cand.vendorId === "ORG-GLOBAL-HQ" || cand.vendorId === "ADMIN_POOL" ? (
+                            <span className="text-indigo-600 font-bold uppercase tracking-wider">Admin HQ</span>
+                          ) : (
+                            <span className="text-emerald-600 font-bold uppercase tracking-wider">
+                              {cand.vendorName || vendorMap[cand.vendorId] || cand.vendorId}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-400 w-16">Vendor ID:</span>
+                          <span className="font-mono text-slate-700">{cand.vendorId || "SYSTEM"}</span>
+                        </div>
+                        {cand.uploaderName && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-400 w-16">Uploader:</span>
+                            <span className="font-medium text-slate-700">{cand.uploaderName}</span>
+                          </div>
+                        )}
+                        {cand.source === "Bulk Upload" && (
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <Badge className="text-[8px] font-black px-1.5 py-0 bg-slate-200 text-slate-600 border-none uppercase">UPLOADED VIA PIPELINE</Badge>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SKILL SECTION */}
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {getSkillsArray(cand.skills)
+                          .slice(0, 4)
+                          .map((s: string) => (
+                            <span
+                              key={s}
+                              className="text-[9px] font-bold bg-white text-slate-700 border border-slate-200 rounded px-2 py-0.5 uppercase tracking-tighter"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        {getSkillsArray(cand.skills).length > 4 && (
+                          <span className="text-[9px] font-bold text-slate-400">
+                            +{getSkillsArray(cand.skills).length - 4} MORE
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Activity size={12} className="text-indigo-400" />
-                        {cand.pipelineStage || "Matched"}
+
+                      {/* SYSTEM SECTION */}
+                      <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-3">
+                        <div className="flex items-center gap-1.5">
+                          <span>Candidate ID: </span>
+                          <span className="font-mono text-slate-600">{cand.candidateId || cand.id}</span>
+                        </div>
+                        <div>
+                           {cand.pipelineStage || "Matched"}
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-2 mb-4 bg-slate-50/50 p-2 rounded-lg">
-                      <MapPin size={12} className="text-slate-300" />{" "}
-                      {cand.location || "Global Remote"}
-                      {cand.source === "Bulk Upload" && (
-                        <Badge className="text-[7px] font-black px-1.5 py-0 bg-slate-900 text-white border-none">
-                          UPLOAD
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {getSkillsArray(cand.skills)
-                        .slice(0, 3)
-                        .map((s: string) => (
-                          <span
-                            key={s}
-                            className="text-[8px] font-black bg-white text-slate-500 border border-slate-100 rounded-md px-2 py-0.5 uppercase tracking-tighter group-hover:border-indigo-200 transition-colors"
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      {getSkillsArray(cand.skills).length > 3 && (
-                        <span className="text-[8px] font-black text-slate-300">
-                          +{getSkillsArray(cand.skills).length - 3} MORE
-                        </span>
-                      )}
                     </div>
 
                     {(cand.distillationStatus === "FAILED" ||

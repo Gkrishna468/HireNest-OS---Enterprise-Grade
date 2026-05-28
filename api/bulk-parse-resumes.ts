@@ -133,7 +133,7 @@ ${text}
           
           // Return a structured graceful fallback for this resume
           profile = {
-            name: "Candidate " + Math.random().toString(36).substring(7).toUpperCase(),
+            name: "Unnamed Candidate",
             email: "pending@extraction.io",
             phone: "Not Specified",
             experience: "Not Specified",
