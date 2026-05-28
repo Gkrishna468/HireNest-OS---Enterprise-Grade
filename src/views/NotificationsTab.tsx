@@ -188,9 +188,9 @@ export default function NotificationsTab({ org }: { org: any }) {
                 ) {
                   navigate("/jobs");
                 } else if (fullText.includes("vendor")) {
-                  navigate("/vendors");
+                  navigate("/network");
                 } else if (fullText.includes("client")) {
-                  navigate("/clients");
+                  navigate("/network");
                 } else if (fullText.includes("match")) {
                   // Fallback for match could be jobs or candidates, Deal Room might catch it earlier. 
                   navigate("/candidates");

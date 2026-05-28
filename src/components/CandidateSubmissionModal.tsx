@@ -67,30 +67,54 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
         if (!name || !email) return;
         setIsSubmitting(true);
         try {
-             let docRef;
-             if (reqId === "GENERAL") {
-                 docRef = await addDoc(collection(db, "candidatePool"), {
-                     name,
-                     email,
-                     phone,
-                     linkedin: "",
-                     skills: keySkills.split(',').map(s => s.trim()).filter(Boolean),
-                     experience,
-                     location: currentLocation,
-                     preferredLocation,
-                     noticePeriod,
-                     currentCtc,
-                     expectedCtc,
-                     resumeText: aiAnalysis?.analysis || "",
-                     vendorId: "local",
-                     pipelineStage: "Candidate Added",
-                     status: "QUEUED",
-                     source: "Manual Intake UI",
-                     createdAt: serverTimestamp(),
-                     updatedAt: serverTimestamp()
-                 });
-             } else {
-                 docRef = await addDoc(collection(db, "submissions"), {
+             // 1. ALWAYS CREATE THE CANONICAL CANDIDATE RECORD FIRST
+             const candRef = await addDoc(collection(db, "candidatePool"), {
+                 // Updated Canonical Candidate Schema
+                 fullName: name,
+                 primaryEmail: email,
+                 phoneHash: phone,
+                 linkedin: "",
+                 skills: keySkills.split(',').map(s => s.trim()).filter(Boolean),
+                 experience: experience, // In a real system, this would be structured data
+                 canonicalProfile: true,
+                 visibilityScopes: ["VENDOR_NETWORK"], // Example
+                 sourceOrganizations: ["local"], // Or current vendor org ID
+                 dedupeFingerprint: email.toLowerCase(), // Simple dedupe hash for now
+                 
+                 // Legacy payload mappings for backward compatibility during migration
+                 name: name,
+                 email: email,
+                 phone: phone,
+                 location: currentLocation,
+                 preferredLocation,
+                 noticePeriod,
+                 currentCtc,
+                 expectedCtc,
+                 resumeText: aiAnalysis?.analysis || "",
+                 vendorId: "local",
+                 pipelineStage: "Candidate Added",
+                 status: "QUEUED",
+                 source: "Manual Intake UI",
+                 createdAt: serverTimestamp(),
+                 updatedAt: serverTimestamp(),
+                 createdBy: "local_user"
+             });
+
+             // 2. IF NOT GENERAL, CREATE THE INTERSECTION "SUBMISSION"
+             if (reqId !== "GENERAL") {
+                 const subRef = await addDoc(collection(db, "submissions"), {
+                     // Updated Submission Schema
+                     candidateId: candRef.id,
+                     requirementId: reqId,
+                     submittedBy: "local_user",
+                     vendorOrgId: "local",
+                     clientOrgId: "", // Would be determined by requirement
+                     status: "submitted",
+                     timeline: [
+                        { action: "submitted", timestamp: new Date().toISOString() }
+                     ],
+
+                     // Legacy mappings
                      reqId,
                      reqTitle,
                      candidateName: name,
@@ -105,7 +129,6 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                      expectedCtc,
                      aiFitScore: aiAnalysis?.fitScore || 0,
                      aiAnalysisText: aiAnalysis?.analysis || "",
-                     status: "SOURCED",
                      submittedAt: serverTimestamp(),
                      stage: "NEW"
                  });
@@ -117,7 +140,7 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                         body: JSON.stringify({
                             action: 'start',
                             workflowType: 'CandidateLifecycle',
-                            input: { submissionId: docRef.id }
+                            input: { submissionId: subRef.id }
                         })
                     });
                  } catch (e) {
@@ -128,7 +151,7 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
              onClose();
         } catch (error) {
              console.error("Submission failed: ", error);
-             handleFirestoreError(error, OperationType.WRITE, reqId === "GENERAL" ? "candidatePool" : "submissions");
+             handleFirestoreError(error, OperationType.WRITE, "candidatePool");
         } finally {
             setIsSubmitting(false);
         }

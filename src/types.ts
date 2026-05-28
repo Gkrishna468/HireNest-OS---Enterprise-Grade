@@ -3,7 +3,55 @@
 export enum OrgType {
   ADMIN = 'admin',
   CLIENT = 'client',
-  VENDOR = 'vendor'
+  VENDOR = 'vendor',
+  PARTNER = 'partner',
+  INTERNAL = 'internal'
+}
+
+export type RecruiterType = 'internal' | 'vendor' | 'freelance' | 'contract';
+
+export interface User {
+  id: string; // Map to uid
+  email: string;
+  orgId: string;
+  role: 'admin' | 'client_hm' | 'client_finance' | 'client_recruiter' | 'recruiter';
+  recruiterType?: RecruiterType; // Only applicable if role === 'recruiter'
+  permissions: string[];
+  status: 'active' | 'inactive' | 'pending';
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  type: OrgType;
+  status: 'active' | 'suspended' | 'pending';
+  createdAt: Date | any;
+}
+
+export interface Candidate {
+  candidateId: string;
+  fullName: string;
+  primaryEmail?: string;
+  phoneHash?: string;
+  skills: string[];
+  experience: any; // Could be detailed json
+  canonicalProfile: boolean;
+  visibilityScopes: string[];
+  sourceOrganizations: string[];
+  createdBy: string;
+  dedupeFingerprint?: string;
+  matchScore?: number; // Optional for view layers
+}
+
+export interface Submission {
+  submissionId: string;
+  candidateId: string;
+  requirementId: string;
+  submittedBy: string;
+  vendorOrgId?: string;
+  clientOrgId?: string;
+  status: 'submitted' | 'screening' | 'interview' | 'offer' | 'rejected';
+  timeline: any[];
 }
 
 export enum DealStatus {

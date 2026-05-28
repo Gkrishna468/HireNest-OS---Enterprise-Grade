@@ -34,13 +34,10 @@ import { cn } from "./lib/utils";
 import DashboardTab from "./views/DashboardTab";
 import AgentHQ from "./views/AgentHQ";
 import CandidatesTab from "./views/CandidatesTab";
-import ClientsTab from "./views/ClientsTab";
 import JobsTab from "./views/JobsTab";
+import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
-import VendorsTab from "./views/VendorsTab";
-import RecruitersTab from "./views/RecruitersTab";
-import IndependentTab from "./views/IndependentTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import AdminOverview from "./views/AdminOverview";
@@ -393,34 +390,13 @@ const AppContent = () => {
           {isAdmin && (
             <>
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Partners
+                Global Network
               </div>
               <SidebarItem
-                to="/clients"
-                icon={Building2}
-                label="Clients"
-                active={location.pathname === "/clients"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/vendors"
-                icon={Users}
-                label="Vendors"
-                active={location.pathname === "/vendors"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/recruiters"
-                icon={UserCheck}
-                label="Recruiters"
-                active={location.pathname === "/recruiters"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/independent"
-                icon={Fingerprint}
-                label="Independent"
-                active={location.pathname === "/independent"}
+                to="/network"
+                icon={Network}
+                label="Network Directory"
+                active={location.pathname === "/network"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
@@ -587,14 +563,7 @@ const AppContent = () => {
               <Route path="/candidates" element={<CandidatesTab />} />
             )}
             <Route path="/jobs" element={<JobsTab />} />
-            {isAdmin && <Route path="/clients" element={<ClientsTab />} />}
-            {isAdmin && <Route path="/vendors" element={<VendorsTab />} />}
-            {isAdmin && (
-              <Route path="/recruiters" element={<RecruitersTab />} />
-            )}
-            {isAdmin && (
-              <Route path="/independent" element={<IndependentTab />} />
-            )}
+            {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
             {isAdmin && (

@@ -26,7 +26,7 @@
       "type": "object",
       "properties": {
         "organizationId": { "type": "string" },
-        "type": { "type": "string", "enum": ["vendor", "client", "admin", "recruitment_agency"] },
+        "type": { "type": "string", "enum": ["client", "vendor", "internal", "partner"] },
         "companyName": { "type": "string" },
         "domain": { "type": "string" },
         "status": { "type": "string", "enum": ["pending_review", "approved", "rejected"] },
@@ -47,7 +47,8 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "client_hm", "client_finance", "client_recruiter", "vendor_recruiter", "vendor_sourcer", "freelancer", "independent_recruiter"] },
+        "role": { "type": "string", "enum": ["admin", "client_hm", "client_finance", "client_recruiter", "recruiter", "operations"] },
+        "recruiterType": { "type": "string", "enum": ["internal", "vendor", "freelance", "contract"] },
         "organizationId": { "type": "string" },
         "verification": {
           "type": "object",
@@ -110,47 +111,43 @@
     },
     "Candidate": {
       "title": "Candidate",
-      "description": "A candidate profile in the pool",
+      "description": "ONE global candidate profile. Never duplicated.",
       "type": "object",
       "properties": {
         "candidateId": { "type": "string" },
-        "vendorId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "phone": { "type": "string" },
+        "fullName": { "type": "string" },
+        "primaryEmail": { "type": "string" },
+        "phoneHash": { "type": "string" },
         "linkedin": { "type": "string" },
         "skills": { "type": "array", "items": { "type": "string" } },
-        "experience": { "type": "string" },
+        "experience": { "type": "object" },
         "resumeText": { "type": "string" },
         "resumeUrl": { "type": "string" },
-        "matchScore": { "type": "number" },
-        "pipelineStage": { "type": "string", "enum": ["Candidate Added", "Duplicate Review", "Matched", "Client Submission", "Deal Room"] },
-        "source": { "type": "string" },
-        "distillationStatus": { "type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"] },
-        "distillationMetadata": { "type": "object" },
-        "fileName": { "type": "string" },
-        "location": { "type": "string" },
-        "mappedJobId": { "type": "string" },
-        "activeDealId": { "type": "string" },
-        "ownerId": { "type": "string" },
+        "canonicalProfile": { "type": "boolean" },
+        "visibilityScopes": { "type": "array", "items": { "type": "string" } },
+        "sourceOrganizations": { "type": "array", "items": { "type": "string" } },
+        "dedupeFingerprint": { "type": "string" },
+        "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["candidateId", "vendorId", "name", "createdAt"]
+      "required": ["candidateId", "fullName", "createdAt"]
     },
     "Submission": {
       "title": "Submission",
-      "description": "A candidate submission to a requirement",
+      "description": "A candidate submission to a requirement mapping Candidate <-> Requirement <-> Org <-> Recruiter",
       "type": "object",
       "properties": {
         "submissionId": { "type": "string" },
-        "requirementId": { "type": "string" },
         "candidateId": { "type": "string" },
-        "vendorId": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "SCREENING", "CLIENT_REVIEW", "INTERVIEW", "OFFER", "REJECTED"] },
-        "vendorTrustScore": { "type": "number" },
+        "requirementId": { "type": "string" },
+        "submittedBy": { "type": "string" },
+        "vendorOrgId": { "type": "string" },
+        "clientOrgId": { "type": "string" },
+        "status": { "type": "string", "enum": ["submitted", "screening", "interview", "offer", "rejected"] },
+        "timeline": { "type": "array", "items": { "type": "object" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["submissionId", "requirementId", "candidateId", "vendorId", "status", "createdAt"]
+      "required": ["submissionId", "candidateId", "requirementId", "submittedBy", "status"]
     },
     "DealRoom": {
       "title": "DealRoom",
