@@ -25,7 +25,8 @@ import {
   Cpu,
   Database,
   Menu,
-  X
+  X,
+  Target
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -50,6 +51,7 @@ import TraceView from "./views/TraceView";
 import MemoryMapView from "./views/MemoryMapView";
 import TenantUsageDashboard from "./views/TenantUsageDashboard";
 import WelcomeDemo from "./components/WelcomeDemo";
+import SLAIntelligenceTab from "./views/SLAIntelligenceTab";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -452,6 +454,13 @@ const AppContent = () => {
                 Governance & Operations
               </div>
               <SidebarItem
+                to="/sla"
+                icon={Target}
+                label="SLA Intelligence"
+                active={location.pathname === "/sla"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/admin"
                 icon={ShieldCheck}
                 label="Governance"
@@ -597,6 +606,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
             <Route
               path="/usage"
               element={<TenantUsageDashboard orgData={userData} />}
