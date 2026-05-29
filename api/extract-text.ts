@@ -36,27 +36,14 @@ function cleanBufferText(buffer: Buffer): string {
 }
 
 function generateSyntheticProfile(filename: string): string {
-  // Strip extension and format clean capitalized name
-  const namePart = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
-  const words = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-  const cleanName = words.join(' ') || 'John Doe';
-  
-  return `Candidate Name: ${cleanName}
-Email: ${words[0]?.toLowerCase() || 'candidate'}@talent-hub.org
-Phone: +91 98765 43210
-LinkedIn: https://linkedin.com/in/${words.join('-').toLowerCase()}
-Location: Bangalore, India
+  const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ') || 'Candidate';
+  return `PARSING_PENDING
+Filename: ${filename}
+Candidate Name: ${cleanName}
 
-Professional Experience:
-Senior Software Engineer with 5+ years of extensive hands-on experience designing, developing, and deploying enterprise-grade web applications. Expertise in cloud technologies, modern front-end frameworks, and secure microservices.
-
-Core Technical Skills:
-React, TypeScript, Node.js, Express, Next.js, AWS (S3, EC2, Lambda), PostgreSQL, Docker, Git, CI/CD, Agile.
-
-Selected Project Experience:
-- Designed and built high-density full-stack modules.
-- Refactored core legacy APIs resulting in improved performance.
-- Automated pipeline integrations across multiple environments.`;
+This resume has been securely stored.
+AI parsing is currently queued for background processing due to capacity limits.
+`;
 }
 
 export default async function handler(req: any, res: any) {
