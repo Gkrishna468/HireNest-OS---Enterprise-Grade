@@ -24,6 +24,7 @@ import {
   Fingerprint,
   Cpu,
   Database,
+  BrainCircuit,
   Menu,
   X,
   Target,
@@ -38,6 +39,7 @@ import CandidatesTab from "./views/CandidatesTab";
 import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
+import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
@@ -373,6 +375,16 @@ const AppContent = () => {
             />
           )}
 
+          {isAdmin && (
+            <SidebarItem
+              to="/predictive"
+              icon={BrainCircuit}
+              label="Predictive Analytics"
+              active={location.pathname === "/predictive"}
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
           {/* Candidates: Show to Admin, Vendor, Recruiter */}
           {(isAdmin || isVendor || isRecruiter) && (
             <SidebarItem
@@ -598,6 +610,7 @@ const AppContent = () => {
             <Route path="/" element={<DashboardTab />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/rag-intel" element={<RagIntelligenceTab />} />}
+            {isAdmin && <Route path="/predictive" element={<PredictiveIntelligenceTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {(isAdmin || isVendor || isRecruiter) && (
               <Route path="/candidates" element={<CandidatesTab />} />
             )}
