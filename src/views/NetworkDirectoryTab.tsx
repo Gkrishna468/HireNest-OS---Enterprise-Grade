@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Network, Users, Building2, Fingerprint, Activity, ActivityIcon, FileText } from "lucide-react";
+import { Network, Users, Building2, Fingerprint, Activity, ActivityIcon, FileText, ShieldCheck, CheckCircle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { subscribeToEvents } from "../services/eventBus";
 
@@ -121,7 +121,7 @@ export default function NetworkDirectoryTab() {
                      </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100 mb-4">
                     <div>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Profiles Added</p>
                       <p className="text-sm font-black text-slate-700 mt-0.5">{profilesUploads}</p>
@@ -130,6 +130,91 @@ export default function NetworkDirectoryTab() {
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Total Events</p>
                       <p className="text-sm font-black text-slate-700 mt-0.5">{orgEvents.length}</p>
                     </div>
+                  </div>
+                  
+                  {/* Trust & Verification Matrix */}
+                  <div className="pt-4 border-t border-slate-100">
+                     <h4 className="text-[9px] uppercase font-black text-indigo-500 tracking-widest mb-3 flex items-center gap-1">
+                        <ShieldCheck size={12} /> Trust & Verification Matrix
+                     </h4>
+                     <div className="space-y-2">
+                        {/* Level 1 */}
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded p-2">
+                           <div className="flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                <CheckCircle size={10} />
+                              </span>
+                              <div>
+                                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Level 1: Basic</p>
+                                <p className="text-[8px] text-slate-500">Name, Email, Phone</p>
+                              </div>
+                           </div>
+                           <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded">Verified</span>
+                        </div>
+                        {/* Level 2 */}
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded p-2">
+                           <div className="flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                <CheckCircle size={10} />
+                              </span>
+                              <div>
+                                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Level 2: Business</p>
+                                <p className="text-[8px] text-slate-500">GST, PAN, CIN, Wallet</p>
+                              </div>
+                           </div>
+                           {org.trustScore && org.trustScore >= 50 ? (
+                             <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded">Verified</span>
+                           ) : (
+                             <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest bg-amber-50 px-1.5 py-0.5 rounded">Pending Audit</span>
+                           )}
+                        </div>
+                        {/* Level 3 */}
+                        <div className="flex items-center justify-between bg-white border border-slate-100 rounded p-2">
+                           <div className="flex items-center gap-2">
+                              {orgEvents.length > 5 ? (
+                                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  <CheckCircle size={10} />
+                                </span>
+                              ) : (
+                                <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                                  <span className="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
+                                </span>
+                              )}
+                              <div>
+                                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Level 3: Operational</p>
+                                <p className="text-[8px] text-slate-500">Website, LinkedIn, Activity</p>
+                              </div>
+                           </div>
+                           {orgEvents.length > 5 ? (
+                             <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded">Verified</span>
+                           ) : (
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-1.5 py-0.5 rounded">Incomplete</span>
+                           )}
+                        </div>
+                        {/* Level 4 */}
+                        <div className="flex items-center justify-between bg-white border border-slate-100 rounded p-2">
+                           <div className="flex items-center gap-2">
+                              {placements > 0 ? (
+                                <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  <CheckCircle size={10} />
+                                </span>
+                              ) : (
+                                <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                                  <span className="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
+                                </span>
+                              )}
+                              <div>
+                                <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Level 4: Performance</p>
+                                <p className="text-[8px] text-slate-500">Placements, Retention, SLAs</p>
+                              </div>
+                           </div>
+                           {placements > 0 ? (
+                             <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded">Verified</span>
+                           ) : (
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-1.5 py-0.5 rounded">Locked</span>
+                           )}
+                        </div>
+                     </div>
                   </div>
                 </div>
               );

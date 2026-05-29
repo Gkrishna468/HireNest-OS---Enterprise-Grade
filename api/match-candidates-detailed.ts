@@ -1,4 +1,4 @@
-import { logAiUsage } from "./lib/tenantGovernance.js";
+import { logAiUsage } from "./_lib/tenantGovernance.js";
 
 // Helper to extract years of experience using regex
 function extractYearsOfExperience(text: string): number {

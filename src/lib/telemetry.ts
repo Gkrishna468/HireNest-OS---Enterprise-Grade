@@ -36,7 +36,7 @@ export const Telemetry = {
     };
 
     // Fire-and-forget background export stub
-    fetch('/api/telemetry-sink', {
+    fetch('/api/admin?action=telemetry', {
       method: "POST",
       body: JSON.stringify([spanPayload]),
       headers: { "Content-Type": "application/json" }

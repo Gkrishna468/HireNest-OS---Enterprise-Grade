@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { generateAIPayload, generateEmbedding } from "./lib/aiGateway.js";
+import { generateAIPayload, generateEmbedding } from "./_lib/aiGateway.js";
 import crypto from "crypto";
 import { adminDb } from "../src/lib/firebase-admin.js";
 

@@ -1,5 +1,5 @@
 import { adminDb } from "../../lib/firebase-admin.js";
-import { dispatchWorkflowEvent } from "../../../api/lib/workflowQueue.js";
+import { dispatchWorkflowEvent } from "../../../api/_lib/workflowQueue.js";
 import { runComprehensiveMatch } from "../ai/matchingEngine.js";
 
 function normalizeSkills(skills: string[]): string[] {

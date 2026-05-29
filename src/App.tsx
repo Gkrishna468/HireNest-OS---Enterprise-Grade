@@ -31,7 +31,8 @@ import {
   DollarSign,
   FileText,
   Clock,
-  Receipt
+  Receipt,
+  BookOpen
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -62,6 +63,7 @@ import SLAIntelligenceTab from "./views/SLAIntelligenceTab";
 import ContractsTab from "./views/ContractsTab";
 import TimesheetsTab from "./views/TimesheetsTab";
 import InvoicesTab from "./views/InvoicesTab";
+import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -495,6 +497,13 @@ const AppContent = () => {
                 Back Office & Operations
               </div>
               <SidebarItem
+                to="/ownership"
+                icon={BookOpen}
+                label="Ownership Ledger"
+                active={location.pathname === "/ownership"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/contracts"
                 icon={FileText}
                 label="Lifecycle Contracts"
@@ -667,6 +676,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
             {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
+            {isAdmin && <Route path="/ownership" element={<OwnershipLedgerTab />} />}
             {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}
             {isAdmin && <Route path="/timesheets" element={<TimesheetsTab />} />}
             {isAdmin && <Route path="/invoices" element={<InvoicesTab />} />}

@@ -1660,25 +1660,48 @@ export default function CandidatesTab() {
                       )}
                     </section>
 
-                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-                      Contact Governance
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                      <Shield size={12} className="text-indigo-400" /> Contact Governance (Identity Masking)
                     </h3>
                     <div className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">
-                          Primary Email
+                          Primary Email 
                         </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {selectedCandidate.email}
-                        </span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-xs font-bold text-slate-400 font-mono">
+                             hidden_asset_{selectedCandidate.id?.slice(0, 5)}@hirenest.vault
+                           </span>
+                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                             Masked
+                           </span>
+                        </div>
                       </div>
                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
                         <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">
                           Phone Verification
                         </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {selectedCandidate.phone || "+91 • (MASKED)"}
+                        <div className="flex items-center gap-2">
+                           <span className="text-xs font-bold text-slate-400 font-mono">
+                             +** ••••• ••{selectedCandidate.phone?.slice(-2) || "42"}
+                           </span>
+                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                             Masked
+                           </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
+                        <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">
+                          LinkedIn Profile
                         </span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-xs font-bold text-slate-400 font-mono">
+                             linkedin.com/in/hidden-profile
+                           </span>
+                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                             Masked
+                           </span>
+                        </div>
                       </div>
                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
                         <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">

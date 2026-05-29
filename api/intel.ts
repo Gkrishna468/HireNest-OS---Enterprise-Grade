@@ -1,4 +1,4 @@
-import { generateAIPayload } from "./lib/aiGateway.js";
+import { generateAIPayload } from "./_lib/aiGateway.js";
 import { Type } from "@google/genai";
 
 export default async function handler(req: any, res: any) {

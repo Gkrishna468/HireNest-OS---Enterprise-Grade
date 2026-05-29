@@ -1,9 +1,9 @@
 import { adminDb, adminAuth, runtimeMode } from "../src/lib/firebase-admin.js";
 import { getAuth } from "firebase-admin/auth";
 
-import { computeFinancials } from "./lib/policyEngine.js";
-import { startSaga } from "./lib/stateMachine.js";
-import { dispatchWorkflowEvent } from "./lib/workflowQueue.js";
+import { computeFinancials } from "./_lib/policyEngine.js";
+import { startSaga } from "./_lib/stateMachine.js";
+import { dispatchWorkflowEvent } from "./_lib/workflowQueue.js";
 import matchingGlobalHandler from "../src/api-lib/handlers/matching-global.js";
 import candidatesHandler from "../src/api-lib/handlers/candidates.js";
 
@@ -32,6 +32,8 @@ export default async function handler(req: any, res: any) {
       action = 'approve-requirement';
     } else if (rawPath.includes('notifications')) {
       action = 'notifications';
+    } else if (rawPath.includes('telemetry')) {
+      action = 'telemetry';
     } else if (rawPath.includes('governance')) {
       action = 'governance';
     } else if (rawPath.includes('strategy/analyze') || rawPath.includes('strategy-analyze')) {
@@ -346,6 +348,21 @@ export default async function handler(req: any, res: any) {
       } catch (err) {
         console.warn("Notifications collection query failed:", err);
         return res.status(200).json([]);
+      }
+    }
+
+    // 8. Telemetry Sink
+    if (action === 'telemetry') {
+      try {
+        const traces = req.body;
+        if (!Array.isArray(traces) || traces.length === 0) {
+           return res.status(400).json({ success: false, message: "Invalid trace array payload" });
+        }
+        console.log(`[OTLP SINK] Ingested ${traces.length} distributed spans.`);
+        return res.status(200).json({ success: true, processedCount: traces.length });
+      } catch (err: any) {
+        console.error("[OTLP SINK] Telemetry Sink Failure", err);
+        return res.status(500).json({ success: false, error: err.message });
       }
     }
 
