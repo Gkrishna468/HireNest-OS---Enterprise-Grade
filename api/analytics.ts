@@ -10,9 +10,9 @@ export default async function analyticsHandler(req: any, res: any) {
          spending: 0,
          activeDeals: 0,
          placements: 0,
-         avgMargin: 15,
-         vendorQuality: 90,
-         recruiterProductivity: 85,
+         avgMargin: 0,
+         vendorQuality: 0,
+         recruiterProductivity: 0,
          heatmaps: []
       });
     }
@@ -50,14 +50,21 @@ export default async function analyticsHandler(req: any, res: any) {
           .get();
           
        let totalSpend = 0;
-       reqsSnap.docs.forEach((d: any) => totalSpend += Number(d.data().vendorVisibleBudget || 0));
+       reqsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.financials) {
+             totalSpend += Number(data.financials.clientBudget) || 0;
+          } else if (data.vendorVisibleBudget) {
+             totalSpend += Number(data.vendorVisibleBudget) || 0;
+          }
+       });
 
        return res.status(200).json({
           spending: totalSpend,
           totalJobs: reqsSnap.size,
           openJobs: reqsSnap.docs.filter((d: any) => d.data().status === 'PUBLISHED').length,
           activeDeals: subsSnap.size,
-          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED').length,
+          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED' || d.data().status === 'PLACED').length,
        });
     }
 
@@ -71,14 +78,18 @@ export default async function analyticsHandler(req: any, res: any) {
           .get();
           
        let revenue = 0;
-       // Mock revenue based on active submissions vs jobs
-       subsSnap.docs.forEach((d: any) => revenue += 10000); // 10k per sub
+       subsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.status === 'HIRED' || data.status === 'PLACED') {
+             revenue += Number(data.vendorPayout || data.financials?.vendorPayout) || 0;
+          }
+       });
 
        return res.status(200).json({
           revenue: revenue,
           totalCandidates: candsSnap.size,
           activeDeals: subsSnap.size,
-          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED').length,
+          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED' || d.data().status === 'PLACED').length,
        });
     }
 
@@ -112,7 +123,7 @@ export default async function analyticsHandler(req: any, res: any) {
           activeCandidates,
           actionQueue,
           placements,
-          recruiterProductivity: activeCandidates > 0 ? 92 : 0,
+          recruiterProductivity: activeCandidates > 0 ? (placements / activeCandidates * 100) : 0,
        });
     }
 
@@ -121,15 +132,20 @@ export default async function analyticsHandler(req: any, res: any) {
        const candsSnap = await adminDb.collection("candidatePool").get();
        const subsSnap = await adminDb.collection("submissions").get();
        
-       let totalSpend = 0;
-       reqsSnap.docs.forEach((d: any) => totalSpend += Number(d.data().vendorVisibleBudget || 0));
+       let platformRevenue = 0;
+       reqsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.financials) {
+             platformRevenue += Number(data.financials.platformProfit) || 0;
+          }
+       });
 
        return res.status(200).json({
-          revenue: totalSpend * 0.15,
+          revenue: platformRevenue,
           totalJobs: reqsSnap.size,
           totalCandidates: candsSnap.size,
           activeDeals: subsSnap.size,
-          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED').length,
+          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED' || d.data().status === 'PLACED').length,
        });
     }
 
@@ -145,9 +161,9 @@ export default async function analyticsHandler(req: any, res: any) {
        const events = eventsSnap.docs.map(d => d.data());
        
        const eventThroughput = eventsSnap.size;
-       // Mock or exact counters
-       const failedAIParses = events.filter(e => e.type === 'CandidateEnriched' && e.metadata?.status?.includes('failed') || e.metadata?.status?.includes('error')).length;
-       const failedMatches = events.filter(e => e.type === 'CandidateMatched' && e.metadata?.status?.includes('failed') || e.metadata?.status?.includes('error')).length;
+       
+       const failedAIParses = events.filter(e => e.type === 'CandidateEnriched' && (e.metadata?.status?.includes('failed') || e.metadata?.status?.includes('error'))).length;
+       const failedMatches = events.filter(e => e.type === 'CandidateMatched' && (e.metadata?.status?.includes('failed') || e.metadata?.status?.includes('error'))).length;
        const submissionVelocity = events.filter(e => ['SubmissionCreated', 'Submission'].includes(e.type)).length;
        const dealRoomGrowth = events.filter(e => e.type === 'DealRoomOpened').length;
        const systemErrors = events.filter(e => e.metadata?.isError === true || e.metadata?.status === 'error' || e.type?.includes("Error")).length;

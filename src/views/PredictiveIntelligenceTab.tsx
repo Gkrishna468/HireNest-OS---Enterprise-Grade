@@ -57,15 +57,23 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
   });
 
   // 2. Average Time-to-Fill Forecasting (based on historicals or default)
-  const timeToFillDays = deals.length > 0 ? (12 + (Math.random() * 5 - 2)).toFixed(1) : "14.0"; // Placeholder derivation
+  let timeToFillDays = "N/A";
+  if (deals.length > 0) {
+     let sum = 0;
+     let count = 0;
+     deals.forEach(d => {
+        if (d.currentStage === 'Hired' && d.createdAt && d.updatedAt) {
+           const days = (new Date(d.updatedAt).getTime() - new Date(d.createdAt).getTime()) / (1000 * 3600 * 24);
+           if (days > 0) { sum += days; count++; }
+        }
+     });
+     if (count > 0) timeToFillDays = (sum / count).toFixed(1);
+  }
 
   // 3. High Risk Placements (Warranty Risk)
   const atRiskPlacements = deals.filter(d => {
       if (d.currentStage !== 'Hired') return false;
-      // Logic: if retention is < 30 days and there are negative sentiment events... 
-      // Emulating this with a probability for demo, using actual ID seeding
-      const hash = d.id.charCodeAt(0) + d.id.charCodeAt(d.id.length-1);
-      return hash % 4 === 0;
+      return d.warrantyRisk === true;
   });
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumSignificantDigits: 4, notation: "compact" }).format(val);
@@ -134,35 +142,8 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
               <UserCheck size={16} className="text-sky-500" /> Vendor Delivery Prediction
            </h2>
            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                 <div>
-                    <h4 className="text-sm font-black text-slate-800">TechStaff Inc (V-901)</h4>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">3 Active Requirements</p>
-                 </div>
-                 <div className="text-right">
-                    <span className="text-lg font-black text-emerald-600">84%</span>
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">Delivery Prob.</p>
-                 </div>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                 <div>
-                    <h4 className="text-sm font-black text-slate-800">Global IT Talent (V-212)</h4>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">1 Active Requirement</p>
-                 </div>
-                 <div className="text-right">
-                    <span className="text-lg font-black text-emerald-600">76%</span>
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">Delivery Prob.</p>
-                 </div>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                 <div>
-                    <h4 className="text-sm font-black text-slate-800">CloudScale Recruiters (V-405)</h4>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">2 Active Requirements</p>
-                 </div>
-                 <div className="text-right">
-                    <span className="text-lg font-black text-amber-600">42%</span>
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">Delivery Prob.</p>
-                 </div>
+              <div className="text-[11px] font-bold text-slate-400 p-4 bg-slate-50 border rounded-xl flex items-center justify-center">
+                 Predictions require historical conversion data. Insufficient data points.
               </div>
            </div>
          </div>
@@ -173,24 +154,8 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
               <Activity size={16} className="text-fuchsia-500" /> SLA Breach Forecasting
            </h2>
            <div className="space-y-4">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex gap-4 items-center">
-                 <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center font-black text-rose-500 shadow-sm border border-slate-200">
-                    !
-                 </div>
-                 <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">High Probability: Client Feedback</h4>
-                    <p className="text-[11px] text-slate-500 font-medium mt-1">Client "Acme Corp" historically exceeds 48h feedback SLA by 1.2 days on engineering roles.</p>
-                 </div>
-              </div>
-              
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex gap-4 items-center">
-                 <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center font-black text-amber-500 shadow-sm border border-slate-200">
-                    !
-                 </div>
-                 <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Medium Probability: Vendor Submission</h4>
-                    <p className="text-[11px] text-slate-500 font-medium mt-1">2 requirements entering critical 24h window before "72h Submission SLA" breach.</p>
-                 </div>
+              <div className="text-[11px] font-bold text-slate-400 p-4 bg-slate-50 border rounded-xl flex items-center justify-center">
+                 No SLA breaches forecasted.
               </div>
            </div>
          </div>

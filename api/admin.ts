@@ -88,10 +88,10 @@ export default async function handler(req: any, res: any) {
       const type = req.query.type || "admin";
       
       if (!adminDb) {
-        console.warn("[ADMIN METRICS] adminDb is falsy, returning mock metrics");
+        console.warn("[ADMIN METRICS] adminDb is falsy, returning zeroed metrics");
         return res.status(200).json({
           revenue: 0, spending: 0, activeDeals: 0, placements: 0,
-          avgMargin: 18.5, vendorQuality: 94, recruiterProductivity: 88, lastUpdate: new Date().toISOString()
+          avgMargin: 0, vendorQuality: 0, recruiterProductivity: 0, lastUpdate: new Date().toISOString()
         });
       }
       
@@ -104,18 +104,54 @@ export default async function handler(req: any, res: any) {
         ]);
         
         console.log("[ADMIN METRICS] aggregation calculations starting");
-        let totalBudget = 0;
+        
+        let clientBudgetSum = 0;
+        let vendorPayoutSum = 0;
+        let platformProfitSum = 0;
+
         requirementsSnap.docs.forEach((doc: any) => {
           const data = doc.data();
-          if (data.vendorVisibleBudget) totalBudget += Number(data.vendorVisibleBudget);
+          if (data.status === 'PUBLISHED' || data.status === 'ACTIVE' || data.status === 'CLOSED') {
+             if (data.financials) {
+                clientBudgetSum += Number(data.financials.clientBudget) || 0;
+                vendorPayoutSum += Number(data.financials.vendorPayout) || 0;
+                platformProfitSum += Number(data.financials.platformProfit) || 0;
+             } else if (data.vendorVisibleBudget) {
+                clientBudgetSum += Number(data.vendorVisibleBudget) || 0;
+             }
+          }
         });
         
+        let hiredCount = 0;
+        submissionsSnap.docs.forEach((doc: any) => {
+           if (doc.data().status === 'HIRED' || doc.data().status === 'PLACED') {
+              hiredCount++;
+           }
+        });
+        
+        let revenue = 0;
+        let spending = 0;
+
+        if (type === 'admin') {
+           revenue = platformProfitSum; // Platform recognizes profit as revenue
+           spending = vendorPayoutSum; // Platform's spending is payout to vendors
+        } else if (type === 'vendor') {
+           revenue = vendorPayoutSum; // Vendor's revenue is what platform pays
+           spending = 0; // Standard Vendor spending is not actively tracked here
+        } else if (type === 'client') {
+           revenue = 0; // Clients don't generate direct platform revenue visually
+           spending = clientBudgetSum; // Client's spending is the total budget
+        }
+        
         const result = {
-          revenue: type === 'admin' ? totalBudget * 83 : (type === 'vendor' ? totalBudget * 10 : 0),
-          spending: type === 'client' ? totalBudget * 83 : (type === 'admin' ? totalBudget * 40 : 0),
+          revenue: revenue,
+          spending: spending,
           activeDeals: submissionsSnap.size,
-          placements: Math.floor(submissionsSnap.size * 0.2),
-          avgMargin: 18.5, vendorQuality: 94, recruiterProductivity: 88, lastUpdate: new Date().toISOString()
+          placements: hiredCount,
+          avgMargin: platformProfitSum > 0 && clientBudgetSum > 0 ? (platformProfitSum / clientBudgetSum) * 100 : 0,
+          vendorQuality: 0, // Should be computed dynamically based on real performance
+          recruiterProductivity: 0, // Should be computed based on activity
+          lastUpdate: new Date().toISOString()
         };
         
         console.log("[ADMIN METRICS] success", result);

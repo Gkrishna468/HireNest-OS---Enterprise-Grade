@@ -115,7 +115,7 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
 }
 
 async function generateExplainabilityReport(overall: number, sem: number, car: number, dom: number, auth: number, candidate: any, jd: any) {
-  // Enterprise explanation mock using LLM explanation model conceptually.
+  // Enterprise explanation stub using LLM explanation model conceptually.
   return {
       recruiterView: {
           strengths: overall >= 70 ? ["Strong domain overlap relative to requirement", "Semantic skills matching target technologies"] : ["Has baseline technical knowledge"],

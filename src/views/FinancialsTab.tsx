@@ -60,11 +60,11 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
      const platformProfit = jobInfo?.financials?.platformProfit || 0;
      const vendorPayout = jobInfo?.financials?.vendorPayout || 0;
      
-     // Basic fallback if job lacked financial policy
-     const finalBudget = budget || 200000;
-     const finalMargin = platformProfit || 40000;
-     const finalVendor = vendorPayout || 112000;
-     const finalRecruiterSplit = finalVendor * 0.30;
+     // Return exact financials (no mocks allowed)
+     const finalBudget = budget || 0;
+     const finalMargin = platformProfit || 0;
+     const finalVendor = vendorPayout || 0;
+     const finalRecruiterSplit = finalVendor * 0.30; // standard split logic is ok if it's a rule
      
      return {
         ...deal,
@@ -214,10 +214,13 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
              ) : (
                 <div className="space-y-4">
                    {deals.filter(d => d.currentStage === 'Hired' || d.currentStage === 'Offer' || d.jobTitle).map(deal => {
-                       // Derived mocked retention for mapping. Need actual fields in future.
-                       const retentionDays = Math.floor(Math.random() * 120);
-                       const timeline = retentionDays < 30 ? '30 Days' : retentionDays < 60 ? '60 Days' : retentionDays < 90 ? '90 Days' : '180 Days';
-                       const isAtRisk = retentionDays < 30 && Math.random() > 0.8;
+                       // Compute retention from deal creation or status update date
+                       const hiredDate = deal.updatedAt ? new Date(deal.updatedAt) : new Date(deal.createdAt || Date.now());
+                       const retentionDays = Math.floor((Date.now() - hiredDate.getTime()) / (1000 * 60 * 60 * 24));
+                       const timeline = retentionDays < 30 ? '0-30 Days' : retentionDays < 60 ? '30-60 Days' : retentionDays < 90 ? '60-90 Days' : '90+ Days';
+                       
+                       // A real risk signal might be if we have a flag, else it's healthy
+                       const isAtRisk = deal.warrantyRisk === true;
                        
                        return (
                           <div key={deal.id} className={cn("p-4 rounded-xl border flex items-center justify-between", isAtRisk ? "bg-rose-50 border-rose-100" : "bg-slate-50 border-slate-100 hover:bg-slate-100")}>
