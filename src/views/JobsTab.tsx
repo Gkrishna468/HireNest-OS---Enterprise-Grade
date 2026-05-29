@@ -472,21 +472,39 @@ export default function JobsTab() {
       if (auth.currentUser) {
         try {
           const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+          let role = "user";
+          let userOrgId = "";
+          
           if (userDoc.exists()) {
             const data = userDoc.data();
-            setUserRole(data.role);
-            setOrgId(data.organizationId);
-          } else {
+            role = data.role;
+            userOrgId = data.organizationId;
+          }
+          
+          // Apply super admin logic
+          const superAdmins = [
+            "gopal@hirenestworkforce.com",
+            "gopalkrishna0046@gmail.com",
+          ];
+          if (auth.currentUser.email && superAdmins.includes(auth.currentUser.email.toLowerCase())) {
+            role = "super_admin";
+            userOrgId = "ORG-GLOBAL-HQ";
+          }
+          
+          if (!userDoc.exists() && role === "user") {
             const knownAdmins = [
               "0xpXdzSQE6V92xbnCkiczPHexiU2",
               "vetAu3RF2qYVmsCuB6cpEz9DDqA2",
               "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53",
             ];
             if (knownAdmins.includes(auth.currentUser.uid)) {
-              setUserRole("admin");
-              setOrgId("ORG-GLOBAL-HQ");
+              role = "admin";
+              userOrgId = "ORG-GLOBAL-HQ";
             }
           }
+          
+          setUserRole(role);
+          setOrgId(userOrgId);
 
           try {
             const usersSnap = await getDocs(collection(db, "users"));

@@ -73,3 +73,61 @@ export async function computeFinancials(adminDb: any, payload: {
     }
   }
 }
+
+/**
+ * Commission Engine: Splitting logic
+ * Handles recruiter split logic and vendor payouts
+ */
+export function computeCommissionSplits(payload: {
+  vendorPayout: number;
+  platformProfit: number;
+  recruiterId?: string; 
+  vendorOrgId?: string;
+  clientId?: string;
+}) {
+  const { vendorPayout, platformProfit, recruiterId, vendorOrgId } = payload;
+  const splits: any[] = [];
+  
+  // Platform Headquarters keeps their profit
+  splits.push({
+    beneficiaryId: 'ORG-GLOBAL-HQ',
+    role: 'PLATFORM',
+    percentage: 100, // 100% of the platform margin
+    expectedAmount: Math.round(platformProfit)
+  });
+
+  // Calculate Vendor/Recruiter splits (Phase 2 constraint)
+  if (recruiterId && vendorOrgId) {
+    // Recruiter gets standard 30% of vendor payout, Vendor Org gets 70%
+    splits.push({
+       beneficiaryId: vendorOrgId,
+       role: 'VENDOR_ORG',
+       percentage: 70, 
+       expectedAmount: Math.round(vendorPayout * 0.70)
+    });
+    splits.push({
+       beneficiaryId: recruiterId,
+       role: 'VENDOR_RECRUITER',
+       percentage: 30, 
+       expectedAmount: Math.round(vendorPayout * 0.30)
+    });
+  } else if (vendorOrgId) {
+    // Only vendor org is known
+    splits.push({
+       beneficiaryId: vendorOrgId,
+       role: 'VENDOR_ORG',
+       percentage: 100,
+       expectedAmount: Math.round(vendorPayout)
+    });
+  } else if (recruiterId) {
+     // Freelance Recruiter keeps full vendor payout
+     splits.push({
+       beneficiaryId: recruiterId,
+       role: 'VENDOR_RECRUITER',
+       percentage: 100,
+       expectedAmount: Math.round(vendorPayout)
+    });
+  }
+
+  return splits;
+}

@@ -39,18 +39,35 @@ export default function DealRoomsTab() {
         // Priority 1: Check HQ Sync for users if possible, or fallback to direct Firebase
         try {
           const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+          let role = "user";
+          let userOrgId = "";
+          
           if (userDoc.exists()) {
             const data = userDoc.data();
-            setUserRole(data.role);
-            setOrgId(data.organizationId);
-          } else {
-             // Heuristic for known admins if DB document is missing
+            role = data.role;
+            userOrgId = data.organizationId;
+          }
+          
+          // Apply super admin logic
+          const superAdmins = [
+            "gopal@hirenestworkforce.com",
+            "gopalkrishna0046@gmail.com",
+          ];
+          if (auth.currentUser.email && superAdmins.includes(auth.currentUser.email.toLowerCase())) {
+            role = "super_admin";
+            userOrgId = "ORG-GLOBAL-HQ";
+          }
+          
+          if (!userDoc.exists() && role === "user") {
              const knownAdmins = ['0xpXdzSQE6V92xbnCkiczPHexiU2', 'vetAu3RF2qYVmsCuB6cpEz9DDqA2', 'ZlpY4qN9BKS7n0yoMQP7LDMvvJ53'];
              if (knownAdmins.includes(auth.currentUser.uid)) {
-               setUserRole('admin');
-               setOrgId('ORG-GLOBAL-HQ');
+               role = 'admin';
+               userOrgId = 'ORG-GLOBAL-HQ';
              }
           }
+          
+          setUserRole(role);
+          setOrgId(userOrgId);
         } catch (e) {
            console.warn("User profile fetch failed, using session heuristics");
         }
@@ -378,7 +395,7 @@ export default function DealRoomsTab() {
 
   const isClient = userRole?.includes('client');
   const isVendor = userRole?.includes('vendor');
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || orgId === 'ORG-GLOBAL-HQ';
 
   const handleRevealToggle = async () => {
     if (!selectedRoom) return;

@@ -66,39 +66,76 @@ export default function NetworkDirectoryTab() {
 
     if (activeFilter === 'organizations') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.map(org => {
-             // Calculate stats for this org from events
-             const orgEvents = events.filter(e => e.actorRole === org.type || e.metadata?.vendorId === org.id || e.metadata?.clientId === org.id);
-             const profilesUploads = orgEvents.filter(e => e.type === 'CandidateUploaded').length;
-             const placements = orgEvents.filter(e => e.type === 'PlacementCompleted').length;
-             return (
-              <div key={org.id} className="p-6 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white transition-all shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                    {org.name?.charAt(0) || org.id.charAt(0)}
+        <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {data.map(org => {
+               // Calculate stats for this org from events
+               const orgEvents = events.filter(e => e.actorRole === org.type || e.metadata?.vendorId === org.id || e.metadata?.clientId === org.id);
+               const profilesUploads = orgEvents.filter(e => e.type === 'CandidateUploaded').length;
+               
+               const matches = orgEvents.filter(e => e.type === 'CandidateMatched').length;
+               const submissions = orgEvents.filter(e => e.type === 'SubmissionCreated' || e.type === 'Submission').length;
+               const interviews = orgEvents.filter(e => e.type?.includes('Interview')).length;
+               const offers = orgEvents.filter(e => e.type?.includes('Offer')).length;
+               const placements = orgEvents.filter(e => e.type === 'PlacementCompleted' || e.type === 'DealRoomOpened').length;
+               
+               return (
+                <div key={org.id} className="p-6 rounded-[24px] border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-50 transition-all cursor-pointer">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
+                      {org.name?.charAt(0) || org.id.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-900 tracking-tight text-lg">{org.name || org.id}</h3>
+                      <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1 mt-1">
+                        <Building2 size={12}/> {org.type || 'Organization'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900">{org.name || org.id}</h3>
-                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider flex items-center gap-1">
-                      <Building2 size={12}/> {org.type || 'Organization'}
-                    </p>
+                  
+                  <div className="mb-4">
+                     <h4 className="text-[9px] uppercase font-black text-indigo-500 tracking-widest mb-3 flex items-center gap-1">
+                        <Activity size={12} /> Organizational Opportunity Graph
+                     </h4>
+                     <div className="grid grid-cols-5 gap-2">
+                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-2 flex flex-col items-center justify-center">
+                           <span className="text-sm font-black text-slate-800">{matches}</span>
+                           <span className="text-[7px] uppercase font-bold tracking-widest text-slate-400 mt-1">Matches</span>
+                        </div>
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2 flex flex-col items-center justify-center">
+                           <span className="text-sm font-black text-indigo-800">{submissions}</span>
+                           <span className="text-[7px] uppercase font-bold tracking-widest text-indigo-400 mt-1">Submissions</span>
+                        </div>
+                        <div className="bg-sky-50 border border-sky-100 rounded-lg p-2 flex flex-col items-center justify-center">
+                           <span className="text-sm font-black text-sky-800">{interviews}</span>
+                           <span className="text-[7px] uppercase font-bold tracking-widest text-sky-400 mt-1">Interviews</span>
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2 flex flex-col items-center justify-center">
+                           <span className="text-sm font-black text-emerald-800">{offers}</span>
+                           <span className="text-[7px] uppercase font-bold tracking-widest text-emerald-400 mt-1">Offers</span>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 flex flex-col items-center justify-center">
+                           <span className="text-sm font-black text-amber-800">{placements}</span>
+                           <span className="text-[7px] uppercase font-bold tracking-widest text-amber-400 mt-1">Placements</span>
+                        </div>
+                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Profiles Added</p>
+                      <p className="text-sm font-black text-slate-700 mt-0.5">{profilesUploads}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Total Events</p>
+                      <p className="text-sm font-black text-slate-700 mt-0.5">{orgEvents.length}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Profiles Added</p>
-                    <p className="text-lg font-black text-slate-800">{profilesUploads}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Placements</p>
-                    <p className="text-lg font-black text-slate-800">{placements}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {data.length === 0 && <p className="text-center text-slate-500 col-span-3">No organizations found.</p>}
+              );
+            })}
+          </div>
+          {data.length === 0 && <p className="text-center text-slate-500 py-10 font-bold uppercase tracking-widest">No organizations found.</p>}
         </div>
       );
     }

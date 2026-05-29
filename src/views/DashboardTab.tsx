@@ -17,11 +17,12 @@ export default function DashboardTab() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!session) return;
     const unsubEvents = subscribeToEvents((events) => {
       setRecentEvents(events);
-    }, 10);
+    }, 10, session.user?.organizationId, session.user?.role);
     return () => unsubEvents();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -32,17 +33,30 @@ export default function DashboardTab() {
           const d = await getDoc(doc(db, "users", u.uid));
           if (d.exists()) {
             const data = d.data();
+            let finalRole = data.role || "PENDING_VERIFICATION";
+            let finalOrgId = data.organizationId || "";
+            
+            // Apply super admin logic
+            const superAdmins = [
+              "gopal@hirenestworkforce.com",
+              "gopalkrishna0046@gmail.com",
+            ];
+            if (u.email && superAdmins.includes(u.email.toLowerCase())) {
+              finalRole = "super_admin";
+              finalOrgId = "ORG-GLOBAL-HQ";
+            }
+            
             setSession({
               user: {
                 uid: u.uid,
                 name: data.companyName || u.displayName || u.email?.split("@")[0] || "Active User",
                 email: u.email || "",
-                role: data.role || "PENDING_VERIFICATION",
+                role: finalRole,
                 permissions: data.permissions || [],
-                organizationId: data.organizationId || ""
+                organizationId: finalOrgId
               },
               org: {
-                type: data.role
+                type: finalRole
               }
             });
           } else {
@@ -94,7 +108,7 @@ export default function DashboardTab() {
       else if (isRecruiter) queryType = "recruiter";
       else if (isIndependent) queryType = "vendor"; // Use vendor for independent
 
-      fetch(`/api/analytics/${queryType}?orgId=${session.org.id || session.user.organizationId || ''}`)
+      fetch(`/api/analytics/${queryType}?orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`)
         .then(async res => {
           if (!res.ok) {
             const errRaw = await res.text();

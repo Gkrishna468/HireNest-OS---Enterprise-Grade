@@ -29,6 +29,8 @@ export async function emitEvent(
       actorId,
       actorRole,
       metadata,
+      eventVersion: 1,
+      correlationId: metadata?.correlationId || metadata?.requirementId || metadata?.jobId || entityId,
       timestamp: serverTimestamp()
     });
   } catch (error: any) {
@@ -40,12 +42,45 @@ export async function emitEvent(
   }
 }
 
-export function subscribeToEvents(callback: (events: any[]) => void, limitCount = 50) {
-  const q = query(
-    collection(db, "operationalEvents"),
-    orderBy("timestamp", "desc"),
-    limit(limitCount)
-  );
+export function subscribeToEvents(
+  callback: (events: any[]) => void, 
+  limitCount = 50,
+  orgId?: string,
+  role?: string
+) {
+  let q;
+
+  const isAdminUser = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
+  const isClientUser = role?.includes("client");
+  const isVendorUser = role?.includes("vendor") || role?.includes("recruiter") || role?.includes("independent");
+
+  if (isAdminUser || !orgId) {
+    q = query(
+      collection(db, "operationalEvents"),
+      orderBy("timestamp", "desc"),
+      limit(limitCount)
+    );
+  } else if (isClientUser) {
+    q = query(
+      collection(db, "operationalEvents"),
+      where("metadata.clientId", "==", orgId),
+      orderBy("timestamp", "desc"),
+      limit(limitCount)
+    );
+  } else if (isVendorUser) {
+    q = query(
+      collection(db, "operationalEvents"),
+      where("metadata.vendorId", "==", orgId),
+      orderBy("timestamp", "desc"),
+      limit(limitCount)
+    );
+  } else {
+    q = query(
+      collection(db, "operationalEvents"),
+      orderBy("timestamp", "desc"),
+      limit(limitCount)
+    );
+  }
   
   return onSnapshot(q, (snapshot) => {
     const events = snapshot.docs.map(doc => ({

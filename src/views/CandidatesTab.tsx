@@ -67,6 +67,7 @@ const STAGES = [
 
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [candidateSubmissions, setCandidateSubmissions] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [formData, setFormData] = useState({
@@ -124,6 +125,16 @@ export default function CandidatesTab() {
           const userData = userDoc.data();
           orgId = userData.organizationId || "ORG-GLOBAL-HQ";
           role = userData.role || "guest";
+        }
+        
+        // Apply super admin logic
+        const superAdmins = [
+          "gopal@hirenestworkforce.com",
+          "gopalkrishna0046@gmail.com",
+        ];
+        if (auth.currentUser.email && superAdmins.includes(auth.currentUser.email.toLowerCase())) {
+          role = "super_admin";
+          orgId = "ORG-GLOBAL-HQ";
         }
 
         setUserOrgId(orgId);
@@ -219,6 +230,41 @@ export default function CandidatesTab() {
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedCandidate) {
+      setCandidateSubmissions([]);
+      return;
+    }
+
+    const unsubs: any[] = [];
+    const loadSubmissions = async () => {
+      try {
+        const id = selectedCandidate.id || selectedCandidate.candidateId;
+        let qId = query(collection(db, "submissions"), where("candidateId", "==", id));
+        
+        const isClientUser = userRole.includes("client");
+        const isVendorUser = userRole.includes("vendor") || userRole.includes("recruiter") || userRole.includes("independent");
+        
+        if (isClientUser) {
+          qId = query(collection(db, "submissions"), where("candidateId", "==", id), where("clientId", "==", userOrgId));
+        } else if (isVendorUser && !isAdmin) {
+          qId = query(collection(db, "submissions"), where("candidateId", "==", id), where("vendorId", "==", userOrgId));
+        }
+        
+        // Listen to submissions via candidateId
+        const unsub = onSnapshot(qId, (snap) => {
+          setCandidateSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        unsubs.push(unsub);
+      } catch (err) {
+        console.warn("Error subscribing to candidate submissions", err);
+      }
+    };
+    loadSubmissions();
+
+    return () => unsubs.forEach(u => u());
+  }, [selectedCandidate]);
 
   const checkDuplicate = (email: string, phone: string, currentId?: string) => {
     if (!email && !phone) return null;
@@ -1471,6 +1517,67 @@ export default function CandidatesTab() {
                         </p>
                       </div>
                     )}
+                  </section>
+
+                  {/* Candidate Opportunity Graph */}
+                  <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                       <Activity size={14} className="text-indigo-500" /> Candidate Opportunity Graph
+                    </h3>
+                    <div className="grid grid-cols-5 gap-2 mb-4">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
+                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.length}</span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Matched</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
+                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase() === 'submitted').length}</span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Submitted</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
+                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase().includes('interview')).length}</span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Interviewing</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
+                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase() === 'offer').length}</span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Offers</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
+                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => ['hired', 'placed'].includes(s.status?.toLowerCase())).length}</span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Placements</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                      <table className="w-full text-[10px] text-left">
+                        <thead className="bg-slate-50 uppercase tracking-widest font-black text-slate-500 border-b border-slate-100">
+                          <tr>
+                            <th className="px-4 py-3">Job</th>
+                            <th className="px-4 py-3 text-center">Match Score</th>
+                            <th className="px-4 py-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {candidateSubmissions.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-8 text-center text-slate-400 font-bold uppercase tracking-widest">No active opportunities found</td>
+                            </tr>
+                          ) : (
+                            candidateSubmissions.map((sub, idx) => {
+                              const matchedJob = jobs.find(j => j.id === sub.requirementId) || { title: sub.jobTitle || sub.reqTitle || 'Strategic Role' };
+                              return (
+                                <tr key={idx} className="border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <td className="px-4 py-3 font-bold text-slate-700">{matchedJob.title}</td>
+                                  <td className="px-4 py-3 font-mono text-indigo-600 font-black text-center">{sub.matchScore ? `${sub.matchScore}%` : '--%'}</td>
+                                  <td className="px-4 py-3 text-right">
+                                    <Badge className="bg-indigo-50 border-indigo-100 text-indigo-700 uppercase">{sub.status || 'Matched'}</Badge>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </section>
 
                   <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">

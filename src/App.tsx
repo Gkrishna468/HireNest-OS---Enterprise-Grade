@@ -39,6 +39,7 @@ import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
+import OperationalHealthTab from "./views/OperationalHealthTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import AdminOverview from "./views/AdminOverview";
@@ -442,6 +443,13 @@ const AppContent = () => {
                 Governance & Operations
               </div>
               <SidebarItem
+                to="/health"
+                icon={Activity}
+                label="Operational Health"
+                active={location.pathname === "/health"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/sla"
                 icon={Target}
                 label="SLA Intelligence"
@@ -578,6 +586,7 @@ const AppContent = () => {
             )}
             <Route path="/jobs" element={<JobsTab />} />
             {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
+            {isAdmin && <Route path="/health" element={<OperationalHealthTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             {isAdmin && <Route path="/operations" element={<WorkflowOperationsTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}

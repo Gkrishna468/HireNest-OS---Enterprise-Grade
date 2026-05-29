@@ -112,6 +112,33 @@ export interface VendorScore {
   qualityScore: number;
 }
 
+export interface Deal {
+  id: string;
+  requirementId: string;
+  candidateId: string;
+  submissionId?: string;
+  vendorId?: string;
+  clientId: string;
+  status: DealStatus;
+  commercials: {
+    clientBudget: number;
+    currency: string;
+    finalPlacementSalary?: number;
+    vendorPayout: number;
+    platformMargin: number;
+    splits: CommissionSplit[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommissionSplit {
+  beneficiaryId: string; // The OrgId or UserId receiving the split
+  role: 'PLATFORM' | 'VENDOR_ORG' | 'VENDOR_RECRUITER' | 'CLIENT_ACCOUNT_MANAGER';
+  percentage: number;
+  expectedAmount: number;
+}
+
 export interface Commission {
   requirementId: string;
   dealId: string;
@@ -119,4 +146,6 @@ export interface Commission {
   currency: string;
   status: 'PENDING' | 'PAID' | 'DISPUTED';
   type: 'FIXED' | 'PERCENTAGE';
+  splits?: CommissionSplit[];
 }
+

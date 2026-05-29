@@ -953,7 +953,13 @@ service cloud.firestore {
     }
 
     match /operationalEvents/{eventId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        resource.data.actorId == request.auth.uid ||
+        (resource.data.metadata.keys().hasAny(['clientId']) && isSameOrg(resource.data.metadata.clientId)) ||
+        (resource.data.metadata.keys().hasAny(['vendorId']) && isSameOrg(resource.data.metadata.vendorId)) ||
+        (resource.data.metadata.keys().hasAny(['orgId']) && isSameOrg(resource.data.metadata.orgId))
+      );
       allow create: if isVerified();
       allow update, delete: if false;
     }
