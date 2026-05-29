@@ -1,8 +1,18 @@
-import React from 'react';
-import { Badge } from '../lib/Badge';
-import { Clock, MapPin, ListChecks, Sparkles, FileText, ChevronDown, ChevronUp, Quote } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import { motion, AnimatePresence } from 'motion/react';
+import React from "react";
+import { Badge } from "../lib/Badge";
+import {
+  Clock,
+  MapPin,
+  ListChecks,
+  Sparkles,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Quote,
+  Banknote,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { motion, AnimatePresence } from "motion/react";
 
 interface JDIntelligenceProps {
   job: any;
@@ -18,7 +28,7 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
         <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
           <FileText size={200} />
         </div>
-        
+
         <div className="relative z-10">
           <div className="flex justify-between items-start mb-6">
             <div className="space-y-1">
@@ -37,25 +47,50 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
           </div>
 
           <div className="flex flex-wrap gap-6 mt-8">
+            {(job.budget?.amount || job.clientTargetBudget) > 0 && (
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-sm">
+                <Banknote className="text-indigo-400" size={18} />
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
+                    Budget
+                  </p>
+                  <p className="text-sm font-bold">
+                    {job.budget?.currency || "INR"}{" "}
+                    {job.budget?.amount || job.clientTargetBudget}{" "}
+                    {job.budget?.period || "LPA"}
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-sm">
               <Clock className="text-indigo-400" size={18} />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">Experience</p>
-                <p className="text-sm font-bold">{job.experience || `${job.minExp}+ YRS`}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
+                  Experience
+                </p>
+                <p className="text-sm font-bold">
+                  {job.experience || `${job.minExp}+ YRS`}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-sm">
               <MapPin className="text-indigo-400" size={18} />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">Location</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
+                  Location
+                </p>
                 <p className="text-sm font-bold">{job.location || "Remote"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-sm">
               <ListChecks className="text-indigo-400" size={18} />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">Priority Skills</p>
-                <p className="text-sm font-bold">{(job.mandatorySkills || []).length} Mandatory</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
+                  Priority Skills
+                </p>
+                <p className="text-sm font-bold">
+                  {(job.mandatorySkills || []).length} Mandatory
+                </p>
               </div>
             </div>
           </div>
@@ -71,7 +106,9 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
               <Quote size={24} />
             </div>
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Executive Briefing</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">
+                Executive Briefing
+              </h3>
               <p className="text-lg font-medium text-slate-800 leading-relaxed italic">
                 "{job.summary}"
               </p>
@@ -91,7 +128,10 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
             </h3>
             <div className="flex flex-wrap gap-2">
               {(job.mandatorySkills || job.skills || []).map((s: string) => (
-                <div key={s} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-black uppercase tracking-tight">
+                <div
+                  key={s}
+                  className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-black uppercase tracking-tight"
+                >
                   {s}
                 </div>
               ))}
@@ -107,7 +147,10 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
               </h3>
               <div className="flex flex-wrap gap-2">
                 {job.preferredSkills.map((s: string) => (
-                  <div key={s} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-xl text-xs font-black uppercase tracking-tight">
+                  <div
+                    key={s}
+                    className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-xl text-xs font-black uppercase tracking-tight"
+                  >
                     {s}
                   </div>
                 ))}
@@ -138,22 +181,24 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
 
       {/* Full JD Extraction */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <button 
+        <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50"
         >
           <div className="flex items-center gap-3">
             <FileText size={18} className="text-slate-400" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Comprehensive Intelligence Data (JD Full Profile)</span>
+            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+              Comprehensive Intelligence Data (JD Full Profile)
+            </span>
           </div>
           {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
-        
+
         <AnimatePresence>
           {isExpanded && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
+              animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
@@ -164,12 +209,14 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
                   </div>
                 ) : (
                   <p className="text-slate-500 italic font-medium">
-                    No structured markdown profile available for this legacy requirement. 
-                    Re-running the AI Sync will generate this view.
+                    No structured markdown profile available for this legacy
+                    requirement. Re-running the AI Sync will generate this view.
                   </p>
                 )}
                 <div className="mt-8 pt-8 border-t border-slate-100">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Original RAW Document Trace</h4>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
+                    Original RAW Document Trace
+                  </h4>
                   <pre className="p-6 bg-slate-50 rounded-2xl text-[11px] text-slate-500 whitespace-pre-wrap font-mono leading-relaxed border border-slate-100 max-h-96 overflow-y-auto">
                     {job.description}
                   </pre>

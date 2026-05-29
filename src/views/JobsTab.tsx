@@ -1489,6 +1489,15 @@ export default function JobsTab() {
                           <MapPin size={12} className="text-slate-300" />{" "}
                           {job.location || job.workMode}
                         </div>
+                        {(job.budget?.amount > 0 ||
+                          job.clientTargetBudget > 0) && (
+                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
+                            <DollarSign size={12} className="text-slate-300" />{" "}
+                            {job.budget?.currency || "INR"}{" "}
+                            {job.budget?.amount || job.clientTargetBudget}{" "}
+                            {job.budget?.period || "LPA"}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2">
