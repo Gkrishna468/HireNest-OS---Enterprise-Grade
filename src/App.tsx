@@ -26,7 +26,8 @@ import {
   Database,
   Menu,
   X,
-  Target
+  Target,
+  DollarSign
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -40,6 +41,8 @@ import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
+import FinancialsTab from "./views/FinancialsTab";
+import TrustEngineTab from "./views/TrustEngineTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import AdminOverview from "./views/AdminOverview";
@@ -450,6 +453,20 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/financials"
+                icon={DollarSign}
+                label="Financial Ledger"
+                active={location.pathname === "/financials"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/trust-sla"
+                icon={ShieldCheck}
+                label="Trust & SLA"
+                active={location.pathname === "/trust-sla"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/sla"
                 icon={Target}
                 label="SLA Intelligence"
@@ -587,6 +604,8 @@ const AppContent = () => {
             <Route path="/jobs" element={<JobsTab />} />
             {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
             {isAdmin && <Route path="/health" element={<OperationalHealthTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
+            {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
+            {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             {isAdmin && <Route path="/operations" element={<WorkflowOperationsTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
@@ -599,6 +618,8 @@ const AppContent = () => {
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
+            {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
             <Route
               path="/usage"
