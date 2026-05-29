@@ -83,7 +83,7 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-            <BrainCircuit className="text-fuchsia-500" size={32} /> Predictive Intelligence
+            <BrainCircuit className="text-fuchsia-500" size={32} /> Forecasting & Trends
           </h1>
           <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
             Forecasting • Revenue Probabilities • Risk Analytics
@@ -106,21 +106,21 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
               </div>
           </div>
           
-          {/* Fill Time Prediction */}
+          {/* Fill Time Forecast */}
           <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col justify-between">
               <div>
                   <div className="flex items-center gap-3 mb-2">
                      <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
                         <Clock size={16} />
                      </div>
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Time-To-Fill Projection</span>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Time-To-Fill Trend</span>
                   </div>
                   <div className="text-3xl font-black text-slate-800 tracking-tight">{timeToFillDays} Days</div>
-                  <p className="text-xs text-slate-500 mt-2 font-medium">Predictive aggregate based on active requirement complexities and mapped vendor pool.</p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">Aggregate baseline projection based on active requirements and placement history.</p>
               </div>
           </div>
 
-          {/* Retention Risk Prediction */}
+          {/* Retention Risk */}
           <div className="p-6 rounded-2xl border border-rose-100 bg-rose-50/50 shadow-sm flex flex-col justify-between">
               <div>
                   <div className="flex items-center gap-3 mb-2">
@@ -130,7 +130,7 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
                      <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Warranty Risk Alerts</span>
                   </div>
                   <div className="text-3xl font-black text-slate-800 tracking-tight">{atRiskPlacements.length}</div>
-                  <p className="text-xs text-rose-600 mt-2 font-medium">Active placements flagged for elevated drop-out probability within 90 days. Revenue at risk.</p>
+                  <p className="text-xs text-rose-600 mt-2 font-medium">Active placements heavily flagged for dropout within 90 days. Revenue at risk.</p>
               </div>
           </div>
       </div>
@@ -139,7 +139,7 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
          {/* Vendor Delivery Probabilities */}
          <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8">
            <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2 mb-6">
-              <UserCheck size={16} className="text-sky-500" /> Vendor Delivery Prediction
+              <UserCheck size={16} className="text-sky-500" /> Vendor Delivery Forecasting
            </h2>
            <div className="space-y-4">
               <div className="text-[11px] font-bold text-slate-400 p-4 bg-slate-50 border rounded-xl flex items-center justify-center">

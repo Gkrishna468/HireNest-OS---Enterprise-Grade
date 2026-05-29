@@ -28,7 +28,10 @@ import {
   Menu,
   X,
   Target,
-  DollarSign
+  DollarSign,
+  FileText,
+  Clock,
+  Receipt
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -56,6 +59,9 @@ import MemoryMapView from "./views/MemoryMapView";
 import TenantUsageDashboard from "./views/TenantUsageDashboard";
 import WelcomeDemo from "./components/WelcomeDemo";
 import SLAIntelligenceTab from "./views/SLAIntelligenceTab";
+import ContractsTab from "./views/ContractsTab";
+import TimesheetsTab from "./views/TimesheetsTab";
+import InvoicesTab from "./views/InvoicesTab";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -379,7 +385,7 @@ const AppContent = () => {
             <SidebarItem
               to="/predictive"
               icon={BrainCircuit}
-              label="Predictive Analytics"
+              label="Forecasting & Trends"
               active={location.pathname === "/predictive"}
               onClick={() => setIsMobileMenuOpen(false)}
             />
@@ -485,6 +491,33 @@ const AppContent = () => {
                 active={location.pathname === "/sla"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Back Office & Operations
+              </div>
+              <SidebarItem
+                to="/contracts"
+                icon={FileText}
+                label="Lifecycle Contracts"
+                active={location.pathname === "/contracts"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/timesheets"
+                icon={Clock}
+                label="Timesheets"
+                active={location.pathname === "/timesheets"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/invoices"
+                icon={Receipt}
+                label="Invoices & Payables"
+                active={location.pathname === "/invoices"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Platform Admin
+              </div>
               <SidebarItem
                 to="/admin"
                 icon={ShieldCheck}
@@ -634,6 +667,9 @@ const AppContent = () => {
             {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
             {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
+            {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}
+            {isAdmin && <Route path="/timesheets" element={<TimesheetsTab />} />}
+            {isAdmin && <Route path="/invoices" element={<InvoicesTab />} />}
             <Route
               path="/usage"
               element={<TenantUsageDashboard orgData={userData} />}

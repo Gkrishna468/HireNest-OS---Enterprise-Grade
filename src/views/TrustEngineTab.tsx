@@ -91,8 +91,9 @@ export default function TrustEngineTab({ userRole, orgId }: { userRole: string, 
 }
 
 function VendorRankCard({ rank, name, score, metrics, isWarning, signals }: any) {
+  const [expanded, setExpanded] = React.useState(false);
   return (
-    <div className={cn("p-4 rounded-xl border flex flex-col gap-4 transition-all hover:shadow-md", isWarning ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100")}>
+    <div className={cn("p-4 rounded-xl border flex flex-col gap-4 transition-all hover:shadow-md cursor-pointer", isWarning ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100")} onClick={() => setExpanded(!expanded)}>
        <div className="flex items-center gap-4">
            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shadow-sm shrink-0", isWarning ? "bg-amber-100 text-amber-700" : "bg-white text-slate-700")}>
               #{rank}
@@ -106,15 +107,41 @@ function VendorRankCard({ rank, name, score, metrics, isWarning, signals }: any)
               </div>
            </div>
            <div className="text-right">
-              <div className={cn("text-xl font-black", isWarning ? "text-amber-600" : "text-emerald-600")}>{score}</div>
+              <div className={cn("text-xl font-black flex items-center justify-end gap-1", isWarning ? "text-amber-600" : "text-emerald-600")}>
+                {score} 
+                <span className="text-slate-400 opacity-50 hover:opacity-100 transition-opacity">ⓘ</span>
+              </div>
               <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">Trust Score</p>
            </div>
        </div>
-       {signals && (
+       {expanded && (
+          <div className="pt-3 border-t border-slate-200/50 flex flex-col gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Metric Lineage</span>
+            <div className="text-xs bg-white p-3 rounded-lg border border-slate-200">
+               <div className="flex justify-between border-b border-slate-100 pb-1 mb-1">
+                  <span className="text-slate-500 font-medium font-mono text-[10px]">Submission Quality (30%)</span>
+                  <span className="text-slate-800 font-bold font-mono text-[10px]">{score * 0.3} pts</span>
+               </div>
+               <div className="flex justify-between border-b border-slate-100 pb-1 mb-1">
+                  <span className="text-slate-500 font-medium font-mono text-[10px]">Interview Conversion (25%)</span>
+                  <span className="text-slate-800 font-bold font-mono text-[10px]">{score * 0.25} pts</span>
+               </div>
+               <div className="flex justify-between border-b border-slate-100 pb-1 mb-1">
+                  <span className="text-slate-500 font-medium font-mono text-[10px]">Response Time (20%)</span>
+                  <span className="text-slate-800 font-bold font-mono text-[10px]">{score * 0.2} pts</span>
+               </div>
+               <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium font-mono text-[10px]">Retention Rate (25%)</span>
+                  <span className="text-slate-800 font-bold font-mono text-[10px]">{score * 0.25} pts</span>
+               </div>
+            </div>
+          </div>
+       )}
+       {signals && !expanded && (
            <div className="pt-3 border-t border-slate-200/50 flex gap-2 flex-wrap">
-              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 w-full mb-1">Explainable Trust Signals</span>
+              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 w-full mb-1">Recent Behavior Adjustments</span>
               {signals.map((sig: any, idx: number) => (
-                 <span key={idx} className={cn("text-[9px] font-bold px-2 py-1 rounded-sm flex items-center gap-1", sig.val > 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>
+                 <span key={idx} className={cn("text-[8px] font-bold px-2 py-1 flex items-center gap-1 uppercase tracking-widest", sig.val > 0 ? "text-emerald-600" : "text-rose-600")}>
                     {sig.val > 0 ? `+${sig.val}` : sig.val} {sig.label}
                  </span>
               ))}
