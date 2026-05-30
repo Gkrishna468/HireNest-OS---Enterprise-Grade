@@ -64,6 +64,7 @@ import ContractsTab from "./views/ContractsTab";
 import TimesheetsTab from "./views/TimesheetsTab";
 import InvoicesTab from "./views/InvoicesTab";
 import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
+import { OnboardingGuide } from "./components/OnboardingGuide";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -75,15 +76,18 @@ const SidebarItem = ({
   label,
   active,
   onClick,
+  id,
 }: {
   to: string;
   icon: any;
   label: string;
   active?: boolean;
   onClick?: () => void;
+  id?: string;
 }) => (
   <Link
     to={to}
+    id={id}
     onClick={onClick}
     className={cn(
       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-sm font-bold uppercase tracking-wider",
@@ -317,6 +321,10 @@ const AppContent = () => {
         />
       )}
       
+      {hasCompletedOnboarding && (
+        <OnboardingGuide role={role} />
+      )}
+      
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -359,12 +367,12 @@ const AppContent = () => {
                 Workspace
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms?view=interviews" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms?view=interviews"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-submissions" to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-interviews" to="/deal-rooms?view=interviews" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms?view=interviews"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/invoices" icon={Receipt} label="Payouts" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Payouts" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -375,11 +383,11 @@ const AppContent = () => {
                 Workspace
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/candidates" icon={Users} label="Bench Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Placements" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Bench Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-submissions" to="/deal-rooms" icon={MessageSquare} label="Placements" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/invoices" icon={Receipt} label="Payments" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Payments" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -390,11 +398,11 @@ const AppContent = () => {
                 Workspace
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms?view=offers" icon={MessageSquare} label="Offers" active={location.pathname === "/deal-rooms?view=offers"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/invoices" icon={Receipt} label="Invoices" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-interviews" to="/deal-rooms" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-submissions" to="/deal-rooms?view=offers" icon={MessageSquare} label="Offers" active={location.pathname === "/deal-rooms?view=offers"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Invoices" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -417,6 +425,8 @@ const AppContent = () => {
                 Operations
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/jobs" icon={Briefcase} label="Job Pipelines" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Deal Rooms" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/timesheets" icon={Clock} label="Timesheets" active={location.pathname === "/timesheets"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/health" icon={Activity} label="Platform Health" active={location.pathname === "/health"} onClick={() => setIsMobileMenuOpen(false)} />

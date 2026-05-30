@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Briefcase, Users, Calendar, Clock, DollarSign, Target, Search, UserPlus, FileText } from "lucide-react";
 import CandidateSubmissionModal from "../../components/CandidateSubmissionModal";
+import { ProgressTracker } from "../../components/ProgressTracker";
 
 export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendorName: string, metrics?: any }) {
     const [submittingReq, setSubmittingReq] = useState<{ id: string, title: string } | null>(null);
@@ -19,9 +20,11 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
 
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-7xl mx-auto space-y-8">
-
-                    {/* Quick Actions */}
+                <div className="max-w-7xl mx-auto">
+                    <ProgressTracker role="vendor" />
+                    
+                    <div className="space-y-8">
+                        {/* Quick Actions */}
                     <div>
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -134,6 +137,7 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
                             </div>
                         </div>
 
+                    </div>
                     </div>
                 </div>
             </div>

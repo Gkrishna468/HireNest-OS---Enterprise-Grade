@@ -551,7 +551,7 @@ export default function CandidatesTab() {
             if (data.text) extText = data.text;
           }
         } catch (e) {
-          console.warn("Extraction failed, using fallback mock", e);
+          console.warn("Extraction failed, skipping text extraction", e);
         }
 
         if (combinedExtractedText)

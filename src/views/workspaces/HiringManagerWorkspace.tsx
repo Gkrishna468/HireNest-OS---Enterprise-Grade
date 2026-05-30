@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Briefcase, Users, Calendar, Clock, CheckCircle, Target, Search, PlusCircle, CheckSquare } from "lucide-react";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
+import { ProgressTracker } from "../../components/ProgressTracker";
 
 export default function HiringManagerWorkspace({ userName, metrics }: { userName: string, metrics?: any }) {
     return (
@@ -18,9 +19,11 @@ export default function HiringManagerWorkspace({ userName, metrics }: { userName
 
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-7xl mx-auto space-y-8">
-
-                    {/* Quick Actions */}
+                <div className="max-w-7xl mx-auto">
+                    <ProgressTracker role="client" />
+                    
+                    <div className="space-y-8">
+                        {/* Quick Actions */}
                     <div>
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -134,6 +137,7 @@ export default function HiringManagerWorkspace({ userName, metrics }: { userName
                         </div>
 
                     </div>
+                </div>
                 </div>
             </div>
         </div>

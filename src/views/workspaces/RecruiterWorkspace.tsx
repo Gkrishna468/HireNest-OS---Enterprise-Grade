@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Briefcase, Users, Calendar, Clock, TrendingUp, DollarSign, Target, UploadCloud, Search, UserPlus } from "lucide-react";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
+import { ProgressTracker } from "../../components/ProgressTracker";
 
 export default function RecruiterWorkspace({ userName, metrics }: { userName: string, metrics?: any }) {
     return (
@@ -18,10 +19,12 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
 
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-7xl mx-auto space-y-8">
+                <div className="max-w-7xl mx-auto">
+                    <ProgressTracker role="recruiter" />
 
-                    {/* Quick Actions */}
-                    <div>
+                    <div className="space-y-8">
+                        {/* Quick Actions */}
+                        <div>
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <button className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
@@ -155,6 +158,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                         </div>
 
                     </div>
+                </div>
                 </div>
             </div>
         </div>

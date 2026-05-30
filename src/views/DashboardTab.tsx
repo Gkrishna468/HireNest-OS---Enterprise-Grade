@@ -125,15 +125,17 @@ export default function DashboardTab() {
         })
         .then(setMetrics)
         .catch(err => {
-          console.warn("Metrics fetch failed, using local fallback", err);
+          console.warn("Metrics fetch failed, using zeroed fallback", err);
           setMetrics({
             revenue: 0,
             spending: 0,
             activeDeals: 0,
             placements: 0,
-            avgMargin: 15,
-            vendorQuality: 90,
-            recruiterProductivity: 85
+            avgMargin: 0,
+            vendorQuality: 0,
+            recruiterProductivity: 0,
+            timeToHireDays: 0,
+            offerAcceptanceRate: 0
           });
         });
     }
