@@ -45,6 +45,7 @@ import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
+import { ClientCandidatePipeline } from "./views/workspaces/ClientCandidatePipeline";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
 import FinancialsTab from "./views/FinancialsTab";
@@ -399,7 +400,7 @@ const AppContent = () => {
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Matched Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-interviews" to="/deal-rooms" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-submissions" to="/deal-rooms?view=offers" icon={MessageSquare} label="Offers" active={location.pathname === "/deal-rooms?view=offers"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Invoices" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
@@ -499,7 +500,7 @@ const AppContent = () => {
               <Menu size={24} />
             </button>
             <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic hidden sm:block">
-              Node: Global HQ
+              Node: {isAdmin ? "Global HQ" : isClient ? "Client Workspace" : isVendor ? "Vendor Workspace" : isRecruiter ? "Recruiter Workspace" : "User Workspace"}
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -540,9 +541,11 @@ const AppContent = () => {
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/rag-intel" element={<RagIntelligenceTab />} />}
             {isAdmin && <Route path="/predictive" element={<PredictiveIntelligenceTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
-            {(isAdmin || isVendor || isRecruiter) && (
-              <Route path="/candidates" element={<CandidatesTab />} />
-            )}
+            {isClient && !isAdmin ? (
+               <Route path="/candidates" element={<ClientCandidatePipeline orgId={userData?.organizationId || ''} />} />
+            ) : (isAdmin || isVendor || isRecruiter) ? (
+               <Route path="/candidates" element={<CandidatesTab />} />
+            ) : null}
             <Route path="/jobs" element={<JobsTab />} />
             {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
             {isAdmin && <Route path="/health" element={<OperationalHealthTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
@@ -563,10 +566,10 @@ const AppContent = () => {
             {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
             {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
-            {isAdmin && <Route path="/ownership" element={<OwnershipLedgerTab />} />}
+            {(isAdmin || isVendor || isRecruiter) && <Route path="/ownership" element={<OwnershipLedgerTab />} />}
             {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}
-            {isAdmin && <Route path="/timesheets" element={<TimesheetsTab />} />}
-            {isAdmin && <Route path="/invoices" element={<InvoicesTab />} />}
+            <Route path="/timesheets" element={<TimesheetsTab />} />
+            <Route path="/invoices" element={<InvoicesTab />} />
             <Route
               path="/usage"
               element={<TenantUsageDashboard orgData={userData} />}

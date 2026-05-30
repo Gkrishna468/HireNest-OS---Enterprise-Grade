@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-import { Users, Briefcase, DollarSign, Activity, Shield, ChevronRight } from "lucide-react";
+import { Users, Briefcase, DollarSign, Activity, Shield, ChevronRight, Sparkles } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -125,7 +125,29 @@ export default function AdminOverview() {
         ))}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex justify-start gap-4 mt-2">
+          <Button 
+            onClick={async () => {
+              if(!confirm('Trigger full matrix rescan using Google AI? This could take a while.')) return;
+              try {
+                const res = await fetch('/api/rescan-matches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role: 'adminHQ'}) });
+                const d = await res.json();
+                if (d.success) {
+                   alert(`Rescan complete. Updated ${d.matchUpdatesCount} matches.`);
+                } else {
+                   alert("Error: " + d.error);
+                }
+              } catch(e:any) {
+                alert("Error: " + e.message);
+              }
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
+          >
+            <Sparkles size={16} className="mr-2"/> Rescan Candidate Matrix (AI)
+          </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         <div className="md:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Node Verification Velocity</h3>

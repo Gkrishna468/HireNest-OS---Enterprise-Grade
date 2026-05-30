@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Search, Filter, ShieldAlert, CheckCircle2, History, AlertTriangle, Fingerprint } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { collection, query, getDocs, orderBy, getDoc, doc, where } from 'firebase/firestore';
 import { EmptyState } from '../components/EmptyState';
 
 export default function OwnershipLedgerTab() {
@@ -11,9 +11,26 @@ export default function OwnershipLedgerTab() {
   useEffect(() => {
     const fetchLedger = async () => {
       try {
-         const q = query(collection(db, "candidate_ownership"), orderBy("submittedAt", "desc"));
+         let filterOrgId = null;
+         if (auth.currentUser) {
+            const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+            if (userDoc.exists()) {
+               const data = userDoc.data();
+               const r = data.role || "";
+               if (r.includes('vendor') || r.includes('recruiter')) filterOrgId = data.organizationId;
+            }
+         }
+         
+         let q: any = collection(db, "candidate_ownership");
+         if (filterOrgId && filterOrgId !== "ORG-GLOBAL-HQ") {
+            q = query(q, where("vendorId", "==", filterOrgId));
+            // Firestore might need index if combining where + orderBy. So just where initially.
+         } else {
+            q = query(q, orderBy("submittedAt", "desc"));
+         }
+         
          const snap = await getDocs(q);
-         const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+         const fetched = snap.docs.map(document => ({ id: document.id, ...(document.data() as any) }));
          setLedgerEntries(fetched);
       } catch (err) {
          console.error("No candidate_ownership collection yet or permission denied", err);

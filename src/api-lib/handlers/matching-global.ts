@@ -194,8 +194,6 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           // Requirements Filtering (Fallback)
           if (enhancedScore >= 70) {
             matchedCandidates.push(resultObj);
-          } else if (enhancedScore >= 45) {
-            fallbackCandidates.push(resultObj);
           }
         }
       } catch (dbErr) {

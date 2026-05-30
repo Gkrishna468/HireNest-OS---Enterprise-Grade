@@ -5,7 +5,7 @@ import { EmptyState } from "../components/EmptyState";
 import { cn } from "../lib/utils";
 import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock, Zap, Activity, Network } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, orderBy, updateDoc, limit } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, addDoc, getDoc, serverTimestamp, orderBy, updateDoc, limit } from "firebase/firestore";
 import { logExecutionEvent, ExecutionEventType, createSLA } from "../lib/infrastructureService";
 import { ExecutionFeed } from "../components/ExecutionFeed";
 import { motion, AnimatePresence } from "motion/react";
@@ -91,7 +91,15 @@ export default function DealRoomsTab() {
         }
         
         // Fallback to Firestore
-        const q = query(collection(db, "dealRooms"), limit(100));
+        let q;
+        if (userRole && userRole.startsWith("client")) {
+           q = query(collection(db, "dealRooms"), where("clientId", "==", orgId), limit(100));
+        } else if (userRole && userRole.includes("vendor")) {
+           q = query(collection(db, "dealRooms"), where("vendorId", "==", orgId), limit(100));
+        } else {
+           q = query(collection(db, "dealRooms"), limit(100)); // HQ/Admin
+        }
+        
         const unsubscribe = onSnapshot(q, (snap) => {
           const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setDealRooms(data);

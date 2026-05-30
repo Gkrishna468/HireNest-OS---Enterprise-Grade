@@ -59,6 +59,8 @@ const getSkillsArray = (skills: any): string[] => {
   return [];
 };
 
+import { ClientCandidatePipeline } from "./workspaces/ClientCandidatePipeline";
+
 const STAGES = [
   "Candidate Added",
   "Duplicate Review",
@@ -553,6 +555,23 @@ export default function CandidatesTab() {
         } catch (e) {
           console.warn("Extraction failed, skipping text extraction", e);
         }
+        
+        // --- ADD DEDUPLICATION BEFORE SAVING ---
+        const encoder = new TextEncoder();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(extText));
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const resumeHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        try {
+           const { getDocs, query, collection, where } = await import("firebase/firestore");
+           const existingUserQ = query(collection(db, "candidatePool"), where("resumeHash", "==", resumeHash));
+           const existingDocs = await getDocs(existingUserQ);
+           if (!existingDocs.empty) {
+               console.warn(`File ${file.name} is a duplicate submission (resume matched exactly). Skipping.`);
+               continue; // Skip this duplicate fully
+           }
+        } catch (e) {}
+        // ----------------------------------------
 
         if (combinedExtractedText)
           combinedExtractedText += `\n\n---\n\n${extText}`;
@@ -570,6 +589,7 @@ export default function CandidatesTab() {
           pipelineStage: "Candidate Added",
           source: "Bulk Upload",
           resumeText: extText,
+          resumeHash: resumeHash,
           fileName: file.name,
           status: "QUEUED",
           distillationStatus: "PROCESSING",
@@ -744,6 +764,10 @@ export default function CandidatesTab() {
       alert("Deal Finalization Error: " + e.message);
     }
   };
+
+  if (userRole.startsWith('client') && !isAdmin && userOrgId) {
+    return <ClientCandidatePipeline orgId={userOrgId} />;
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">

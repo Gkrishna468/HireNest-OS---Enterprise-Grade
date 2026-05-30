@@ -129,6 +129,23 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                    console.log("Could not fetch requirement for clientId", err);
                  }
 
+                 // Check if submission exists
+                 try {
+                     const { getDocs, query, collection, where } = await import("firebase/firestore");
+                     const q = query(
+                        collection(db, "submissions"), 
+                        where("candidateId", "==", candRef.id),
+                        where("requirementId", "==", reqId),
+                        where("vendorOrgId", "==", "local")
+                     );
+                     const existing = await getDocs(q);
+                     if (!existing.empty) {
+                        alert("This candidate has already been submitted to this requirement.");
+                        setIsSubmitting(false);
+                        return;
+                     }
+                 } catch (e) {}
+
                  const subRef = await addDoc(collection(db, "submissions"), {
                      // Updated Submission Schema
                      candidateId: candRef.id,
@@ -137,7 +154,8 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                      vendorOrgId: "local",
                      clientOrgId: targetClientId, // Would be determined by requirement
                      clientId: targetClientId,
-                     status: "submitted",
+                     status: "PENDING_REVIEW",
+                     matchScore: aiAnalysis?.fitScore || 0,
                      timeline: [
                         { action: "submitted", timestamp: new Date().toISOString() }
                      ],
@@ -160,6 +178,17 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                      submittedAt: serverTimestamp(),
                      stage: "NEW"
                  });
+
+                 // TRIGGER GOVERNANCE ENGINE
+                 try {
+                     await fetch("/api/validate-submission", {
+                         method: "POST",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ submissionId: subRef.id })
+                     });
+                 } catch (e) {
+                     console.error("Governance engine execution failed:", e);
+                 }
                  
                  await emitEvent(
                    "SubmissionCreated",

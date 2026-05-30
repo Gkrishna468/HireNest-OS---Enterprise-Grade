@@ -108,36 +108,42 @@ export default function DashboardTab() {
       else if (isRecruiter) queryType = "recruiter";
       else if (isIndependent) queryType = "vendor"; // Use vendor for independent
 
-      fetch(`/api/analytics/${queryType}?orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`)
-        .then(async res => {
-          if (!res.ok) {
-            const errRaw = await res.text();
-            console.error("[Dashboard] Non-200 response:", errRaw);
-            throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
-          }
-          const text = await res.text();
-          try {
-            return JSON.parse(text);
-          } catch (e) {
-            console.error("Invalid JSON from metrics:", text);
-            throw new Error("Invalid JSON response");
+      auth.currentUser?.getIdToken().then(token => {
+        fetch(`/api/analytics/${queryType}?orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
           }
         })
-        .then(setMetrics)
-        .catch(err => {
-          console.warn("Metrics fetch failed, using zeroed fallback", err);
-          setMetrics({
-            revenue: 0,
-            spending: 0,
-            activeDeals: 0,
-            placements: 0,
-            avgMargin: 0,
-            vendorQuality: 0,
-            recruiterProductivity: 0,
-            timeToHireDays: 0,
-            offerAcceptanceRate: 0
+          .then(async res => {
+            if (!res.ok) {
+              const errRaw = await res.text();
+              console.error("[Dashboard] Non-200 response:", errRaw);
+              throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
+            }
+            const text = await res.text();
+            try {
+              return JSON.parse(text);
+            } catch (e) {
+              console.error("Invalid JSON from metrics:", text);
+              throw new Error("Invalid JSON response");
+            }
+          })
+          .then(setMetrics)
+          .catch(err => {
+            console.warn("Metrics fetch failed, using zeroed fallback", err);
+            setMetrics({
+              revenue: 0,
+              spending: 0,
+              activeDeals: 0,
+              placements: 0,
+              avgMargin: 0,
+              vendorQuality: 0,
+              recruiterProductivity: 0,
+              timeToHireDays: 0,
+              offerAcceptanceRate: 0
+            });
           });
-        });
+      });
     }
   }, [session?.org, isClient, isVendor, isRecruiter, isIndependent]);
 

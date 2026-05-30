@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Briefcase, Users, Calendar, Clock, DollarSign, Target, Search, UserPlus, FileText } from "lucide-react";
+import { Briefcase, Users, Calendar, Clock, DollarSign, Target, Search, UserPlus, FileText, Sparkles } from "lucide-react";
 import CandidateSubmissionModal from "../../components/CandidateSubmissionModal";
 import { ProgressTracker } from "../../components/ProgressTracker";
 
@@ -27,7 +27,7 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
                         {/* Quick Actions */}
                     <div>
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <button onClick={() => setSubmittingReq({ id: "quick-submit", title: "Quick Submission" })} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
                                 <div className="bg-indigo-50 text-indigo-600 p-3 rounded-lg group-hover:bg-indigo-100 transition-colors">
                                     <UserPlus size={20} />
@@ -53,6 +53,28 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
                                 <div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Submit Invoice</h4>
                                     <p className="text-xs text-slate-500">Request payment for placements</p>
+                                </div>
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                  if(!confirm('Trigger full matrix rescan using Google AI? This could take a while.')) return;
+                                  try {
+                                    const res = await fetch('/api/rescan-matches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role: 'vendor'}) });
+                                    const d = await res.json();
+                                    if (d.success) alert(`Rescan complete. Updated ${d.matchUpdatesCount} matches.`);
+                                    else alert("Error: " + d.error);
+                                  } catch(e:any) {
+                                    alert("Error: " + e.message);
+                                  }
+                                }}
+                                className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left"
+                            >
+                                <div className="bg-purple-50 text-purple-600 p-3 rounded-lg group-hover:bg-purple-100 transition-colors">
+                                    <Sparkles size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-slate-900 text-sm">Rescan Matches</h4>
+                                    <p className="text-xs text-slate-500">AI Matrix Refresh</p>
                                 </div>
                             </button>
                         </div>
