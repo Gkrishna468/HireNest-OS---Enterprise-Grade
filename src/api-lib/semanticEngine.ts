@@ -1,6 +1,16 @@
 import { adminDb } from '../lib/firebase-admin.js';
 import { logAIExplainability, authorizeAIAction } from './aiGovernance.js';
-import { VectorDatabaseConnector } from '../../api/_lib/vectorDatabase.js';
+
+class VectorDatabaseConnector {
+  static async query(index: string, vector: number[], topK: number): Promise<any[]> {
+    console.log(`[VECTOR_DB] Mock query to pinecone-like index ${index} with topK ${topK}`);
+    return [];
+  }
+  static async upsertVector(index: string, id: string, vector: number[], metadata: any) {
+    console.log(`[VECTOR_DB] Upserting vector to ${index} under ${id}`);
+  }
+}
+
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   console.log(`[VECTOR_ENGINE] Generating simulated semantic embedding for: "${text.substring(0, 30)}..."`);

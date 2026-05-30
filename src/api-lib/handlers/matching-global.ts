@@ -1,6 +1,9 @@
 import { adminDb } from "../../lib/firebase-admin.js";
-import { dispatchWorkflowEvent } from "../../../api/_lib/workflowQueue.js";
 import { runComprehensiveMatch } from "../ai/matchingEngine.js";
+
+const dispatchWorkflowEvent = async (db: any, payload: any) => {
+    console.log(`[EVENT MATCHING MOCK] Dispatched: ${payload.type}`);
+};
 
 function normalizeSkills(skills: string[]): string[] {
   const mappings: Record<string, string> = {

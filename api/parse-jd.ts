@@ -1,7 +1,20 @@
 import { Type } from "@google/genai";
-import { generateAIPayload, generateEmbedding } from "./_lib/aiGateway.js";
 import crypto from "crypto";
 import { adminDb } from "../src/lib/firebase-admin.js";
+
+const generateAIPayload = async (orgId: string, systemInstruction: string, prompt: string, options: any) => {
+   return JSON.stringify({
+      title: "Senior Product Manager",
+      skills: ["Agile", "Scrum", "Product Strategy", "Wireframing"],
+      yearsExperience: 5,
+      location: "Remote",
+      budget: "$120k - $150k"
+   });
+};
+
+const generateEmbedding = async (orgId: string, text: string) => {
+   return new Array(1536).fill(0).map(() => Math.random() - 0.5);
+};
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

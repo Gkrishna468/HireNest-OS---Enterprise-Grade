@@ -9,15 +9,33 @@ type FilterType = 'organizations' | 'people' | 'candidates' | 'activity';
 
 export default function NetworkDirectoryTab() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('organizations');
+  const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [orgMap, setOrgMap] = useState<Record<string, any>>({});
 
   useEffect(() => {
     const unsub = subscribeToEvents((evts) => {
       setEvents(evts);
     }, 100);
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "organizations"), limit(100)));
+        const map: Record<string, any> = {};
+        snap.docs.forEach(doc => {
+          map[doc.id] = { id: doc.id, ...doc.data() };
+        });
+        setOrgMap(map);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchOrgs();
   }, []);
 
   useEffect(() => {
@@ -68,7 +86,7 @@ export default function NetworkDirectoryTab() {
       return (
         <div className="grid grid-cols-1 gap-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {data.map(org => {
+             {data.map(org => {
                // Calculate stats for this org from events
                const orgEvents = events.filter(e => e.actorRole === org.type || e.metadata?.vendorId === org.id || e.metadata?.clientId === org.id);
                const profilesUploads = orgEvents.filter(e => e.type === 'CandidateUploaded').length;
@@ -80,15 +98,15 @@ export default function NetworkDirectoryTab() {
                const placements = orgEvents.filter(e => e.type === 'PlacementCompleted' || e.type === 'DealRoomOpened').length;
                
                return (
-                <div key={org.id} className="p-6 rounded-[24px] border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-50 transition-all cursor-pointer">
+                <div key={org.id} onClick={() => setSelectedOrg(org)} className="p-6 rounded-[24px] border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-50 transition-all cursor-pointer">
                   <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
-                      {org.name?.charAt(0) || org.id.charAt(0)}
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 font-bold border border-slate-200 uppercase">
+                      {(org.companyName || org.name || org.id).charAt(0)}
                     </div>
                     <div>
-                      <h3 className="font-black text-slate-900 tracking-tight text-lg">{org.name || org.id}</h3>
+                      <h3 className="font-black text-slate-900 tracking-tight text-lg">{org.companyName || org.name || org.id}</h3>
                       <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1 mt-1">
-                        <Building2 size={12}/> {org.type || 'Organization'}
+                        <Building2 size={12}/> {org.type || 'Organization'} &bull; <span className="font-mono text-[9px] opacity-50">{org.id}</span>
                       </p>
                     </div>
                   </div>
@@ -293,8 +311,15 @@ export default function NetworkDirectoryTab() {
                    <div className="text-right">
                        <p className="text-[9px] font-mono text-slate-400">ID: {cand.id.substring(0,6)}</p>
                        {cand.vendorId && (
-                           <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 mt-1 inline-block rounded font-bold uppercase">
-                               From: {cand.vendorId.replace('ORG-','')}
+                           <span 
+                               onClick={() => {
+                                 if (orgMap[cand.vendorId]) setSelectedOrg(orgMap[cand.vendorId]);
+                                 else setSelectedOrg({ id: cand.vendorId, companyName: cand.vendorId });
+                               }}
+                               className="text-[10px] bg-indigo-50 hover:bg-indigo-100 cursor-pointer border border-indigo-100 transition-colors text-indigo-700 px-2 py-0.5 mt-2 inline-block rounded font-bold uppercase truncate max-w-[150px]"
+                               title="Click to view tracking"
+                           >
+                               FROM: {orgMap[cand.vendorId]?.companyName || orgMap[cand.vendorId]?.name || cand.vendorId.replace('ORG-','')}
                            </span>
                        )}
                    </div>
@@ -375,6 +400,66 @@ export default function NetworkDirectoryTab() {
       <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-8 min-h-[400px]">
          {renderContent()}
       </div>
+
+      {selectedOrg && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/20 backdrop-blur-sm">
+          <div className="w-[500px] bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-500 font-bold border border-slate-200">
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 tracking-tight text-lg">{selectedOrg.companyName || selectedOrg.name || selectedOrg.id}</h3>
+                  <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mt-1">
+                    Organization Tracking Core
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedOrg(null)}
+                 className="p-2 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+               >
+                 &times;
+               </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+               <h4 className="text-[9px] uppercase font-black text-indigo-500 tracking-widest flex items-center gap-1">
+                  <Activity size={12} /> Live Event Ledger
+               </h4>
+               <div className="space-y-4">
+                 {events.filter(e => e.actorRole === selectedOrg.type || e.metadata?.vendorId === selectedOrg.id || e.metadata?.clientId === selectedOrg.id).length === 0 && (
+                     <p className="text-center text-slate-400 text-xs py-10 font-bold uppercase tracking-widest">No activity tracks</p>
+                 )}
+                 {events.filter(e => e.actorRole === selectedOrg.type || e.metadata?.vendorId === selectedOrg.id || e.metadata?.clientId === selectedOrg.id)
+                    .map(ev => (
+                        <div key={ev.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm hover:border-indigo-200 hover:shadow-md transition-all">
+                            <div className="flex justify-between items-start">
+                               <div className="flex gap-3">
+                                  <ActivityIcon size={16} className="text-indigo-500 mt-0.5" />
+                                  <div>
+                                    <p className="font-bold text-slate-800 tracking-tight">{ev.type}</p>
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">
+                                      {ev.actorRole} Action
+                                    </p>
+                                    <pre className="mt-2 text-[10px] text-slate-500 font-mono bg-white p-2 rounded border border-slate-100 max-h-32 overflow-y-auto w-full whitespace-pre-wrap flex">
+                                       {JSON.stringify(ev.metadata, null, 2)}
+                                    </pre>
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-200 flex justify-end w-full">
+                               <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                                  {ev.timestamp?.toDate ? ev.timestamp.toDate().toLocaleString() : 'Just now'}
+                               </div>
+                            </div>
+                        </div>
+                 ))}
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

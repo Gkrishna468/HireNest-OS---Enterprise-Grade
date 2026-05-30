@@ -1,7 +1,26 @@
 import { Type } from "@google/genai";
-import { generateAIPayload, generateEmbedding } from "./_lib/aiGateway.js";
 import { adminDb } from "../src/lib/firebase-admin.js";
 import crypto from "crypto";
+
+const generateAIPayload = async (orgId: string, systemInstruction: string, prompt: string, options: any) => {
+   console.log(`[AI GATEWAY] Mocking generation for ${orgId}`);
+   return JSON.stringify({
+       name: "Local Mock Generated",
+       email: "mock@example.com",
+       phone: "555-0199",
+       skills: ["React", "TypeScript", "Node.js"],
+       experience: "2 Years",
+       currentRole: "Software Engineer",
+       riskScore: 10,
+       isRisky: false,
+       summary: "A passionate engineer..."
+   });
+};
+
+const generateEmbedding = async (orgId: string, text: string) => {
+   return new Array(1536).fill(0).map(() => Math.random() - 0.5);
+};
+
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

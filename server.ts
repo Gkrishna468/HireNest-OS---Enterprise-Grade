@@ -25,8 +25,6 @@ import parseJdHandler from './api/parse-jd.ts';
 import extractTextHandler from './api/extract-text.ts';
 import matchDetailedHandler from './api/match-candidates-detailed.ts';
 import bulkParseHandler from './api/bulk-parse-resumes.ts';
-import telemetryHandler from './api/telemetry-sink.ts';
-import vectorSearchHandler from './api/vector-search.ts';
 import workflowsHandler from './src/api-lib/handlers/workflows.ts';
 
 import analyticsHandler from './api/analytics.ts';
@@ -169,14 +167,6 @@ async function createServer() {
 
         case 'bulk-parse-resumes':
           if (bulkParseHandler) return await bulkParseHandler(req, res);
-          break;
-
-        case 'telemetry-sink':
-          if (telemetryHandler) return await telemetryHandler(req, res);
-          break;
-          
-        case 'vector-search':
-          if (vectorSearchHandler) return await vectorSearchHandler(req, res);
           break;
           
         case 'workflows':

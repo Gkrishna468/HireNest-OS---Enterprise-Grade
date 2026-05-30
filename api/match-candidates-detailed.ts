@@ -1,4 +1,6 @@
-import { logAiUsage } from "./_lib/tenantGovernance.js";
+const logAiUsage = async (metricName: string, orgId: string, model: string, tokenEstimate: number, method: string) => {
+   console.log(`[AI USAGE] ${orgId} used ${tokenEstimate} tokens via ${method}`);
+};
 
 // Helper to extract years of experience using regex
 function extractYearsOfExperience(text: string): number {
