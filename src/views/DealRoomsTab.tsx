@@ -783,7 +783,7 @@ export default function DealRoomsTab() {
                       </div>
                       <div className="relative z-10">
                           <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-3 flex items-center gap-2">
-                              <Activity size={12}/> Operational Health
+                              <Activity size={12}/> Platform Health
                           </h4>
                           <div className="space-y-3">
                               <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">

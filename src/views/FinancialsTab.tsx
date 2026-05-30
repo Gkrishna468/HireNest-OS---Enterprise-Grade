@@ -94,7 +94,7 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-            <DollarSign className="text-emerald-500" size={32} /> Financial Ledger & Billing
+            <DollarSign className="text-emerald-500" size={32} /> Revenue Operations & Billing
           </h1>
           <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
             Multi-Entity Revenue Ledger • Invoices • Settlements

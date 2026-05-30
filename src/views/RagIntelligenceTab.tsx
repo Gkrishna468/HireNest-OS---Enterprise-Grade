@@ -126,7 +126,7 @@ export default function RagIntelligenceTab() {
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <Brain className="text-indigo-600" size={32} />
-            RAG Intelligence Hub
+            Knowledge Search Hub
           </h1>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
             Enterprise Cognitive Retrieval Layer

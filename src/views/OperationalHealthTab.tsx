@@ -38,7 +38,7 @@ export default function OperationalHealthTab({ userRole, orgId, userId }: { user
   }
 
   if (loading) {
-    return <div className="p-8 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest">Loading Operational Health...</div>;
+    return <div className="p-8 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest">Loading Platform Health...</div>;
   }
 
   return (
@@ -46,7 +46,7 @@ export default function OperationalHealthTab({ userRole, orgId, userId }: { user
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 border-b border-indigo-500 pb-2 inline-block shadow-[inset_0_-2px_0_rgba(99,102,241,1)]">
-            HQ Operational Health
+            HQ Platform Health
           </h1>
           <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
             <Zap size={14} className="text-indigo-500" /> Control Tower Dashboard

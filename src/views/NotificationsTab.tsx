@@ -314,7 +314,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">System Trace Thresholds</h4>
+                      <h4 className="text-sm font-bold text-slate-800">Activity Timeline Thresholds</h4>
                       <p className="text-xs text-slate-500">Alert when error rates exceed safe limits</p>
                     </div>
                     <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">Default On</span>

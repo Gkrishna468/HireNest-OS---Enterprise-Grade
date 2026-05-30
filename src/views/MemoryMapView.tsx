@@ -55,7 +55,7 @@ export default function MemoryMapView() {
 
         renderChart(data);
       } catch (err: any) {
-        console.warn("Memory Map Data Load Failed:", err.message);
+        console.warn("Relationship Intelligence Data Load Failed:", err.message);
       } finally {
         setLoading(false);
       }
@@ -127,7 +127,7 @@ export default function MemoryMapView() {
     <div className="flex-1 flex flex-col h-full bg-white overflow-hidden p-8" ref={containerRef}>
       <div className="flex justify-between items-start mb-8 z-10">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter lowercase italic">identity memory map</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter lowercase italic">identity relationship intelligence</h1>
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Hierarchical visualization of active network nodes.</p>
         </div>
         <div className="flex gap-4">

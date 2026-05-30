@@ -63,7 +63,7 @@ export default function AgentHQ() {
         setEmailLogs([]);
       }
     } catch (err) {
-      console.warn("[Agent HQ] Strategic Engine Sync Failed", err);
+      console.warn("[AI Assistant] Strategic Engine Sync Failed", err);
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export default function AgentHQ() {
             <div>
                 <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                    <Brain className="text-indigo-600" size={32} /> 
-                   Strategic Agent HQ
+                   Strategic AI Assistant
                 </h1>
             </div>
             <Button 
