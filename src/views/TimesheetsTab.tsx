@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Search, Filter, Calendar, CheckSquare, Settings } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
+import { EmptyState } from '../components/EmptyState';
 
 export default function TimesheetsTab() {
   const [timesheets, setTimesheets] = useState<any[]>([]);
@@ -89,10 +90,12 @@ export default function TimesheetsTab() {
                <p className="text-xs font-bold uppercase tracking-widest">Loading Timesheets...</p>
              </div>
           ) : timesheets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
-              <Clock size={48} className="text-slate-200" />
-              <p className="text-sm font-medium">No real timesheets found in database.</p>
-              <p className="text-xs text-slate-400 max-w-sm text-center">Contractor timesheets will appear here once candidates log their hours.</p>
+            <div className="flex flex-col items-center justify-center h-full max-w-xl mx-auto">
+              <EmptyState
+                icon={Clock}
+                title="No timesheets submitted"
+                description="Contractor timesheets will appear here once consultants log their hours. Use this dashboard to review and approve work hours before invoicing."
+              />
             </div>
           ) : (
             <table className="w-full text-left border-collapse">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, Search, Filter, ShieldAlert, CheckCircle2, History, AlertTriangle, Fingerprint } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { EmptyState } from '../components/EmptyState';
 
 export default function OwnershipLedgerTab() {
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
@@ -93,12 +94,12 @@ export default function OwnershipLedgerTab() {
                <p className="text-xs font-bold uppercase tracking-widest">Verifying ledger integrity...</p>
              </div>
           ) : ledgerEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
-              <BookOpen size={48} className="text-slate-200" />
-              <p className="text-sm font-medium">Ledger is empty.</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">
-                 Candidate ownership records are immutably written here when a candidate is first submitted to the platform.
-              </p>
+            <div className="flex flex-col items-center justify-center h-full max-w-xl mx-auto">
+              <EmptyState
+                icon={BookOpen}
+                title="Ledger is empty"
+                description="Candidate ownership records are immutably written here when a candidate is first submitted to the platform. No candidate claims exist yet."
+              />
             </div>
           ) : (
             <table className="w-full text-left border-collapse">

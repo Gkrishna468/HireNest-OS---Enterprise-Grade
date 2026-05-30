@@ -16,6 +16,7 @@ import {
   MapPin,
   ShieldAlert,
   Fingerprint,
+  Users,
 } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -45,6 +46,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 
 import CandidateSubmissionModal from "../components/CandidateSubmissionModal";
+import { EmptyState } from "../components/EmptyState";
 
 const getSkillsArray = (skills: any): string[] => {
   if (Array.isArray(skills)) return skills;
@@ -796,14 +798,25 @@ export default function CandidatesTab() {
         )}
       </div>
 
-      <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2 custom-scrollbar">
-        {STAGES.map((stage, sIdx) => {
-          const list = candidates.filter((c) => c.pipelineStage === stage);
-          return (
-            <div
-              key={stage}
-              className="w-[340px] flex-shrink-0 flex flex-col h-full bg-slate-100/30 rounded-3xl border border-slate-200 overflow-hidden"
-            >
+      {candidates.length === 0 ? (
+        <div className="flex-1 mt-8">
+          <EmptyState
+            icon={Users}
+            title="No candidates found"
+            description="Your candidate pool is currently empty. Start building your network by manually adding candidate profiles or bulk pasting."
+            actionLabel="Add Candidate"
+            onAction={() => setShowAddForm(true)}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2 custom-scrollbar">
+          {STAGES.map((stage, sIdx) => {
+            const list = candidates.filter((c) => c.pipelineStage === stage);
+            return (
+              <div
+                key={stage}
+                className="w-[340px] flex-shrink-0 flex flex-col h-full bg-slate-100/30 rounded-3xl border border-slate-200 overflow-hidden"
+              >
               <div className="p-5 bg-slate-900 border-b flex items-center justify-between shrink-0 shadow-lg border-white/5">
                 <div className="flex items-center gap-3">
                   <div
@@ -1002,6 +1015,7 @@ export default function CandidatesTab() {
           );
         })}
       </div>
+      )}
 
       {/* Manual Entry Form */}
       {showAddForm && (

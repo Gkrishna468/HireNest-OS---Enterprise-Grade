@@ -89,7 +89,7 @@ export default function HiringManagerWorkspace({ userName, metrics }: { userName
                                         <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
                                             <Calendar size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">2</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.interviewsToday || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Interviews Scheduled</h4>
                                     <p className="text-xs text-slate-500 mt-1">Upcoming candidate meetings</p>
@@ -119,7 +119,7 @@ export default function HiringManagerWorkspace({ userName, metrics }: { userName
                                         <Target size={16} />
                                         <span className="text-sm font-semibold">Time to Hire</span>
                                     </div>
-                                    <div className="text-3xl font-light text-slate-900">14 Days</div>
+                                    <div className="text-3xl font-light text-slate-900">{metrics?.timeToHireDays || 0} Days</div>
                                     <p className="text-xs text-emerald-600 font-medium mt-1">Average over last 30 days</p>
                                 </div>
 
@@ -128,7 +128,7 @@ export default function HiringManagerWorkspace({ userName, metrics }: { userName
                                         <Users size={16} />
                                         <span className="text-sm font-semibold">Offer Acceptance Rate</span>
                                     </div>
-                                    <div className="text-3xl font-light text-slate-900">85%</div>
+                                    <div className="text-3xl font-light text-slate-900">{metrics?.offerAcceptanceRate || 0}%</div>
                                 </div>
                             </div>
                         </div>

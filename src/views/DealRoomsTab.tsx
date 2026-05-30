@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
+import { EmptyState } from "../components/EmptyState";
 import { cn } from "../lib/utils";
 import { Send, Shield, Paperclip, Eye, EyeOff, FileText, Bot, DollarSign, CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, Sparkles, Clock, Zap, Activity, Network } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
@@ -459,16 +460,25 @@ export default function DealRoomsTab() {
         
         <div className="flex-1 overflow-hidden flex flex-col">
           <div className="flex-1 overflow-auto">
-            {filteredRooms.map(room => {
-              const isSelected = selectedRoom?.id === room.id;
-              return (
-                <div 
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room)}
-                  className={`px-4 py-4 border-b border-slate-50 cursor-pointer transition-colors ${
-                    isSelected ? 'bg-indigo-50/50 relative' : 'hover:bg-slate-50'
-                  }`}
-                >
+            {filteredRooms.length === 0 ? (
+              <div className="p-4 mt-8">
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No active deal rooms"
+                  description="There are currently no active deal rooms. Deal rooms are automatically created when candidates are matched or submitted for requirements."
+                />
+              </div>
+            ) : (
+              filteredRooms.map(room => {
+                const isSelected = selectedRoom?.id === room.id;
+                return (
+                  <div 
+                    key={room.id}
+                    onClick={() => setSelectedRoom(room)}
+                    className={`px-4 py-4 border-b border-slate-50 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-indigo-50/50 relative' : 'hover:bg-slate-50'
+                    }`}
+                  >
                   {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-r" />}
                   <div className="flex justify-between items-start mb-1">
                     <span className="font-mono text-[10px] font-bold text-slate-400">ID: {room.id.slice(0,8)}</span>
@@ -482,7 +492,8 @@ export default function DealRoomsTab() {
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
       </section>

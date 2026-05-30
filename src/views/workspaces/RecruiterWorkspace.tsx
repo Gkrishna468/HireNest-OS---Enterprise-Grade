@@ -67,7 +67,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <div className="bg-orange-50 text-orange-600 p-2 rounded-lg">
                                             <Briefcase size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">4</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.totalJobs || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">New Requirements</h4>
                                     <p className="text-xs text-slate-500 mt-1">Assigned in the last 24h</p>
@@ -78,7 +78,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <div className="bg-rose-50 text-rose-600 p-2 rounded-lg">
                                             <Users size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">12</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.pendingSubmissions || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Pending Submission</h4>
                                     <p className="text-xs text-slate-500 mt-1">Candidates waiting to be floated</p>
@@ -89,7 +89,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
                                             <Calendar size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">3</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.interviewsToday || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Interviews Scheduled</h4>
                                     <p className="text-xs text-slate-500 mt-1">Scheduled for today & tomorrow</p>
@@ -100,7 +100,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <div className="bg-amber-50 text-amber-600 p-2 rounded-lg">
                                             <Clock size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">7</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.pendingFeedback || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Follow-Ups Due</h4>
                                     <p className="text-xs text-slate-500 mt-1">Feedback requested</p>
@@ -113,19 +113,19 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row shadow-sm">
                                     <div className="flex-1 p-6 text-center border-b md:border-b-0 md:border-r border-slate-100">
                                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Active</p>
-                                        <p className="text-3xl font-light text-slate-900">{metrics?.activeCandidates || 45}</p>
+                                        <p className="text-3xl font-light text-slate-900">{metrics?.activeCandidates || 0}</p>
                                     </div>
                                     <div className="flex-1 p-6 text-center border-b md:border-b-0 md:border-r border-slate-100">
                                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Interviewing</p>
-                                        <p className="text-3xl font-light text-indigo-600">{metrics?.actionQueue || 18}</p>
+                                        <p className="text-3xl font-light text-indigo-600">{metrics?.actionQueue || 0}</p>
                                     </div>
                                     <div className="flex-1 p-6 text-center border-b md:border-b-0 md:border-r border-slate-100">
                                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Offered</p>
-                                        <p className="text-3xl font-light text-amber-600">5</p>
+                                        <p className="text-3xl font-light text-amber-600">{metrics?.offers || 0}</p>
                                     </div>
                                     <div className="flex-1 p-6 text-center">
                                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Joined</p>
-                                        <p className="text-3xl font-light text-emerald-600">{metrics?.placements || 2}</p>
+                                        <p className="text-3xl font-light text-emerald-600">{metrics?.placements || 0}</p>
                                     </div>
                                 </div>
                             </div>
@@ -141,18 +141,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <TrendingUp size={16} />
                                         <span className="text-sm font-semibold">Monthly Placements</span>
                                     </div>
-                                    <div className="text-3xl font-light text-slate-900">{metrics?.placements || 8}</div>
-                                    <p className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1">
-                                        <Target size={12} /> On track for 12 goal
-                                    </p>
-                                </div>
-
-                                <div className="border-t border-slate-100 pt-6">
-                                    <div className="flex items-center gap-3 text-slate-600 mb-2">
-                                        <DollarSign size={16} />
-                                        <span className="text-sm font-semibold">Earnings (Est)</span>
-                                    </div>
-                                    <div className="text-3xl font-light text-slate-900">$24,500</div>
+                                    <div className="text-3xl font-light text-slate-900">{metrics?.placements || 0}</div>
                                 </div>
 
                                 <div className="border-t border-slate-100 pt-6">
@@ -160,10 +149,7 @@ export default function RecruiterWorkspace({ userName, metrics }: { userName: st
                                         <Target size={16} />
                                         <span className="text-sm font-semibold">Submission Conversion</span>
                                     </div>
-                                    <div className="text-3xl font-light text-slate-900">28%</div>
-                                    <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3">
-                                        <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '28%' }}></div>
-                                    </div>
+                                    <div className="text-3xl font-light text-slate-900">{metrics?.conversionRate || 0}%</div>
                                 </div>
                             </div>
                         </div>

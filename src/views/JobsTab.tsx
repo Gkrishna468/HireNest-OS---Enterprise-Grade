@@ -51,6 +51,7 @@ import { analyzeCandidateMatch } from "../services/aiService";
 import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
+import { EmptyState } from "../components/EmptyState";
 
 import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
@@ -1415,21 +1416,38 @@ export default function JobsTab() {
                 Active Requirements Pipeline
               </h2>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {jobs
-                .filter(
-                  (j) =>
-                    isAdmin ||
-                    j.clientId === orgId ||
-                    (j.visibility === "VENDOR_NETWORK" &&
-                      j.status === "PUBLISHED"),
-                )
-                .map((job) => (
-                  <div
-                    key={job.id}
-                    onClick={() => setSelectedJob(job)}
-                    className={`group relative flex flex-col bg-white border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedJob?.id === job.id ? "border-indigo-600 shadow-xl shadow-indigo-50 ring-1 ring-indigo-600" : "border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-100"}`}
-                  >
+            
+            {(() => {
+              const filteredJobs = jobs.filter(
+                (j) =>
+                  isAdmin ||
+                  j.clientId === orgId ||
+                  (j.visibility === "VENDOR_NETWORK" &&
+                    j.status === "PUBLISHED"),
+              );
+
+              if (filteredJobs.length === 0) {
+                return (
+                  <div className="mt-8">
+                    <EmptyState
+                      icon={Briefcase}
+                      title="No requirements available"
+                      description="You don't have any active requirements in your pipeline at the moment. Let's create one based on your hiring needs."
+                      actionLabel={(isAdmin || isClient) ? "Create Requirement" : undefined}
+                      onAction={(isAdmin || isClient) ? () => setShowIntakeForm(true) : undefined}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {filteredJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      onClick={() => setSelectedJob(job)}
+                      className={`group relative flex flex-col bg-white border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedJob?.id === job.id ? "border-indigo-600 shadow-xl shadow-indigo-50 ring-1 ring-indigo-600" : "border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-100"}`}
+                    >
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
                         <div
@@ -1546,7 +1564,9 @@ export default function JobsTab() {
                     </div>
                   </div>
                 ))}
-            </div>
+              </div>
+            );
+            })()}
           </div>
         </div>
 

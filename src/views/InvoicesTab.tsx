@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Receipt, Search, Download, CreditCard, ExternalLink, Filter } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { EmptyState } from '../components/EmptyState';
 
 export default function InvoicesTab() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -94,12 +95,14 @@ export default function InvoicesTab() {
                <p className="text-xs font-bold uppercase tracking-widest">Loading ledgers...</p>
              </div>
           ) : invoices.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
-              <Receipt size={48} className="text-slate-200" />
-              <p className="text-sm font-medium">No invoice data found in the real database.</p>
-              <button className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50">
-                Create Manual Invoice
-              </button>
+            <div className="flex flex-col items-center justify-center h-full max-w-xl mx-auto">
+              <EmptyState
+                icon={Receipt}
+                title="No invoices found"
+                description="Your accounting ledger is clear. Invoices will automatically appear here once placements are marked as joined or timesheets are approved."
+                actionLabel="Create Manual Invoice"
+                onAction={() => alert('Manual invoice creation process initiated')}
+              />
             </div>
           ) : (
             <table className="w-full text-left border-collapse">

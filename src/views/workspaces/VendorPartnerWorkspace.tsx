@@ -90,7 +90,7 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
                                         <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
                                             <Calendar size={18} />
                                         </div>
-                                        <span className="text-2xl font-light text-slate-900">3</span>
+                                        <span className="text-2xl font-light text-slate-900">{metrics?.interviewsToday || 0}</span>
                                     </div>
                                     <h4 className="font-semibold text-slate-900 text-sm">Interviews Scheduled</h4>
                                     <p className="text-xs text-slate-500 mt-1">Updates on your float candidates</p>

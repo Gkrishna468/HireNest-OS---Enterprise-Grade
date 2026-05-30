@@ -146,7 +146,7 @@ export default function DashboardTab() {
   }
 
   if (isClient) {
-    return <HiringManagerWorkspace userName={session?.user?.name || "Hiring Manager"} />;
+    return <HiringManagerWorkspace userName={session?.user?.name || "Hiring Manager"} metrics={metrics} />;
   }
 
   if (isRecruiter) {

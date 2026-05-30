@@ -363,6 +363,7 @@ const AppContent = () => {
               <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/deal-rooms?view=interviews" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms?view=interviews"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/invoices" icon={Receipt} label="Payouts" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
@@ -377,6 +378,7 @@ const AppContent = () => {
               <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/candidates" icon={Users} label="Bench Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Placements" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/invoices" icon={Receipt} label="Payments" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}

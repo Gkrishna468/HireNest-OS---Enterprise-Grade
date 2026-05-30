@@ -3,6 +3,7 @@ import { DollarSign, FileText, ArrowUpRight, ArrowDownRight, CheckCircle2, Circl
 import { cn } from "../lib/utils";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, query, onSnapshot, orderBy, getDocs } from "firebase/firestore";
+import { EmptyState } from "../components/EmptyState";
 
 export default function FinancialsTab({ userRole, orgId, userId }: { userRole: string, orgId: string, userId: string }) {
   const [activeTab, setActiveTab] = useState<'LEDGER' | 'INVOICES' | 'SETTLEMENTS' | 'PLACEMENTS'>('LEDGER');
@@ -145,7 +146,13 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
             {loading ? (
                <div className="text-center p-8 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading Ledger...</div>
             ) : deals.length === 0 ? (
-               <div className="text-center p-8 text-slate-400 font-bold uppercase tracking-widest text-[10px]">No deal transactions found</div>
+               <div className="flex flex-col items-center justify-center p-8">
+                 <EmptyState
+                   icon={FileText}
+                   title="No deal transactions found"
+                   description="Your financial ledger is currently empty. Transactions will appear here once deals are created."
+                 />
+               </div>
             ) : (
             <table className="w-full text-left">
               <thead>
@@ -181,26 +188,22 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
         )}
         
         {activeTab === 'INVOICES' && (
-          <div className="p-6 flex flex-col items-center justify-center text-center py-12">
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-4">
-               <FileText size={24} />
-            </div>
-            <h3 className="text-lg font-black text-slate-800">Placement Billing Lifecycle Offline</h3>
-            <p className="text-sm text-slate-500 max-w-md mt-2">
-              Invoice generation module is currently inactive. This interface will track "Offer Accepted" → "Invoice Generated" → "Invoice Sent".
-            </p>
+          <div className="p-6">
+            <EmptyState
+              icon={FileText}
+              title="Placement Billing Lifecycle Offline"
+              description="Invoice generation module is currently inactive. This interface will track 'Offer Accepted' → 'Invoice Generated' → 'Invoice Sent'."
+            />
           </div>
         )}
 
         {activeTab === 'SETTLEMENTS' && (
-          <div className="p-6 flex flex-col items-center justify-center text-center py-12">
-            <div className="w-16 h-16 bg-sky-50 rounded-full flex items-center justify-center text-sky-500 mb-4">
-               <ArrowUpRight size={24} />
-            </div>
-            <h3 className="text-lg font-black text-slate-800">Vendor & Recruiter Payouts</h3>
-            <p className="text-sm text-slate-500 max-w-md mt-2">
-              Settlement gateways pending integration. Tracks "Payment Received" → "Vendor Payout Released" → "Recruiter Split Released".
-            </p>
+          <div className="p-6">
+            <EmptyState
+              icon={ArrowUpRight}
+              title="Vendor & Recruiter Payouts"
+              description="Settlement gateways pending integration. Tracks 'Payment Received' → 'Vendor Payout Released' → 'Recruiter Split Released'."
+            />
           </div>
         )}
 
@@ -243,8 +246,14 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
                           </div>
                        )
                    })}
-                   {deals.length === 0 && (
-                      <div className="text-center p-8 text-slate-400 font-bold uppercase tracking-widest text-[10px]">No active placements under retention</div>
+                   {deals.filter(d => d.currentStage === 'Hired' || d.currentStage === 'Offer' || d.jobTitle).length === 0 && (
+                      <div className="py-8">
+                        <EmptyState
+                          icon={CalendarDays}
+                          title="No active placements under retention"
+                          description="When candidates are hired or an offer is made, their placement timeline and retention risk metrics will appear here."
+                        />
+                      </div>
                    )}
                 </div>
              )}
