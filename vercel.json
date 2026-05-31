@@ -32,6 +32,10 @@
     { "source": "/api/admin/approve-requirement", "destination": "/api/admin?action=approve-requirement" },
     { "source": "/api/admin/notifications", "destination": "/api/admin?action=notifications" },
     { "source": "/api/jobs/update-status", "destination": "/api/admin?action=update-status" },
+    { "source": "/api/rescan-matches", "destination": "/api/admin?action=rescan-matches" },
+    { "source": "/api/rebuild-matrix", "destination": "/api/admin?action=rebuild-matrix" },
+    { "source": "/api/cleanup-matches", "destination": "/api/admin?action=cleanup-matches" },
+    { "source": "/api/match-health", "destination": "/api/admin?action=match-health" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
   ]

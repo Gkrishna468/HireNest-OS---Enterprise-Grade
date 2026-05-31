@@ -1,4 +1,4 @@
-import { adminDb } from '../src/lib/firebase-admin.js';
+import { adminDb } from '../../lib/firebase-admin.js';
 import { GoogleGenAI } from '@google/genai';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });

@@ -26,10 +26,10 @@ import extractTextHandler from './api/extract-text.ts';
 import matchDetailedHandler from './api/match-candidates-detailed.ts';
 import bulkParseHandler from './api/bulk-parse-resumes.ts';
 import workflowsHandler from './src/api-lib/handlers/workflows.ts';
-import rescanMatchesHandler from './api/rescan-matches.ts';
-import rebuildMatrixHandler from './api/rebuild-matrix.ts';
-import cleanupMatchesHandler from './api/cleanup-matches.ts';
-import matchHealthHandler from './api/match-health.ts';
+import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches.ts';
+import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
+import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
+import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
 
 import analyticsHandler from './api/analytics.ts';
 

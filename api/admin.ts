@@ -14,6 +14,10 @@ const dispatchWorkflowEvent = async (db: any, payload: any) => {
 
 import matchingGlobalHandler from "../src/api-lib/handlers/matching-global.js";
 import candidatesHandler from "../src/api-lib/handlers/candidates.js";
+import rescanMatchesHandler from "../src/api-lib/handlers/rescan-matches.js";
+import rebuildMatrixHandler from "../src/api-lib/handlers/rebuild-matrix.js";
+import cleanupMatchesHandler from "../src/api-lib/handlers/cleanup-matches.js";
+import matchHealthHandler from "../src/api-lib/handlers/match-health.js";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
@@ -50,12 +54,24 @@ export default async function handler(req: any, res: any) {
       action = 'matching-global';
     } else if (rawPath.includes('candidates')) {
       action = 'candidates';
+    } else if (rawPath.includes('rescan-matches')) {
+      action = 'rescan-matches';
+    } else if (rawPath.includes('rebuild-matrix')) {
+      action = 'rebuild-matrix';
+    } else if (rawPath.includes('cleanup-matches')) {
+      action = 'cleanup-matches';
+    } else if (rawPath.includes('match-health')) {
+      action = 'match-health';
     } else {
       action = 'unknown';
     }
   }
 
   try {
+    if (action === 'rescan-matches') return rescanMatchesHandler(req, res);
+    if (action === 'rebuild-matrix') return rebuildMatrixHandler(req, res);
+    if (action === 'cleanup-matches') return cleanupMatchesHandler(req, res);
+    if (action === 'match-health') return matchHealthHandler(req, res);
     if (action === 'matching-global') {
       return matchingGlobalHandler(req, res);
     }
