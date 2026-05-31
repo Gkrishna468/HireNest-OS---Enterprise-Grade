@@ -192,16 +192,20 @@ const AppContent = () => {
                     await deleteDoc(rDoc.ref);
                   }
 
-                  const qCand = await getDocs(collection(db, "candidatePool"));
-                  for (let cDoc of qCand.docs) {
-                    const cd = cDoc.data();
-                    if (
-                      cd.vendorId === orgId ||
-                      cd.clientId === orgId ||
-                      reqIds.includes(cd.mappedJobId)
-                    ) {
-                      await deleteDoc(cDoc.ref);
+                  try {
+                    const qCand = await getDocs(collection(db, "candidatePool"));
+                    for (let cDoc of qCand.docs) {
+                      const cd = cDoc.data();
+                      if (
+                        cd.vendorId === orgId ||
+                        cd.clientId === orgId ||
+                        reqIds.includes(cd.mappedJobId)
+                      ) {
+                        await deleteDoc(cDoc.ref);
+                      }
                     }
+                  } catch (cleanupErr) {
+                    console.error("Cleanup script error on candidatePool:", cleanupErr);
                   }
 
                   const qDeal = await getDocs(collection(db, "dealRooms"));

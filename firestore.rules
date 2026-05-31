@@ -58,17 +58,18 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isVerified() &&
       (
+        isHQ() ||
         authRole() in [
           'super_admin',
           'platform_authority'
-        ] ||
-        isHQ()
+        ]
       );
     }
 
     function isAdmin() {
       return isVerified() &&
       (
+        isHQ() ||
         authRole() in [
 
           // AUTHORITY
@@ -102,8 +103,7 @@ service cloud.firestore {
           'ai_agent',
           'observer',
           'system_node'
-        ] ||
-        isHQ()
+        ]
       );
     }
 

@@ -123,6 +123,10 @@ export default function JobsTab() {
     }
 
     const runAutomatedScanner = async () => {
+      if (userRole.startsWith('client')) {
+         console.log("[AUTO_SCANNER] Client node bypassed.");
+         return;
+      }
       console.log(
         "[AUTO_SCANNER] Initiating background scan of candidates vs requirements...",
       );
@@ -625,17 +629,14 @@ export default function JobsTab() {
       }
 
       // Listen to candidatePool for manually mapped candidates
-      let qCand;
-      if (hqAuthority) {
+      let qCand = null;
+      if (isClient) {
+        // Clients bypass manual mapping pool
+        qCand = null;
+      } else if (hqAuthority) {
         qCand = query(
           collection(db, "candidatePool"),
           where("mappedJobId", "==", selectedJob.id),
-        );
-      } else if (isClient) {
-        qCand = query(
-          collection(db, "candidatePool"),
-          where("mappedJobId", "==", selectedJob.id),
-          where("clientId", "==", orgId),
         );
       } else {
         qCand = query(
@@ -655,7 +656,7 @@ export default function JobsTab() {
         setSubmissions(Array.from(map.values()));
       };
 
-      const unsubCand = onSnapshot(
+      const unsubCand = qCand ? onSnapshot(
         qCand,
         (snap) => {
           currentMappedCands = snap.docs.map((d) => {
@@ -679,7 +680,7 @@ export default function JobsTab() {
         (error) => {
           console.warn("[CANDIDATE_FETCH_WARN]", error.message);
         },
-      );
+      ) : () => {};
 
       const unsubSub = onSnapshot(
         qSub,

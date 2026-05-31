@@ -22,14 +22,30 @@ export default async function handler(req: any, res: any) {
 
     const allMatchesSnapshot = await adminDb.collectionGroup('ai_matches').get();
     const matches: any[] = [];
+    
+    console.log("Total ai_matches found = ", allMatchesSnapshot.size);
+
+    let reqFiltered = 0;
+    let activeFiltered = 0;
+    let submissionFiltered = 0;
 
     for (const doc of allMatchesSnapshot.docs) {
       const matchData = doc.data();
-      const matchReqId = matchData.requirementId || doc.id; 
+      const matchReqId = matchData.requirementId || matchData.reqId || doc.id; 
 
       if (reqIds.has(matchReqId)) {
-         const candId = matchData.candidateId;
-         if (!candId) continue;
+         reqFiltered++;
+         let candId = matchData.candidateId;
+         if (!candId) {
+             const parentDoc = doc.ref.parent.parent;
+             if (parentDoc) {
+                 candId = parentDoc.id;
+             }
+         }
+         if (!candId) {
+             console.log("Skipping, no candId");
+             continue;
+         }
          
          const candRef = await adminDb.collection("candidatePool").doc(candId).get();
          if (!candRef.exists) continue;
@@ -38,6 +54,7 @@ export default async function handler(req: any, res: any) {
          if (cand.active === false || cand.archived === true || cand.deleted === true || cand.blacklisted === true) {
              continue;
          }
+         activeFiltered++;
 
          const subSnap = await adminDb.collection("submissions")
                .where("candidateId", "==", candId)
@@ -71,6 +88,7 @@ export default async function handler(req: any, res: any) {
          if (isRejected || subExists) {
              continue;
          }
+         submissionFiltered++;
 
          matches.push({
              id: doc.id,
@@ -87,7 +105,11 @@ export default async function handler(req: any, res: any) {
 
     matches.sort((a,b) => b.matchScore - a.matchScore);
     console.log("Matches found:", matches.length);
+    console.log(`Summary: Total ai_matches: ${allMatchesSnapshot.size}, After requirement filter: ${reqFiltered}, After active filter: ${activeFiltered}, After submission filter: ${submissionFiltered}, Final returned: ${matches.length}`);
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     return res.status(200).json({ matches });
   } catch (error: any) {
     console.error("Error fetching client AI matches:", error);

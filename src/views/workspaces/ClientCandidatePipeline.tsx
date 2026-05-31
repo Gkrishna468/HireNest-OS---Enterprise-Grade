@@ -27,12 +27,19 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
     const fetchMatches = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch(`/api/client-matches?orgId=${orgId}`, {
+        const res = await fetch(`/api/client-matches?orgId=${orgId}&cb=${Date.now()}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
-           const data = await res.json();
-           setSubmissions(data.matches || []);
+           const text = await res.text();
+           try {
+             const data = JSON.parse(text);
+             setSubmissions(data.matches || []);
+           } catch(e) {
+             console.error("Match fetch err, not JSON:", text.substring(0, 50));
+           }
+        } else {
+           console.error("Match fetch failed with status:", res.status);
         }
       } catch (err) {
         console.error("Match fetch err", err);

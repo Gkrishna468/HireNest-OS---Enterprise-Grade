@@ -144,9 +144,11 @@ async function createServer() {
         case 'admin/notify-approval':
         case 'admin/approve-requirement':
         case 'admin/notifications':
-        case 'client-matches':
         case 'admin':
           return await adminHandler(req, res);
+
+        case 'client-matches':
+          return await clientAiMatchesHandler(req, res);
 
         case 'user-candidates':
         case 'user/candidates':

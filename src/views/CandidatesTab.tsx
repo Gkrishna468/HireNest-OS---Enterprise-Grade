@@ -189,26 +189,26 @@ export default function CandidatesTab() {
           const q = isAdminUser
             ? query(collection(db, "candidatePool"), limit(100))
             : isClientUser
-              ? query(
-                  collection(db, "candidatePool"),
-                  where("clientId", "==", orgId),
-                  limit(100),
-                )
+              ? null
               : query(
                   collection(db, "candidatePool"),
                   where("vendorId", "==", orgId),
                   limit(100),
                 );
-
-          unsubscribe = onSnapshot(
-            q,
-            (snap) => {
-              setCandidates(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            },
-            (error: any) => {
-              handleFirestoreError(error, OperationType.GET, "candidatePool");
-            },
-          );
+          
+          if (!q) {
+             setCandidates([]);
+          } else {
+            unsubscribe = onSnapshot(
+              q,
+              (snap) => {
+                setCandidates(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+              },
+              (error: any) => {
+                handleFirestoreError(error, OperationType.GET, "candidatePool");
+              },
+            );
+          }
 
           try {
             const usersSnap = await getDocs(collection(db, "users"));
