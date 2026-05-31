@@ -62,40 +62,12 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
         const docsToEvaluate = [];
 
-        if (isAdmin) {
-          // Admin HQ: Global Graph Visibility
+        if (isAdmin || role?.includes("client")) {
+          // Admin HQ & Client Requirements: Global Graph Visibility for intelligence
           const poolSnapshot = await adminDb.collection("candidatePool").get();
           poolSnapshot.docs.forEach((d: any) =>
             docsToEvaluate.push({ id: d.id, ...d.data() }),
           );
-        } else if (role?.includes("client")) {
-          // Client Workspace: ONLY see candidates linked to their requirements (via submissions OR mappedJobId)
-          const subsSnapshot = await adminDb
-            .collection("submissions")
-            .where("requirementId", "==", targetReqId)
-            // Note: In adminDb we don't need clientId filter if requirementId is secure, but let's be thorough
-            .get();
-
-          const candIds = new Set(subsSnapshot.docs.map(
-            (doc) => doc.data().candidateId,
-          ));
-          
-          const mappedCandsSnapshot = await adminDb
-            .collection("candidatePool")
-            .where("mappedJobId", "==", targetReqId)
-            .get();
-          
-          mappedCandsSnapshot.docs.forEach((doc) => candIds.add(doc.id));
-
-          if (candIds.size > 0) {
-            const refs = Array.from(candIds).map((id) =>
-              adminDb.collection("candidatePool").doc(id as string).get(),
-            );
-            const cands = await Promise.all(refs);
-            cands.forEach((c) => {
-              if (c.exists) docsToEvaluate.push({ id: c.id, ...c.data() });
-            });
-          }
         } else {
           // Vendor Workspace: 1. Their own candidates OR 2. Candidates mapped to them
           // Strict query isolation BEFORE ranking

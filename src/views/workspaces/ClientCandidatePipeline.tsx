@@ -39,28 +39,46 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       setFloatedCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 4. Fetch AI Matches
+    // 4. Fetch AI Matches using the unified matching/global intelligence engine
     const fetchMatches = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch(`/api/client-matches?orgId=${orgId}&cb=${Date.now()}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-           const text = await res.text();
-           try {
-             const data = JSON.parse(text);
-             setAiMatches(data.matches || []);
-           } catch(e) {
-             console.error("Match fetch err, not JSON:", text.substring(0, 50));
-           }
+        const role = "client"; // Enforce client role for scoped queries
+
+        for (const req of requirements) {
+          const res = await fetch(`/api/matching/global?requirementId=${req.id}&orgId=${orgId}&role=${role}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+             const data = await res.json();
+             // Aggregate global dynamic matches into our client LEDGER
+             const combinedMatches = [...(data.matches || []), ...(data.fallbackMatches || [])];
+             
+             setAiMatches(prev => {
+                const filtered = prev.filter(m => m.requirementId !== req.id && m.reqId !== req.id);
+                const newlyTagged = combinedMatches.map(m => ({
+                    ...m,
+                    canonicalRequirementId: req.id,
+                    requirementId: req.id,
+                    reqId: req.id,
+                    sysSource: 'AI_MATCH'
+                }));
+                return [...filtered, ...newlyTagged];
+             });
+          }
         }
       } catch (err) {
-        console.error("Match fetch err", err);
+        console.error("Global Match fetch err", err);
       }
     };
-    fetchMatches();
-    const matchInterval = setInterval(fetchMatches, 15000); // refresh every 15s
+    
+    // Only fetch matches if requirements exist. We can run this once they drop in.
+    if (requirements.length > 0) {
+       fetchMatches();
+    }
+    
+    // Refresh periodically but less aggressively since it's a dynamic computation
+    const matchInterval = setInterval(fetchMatches, 45000); 
 
     return () => {
       unsubReq();
@@ -68,7 +86,7 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       unsubFloat();
       clearInterval(matchInterval);
     };
-  }, [orgId]);
+  }, [orgId, requirements.length]);
 
   if (requirements.length === 0) {
     return (

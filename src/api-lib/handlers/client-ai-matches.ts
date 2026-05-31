@@ -56,20 +56,18 @@ export default async function handler(req: any, res: any) {
          }
          activeFiltered++;
 
+         // Fetch submissions to figure out pipeline stage, but DO NOT skip them.
          const subSnap = await adminDb.collection("submissions")
                .where("candidateId", "==", candId)
                .where("requirementId", "==", matchReqId)
                .get();
                
+         let status = "AI MATCH";
          let subExists = false;
-         let isRejected = false;
          
          subSnap.docs.forEach((s) => {
              subExists = true;
-             const sData = s.data();
-             if (sData.status === "REJECTED" || sData.status === "MATCH_REJECTED" || sData.status === "REJECTED_BY_CLIENT") {
-                 isRejected = true;
-             }
+             status = s.data().status || "SUBMITTED";
          });
          
          const subSnap2 = await adminDb.collection("submissions")
@@ -79,16 +77,8 @@ export default async function handler(req: any, res: any) {
          
          subSnap2.docs.forEach((s) => {
              subExists = true;
-             const sData = s.data();
-             if (sData.status === "REJECTED" || sData.status === "MATCH_REJECTED" || sData.status === "REJECTED_BY_CLIENT") {
-                 isRejected = true;
-             }
+             status = s.data().status || "SUBMITTED";
          });
-
-         if (isRejected || subExists) {
-             continue;
-         }
-         submissionFiltered++;
 
          matches.push({
              id: doc.id,
@@ -97,7 +87,8 @@ export default async function handler(req: any, res: any) {
              requirementId: matchReqId,
              reqId: matchReqId,
              matchScore: matchData.matchScore || 0,
-             status: "AI MATCH",
+             status: status,
+             sysSource: subExists ? 'SUBMISSION' : 'AI_MATCH',
              vendorName: cand.vendorName || cand.vendorId || ""
          });
       }
