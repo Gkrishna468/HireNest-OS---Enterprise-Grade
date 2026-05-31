@@ -17,7 +17,10 @@ export default function AdminOverview() {
     submissions: [],
     onboardingRequests: [] 
   });
+  const [matchHealth, setMatchHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [actionStatus, setActionStatus] = useState<string>("");
+  const [isActionLoading, setIsActionLoading] = useState<string>("");
   const navigate = useNavigate();
 
   // Derived Financial Metrics
@@ -76,6 +79,14 @@ export default function AdminOverview() {
               onboardingRequests: resData.onboarding_requests || [] // Keep original key for now or update if needed
           });
         }
+        
+        const healthResp = await fetch('/api/match-health', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (healthResp.ok) {
+            const hData = await healthResp.json();
+            if (hData.success) setMatchHealth(hData.data);
+        }
     } catch (err: any) {
         console.warn("[Admin Overview] Data sync skipped or failed:", err.message);
     } finally {
@@ -125,27 +136,107 @@ export default function AdminOverview() {
         ))}
       </div>
       
-      <div className="flex justify-start gap-4 mt-2">
+      <div className="flex flex-col gap-2 mt-2">
+      {actionStatus && <div className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-lg">{actionStatus}</div>}
+      <div className="flex justify-start gap-4">
           <Button 
+            disabled={isActionLoading !== ""}
             onClick={async () => {
-              if(!confirm('Trigger full matrix rescan using Google AI? This could take a while.')) return;
+              setIsActionLoading("refresh");
+              setActionStatus("Refreshing AI match matrix...");
               try {
-                const res = await fetch('/api/rescan-matches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role: 'adminHQ'}) });
+                const token = await auth.currentUser?.getIdToken();
+                const res = await fetch('/api/rescan-matches', { 
+                  method: 'POST', 
+                  headers: {
+                    'Content-Type':'application/json',
+                    'Authorization': `Bearer ${token}`
+                  }, 
+                  body: JSON.stringify({role: 'adminHQ'}) 
+                });
                 const d = await res.json();
                 if (d.success) {
-                   alert(`Rescan complete. Updated ${d.matchUpdatesCount} matches.`);
+                   setActionStatus(`Refresh complete. Updated ${d.matchUpdatesCount} matches.`);
                 } else {
-                   alert("Error: " + d.error);
+                   setActionStatus("Error: " + d.error);
                 }
               } catch(e:any) {
-                alert("Error: " + e.message);
+                setActionStatus("Error: " + e.message);
+              } finally {
+                setIsActionLoading("");
+                setTimeout(() => setActionStatus(""), 8000);
               }
             }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
           >
-            <Sparkles size={16} className="mr-2"/> Rescan Candidate Matrix (AI)
+            <Sparkles size={16} className="mr-2"/> {isActionLoading === "refresh" ? "Working..." : "Refresh Scores (AI)"}
+          </Button>
+
+          <Button 
+            disabled={isActionLoading !== ""}
+            onClick={async () => {
+              setIsActionLoading("cleanup");
+              setActionStatus("Cleaning up orphaned/invalid matches...");
+              try {
+                const token = await auth.currentUser?.getIdToken();
+                const res = await fetch('/api/cleanup-matches', { 
+                  method: 'POST', 
+                  headers: {
+                    'Content-Type':'application/json',
+                    'Authorization': `Bearer ${token}`
+                  }, 
+                  body: JSON.stringify({role: 'adminHQ'}) 
+                });
+                const d = await res.json();
+                if (d.success) {
+                   setActionStatus(`Cleanup complete. Deleted ${d.deletedMatchesCount} old records.`);
+                   fetchData();
+                } else {
+                   setActionStatus("Error: " + d.error);
+                }
+              } catch(e:any) {
+                setActionStatus("Error: " + e.message);
+              } finally {
+                setIsActionLoading("");
+                setTimeout(() => setActionStatus(""), 8000);
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
+          >
+            <Shield size={16} className="mr-2"/> {isActionLoading === "cleanup" ? "Working..." : "Cleanup Orphan Matches"}
           </Button>
       </div>
+      </div>
+      
+      {matchHealth && (
+        <div className="bg-slate-900 rounded-[30px] p-8 text-white mt-6 relative overflow-hidden shadow-sm">
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <Activity size={120} />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
+            <Activity className="text-emerald-400" /> Matrix Health Dashboard
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 relative z-10 w-full mb-4">
+             <div>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Active Matches</p>
+                <p className="text-3xl font-light">{matchHealth.activeMatches}</p>
+             </div>
+             <div>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Orphan Matches</p>
+                <p className={cn("text-3xl font-light", matchHealth.orphanMatches > 0 ? "text-amber-400" : "")}>{matchHealth.orphanMatches}</p>
+             </div>
+             <div>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Archived/Deleted</p>
+                <p className={cn("text-3xl font-light", (matchHealth.archivedCandidatesReferenced + matchHealth.deletedCandidatesReferenced) > 0 ? "text-amber-400" : "")}>{matchHealth.archivedCandidatesReferenced + matchHealth.deletedCandidatesReferenced}</p>
+             </div>
+             <div>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total Requirements</p>
+                <p className="text-3xl font-light">{matchHealth.requirements}</p>
+             </div>
+          </div>
+          <div className="text-xs text-slate-500 font-mono">Last Check: {new Date(matchHealth.lastCheck).toLocaleString()}</div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         <div className="md:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">

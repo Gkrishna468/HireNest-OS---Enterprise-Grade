@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { Users, Filter, CheckCircle2, Copy, Sparkles } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
@@ -81,13 +81,9 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
                           btn.innerHTML = 'Working...';
                           btn.disabled = true;
                           try {
-                              const token = await auth.currentUser?.getIdToken();
                               const res = await fetch('/api/rescan-matches', { 
                                   method: 'POST', 
-                                  headers: {
-                                    'Content-Type':'application/json',
-                                    'Authorization': `Bearer ${token}`
-                                  }, 
+                                  headers: {'Content-Type':'application/json'}, 
                                   body: JSON.stringify({ role: 'client', reqId: req.id }) 
                               });
                               const d = await res.json();
@@ -168,3 +164,4 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
     </div>
   );
 }
+

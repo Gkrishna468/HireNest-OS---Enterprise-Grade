@@ -426,6 +426,7 @@ const AppContent = () => {
                 Operations
               </div>
               <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/admin" icon={Activity} label="HQ Overview" active={location.pathname === "/admin"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/jobs" icon={Briefcase} label="Job Pipelines" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Deal Rooms" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />

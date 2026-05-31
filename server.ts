@@ -26,6 +26,10 @@ import extractTextHandler from './api/extract-text.ts';
 import matchDetailedHandler from './api/match-candidates-detailed.ts';
 import bulkParseHandler from './api/bulk-parse-resumes.ts';
 import workflowsHandler from './src/api-lib/handlers/workflows.ts';
+import rescanMatchesHandler from './api/rescan-matches.ts';
+import rebuildMatrixHandler from './api/rebuild-matrix.ts';
+import cleanupMatchesHandler from './api/cleanup-matches.ts';
+import matchHealthHandler from './api/match-health.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
@@ -69,6 +73,8 @@ async function createServer() {
   app.use('/api/match-candidates', aiLimiter);
   app.use('/api/match-candidates-detailed', aiLimiter);
   app.use('/api/matching-global', aiLimiter);
+  app.use('/api/rescan-matches', aiLimiter);
+  app.use('/api/rebuild-matrix', aiLimiter);
 
   // --- Auth Middleware ---
   const verifyAuth = async (req: any, res: any, next: any) => {
@@ -169,6 +175,22 @@ async function createServer() {
           if (bulkParseHandler) return await bulkParseHandler(req, res);
           break;
           
+        case 'rescan-matches':
+          if (rescanMatchesHandler) return await rescanMatchesHandler(req, res);
+          break;
+
+        case 'rebuild-matrix':
+          if (rebuildMatrixHandler) return await rebuildMatrixHandler(req, res);
+          break;
+
+        case 'cleanup-matches':
+          if (cleanupMatchesHandler) return await cleanupMatchesHandler(req, res);
+          break;
+
+        case 'match-health':
+          if (matchHealthHandler) return await matchHealthHandler(req, res);
+          break;
+
         case 'workflows':
           return await workflowsHandler(req, res);
           
