@@ -1,4 +1,4 @@
-import { adminDb } from "../src/lib/firebase-admin.js";
+import { adminDb } from "../../lib/firebase-admin.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
@@ -11,10 +11,12 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    console.log("ORG:", orgId);
     if (!adminDb) return res.status(503).json({ matches: [] });
 
     const reqSnapshot = await adminDb.collection("requirements_public").where("clientId", "==", orgId).get();
     const reqIds = new Set(reqSnapshot.docs.map(d => d.id));
+    console.log("Requirements found:", reqIds.size);
 
     if (reqIds.size === 0) return res.status(200).json({ matches: [] });
 
@@ -84,10 +86,11 @@ export default async function handler(req: any, res: any) {
     }
 
     matches.sort((a,b) => b.matchScore - a.matchScore);
+    console.log("Matches found:", matches.length);
 
     return res.status(200).json({ matches });
   } catch (error: any) {
     console.error("Error fetching client AI matches:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message, stack: error.stack });
   }
 }
