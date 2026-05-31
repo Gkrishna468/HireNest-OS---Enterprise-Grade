@@ -26,7 +26,12 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
 
     const subq = query(collection(db, "submissions"), where("clientId", "==", orgId));
     const unsubSub = onSnapshot(subq, snap => {
-      setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((s:any) => s.status !== 'PENDING_REVIEW' && s.status !== 'MATCH_REJECTED' && s.status !== 'submitted'));
+      setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((s:any) => 
+        s.status !== 'PENDING_REVIEW' && 
+        s.status !== 'MATCH_REJECTED' && 
+        s.status !== 'REJECTED' && 
+        s.status !== 'submitted'
+      ));
     });
 
     return () => {
