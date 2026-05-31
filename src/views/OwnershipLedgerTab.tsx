@@ -47,7 +47,7 @@ export default function OwnershipLedgerTab() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            <BookOpen className="text-indigo-600" /> Ownership Engine Ledger
+            <BookOpen className="text-indigo-600" /> Candidate Ownership
           </h1>
           <p className="text-sm font-medium text-slate-500 mt-1">Immutable register of candidate ownership rights, time windows, and submission timestamps.</p>
         </div>

@@ -62,11 +62,11 @@ const getSkillsArray = (skills: any): string[] => {
 import { ClientCandidatePipeline } from "./workspaces/ClientCandidatePipeline";
 
 const STAGES = [
-  "Candidate Added",
-  "Duplicate Review",
+  "Added",
   "Matched",
-  "Client Submission",
-  "Deal Room",
+  "Submitted",
+  "Interviewing",
+  "Placed"
 ];
 
 export default function CandidatesTab() {
@@ -367,7 +367,7 @@ export default function CandidatesTab() {
         dupCand.id || dupCand.candidateId,
       );
       await updateDoc(candRef, {
-        pipelineStage: "Candidate Added",
+        pipelineStage: "Added",
         isDuplicate: false,
         duplicateOf: "",
         duplicateOfName: "",
@@ -411,7 +411,7 @@ export default function CandidatesTab() {
 
       // Perform duplicate checks
       const dMatch = checkDuplicate(formData.email, formData.phone);
-      let targetStage = "Candidate Added";
+      let targetStage = "Added";
       let isDupe = false;
       let dupeOfId = "";
       let dupeOfName = "";
@@ -493,7 +493,7 @@ export default function CandidatesTab() {
           email: `pending@${candId}.local`,
           candidateId: candId,
           vendorId: userOrgId,
-          pipelineStage: "Candidate Added",
+          pipelineStage: "Added",
           distillationStatus: "PROCESSING",
           source: "Bulk Text Paste",
           resumeText: text,
@@ -586,7 +586,7 @@ export default function CandidatesTab() {
           candidateId: candId,
           vendorId: userOrgId,
           sourceOrganizations: [userOrgId],
-          pipelineStage: "Candidate Added",
+          pipelineStage: "Added",
           source: "Bulk Upload",
           resumeText: extText,
           resumeHash: resumeHash,
@@ -735,7 +735,7 @@ export default function CandidatesTab() {
         jobTitle: job.title || "Strategic Role",
         experience: selectedCandidate.experience || "Not Specified",
         status: "ACTIVE",
-        currentStage: "Deal Room Active",
+        currentStage: "shortlisted",
         identitiesRevealed: false,
         createdAt: serverTimestamp(),
         matchData: mappingResult,
@@ -744,7 +744,7 @@ export default function CandidatesTab() {
       await setDoc(doc(db, "dealRooms", roomId), dealPayload);
 
       await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
-        pipelineStage: "Deal Room",
+        pipelineStage: "Submitted",
         activeDealId: roomId,
         updatedAt: serverTimestamp(),
       });
@@ -1361,7 +1361,7 @@ export default function CandidatesTab() {
                         className="relative z-10 flex flex-col items-center group cursor-pointer"
                         onClick={async () => {
                           try {
-                            if (s === "Deal Room") {
+                            if (s === "Submitted") {
                               if (!selectedJobId) {
                                 alert(
                                   "Please map a requirement first before initiating the Deal Room.",
@@ -1419,7 +1419,7 @@ export default function CandidatesTab() {
                       <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                         Intelligence Mapping Center
                       </h3>
-                      {selectedCandidate.pipelineStage !== "Deal Room" ? (
+                      {selectedCandidate.pipelineStage !== "Submitted" ? (
                         !isClient || isAdmin ? (
                           <div className="flex items-center gap-2">
                             <label className="text-[9px] font-bold text-slate-500">
@@ -1534,7 +1534,7 @@ export default function CandidatesTab() {
                           </div>
                         </div>
 
-                        {selectedCandidate.pipelineStage !== "Deal Room" &&
+                        {selectedCandidate.pipelineStage !== "Submitted" &&
                           (!isClient || isAdmin) && (
                             <Button
                               onClick={finalizeDeal}

@@ -18,7 +18,7 @@ export default function TrustEngineTab({ userRole, orgId }: { userRole: string, 
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-            <ShieldCheck className="text-indigo-500" size={32} /> Trust & SLA Engine
+            <ShieldCheck className="text-indigo-500" size={32} /> Vendor Performance
           </h1>
           <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
             Vendor Scorecards • SLA Governance • Escalation Rules

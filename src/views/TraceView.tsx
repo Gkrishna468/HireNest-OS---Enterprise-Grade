@@ -62,7 +62,7 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
             <Activity size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-[0.2em] text-white">Activity Timeline <span className="text-indigo-500 italic">v4.2</span></h1>
+            <h1 className="text-xl font-black uppercase tracking-[0.2em] text-white">Activity Feed <span className="text-indigo-500 italic">v4.2</span></h1>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">Live Audit Stream • hirenest-os-core</p>
           </div>
         </div>

@@ -18,7 +18,7 @@ const STAGES = [
   { id: 'technical_l2', label: 'Tech L2' },
   { id: 'final_round', label: 'Final Round' },
   { id: 'offer', label: 'Offer' },
-  { id: 'hired', label: 'Hired' }
+  { id: 'placed', label: 'Placed' }
 ];
 
 export default function DealRoomsTab() {
@@ -254,8 +254,8 @@ export default function DealRoomsTab() {
 
   const updateStage = async (stageId: string) => {
     if (!selectedRoom || !stageId) return;
-    const isFinalStage = stageId === 'hired';
-    const requiresApproval = ['offer', 'hired'].includes(stageId) && !isAdmin && !isClient;
+    const isFinalStage = stageId === 'placed';
+    const requiresApproval = ['offer', 'placed'].includes(stageId) && !isAdmin && !isClient;
 
     try {
       if (requiresApproval) {
@@ -282,6 +282,13 @@ export default function DealRoomsTab() {
         status: isFinalStage ? "CLOSED" : selectedRoom.status,
         updatedAt: serverTimestamp()
       });
+
+      if (!isFinalStage && stageId !== 'shortlisted' && selectedRoom.candidateId) {
+        await updateDoc(doc(db, "candidatePool", selectedRoom.candidateId), {
+           pipelineStage: "Interviewing",
+           updatedAt: serverTimestamp()
+        });
+      }
 
       // Instant UI synchronization
       setSelectedRoom((prev: any) => ({
@@ -313,6 +320,21 @@ export default function DealRoomsTab() {
       });
 
       if (isFinalStage) {
+        // Update Candidate Stage
+        if (selectedRoom.candidateId) {
+          await updateDoc(doc(db, "candidatePool", selectedRoom.candidateId), {
+            pipelineStage: "Placed",
+            updatedAt: serverTimestamp()
+          });
+        }
+        // Update Job Status
+        if (selectedRoom.requirementId) {
+          await updateDoc(doc(db, "requirements_public", selectedRoom.requirementId), {
+            status: "CLOSED",
+            updatedAt: serverTimestamp()
+          });
+        }
+
         // Simulate Match Email
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
           senderRole: "System Admin",
@@ -457,10 +479,10 @@ export default function DealRoomsTab() {
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4 pb-0 h-full">
-      {/* Left: Deal Rooms List */}
+      {/* Left: Submissions List */}
       <section className={`${selectedRoom ? 'hidden lg:flex' : 'flex'} w-full lg:w-1/3 bg-white border border-slate-200 rounded-lg shadow-sm flex-col lg:min-w-[320px]`}>
         <div className="p-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <h3 className="font-bold text-xs uppercase tracking-widest text-slate-800 tracking-tighter">Enterprise Deal Stream</h3>
+          <h3 className="font-bold text-xs uppercase tracking-widest text-slate-800 tracking-tighter">Submission Hub</h3>
           <span className="text-[9px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 italic flex items-center">
             <Shield size={10} className="mr-1" /> Isolation Policy
           </span>
@@ -472,8 +494,8 @@ export default function DealRoomsTab() {
               <div className="p-4 mt-8">
                 <EmptyState
                   icon={MessageSquare}
-                  title="No active deal rooms"
-                  description="There are currently no active deal rooms. Deal rooms are automatically created when candidates are matched or submitted for requirements."
+                  title="No active submissions"
+                  description="There are currently no active submissions. Submissions appear here when candidates are shortlisted for requirements."
                 />
               </div>
             ) : (
@@ -506,7 +528,7 @@ export default function DealRoomsTab() {
         </div>
       </section>
 
-      {/* Right: Active Deal Room Chat */}
+      {/* Right: Active Submission Chat */}
       {selectedRoom ? (
         <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden absolute lg:relative inset-0 lg:inset-auto z-10 bg-slate-50 lg:bg-transparent p-4 lg:p-0">
           <section className="flex-1 border border-slate-200 rounded-lg bg-slate-50 flex flex-col overflow-hidden shadow-sm">
@@ -613,7 +635,7 @@ export default function DealRoomsTab() {
                 {[
                     { label: "MSA/NDA EXECUTION", status: selectedRoom.identitiesRevealed ? 'COMPLETED' : 'IN_PROGRESS' },
                     { label: "CLIENT INTERVIEW", status: STAGES.findIndex(s => s.id === selectedRoom.currentStage) >= 2 ? 'COMPLETED' : 'PENDING' },
-                    { label: "OFFER ISSUANCE", status: selectedRoom.currentStage === 'offer' ? 'IN_PROGRESS' : (selectedRoom.currentStage === 'hired' ? 'COMPLETED' : 'LOCKED') },
+                    { label: "OFFER ISSUANCE", status: selectedRoom.currentStage === 'offer' ? 'IN_PROGRESS' : (selectedRoom.currentStage === 'placed' ? 'COMPLETED' : 'LOCKED') },
                     { label: "BILLING TRIGGER", status: selectedRoom.status === 'CLOSED' ? 'READY' : 'LOCKED' }
                 ].map((m, i) => (
                     <div key={i} className="flex flex-col min-w-[120px]">

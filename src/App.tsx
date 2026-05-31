@@ -371,13 +371,12 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
                 Workspace
               </div>
-              <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-submissions" to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-interviews" to="/deal-rooms?view=interviews" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms?view=interviews"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Payouts" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/network" icon={Building2} label="Vendors" active={location.pathname === "/network"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-reports" to="/financials" icon={FileText} label="Reports" active={location.pathname === "/financials"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -387,12 +386,11 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
                 Workspace
               </div>
-              <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Bench Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-submissions" to="/deal-rooms" icon={MessageSquare} label="Placements" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/ownership" icon={BookOpen} label="Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Payments" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Open Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-submissions" to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/trust-sla" icon={Target} label="Performance" active={location.pathname === "/trust-sla"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -402,12 +400,11 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
                 Workspace
               </div>
-              <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem id="tour-requirements" to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Matched Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-interviews" to="/deal-rooms" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-submissions" to="/deal-rooms?view=offers" icon={MessageSquare} label="Offers" active={location.pathname === "/deal-rooms?view=offers"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem id="tour-invoices" to="/invoices" icon={Receipt} label="Invoices" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-candidates" to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-interviews" to="/deal-rooms?view=interviews" icon={MessageSquare} label="Interviews" active={location.pathname === "/deal-rooms?view=interviews"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem id="tour-submissions" to="/deal-rooms?view=offers" icon={Target} label="Placements" active={location.pathname === "/deal-rooms?view=offers"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
 
@@ -417,7 +414,7 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
                 Workspace
               </div>
-              <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
@@ -426,63 +423,37 @@ const AppContent = () => {
           {/* EXECUTIVE ADMIN NAVIGATION */}
           {isAdmin && (
             <>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 mb-4 px-4">
-                Operations
-              </div>
-              <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/admin" icon={Activity} label="HQ Overview" active={location.pathname === "/admin"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/jobs" icon={Briefcase} label="Job Pipelines" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/candidates" icon={Users} label="Candidate Pipeline" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Deal Rooms" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/timesheets" icon={Clock} label="Timesheets" active={location.pathname === "/timesheets"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/health" icon={Activity} label="Platform Health" active={location.pathname === "/health"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/" icon={LayoutDashboard} label="Home" active={location.pathname === "/"} onClick={() => setIsMobileMenuOpen(false)} />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Governance
+                Work
               </div>
-              <SidebarItem to="/trust-sla" icon={ShieldCheck} label="Trust Engine" active={location.pathname === "/trust-sla"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/ownership" icon={BookOpen} label="Candidate Ownership" active={location.pathname === "/ownership"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/users" icon={Users} label="User Management" active={location.pathname === "/users"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/jobs" icon={Briefcase} label="Requirements" active={location.pathname === "/jobs"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/candidates" icon={Users} label="Candidates" active={location.pathname === "/candidates"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/deal-rooms" icon={MessageSquare} label="Submissions" active={location.pathname === "/deal-rooms"} onClick={() => setIsMobileMenuOpen(false)} />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Network
               </div>
-              <SidebarItem to="/network" icon={Network} label="Network Directory" active={location.pathname === "/network"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/predictive" icon={BrainCircuit} label="Forecasting & Trends" active={location.pathname === "/predictive"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/network?type=vendor" icon={Building2} label="Vendors" active={location.pathname === "/network" && location.search.includes("type=vendor")} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/network?type=client" icon={Users} label="Clients" active={location.pathname === "/network" && location.search.includes("type=client")} onClick={() => setIsMobileMenuOpen(false)} />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Financials
+                Finance
               </div>
-              <SidebarItem to="/financials" icon={DollarSign} label="Revenue Operations" active={location.pathname === "/financials"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/invoices" icon={Receipt} label="Invoices" active={location.pathname === "/invoices"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/contracts" icon={FileText} label="Contracts" active={location.pathname === "/contracts"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/financials" icon={DollarSign} label="Revenue" active={location.pathname === "/financials"} onClick={() => setIsMobileMenuOpen(false)} />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                System Intelligence
+                Administration
               </div>
-              <SidebarItem to="/hq" icon={Brain} label="AI Assistant" active={location.pathname === "/hq"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/rag-intel" icon={Database} label="Knowledge Search" active={location.pathname === "/rag-intel"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/trace" icon={Activity} label="Activity Timeline" active={location.pathname === "/trace"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/map" icon={Network} label="Relationship Intelligence" active={location.pathname === "/map"} onClick={() => setIsMobileMenuOpen(false)} />
-              
-              {/* Optional extras previously held */}
-              <SidebarItem to="/sla" icon={Target} label="SLA Intelligence" active={location.pathname === "/sla"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/usage" icon={Cpu} label="AI Cost Metering" active={location.pathname === "/usage"} onClick={() => setIsMobileMenuOpen(false)} />
-              <SidebarItem to="/notifications" icon={Bell} label="Alerts" active={location.pathname === "/notifications"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/users" icon={Users} label="Users" active={location.pathname === "/users"} onClick={() => setIsMobileMenuOpen(false)} />
+              <SidebarItem to="/settings" icon={Settings} label="Settings" active={location.pathname === "/settings"} onClick={() => setIsMobileMenuOpen(false)} />
             </>
           )}
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-100 space-y-2">
-          {isAdmin && (
-            <SidebarItem
-              to="/settings"
-              icon={Settings}
-              label="System"
-              active={location.pathname === "/settings"}
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-          )}
           <button
             onClick={() => signOut(auth)}
             className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-bold uppercase tracking-wider cursor-pointer"
@@ -552,10 +523,10 @@ const AppContent = () => {
                <Route path="/candidates" element={<CandidatesTab />} />
             ) : null}
             <Route path="/jobs" element={<JobsTab />} />
-            {isAdmin && <Route path="/network" element={<NetworkDirectoryTab />} />}
+            {(isAdmin || isRecruiter) && <Route path="/network" element={<NetworkDirectoryTab />} />}
             {isAdmin && <Route path="/health" element={<OperationalHealthTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
-            {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
-            {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
+            {(isAdmin || isRecruiter) && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
+            {(isAdmin || isVendor) && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             {isAdmin && <Route path="/operations" element={<WorkflowOperationsTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
@@ -568,8 +539,6 @@ const AppContent = () => {
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
-            {isAdmin && <Route path="/financials" element={<FinancialsTab userRole={role || ''} orgId={userData?.organizationId || ''} userId={user?.uid || ''} />} />}
-            {isAdmin && <Route path="/trust-sla" element={<TrustEngineTab userRole={role || ''} orgId={userData?.organizationId || ''} />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
             {(isAdmin || isVendor || isRecruiter) && <Route path="/ownership" element={<OwnershipLedgerTab />} />}
             {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}

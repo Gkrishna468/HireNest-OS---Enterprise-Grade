@@ -57,11 +57,11 @@ import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
 
 const STAGES = [
-  "Candidate Added",
-  "Duplicate Review",
+  "Added",
   "Matched",
-  "Client Submission",
-  "Deal Room",
+  "Submitted",
+  "Interviewing",
+  "Placed"
 ];
 
 export default function JobsTab() {
@@ -428,7 +428,7 @@ export default function JobsTab() {
                   await setDoc(
                     candRef,
                     {
-                      pipelineStage: "Deal Room",
+                      pipelineStage: "Submitted",
                       matchScore: matchScore,
                       updatedAt: serverTimestamp(),
                     },
@@ -1202,7 +1202,7 @@ export default function JobsTab() {
       timestamp: serverTimestamp(),
     });
 
-    navigate("/deals");
+    navigate("/deal-rooms");
   };
 
   return (
@@ -1592,8 +1592,7 @@ export default function JobsTab() {
                   <X size={14} />
                 </Button>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
-                  <Activity size={14} className="text-indigo-600" /> Requirement
-                  Intelligence
+                  <Activity size={14} className="text-indigo-600" /> Candidate Insights
                 </h2>
               </div>
               <div className="flex items-center gap-2">
@@ -2196,7 +2195,7 @@ export default function JobsTab() {
                                       key={s}
                                       className="relative z-10 flex flex-col items-center group cursor-pointer"
                                       onClick={async () => {
-                                        if (s === "Deal Room") {
+                                        if (s === "Submitted") {
                                           await handleCreateDealRoom(
                                             selectedSubmission,
                                           );
@@ -2264,7 +2263,7 @@ export default function JobsTab() {
                                 {(aiAnalysis as any).recommendation ===
                                 "STRONG_FIT"
                                   ? "Fast-Track Immediate Deal"
-                                  : "Initialize Deal Room Flow"}
+                                  : "Draft Submission"}
                               </Button>
                               <Button
                                 variant="outline"

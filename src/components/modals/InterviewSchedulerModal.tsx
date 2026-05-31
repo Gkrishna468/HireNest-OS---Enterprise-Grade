@@ -43,7 +43,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
            jobTitle: requirement.title || "Strategic Role",
            experience: requirement.experience || "Not Specified",
            status: "ACTIVE",
-           currentStage: "Deal Room Active",
+           currentStage: "shortlisted",
            identitiesRevealed: false,
            createdAt: serverTimestamp(),
            matchData: { matchScore: submission.matchScore || 0 }
