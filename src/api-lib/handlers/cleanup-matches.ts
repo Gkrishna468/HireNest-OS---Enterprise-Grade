@@ -5,12 +5,24 @@ export default async function handler(req: any, res: any) {
   if (!adminDb) return res.status(503).json({ success: false, error: "Firebase Service Account configuration is missing. Cannot perform cleanup in client fallback mode." });
 
   try {
-    const { role } = req.body;
+    const { role, reqId } = req.body;
     if (role !== 'adminHQ') {
       return res.status(403).json({ error: 'Only Admin HQ can perform cleanup.' });
     }
 
     let deletedMatchesCount = 0;
+
+    if (reqId) {
+        console.log(`Force purging all ai_matches for requirement: ${reqId}`);
+        const allMatchesSnapshot = await adminDb.collectionGroup('ai_matches').get();
+        for (const matchDoc of allMatchesSnapshot.docs) {
+            if (matchDoc.id === reqId) {
+                await matchDoc.ref.delete();
+                deletedMatchesCount++;
+            }
+        }
+        return res.status(200).json({ success: true, deletedMatchesCount, message: `Force purged ${deletedMatchesCount} matches for req: ${reqId}` });
+    }
     
     // Fetch all candidates by ID to quickly check existence/status
     const candidatesSnapshot = await adminDb.collection('candidatePool').get();

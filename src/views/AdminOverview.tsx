@@ -21,6 +21,7 @@ export default function AdminOverview() {
   const [loading, setLoading] = useState(true);
   const [actionStatus, setActionStatus] = useState<string>("");
   const [isActionLoading, setIsActionLoading] = useState<string>("");
+  const [targetReqId, setTargetReqId] = useState<string>("");
   const navigate = useNavigate();
 
   // Derived Financial Metrics
@@ -80,7 +81,7 @@ export default function AdminOverview() {
           });
         }
         
-        const healthResp = await fetch('/api/match-health', {
+        const healthResp = await fetch('/api/match-health?role=adminHQ', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (healthResp.ok) {
@@ -138,12 +139,22 @@ export default function AdminOverview() {
       
       <div className="flex flex-col gap-2 mt-2">
       {actionStatus && <div className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-lg">{actionStatus}</div>}
+      
+      <div className="flex gap-4 items-center">
+         <input 
+             placeholder="Optional Req ID to specifically purge/refresh" 
+             value={targetReqId} 
+             onChange={e => setTargetReqId(e.target.value)} 
+             className="px-4 py-2 text-sm border border-slate-200 rounded-lg w-72"
+         />
+      </div>
+
       <div className="flex justify-start gap-4">
           <Button 
             disabled={isActionLoading !== ""}
             onClick={async () => {
               setIsActionLoading("refresh");
-              setActionStatus("Refreshing AI match matrix...");
+              setActionStatus(targetReqId ? `Refreshing matches for Req ${targetReqId}...` : "Refreshing global Matrix...");
               try {
                 const token = await auth.currentUser?.getIdToken();
                 const res = await fetch('/api/rescan-matches', { 
@@ -152,7 +163,7 @@ export default function AdminOverview() {
                     'Content-Type':'application/json',
                     'Authorization': `Bearer ${token}`
                   }, 
-                  body: JSON.stringify({role: 'adminHQ'}) 
+                  body: JSON.stringify({role: 'adminHQ', reqId: targetReqId || undefined}) 
                 });
                 const d = await res.json();
                 if (d.success) {
@@ -176,7 +187,7 @@ export default function AdminOverview() {
             disabled={isActionLoading !== ""}
             onClick={async () => {
               setIsActionLoading("cleanup");
-              setActionStatus("Cleaning up orphaned/invalid matches...");
+              setActionStatus(targetReqId ? `Force purging all matches for Req ${targetReqId}...` : "Cleaning up orphaned/invalid matches globally...");
               try {
                 const token = await auth.currentUser?.getIdToken();
                 const res = await fetch('/api/cleanup-matches', { 
@@ -185,7 +196,7 @@ export default function AdminOverview() {
                     'Content-Type':'application/json',
                     'Authorization': `Bearer ${token}`
                   }, 
-                  body: JSON.stringify({role: 'adminHQ'}) 
+                  body: JSON.stringify({role: 'adminHQ', reqId: targetReqId || undefined}) 
                 });
                 const d = await res.json();
                 if (d.success) {
@@ -203,7 +214,7 @@ export default function AdminOverview() {
             }}
             className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
           >
-            <Shield size={16} className="mr-2"/> {isActionLoading === "cleanup" ? "Working..." : "Cleanup Orphan Matches"}
+            <Shield size={16} className="mr-2"/> {isActionLoading === "cleanup" ? "Working..." : "Cleanup Matches / Force Purge Req"}
           </Button>
       </div>
       </div>
