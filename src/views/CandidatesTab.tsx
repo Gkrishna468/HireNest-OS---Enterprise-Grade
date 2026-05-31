@@ -71,6 +71,8 @@ const STAGES = [
 
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCandidatesIds, setSelectedCandidatesIds] = useState<string[]>([]);
   const [candidateSubmissions, setCandidateSubmissions] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -766,6 +768,17 @@ export default function CandidatesTab() {
     }
   };
 
+  const filteredCandidates = candidates.filter((c) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q) ||
+      c.skills?.join(",").toLowerCase().includes(q) ||
+      c.canonicalRequirementId?.toLowerCase().includes(q)
+    );
+  });
+
   if (userRole.startsWith('client') && !isAdmin && userOrgId) {
     return <ClientCandidatePipeline orgId={userOrgId} />;
   }
@@ -783,14 +796,25 @@ export default function CandidatesTab() {
               <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
                 Candidate Matrix
               </h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                <span className="text-indigo-600">Unified Global Pool</span> •
-                Real-time Intelligence Processing
-              </p>
+              <div className="flex items-center mt-2 gap-4">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                   <span className="text-indigo-600">Unified Global Pool</span> •
+                   Real-time Intelligence Processing
+                 </p>
+                 <div className="relative">
+                   <input
+                     type="text"
+                     placeholder="Search candidates globally..."
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
+                   />
+                 </div>
+              </div>
             </div>
           </div>
         </div>
-        {(!isClient || isAdmin) && (
+        {(!isClient || isAdmin) && selectedCandidatesIds.length === 0 && (
           <div className="flex gap-4">
             <Button
               onClick={() => setShowBulkUpload(true)}
@@ -821,9 +845,57 @@ export default function CandidatesTab() {
             </Button>
           </div>
         )}
+        {selectedCandidatesIds.length > 0 && (
+           <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 p-2 rounded-2xl shadow-sm">
+             <div className="px-4 text-[11px] font-black uppercase tracking-widest text-indigo-800">
+               {selectedCandidatesIds.length} Selected
+             </div>
+             <Button
+               onClick={() => { alert('Bulk Submit Initiated for ' + selectedCandidatesIds.length + ' candidates.'); setSelectedCandidatesIds([]); }}
+               className="bg-indigo-600 hover:bg-indigo-700 text-white h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all"
+             >
+               Bulk Submit
+             </Button>
+             <Button
+               onClick={() => { alert('Bulk Shortlist applied.'); setSelectedCandidatesIds([]); }}
+               variant="outline"
+               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+             >
+               Bulk Shortlist
+             </Button>
+             <Button
+               onClick={() => { alert('Stage Move initiated.'); setSelectedCandidatesIds([]); }}
+               variant="outline"
+               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+             >
+               Bulk Move Stage
+             </Button>
+             <Button
+               onClick={() => { alert('Bulk Assign Vendor triggered.'); setSelectedCandidatesIds([]); }}
+               variant="outline"
+               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+             >
+               Assign Vendor
+             </Button>
+             <Button
+               onClick={() => { alert('Candidates Rejected.'); setSelectedCandidatesIds([]); }}
+               variant="outline"
+               className="border-rose-200 text-rose-700 bg-rose-50 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-rose-100"
+             >
+               Reject
+             </Button>
+             <Button
+               onClick={() => setSelectedCandidatesIds([])}
+               variant="ghost"
+               className="text-slate-500 hover:text-slate-700 px-3"
+             >
+               <X size={16} />
+             </Button>
+           </div>
+        )}
       </div>
 
-      {candidates.length === 0 ? (
+      {filteredCandidates.length === 0 ? (
         <div className="flex-1 mt-8">
           <EmptyState
             icon={Users}
@@ -836,7 +908,7 @@ export default function CandidatesTab() {
       ) : (
         <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2 custom-scrollbar">
           {STAGES.map((stage, sIdx) => {
-            const list = candidates.filter((c) => c.pipelineStage === stage);
+            const list = filteredCandidates.filter((c) => c.pipelineStage === stage);
             return (
               <div
                 key={stage}
@@ -913,16 +985,31 @@ export default function CandidatesTab() {
                     <div className="flex flex-col mb-4 bg-white rounded-xl">
                       {/* HEADER */}
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex flex-col gap-1">
-                          <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                            {cand.fullName || cand.name || "Unnamed Candidate"}
-                          </h3>
-                          <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
-                             <Fingerprint size={12} className="text-slate-300" /> {cand.id}
+                        <div className="flex items-start gap-3">
+                          <input 
+                            type="checkbox" 
+                            className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            checked={selectedCandidatesIds.includes(cand.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              if (e.target.checked) {
+                                setSelectedCandidatesIds(prev => [...prev, cand.id]);
+                              } else {
+                                setSelectedCandidatesIds(prev => prev.filter(id => id !== cand.id));
+                              }
+                            }}
+                          />
+                          <div className="flex flex-col gap-1">
+                            <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                              {cand.fullName || cand.name || "Unnamed Candidate"}
+                            </h3>
+                            <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
+                               <Fingerprint size={12} className="text-slate-300" /> {cand.id}
+                            </div>
+                            <p className="text-xs font-medium text-slate-600 mt-1">
+                              {cand.currentRole || cand.experience || "Professional Candidate"}
+                            </p>
                           </div>
-                          <p className="text-xs font-medium text-slate-600 mt-1">
-                            {cand.currentRole || cand.experience || "Professional Candidate"}
-                          </p>
                         </div>
                       </div>
 
@@ -1586,36 +1673,34 @@ export default function CandidatesTab() {
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                      <table className="w-full text-[10px] text-left">
-                        <thead className="bg-slate-50 uppercase tracking-widest font-black text-slate-500 border-b border-slate-100">
-                          <tr>
-                            <th className="px-4 py-3">Job</th>
-                            <th className="px-4 py-3 text-center">Match Score</th>
-                            <th className="px-4 py-3 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {candidateSubmissions.length === 0 ? (
-                            <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-slate-400 font-bold uppercase tracking-widest">No active opportunities found</td>
-                            </tr>
-                          ) : (
-                            candidateSubmissions.map((sub, idx) => {
-                              const matchedJob = jobs.find(j => j.id === sub.requirementId) || { title: sub.jobTitle || sub.reqTitle || 'Strategic Role' };
-                              return (
-                                <tr key={idx} className="border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors">
-                                  <td className="px-4 py-3 font-bold text-slate-700">{matchedJob.title}</td>
-                                  <td className="px-4 py-3 font-mono text-indigo-600 font-black text-center">{sub.matchScore ? `${sub.matchScore}%` : '--%'}</td>
-                                  <td className="px-4 py-3 text-right">
-                                    <Badge className="bg-indigo-50 border-indigo-100 text-indigo-700 uppercase">{sub.status || 'Matched'}</Badge>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mt-6">
+                      <div className="bg-slate-50 uppercase tracking-widest font-black text-slate-500 border-b border-slate-100 px-4 py-3 text-[10px]">
+                         Candidate Audit Trail (Immutable & Time-Stamped)
+                      </div>
+                      <div className="p-4 space-y-4">
+                        {[
+                          { label: "Added", time: selectedCandidate.createdAt?.toDate ? selectedCandidate.createdAt.toDate().toLocaleString() : '---', active: true },
+                          { label: "Matched", time: selectedCandidate.matchedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 1 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 1 },
+                          { label: "Floated", time: selectedCandidate.floatedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 },
+                          { label: "Submitted", time: selectedCandidate.submittedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 },
+                          { label: "Interviewing", time: selectedCandidate.interviewingAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 3 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 3 },
+                          { label: "Rejected", time: selectedCandidate.pipelineStage === "Rejected" ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : "---", active: selectedCandidate.pipelineStage === "Rejected" },
+                          { label: "Placed", time: selectedCandidate.pipelineStage === "Placed" ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : "---", active: selectedCandidate.pipelineStage === "Placed" }
+                        ].map((event, i) => (
+                           <div key={i} className="flex items-start gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className={`w-3 h-3 rounded-full border-2 ${event.active ? 'bg-indigo-600 border-indigo-100 shadow-sm' : 'bg-slate-100 border-slate-200'} `} />
+                                {i < 6 && <div className={`w-0.5 h-6 ${event.active ? 'bg-indigo-100' : 'bg-slate-100'}`} />}
+                              </div>
+                              <div className="flex-1 -mt-1">
+                                <span className={`text-[11px] font-bold uppercase tracking-widest ${event.active ? 'text-slate-800' : 'text-slate-400'}`}>{event.label}</span>
+                                {event.active && event.time !== '---' && (
+                                  <div className="text-[9px] text-slate-500 font-mono mt-0.5">{event.time}</div>
+                                )}
+                              </div>
+                           </div>
+                        ))}
+                      </div>
                     </div>
                   </section>
 

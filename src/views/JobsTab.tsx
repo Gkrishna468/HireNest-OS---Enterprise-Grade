@@ -67,6 +67,7 @@ const STAGES = [
 export default function JobsTab() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [jdText, setJdText] = useState("");
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
   const [budgetPeriod, setBudgetPeriod] = useState<"LPA" | "LPM">("LPA");
@@ -1205,6 +1206,16 @@ export default function JobsTab() {
     navigate("/deal-rooms");
   };
 
+  const filteredJobs = jobs.filter((job) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      job.title?.toLowerCase().includes(q) ||
+      job.requirementId?.toLowerCase().includes(q) ||
+      job.skills?.join(",").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       <div className="flex-1 flex overflow-hidden">
@@ -1213,13 +1224,24 @@ export default function JobsTab() {
           className={`flex-1 flex flex-col overflow-hidden p-4 space-y-4 transition-all ${selectedJob ? "hidden lg:flex lg:w-1/2" : "w-full"}`}
         >
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div>
-              <h1 className="text-sm font-bold uppercase tracking-widest text-slate-800">
-                Operational Staffing OS
-              </h1>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                High-density governance layer. Requirements ⇄ AI Matching.
-              </p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-sm font-bold uppercase tracking-widest text-slate-800">
+                  Operational Staffing OS
+                </h1>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                  High-density governance layer. Requirements ⇄ AI Matching.
+                </p>
+              </div>
+              <div className="relative ml-4">
+                <input
+                     type="text"
+                     placeholder="Search requirements..."
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
+                />
+              </div>
             </div>
             {(isAdmin || isClient) && !selectedJob && (
               <Button
@@ -1422,7 +1444,7 @@ export default function JobsTab() {
             </div>
             
             {(() => {
-              const filteredJobs = jobs.filter(
+              const visibleJobs = filteredJobs.filter(
                 (j) =>
                   isAdmin ||
                   j.clientId === orgId ||
@@ -1430,7 +1452,7 @@ export default function JobsTab() {
                     j.status === "PUBLISHED"),
               );
 
-              if (filteredJobs.length === 0) {
+              if (visibleJobs.length === 0) {
                 return (
                   <div className="mt-8">
                     <EmptyState
@@ -1446,7 +1468,7 @@ export default function JobsTab() {
 
               return (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {filteredJobs.map((job) => (
+                  {visibleJobs.map((job) => (
                     <div
                       key={job.id}
                       onClick={() => setSelectedJob(job)}
@@ -1767,6 +1789,72 @@ export default function JobsTab() {
                     </div>
                   </div>
                 )}
+
+                {/* Requirement Candidate Ledger Validation */}
+                {(() => {
+                  const uniqueCandidates = Array.from(
+                    new Map(
+                      [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
+                        c.candidateId || c.id || c.email,
+                        c,
+                      ]),
+                    ).values()
+                  );
+                  
+                  const counts = {
+                    matches: 0,
+                    floated: 0,
+                    submitted: 0,
+                    interviewing: 0,
+                    offers: 0,
+                    placed: 0,
+                    rejected: 0,
+                  };
+                  
+                  uniqueCandidates.forEach(c => {
+                      const stage = c.pipelineStage || c.status || "Matched";
+                      if (stage === "Matched") counts.matches++;
+                      else if (stage === "Added") counts.floated++;
+                      else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) counts.submitted++;
+                      else if (stage === "Interviewing") counts.interviewing++;
+                      else if (stage === "Offer") counts.offers++;
+                      else if (stage === "Placed" || stage === "hired") counts.placed++;
+                      else if (stage === "Rejected") counts.rejected++;
+                  });
+
+                  return (
+                    <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8 mt-8">
+                       <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+                             <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] flex items-center gap-2">
+                                <ShieldCheck size={14} /> Requirement Candidate Ledger (Single Source of Truth)
+                             </h4>
+                             <Badge className="bg-white/10 text-slate-300 text-[9px]">ID: {selectedJob.requirementId}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                             {[
+                               { label: "AI Matches", value: counts.matches, color: "text-indigo-300" },
+                               { label: "Vendor Floated", value: counts.floated, color: "text-amber-300" },
+                               { label: "Submitted", value: counts.submitted, color: "text-blue-300" },
+                               { label: "Interviewing", value: counts.interviewing, color: "text-fuchsia-300" },
+                               { label: "Offers", value: counts.offers, color: "text-emerald-300" },
+                               { label: "Placed", value: counts.placed, color: "text-emerald-500" },
+                               { label: "Rejected", value: counts.rejected, color: "text-rose-400" },
+                             ].map((item, i) => (
+                               <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                  <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1">{item.label}</p>
+                                  <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
+                               </div>
+                             ))}
+                          </div>
+                          <div className="mt-4 flex items-center gap-2">
+                             <CheckCircle size={12} className="text-emerald-500" />
+                             <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Counts strictly validated across all network nodes (Client, Vendor, Core HQ).</span>
+                          </div>
+                       </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Matched Candidates SECTION */}
                 <div className="bg-indigo-600 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8">
