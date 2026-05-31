@@ -102,15 +102,16 @@ async function createServer() {
   };
 
   // Temporarily bypass verifyAuth for certain public routes if any existed, but user requested everywhere
-  app.use('/api/*', verifyAuth);
+  app.use('/api', verifyAuth);
 
   // API Route Handler
-  app.all('/api/*', async (req: any, res: any) => {
-    const apiRawPath = req.path.replace(/^\/api\//, '');
+  app.use('/api', async (req: any, res: any) => {
+    // req.path is relative to the mount point (e.g. '/client-matches')
+    const apiRawPath = req.path.replace(/^\//, '');
     const apiPath = apiRawPath.split('?')[0];
     
     // Detailed logging for debugging
-    console.log(`[API_MAP] Path: ${apiPath} (Full: ${req.path})`);
+    console.log(`[API_MAP] Path: ${apiPath} (Full: ${req.originalUrl || req.url})`);
     
     req.query = { ...req.query, ...req.params };
 

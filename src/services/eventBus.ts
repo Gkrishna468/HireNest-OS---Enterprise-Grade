@@ -64,14 +64,12 @@ export function subscribeToEvents(
     q = query(
       collection(db, "operationalEvents"),
       where("metadata.clientId", "==", orgId),
-      orderBy("timestamp", "desc"),
       limit(limitCount)
     );
   } else if (isVendorUser) {
     q = query(
       collection(db, "operationalEvents"),
       where("metadata.vendorId", "==", orgId),
-      orderBy("timestamp", "desc"),
       limit(limitCount)
     );
   } else {
@@ -83,10 +81,19 @@ export function subscribeToEvents(
   }
   
   return onSnapshot(q, (snapshot) => {
-    const events = snapshot.docs.map(doc => ({
+    let events = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    if (!isAdminUser && orgId) {
+       events.sort((a: any, b: any) => {
+          const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+          const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+          return tb - ta;
+       });
+    }
+
     callback(events);
   }, (error) => {
     if (error.code === 'permission-denied' || error.message.includes('Missing or insufficient permissions')) {

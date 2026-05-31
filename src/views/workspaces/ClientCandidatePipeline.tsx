@@ -128,26 +128,59 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
 
         <div className="space-y-6">
           {requirements.map(req => {
-            const reqAiMatches = aiMatches.filter(s => s.reqId === req.id || s.requirementId === req.id);
+            // Unified Requirement Candidate Ledger approach
+            const unifiedCandidates: any[] = [];
             
-            const reqSubs = pipelineSubmissions.filter(s => s.requirementId === req.id || s.reqId === req.id);
-            const subCandidateIds = new Set(reqSubs.map(s => s.candidateId));
-            
-            const reqFloated = floatedCandidates.filter(c => 
-               (c.mappedJobId === req.id || c.clientId === orgId) && // Filter logic adjusts to ensure they are manually assigned or targeted, wait clientID = orgId could mean ALL candidates of the client, not just for THIS req. We must check mappedJobId!
-               c.mappedJobId === req.id &&
-               !subCandidateIds.has(c.id)
-            );
+            // 1. AI Matches
+            aiMatches.forEach(c => {
+               if (c.requirementId === req.id || c.reqId === req.id) {
+                   unifiedCandidates.push({ ...c, sysSource: 'AI_MATCH', candId: c.candidateId });
+               }
+            });
+            // 2. Vendor Floated
+            floatedCandidates.forEach(c => {
+               if (c.mappedJobId === req.id) {
+                   unifiedCandidates.push({ ...c, sysSource: 'VENDOR_FLOATED', candId: c.id });
+               }
+            });
+            // 3. Submissions
+            pipelineSubmissions.forEach(c => {
+               if (c.requirementId === req.id || c.reqId === req.id || c.jobId === req.id) {
+                   unifiedCandidates.push({ ...c, sysSource: 'SUBMISSION', candId: c.candidateId });
+               }
+            });
 
-            // Using the real statuses from the app
-            const submitted = reqSubs.filter(s => s.status === 'SUBMITTED' || s.status === 'DEAL_ROOM' || s.pipelineStage === 'Deal Room' || !s.status || s.status === 'MATCHED' || s.status.includes('SUBMIT'));
-            const interviewing = reqSubs.filter(s => s.status === 'INTERVIEW' || s.status === 'INTERVIEWING' || s.status?.includes('INTERVIEW'));
-            const offers = reqSubs.filter(s => s.status === 'OFFER' || s.status?.includes('OFFER'));
-            const hired = reqSubs.filter(s => s.status === 'HIRED' || s.status === 'PLACED');
-            const rejected = reqSubs.filter(s => s.status === 'REJECTED' || s.status?.includes('REJECT'));
+            // Deduplicate by candidateId prioritizing Submissions > Vendor Floated > AI Matches
+            const dedupedCandMap = new Map();
+            for (const cand of unifiedCandidates) {
+               if (!cand.candId) continue;
+               const existing = dedupedCandMap.get(cand.candId);
+               if (existing) {
+                  if (cand.sysSource === 'SUBMISSION' && existing.sysSource !== 'SUBMISSION') {
+                      dedupedCandMap.set(cand.candId, cand);
+                  } else if (cand.sysSource === 'VENDOR_FLOATED' && existing.sysSource === 'AI_MATCH') {
+                      dedupedCandMap.set(cand.candId, cand);
+                  }
+               } else {
+                  dedupedCandMap.set(cand.candId, cand);
+               }
+            }
+
+            const finalCandidates = Array.from(dedupedCandMap.values());
+
+            const reqAiMatches = finalCandidates.filter(c => c.sysSource === 'AI_MATCH');
+            const reqFloated = finalCandidates.filter(c => c.sysSource === 'VENDOR_FLOATED');
+            
+            const subItems = finalCandidates.filter(c => c.sysSource === 'SUBMISSION');
+            
+            const submitted = subItems.filter(s => s.status === 'SUBMITTED' || s.status === 'DEAL_ROOM' || s.pipelineStage === 'Deal Room' || !s.status || s.status === 'MATCHED' || (s.status && s.status.includes('SUBMIT')));
+            const interviewing = subItems.filter(s => s.status === 'INTERVIEW' || s.status === 'INTERVIEWING' || (s.status && s.status.includes('INTERVIEW')));
+            const offers = subItems.filter(s => s.status === 'OFFER' || (s.status && s.status.includes('OFFER')));
+            const hired = subItems.filter(s => s.status === 'HIRED' || s.status === 'PLACED');
+            const rejected = subItems.filter(s => s.status === 'REJECTED' || (s.status && s.status.includes('REJECT')));
 
             const isExpanded = expandedReq === req.id;
-            const totalCandidates = reqAiMatches.length + reqFloated.length + reqSubs.length;
+            const totalCandidates = finalCandidates.length;
 
             return (
               <div key={req.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200">
