@@ -152,19 +152,19 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
             // 1. AI Matches
             aiMatches.forEach(c => {
                if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id) {
-                   unifiedCandidates.push({ ...c, sysSource: 'AI_MATCH', candId: c.candidateId });
+                   unifiedCandidates.push({ ...c, sysSource: 'AI_MATCH', candId: c.candidateId || c.id });
                }
             });
             // 2. Vendor Floated
             floatedCandidates.forEach(c => {
                if (c.canonicalRequirementId === req.id || c.mappedJobId === req.id || c.mappedJobId === req.reqId) {
-                   unifiedCandidates.push({ ...c, sysSource: 'VENDOR_FLOATED', candId: c.id });
+                   unifiedCandidates.push({ ...c, sysSource: 'VENDOR_FLOATED', candId: c.candidateId || c.id });
                }
             });
             // 3. Submissions
             pipelineSubmissions.forEach(c => {
                if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id || c.jobId === req.id) {
-                   unifiedCandidates.push({ ...c, sysSource: 'SUBMISSION', candId: c.candidateId });
+                   unifiedCandidates.push({ ...c, sysSource: 'SUBMISSION', candId: c.candidateId || c.id });
                }
             });
 
@@ -214,46 +214,7 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
                        </Badge>
                      </h2>
                      <div className="flex items-center gap-2">
-                        <Button 
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-3 py-1 text-xs rounded-full flex items-center shadow-sm"
-                            onClick={async (e) => {
-                               e.stopPropagation();
-                               const btn = document.getElementById(`refresh-${req.id}`) as HTMLButtonElement;
-                               const originalText = btn.innerHTML;
-                               btn.innerHTML = 'Working...';
-                               btn.disabled = true;
-                               try {
-                                   const token = await auth.currentUser?.getIdToken();
-                                   const res = await fetch('/api/rescan-matches', { 
-                                       method: 'POST', 
-                                       headers: {
-                                         'Content-Type':'application/json',
-                                         'Authorization': `Bearer ${token}`
-                                       }, 
-                                       body: JSON.stringify({ role: 'client', reqId: req.id }) 
-                                   });
-                                   const d = await res.json();
-                                   if (d.success) {
-                                       btn.innerHTML = `Completed (${d.matchUpdatesCount} new)`;
-                                   } else {
-                                       btn.innerHTML = 'Error';
-                                   }
-                               } catch(err:any) {
-                                   btn.innerHTML = 'Error';
-                               } finally {
-                                   setTimeout(() => {
-                                       if (btn) {
-                                          btn.innerHTML = originalText;
-                                          btn.disabled = false;
-                                       }
-                                   }, 4000);
-                               }
-                            }}
-                            id={`refresh-${req.id}`}
-                        >
-                          <Sparkles size={12} className="mr-1" />
-                          Refresh AI
-                        </Button>
+
                         {isExpanded ? <ChevronUp className="text-slate-400" size={20} /> : <ChevronDown className="text-slate-400" size={20} />}
                      </div>
                    </div>

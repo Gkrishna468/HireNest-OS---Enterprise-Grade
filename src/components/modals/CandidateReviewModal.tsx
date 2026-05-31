@@ -11,9 +11,25 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
   const handleShortlist = async () => {
     setIsProcessing(true);
     try {
-      await updateDoc(doc(db, "submissions", submission.id), {
-        status: "SHORTLISTED"
-      });
+      if (submission.sysSource === 'SUBMISSION') {
+        await updateDoc(doc(db, "submissions", submission.id), {
+          status: "SHORTLISTED"
+        });
+      } else {
+        await addDoc(collection(db, "submissions"), {
+          canonicalRequirementId: requirement.id,
+          candidateId: submission.candidateId || submission.id,
+          requirementId: requirement.id,
+          submittedBy: auth.currentUser?.uid || "system",
+          clientId: requirement.clientId || "ORG-LOCAL",
+          status: "SHORTLISTED",
+          matchScore: submission.matchScore || 0,
+          candidateName: submission.candidateName || submission.name || "Anonymous Candidate",
+          vendorName: submission.vendorName || "Vendor Not Linked",
+          vendorId: submission.vendorId || "ORG-EXTERNAL-VENDOR",
+          createdAt: serverTimestamp()
+        });
+      }
       alert("Candidate shortlisted successfully.");
       onClose();
     } catch (e) {
@@ -27,9 +43,25 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
   const handleReject = async () => {
     setIsProcessing(true);
     try {
-      await updateDoc(doc(db, "submissions", submission.id), {
-        status: "REJECTED"
-      });
+      if (submission.sysSource === 'SUBMISSION') {
+        await updateDoc(doc(db, "submissions", submission.id), {
+          status: "REJECTED"
+        });
+      } else {
+        await addDoc(collection(db, "submissions"), {
+          canonicalRequirementId: requirement.id,
+          candidateId: submission.candidateId || submission.id,
+          requirementId: requirement.id,
+          submittedBy: auth.currentUser?.uid || "system",
+          clientId: requirement.clientId || "ORG-LOCAL",
+          status: "REJECTED",
+          matchScore: submission.matchScore || 0,
+          candidateName: submission.candidateName || submission.name || "Anonymous Candidate",
+          vendorName: submission.vendorName || "Vendor Not Linked",
+          vendorId: submission.vendorId || "ORG-EXTERNAL-VENDOR",
+          createdAt: serverTimestamp()
+        });
+      }
       alert("Candidate rejected.");
       onClose();
     } catch (e) {
@@ -92,7 +124,7 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
             </div>
             <div className="text-slate-400 text-sm font-medium flex gap-4">
                <span>ID: {submission.candidateId?.slice(0,8) || 'N/A'}</span>
-               <span>Vendor: {submission.vendorName || 'Unknown'}</span>
+               <span>Vendor: {submission.vendorName || 'Vendor Not Linked'}</span>
                <span>Status: {submission.status}</span>
             </div>
           </div>

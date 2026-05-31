@@ -55,39 +55,7 @@ export default function VendorPartnerWorkspace({ vendorName, metrics }: { vendor
                                     <p className="text-xs text-slate-500">Request payment for placements</p>
                                 </div>
                             </button>
-                            <button 
-                                onClick={async (e) => {
-                                  const btn = e.currentTarget;
-                                  const originalText = btn.innerHTML;
-                                  btn.innerHTML = '<div class="text-left w-full"><div class="font-semibold text-slate-900 text-sm">Working...</div></div>';
-                                  btn.disabled = true;
-                                  try {
-                                    const res = await fetch('/api/rescan-matches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role: 'vendor'}) });
-                                    const d = await res.json();
-                                    if (d.success) {
-                                      btn.innerHTML = `<div class="text-left"><div class="font-semibold text-emerald-600 text-sm">Updated ${d.matchUpdatesCount} matches</div></div>`;
-                                    } else {
-                                      btn.innerHTML = `<div class="text-left"><div class="font-semibold text-red-600 text-sm">Error</div></div>`;
-                                    }
-                                  } catch(err:any) {
-                                    btn.innerHTML = `<div class="text-left"><div class="font-semibold text-red-600 text-sm">Error</div></div>`;
-                                  } finally {
-                                    setTimeout(() => {
-                                      btn.innerHTML = originalText;
-                                      btn.disabled = false;
-                                    }, 3000);
-                                  }
-                                }}
-                                className="bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left"
-                            >
-                                <div className="bg-purple-50 text-purple-600 p-3 rounded-lg group-hover:bg-purple-100 transition-colors">
-                                    <Sparkles size={20} />
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-slate-900 text-sm">Rescan Matches</h4>
-                                    <p className="text-xs text-slate-500">AI Matrix Refresh</p>
-                                </div>
-                            </button>
+
                         </div>
                     </div>
 
