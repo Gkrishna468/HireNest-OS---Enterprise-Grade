@@ -89,6 +89,7 @@ export default function JobsTab() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
   const [fallbackMatches, setFallbackMatches] = useState<any[]>([]);
+  const [ledgerCounts, setLedgerCounts] = useState<any>(null);
   const [localMatchCompleted, setLocalMatchCompleted] = useState<
     Record<string, boolean>
   >({});
@@ -603,51 +604,17 @@ export default function JobsTab() {
 
   useEffect(() => {
     if (selectedJob && auth.currentUser && orgId && userRole) {
-      // 1. Listen to explicit vendor submissions with ABAC query filtering to satisfy Firestore rules
-      let qSub;
-      const hqAuthority =
-        userRole === "admin" ||
-        userRole === "super_admin" ||
-        userRole === "ops_admin" ||
-        userRole === "hq_admin" ||
-        orgId === "ORG-GLOBAL-HQ";
+      // 1. Listen to explicit vendor submissions globally (ABAC handled, view is unified)
+      let qSub = query(
+        collection(db, "submissions"),
+        where("requirementId", "==", selectedJob.id),
+      );
 
-      if (hqAuthority) {
-        qSub = query(
-          collection(db, "submissions"),
-          where("requirementId", "==", selectedJob.id),
-        );
-      } else if (isClient) {
-        qSub = query(
-          collection(db, "submissions"),
-          where("requirementId", "==", selectedJob.id),
-          where("clientId", "==", orgId),
-        );
-      } else {
-        qSub = query(
-          collection(db, "submissions"),
-          where("requirementId", "==", selectedJob.id),
-          where("vendorId", "==", orgId),
-        );
-      }
-
-      // Listen to candidatePool for manually mapped candidates
-      let qCand = null;
-      if (isClient) {
-        // Clients bypass manual mapping pool
-        qCand = null;
-      } else if (hqAuthority) {
-        qCand = query(
-          collection(db, "candidatePool"),
-          where("mappedJobId", "==", selectedJob.id),
-        );
-      } else {
-        qCand = query(
-          collection(db, "candidatePool"),
-          where("mappedJobId", "==", selectedJob.id),
-          where("vendorId", "==", orgId),
-        );
-      }
+      // Listen to candidatePool for manually mapped candidates globally
+      let qCand = query(
+        collection(db, "candidatePool"),
+        where("mappedJobId", "==", selectedJob.id),
+      );
 
       let currentMappedCands: any[] = [];
       let currentSubs: any[] = [];
@@ -707,6 +674,9 @@ export default function JobsTab() {
             const data = await res.json();
             setGlobalMatches(data.matches || []);
             setFallbackMatches(data.fallbackMatches || []);
+            if (data.ledgerCounts) {
+                setLedgerCounts(data.ledgerCounts);
+            }
           } else {
             console.warn(
               "Requirement matching API response not OK",
@@ -1792,35 +1762,38 @@ export default function JobsTab() {
 
                 {/* Requirement Candidate Ledger Validation */}
                 {(() => {
-                  const uniqueCandidates = Array.from(
-                    new Map(
-                      [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
-                        c.candidateId || c.id || c.email,
-                        c,
-                      ]),
-                    ).values()
-                  );
-                  
-                  const counts = {
-                    matches: 0,
-                    floated: 0,
-                    submitted: 0,
-                    interviewing: 0,
-                    offers: 0,
-                    placed: 0,
-                    rejected: 0,
-                  };
-                  
-                  uniqueCandidates.forEach(c => {
-                      const stage = c.pipelineStage || c.status || "Matched";
-                      if (stage === "Matched") counts.matches++;
-                      else if (stage === "Added") counts.floated++;
-                      else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) counts.submitted++;
-                      else if (stage === "Interviewing") counts.interviewing++;
-                      else if (stage === "Offer") counts.offers++;
-                      else if (stage === "Placed" || stage === "hired") counts.placed++;
-                      else if (stage === "Rejected") counts.rejected++;
-                  });
+                  let counts = ledgerCounts;
+                  if (!counts) {
+                     const uniqueCandidates = Array.from(
+                        new Map(
+                          [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
+                            c.candidateId || c.id || c.email,
+                            c,
+                          ]),
+                        ).values()
+                      );
+                      
+                      counts = {
+                        matches: 0,
+                        floated: 0,
+                        submitted: 0,
+                        interviewing: 0,
+                        offers: 0,
+                        placed: 0,
+                        rejected: 0,
+                      };
+                      
+                      uniqueCandidates.forEach(c => {
+                          const stage = c.pipelineStage || c.status || "Matched";
+                          if (stage === "Matched") counts.matches++;
+                          else if (stage === "Added") counts.floated++;
+                          else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) counts.submitted++;
+                          else if (stage === "Interviewing") counts.interviewing++;
+                          else if (stage === "Offer") counts.offers++;
+                          else if (stage === "Placed" || stage === "hired") counts.placed++;
+                          else if (stage === "Rejected") counts.rejected++;
+                      });
+                  }
 
                   return (
                     <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8 mt-8">

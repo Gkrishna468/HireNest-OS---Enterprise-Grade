@@ -344,6 +344,24 @@ export default function DealRoomsTab() {
           timestamp: serverTimestamp()
         });
 
+        // Notify client and vendor of placement
+        await addDoc(collection(db, "notifications"), {
+            id: `NOTIF-${Date.now()}`,
+            recipientId: selectedRoom.clientId || "all",
+            title: "Requirement Fulfilled! 🎉",
+            text: `Candidate ${selectedRoom.candidateName} has been successfully placed for ${selectedRoom.jobTitle}.`,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+        await addDoc(collection(db, "notifications"), {
+            id: `NOTIF-${Date.now()}-2`,
+            recipientId: selectedRoom.vendorId || "all",
+            title: "Placement Finalized! 🎉",
+            text: `Your candidate ${selectedRoom.candidateName} was hired for ${selectedRoom.jobTitle}. Deal Room Closed.`,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+
         await emitEvent(
           "PlacementCompleted",
           "DEAL_ROOM",
@@ -387,6 +405,37 @@ export default function DealRoomsTab() {
             type: "system",
             timestamp: serverTimestamp()
         });
+      } else {
+        // Not final stage notifications
+        let title = "Status Update";
+        let text = `Deal Room stage updated to ${STAGES.find(s => s.id === stageId)?.label}.`;
+        
+        if (stageId === "technical_l1" || stageId === "technical_l2") {
+             title = "Interview Scheduled";
+             text = `An interview has been scheduled for ${selectedRoom.candidateName} (${selectedRoom.jobTitle}).`;
+        } else if (stageId === "offer") {
+             title = "Offer Released";
+             text = `An offer has been extended to ${selectedRoom.candidateName} for ${selectedRoom.jobTitle}.`;
+        }
+
+        await addDoc(collection(db, "notifications"), {
+            id: `NOTIF-${Date.now()}`,
+            recipientId: selectedRoom.clientId || "all",
+            title,
+            text,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+        if (selectedRoom.vendorId) {
+            await addDoc(collection(db, "notifications"), {
+                id: `NOTIF-${Date.now()}-3`,
+                recipientId: selectedRoom.vendorId || "all",
+                title,
+                text,
+                read: false,
+                createdAt: serverTimestamp()
+            });
+        }
       }
     } catch (e: any) {
       alert(`Failed to update stage: ${e.message || 'Unknown error'}`);

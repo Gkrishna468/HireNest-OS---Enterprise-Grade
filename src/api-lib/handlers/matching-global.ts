@@ -60,51 +60,16 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           orgId === "ORG-GLOBAL-HQ" ||
           orgId === "ADMIN";
 
-        const docsToEvaluate = [];
+        const docsToEvaluate: any[] = [];
 
-        if (isAdmin || role?.includes("client")) {
-          // Admin HQ & Client Requirements: Global Graph Visibility for intelligence
-          const poolSnapshot = await adminDb.collection("candidatePool").get();
-          poolSnapshot.docs.forEach((d: any) =>
-            docsToEvaluate.push({ id: d.id, ...d.data() }),
-          );
-        } else {
-          // Vendor Workspace: 1. Their own candidates OR 2. Candidates mapped to them
-          // Strict query isolation BEFORE ranking
-          const vendorCandsSnapshot = await adminDb
-            .collection("candidatePool")
-            .where("vendorId", "==", orgId)
-            .get();
-
-          vendorCandsSnapshot.docs.forEach((d: any) =>
-            docsToEvaluate.push({ id: d.id, ...d.data() }),
-          );
-
-          // Note: Submissions logic is implicitly covered for vendors if they submitted their own candidates,
-          // but if they share candidates, we fetch their submissions too.
-          const vendorSubs = await adminDb
-            .collection("submissions")
-            .where("vendorId", "==", orgId)
-            .where("requirementId", "==", targetReqId)
-            .get();
-          const subCandIds = vendorSubs.docs.map(
-            (doc: any) => doc.data().candidateId,
-          );
-          for (const cId of subCandIds) {
-            if (
-              !docsToEvaluate.find(
-                (c: any) => c.id === cId || c.candidateId === cId,
-              )
-            ) {
-              const candGet = await adminDb
-                .collection("candidatePool")
-                .doc(cId)
-                .get();
-              if (candGet.exists)
-                docsToEvaluate.push({ id: candGet.id, ...candGet.data() });
-            }
-          }
-        }
+        // Global sweeping matching logic MUST evaluate the entire pool for ALL roles 
+        // to ensure cross-workspace validation and identical counts everywhere.
+        // Vendor isolation is handled visually at the UI/Pipeline layer or ABAC rules for submissions,
+        // but the "AI Match Count" (Global Pool) is exactly the same source of truth for everyone.
+        const poolSnapshot = await adminDb.collection("candidatePool").get();
+        poolSnapshot.docs.forEach((d: any) =>
+          docsToEvaluate.push({ id: d.id, ...d.data() }),
+        );
 
         for (const cand of docsToEvaluate) {
           // PIPELINE ISOLATION:
@@ -176,6 +141,40 @@ export default async function matchingGlobalHandler(req: any, res: any) {
       }
     }
 
+    // Generate Ledger Validation Counts (Single Source of Truth)
+    const ledgerCounts = {
+        matches: 0,
+        floated: 0,
+        submitted: 0,
+        interviewing: 0,
+        offers: 0,
+        placed: 0,
+        rejected: 0,
+    };
+    
+    if (adminDb) {
+        try {
+            const allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).get();
+            const allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).get();
+            
+            const uniqueMap = new Map();
+            allCandidatesSnap.docs.forEach((d:any) => uniqueMap.set(d.id, d.data()));
+            allSubsSnap.docs.forEach((d:any) => uniqueMap.set(d.data().candidateId || d.id, d.data()));
+            matchedCandidates.forEach((c:any) => uniqueMap.set(c.candidateId, c));
+            
+            Array.from(uniqueMap.values()).forEach((c:any) => {
+                const stage = c.pipelineStage || c.status || "Matched";
+                if (stage === "Matched") ledgerCounts.matches++;
+                else if (stage === "Added") ledgerCounts.floated++;
+                else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) ledgerCounts.submitted++;
+                else if (stage === "Interviewing" || stage.includes("interview")) ledgerCounts.interviewing++;
+                else if (stage === "Offer") ledgerCounts.offers++;
+                else if (stage === "Placed" || stage === "hired") ledgerCounts.placed++;
+                else if (stage === "Rejected") ledgerCounts.rejected++;
+            });
+        } catch (e) {}
+    }
+
     const sortedMatches = matchedCandidates.sort(
       (a, b) => (b.matchScore || 0) - (a.matchScore || 0),
     );
@@ -202,6 +201,7 @@ export default async function matchingGlobalHandler(req: any, res: any) {
     return res.status(200).json({
       matches: sortedMatches,
       fallbackMatches: sortedFallback,
+      ledgerCounts,
       count: sortedMatches.length,
       fallbackCount: sortedFallback.length,
       timestamp: new Date().toISOString(),

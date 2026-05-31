@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge, Database, PlayCircle, Zap } from "lucide-react";
-import { auth } from "../lib/firebase";
+import { Activity, ShieldCheck, Bot, Users, Plus, Shield, ShieldAlert, Network, AlertTriangle, Briefcase, Combine, Gauge, Database, PlayCircle, Zap, TrendingUp, DollarSign } from "lucide-react";
+import { auth, db } from "../lib/firebase";
+import { collection, getDocs, query, where, deleteDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
@@ -14,6 +15,7 @@ export default function DashboardTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [session, setSession] = useState<{ user: any, org: any } | null>(null);
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
+  const [execStats, setExecStats] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,19 +26,94 @@ export default function DashboardTab() {
     return () => unsubEvents();
   }, [session]);
 
+  const fetchReportingStats = async () => {
+    try {
+      // Requirements
+      const reqSnap = await getDocs(collection(db, "requirements_public"));
+      const requirements = reqSnap.docs.map(d => d.data());
+      const openReqs = requirements.filter(r => r.status && ["ACTIVE", "PUBLISHED", "PENDING"].includes(r.status.toUpperCase())).length;
+
+      // Candidates & Submissions
+      const candSnap = await getDocs(collection(db, "candidatePool"));
+      const candidates = candSnap.docs.map(d => d.data());
+
+      let submissions = 0;
+      let interviews = 0;
+      let offers = 0;
+      let placements = 0;
+
+      candidates.forEach(c => {
+         const stage = c.pipelineStage || c.status || "";
+         if (stage === "Submitted" || stage === "Deal Room") submissions++;
+         if (stage === "Interviewing") interviews++;
+         if (stage === "Offer") offers++;
+         if (stage === "Placed" || stage === "hired") placements++;
+      });
+
+      // DealRooms (Backup placements count, etc.)
+      const drSnap = await getDocs(collection(db, "dealRooms"));
+      const dealRooms = drSnap.docs.map(d => d.data());
+      dealRooms.forEach(dr => {
+         const drStage = dr.currentStage || "";
+         if (drStage === "technical_l1" || drStage === "technical_l2" || drStage === "final_round") interviews++;
+         if (drStage === "offer") offers++;
+         // deduplication logic can be added if needed, approximating here.
+      });
+
+      setExecStats({
+        openReqs,
+        submissions,
+        interviews,
+        offers,
+        placements
+      });
+    } catch (err) {
+      console.warn("Failed to fetch executive stats", err);
+    }
+  };
+
+  const handlePurgeData = async () => {
+      if(!window.confirm("WARNING: This will delete all seed/test requirements, dummy deal rooms, and placeholder candidates. Are you sure?")) {
+        return;
+      }
+      try {
+          // Delete test stuff from candidatePool
+          const candSnap = await getDocs(collection(db, "candidatePool"));
+          for (let doc of candSnap.docs) {
+              const d = doc.data();
+              if (d.name?.toLowerCase().includes("test") || d.email?.toLowerCase().includes("test") || d.testData || d.email === "john@example.com") {
+                  await deleteDoc(doc.ref);
+              }
+          }
+          // Delete dummy requirements
+          const reqSnap = await getDocs(collection(db, "requirements_public"));
+          for (let doc of reqSnap.docs) {
+              const d = doc.data();
+              if (d.title?.toLowerCase().includes("test") || d.testData) {
+                  await deleteDoc(doc.ref);
+              }
+          }
+          // Check submissions
+          const subSnap = await getDocs(collection(db, "submissions"));
+          for (let doc of subSnap.docs) {
+              if (doc.data().testData) await deleteDoc(doc.ref);
+          }
+           alert("Data Integrity Cleanup Complete. Test records purged.");
+           fetchReportingStats();
+      } catch (err) {
+          alert("Error clearing data: " + err);
+      }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         try {
-          const { doc, getDoc } = await import('firebase/firestore');
-          const { db } = await import('../lib/firebase');
-          const d = await getDoc(doc(db, "users", u.uid));
-          if (d.exists()) {
+          const d = await getDocs(query(collection(db, "users"), where("__name__", "==", u.uid))).then(s => s.empty ? null : s.docs[0]);
+          if (d) {
             const data = d.data();
             let finalRole = data.role || "PENDING_VERIFICATION";
             let finalOrgId = data.organizationId || "";
-            
-            // Apply super admin logic
             const superAdmins = [
               "gopal@hirenestworkforce.com",
               "gopalkrishna0046@gmail.com",
@@ -45,7 +122,6 @@ export default function DashboardTab() {
               finalRole = "super_admin";
               finalOrgId = "ORG-GLOBAL-HQ";
             }
-            
             setSession({
               user: {
                 uid: u.uid,
@@ -55,41 +131,19 @@ export default function DashboardTab() {
                 permissions: data.permissions || [],
                 organizationId: finalOrgId
               },
-              org: {
-                type: finalRole
-              }
+              org: { type: finalRole }
             });
+            if (finalRole === "super_admin" || finalRole === "admin" || finalRole === "ops_admin") {
+                 fetchReportingStats();
+            }
           } else {
             setSession({ user: { role: 'guest', permissions: [] }, org: { type: 'guest' } });
           }
         } catch (err) {
           console.warn("Direct Firestore read failed, querying server-side context fallback", err);
-          fetchContextFallback();
         }
-      } else {
-        fetchContextFallback();
-      }
+      } 
     });
-
-    async function fetchContextFallback() {
-      try {
-        const resp = await fetch('/api/user-context');
-        if (resp.ok) {
-          const data = await resp.json();
-          setSession({
-            user: {
-              ...data.user,
-              permissions: data.user?.permissions || []
-            },
-            org: { type: data.user.role === 'super_admin' ? 'admin' : data.user.role }
-          });
-        }
-      } catch (err) {
-        console.warn("User context boot failed, falling back to guest mode", err);
-        setSession({ user: { role: 'guest', permissions: [] }, org: { type: 'guest' } });
-      }
-    }
-
     return () => unsub();
   }, []);
 
@@ -250,7 +304,44 @@ export default function DashboardTab() {
                           </div>
                         </button>
                       </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <Button
+                           onClick={handlePurgeData}
+                           variant="outline"
+                           className="text-[9px] uppercase font-bold tracking-widest border-rose-500/30 text-rose-400 hover:bg-rose-500/10 h-8"
+                        >
+                           <AlertTriangle size={12} className="mr-2" />
+                           Purge Demo / Test Data
+                        </Button>
+                      </div>
                     </div>
+                  </div>
+                )}
+
+                {/* EXECUTIVE REPORTING (Admin Only) */}
+                {isAdmin && execStats && (
+                  <div className="bg-slate-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group border border-slate-800">
+                     <div className="flex items-center justify-between mb-6">
+                         <h3 className="text-sm font-black lowercase tracking-tighter italic flex items-center gap-2">
+                             <TrendingUp className="text-indigo-400" /> Executive Reporting
+                         </h3>
+                         <Badge className="bg-indigo-500/20 text-indigo-300">LIVE</Badge>
+                     </div>
+                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                         {[
+                            { label: "Reqs Open", value: execStats.openReqs, color: "text-indigo-400" },
+                            { label: "Submissions", value: execStats.submissions, color: "text-blue-400" },
+                            { label: "Interviews", value: execStats.interviews, color: "text-amber-400" },
+                            { label: "Offers", value: execStats.offers, color: "text-fuchsia-400" },
+                            { label: "Placements", value: execStats.placements, color: "text-emerald-400" },
+                         ].map((s, i) => (
+                           <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                             <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">{s.label}</div>
+                             <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
+                           </div>
+                         ))}
+                     </div>
                   </div>
                 )}
 

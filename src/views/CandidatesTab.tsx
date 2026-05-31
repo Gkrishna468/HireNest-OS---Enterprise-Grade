@@ -752,10 +752,21 @@ export default function CandidatesTab() {
       });
 
       await addDoc(collection(db, "notifications"), {
+        id: `NOTIF-${Date.now()}`,
         recipientId: job.clientId,
-        title: "New Optimized Match",
-        message: `A high-density candidate has been mapped to ${job.title}. Deal Room DR-${roomId.slice(0, 6)} is now active.`,
+        title: "New Submission",
+        text: `A candidate has been submitted for ${job.title}. Deal Room DR-${roomId.slice(0, 6)} is now active.`,
+        read: false,
         type: "DEAL_ROOM",
+        createdAt: serverTimestamp(),
+      });
+      await addDoc(collection(db, "notifications"), {
+        id: `NOTIF-${Date.now()}-2`,
+        recipientId: userOrgId || "all",
+        title: "Candidate Submitted",
+        text: `Your candidate ${selectedCandidate.name} was physically submitted for ${job.title}.`,
+        type: "DEAL_ROOM",
+        read: false,
         createdAt: serverTimestamp(),
       });
 
