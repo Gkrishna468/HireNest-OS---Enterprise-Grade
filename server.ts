@@ -30,6 +30,7 @@ import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches.ts';
 import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
 import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
 import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
+import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
@@ -143,6 +144,7 @@ async function createServer() {
         case 'admin/notify-approval':
         case 'admin/approve-requirement':
         case 'admin/notifications':
+        case 'client-matches':
         case 'admin':
           return await adminHandler(req, res);
 

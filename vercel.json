@@ -36,6 +36,7 @@
     { "source": "/api/rebuild-matrix", "destination": "/api/admin?action=rebuild-matrix" },
     { "source": "/api/cleanup-matches", "destination": "/api/admin?action=cleanup-matches" },
     { "source": "/api/match-health", "destination": "/api/admin?action=match-health" },
+    { "source": "/api/client-matches", "destination": "/api/admin?action=client-ai-matches" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
   ]

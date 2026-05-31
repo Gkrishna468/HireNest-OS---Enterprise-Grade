@@ -24,19 +24,26 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       setRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const subq = query(collection(db, "submissions"), where("clientId", "==", orgId));
-    const unsubSub = onSnapshot(subq, snap => {
-      setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((s:any) => 
-        s.status !== 'PENDING_REVIEW' && 
-        s.status !== 'MATCH_REJECTED' && 
-        s.status !== 'REJECTED' && 
-        s.status !== 'submitted'
-      ));
-    });
+    const fetchMatches = async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch(`/api/client-matches?orgId=${orgId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+           const data = await res.json();
+           setSubmissions(data.matches || []);
+        }
+      } catch (err) {
+        console.error("Match fetch err", err);
+      }
+    };
+    fetchMatches();
+    const matchInterval = setInterval(fetchMatches, 15000); // refresh every 15s
 
     return () => {
       unsubReq();
-      unsubSub();
+      clearInterval(matchInterval);
     };
   }, [orgId]);
 

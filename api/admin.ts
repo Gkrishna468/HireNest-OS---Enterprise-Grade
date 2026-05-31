@@ -18,6 +18,7 @@ import rescanMatchesHandler from "../src/api-lib/handlers/rescan-matches.js";
 import rebuildMatrixHandler from "../src/api-lib/handlers/rebuild-matrix.js";
 import cleanupMatchesHandler from "../src/api-lib/handlers/cleanup-matches.js";
 import matchHealthHandler from "../src/api-lib/handlers/match-health.js";
+import clientAiMatchesHandler from "../src/api-lib/handlers/client-ai-matches.js";
 
 export default async function handler(req: any, res: any) {
   const rawPath = req.path || req.url || '';
@@ -62,6 +63,8 @@ export default async function handler(req: any, res: any) {
       action = 'cleanup-matches';
     } else if (rawPath.includes('match-health')) {
       action = 'match-health';
+    } else if (rawPath.includes('client-matches') || rawPath.includes('client-ai-matches')) {
+      action = 'client-ai-matches';
     } else {
       action = 'unknown';
     }
@@ -72,6 +75,7 @@ export default async function handler(req: any, res: any) {
     if (action === 'rebuild-matrix') return rebuildMatrixHandler(req, res);
     if (action === 'cleanup-matches') return cleanupMatchesHandler(req, res);
     if (action === 'match-health') return matchHealthHandler(req, res);
+    if (action === 'client-ai-matches') return clientAiMatchesHandler(req, res);
     if (action === 'matching-global') {
       return matchingGlobalHandler(req, res);
     }
