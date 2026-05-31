@@ -31,6 +31,7 @@ import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
 import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
 import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
 import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts';
+import auditHandler from './src/api-lib/handlers/audit.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
@@ -79,6 +80,9 @@ async function createServer() {
 
   // --- Auth Middleware ---
   const verifyAuth = async (req: any, res: any, next: any) => {
+    if (req.path === '/audit' || req.originalUrl === '/api/audit') {
+      return next();
+    }
     try {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
@@ -150,6 +154,10 @@ async function createServer() {
 
         case 'client-matches':
           return await clientAiMatchesHandler(req, res);
+
+        case 'audit':
+          return await auditHandler(req, res);
+
 
         case 'user-candidates':
         case 'user/candidates':

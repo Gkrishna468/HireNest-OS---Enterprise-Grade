@@ -148,6 +148,7 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
 
                  const subRef = await addDoc(collection(db, "submissions"), {
                      // Updated Submission Schema
+                     canonicalRequirementId: reqId,
                      candidateId: candRef.id,
                      requirementId: reqId,
                      submittedBy: "local_user",

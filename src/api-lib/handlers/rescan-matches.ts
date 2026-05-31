@@ -122,6 +122,7 @@ Return JSON strictly in this format:
           
           if (mScore > 0) {
              const matchResult = {
+                canonicalRequirementId: reqObj.id,
                 requirementId: reqObj.id,
                 matchScore: mScore,
                 summary: resultJson.summary || "AI Rescan Completed",

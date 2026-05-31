@@ -133,19 +133,19 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
             
             // 1. AI Matches
             aiMatches.forEach(c => {
-               if (c.requirementId === req.id || c.reqId === req.id) {
+               if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id) {
                    unifiedCandidates.push({ ...c, sysSource: 'AI_MATCH', candId: c.candidateId });
                }
             });
             // 2. Vendor Floated
             floatedCandidates.forEach(c => {
-               if (c.mappedJobId === req.id) {
+               if (c.canonicalRequirementId === req.id || c.mappedJobId === req.id || c.mappedJobId === req.reqId) {
                    unifiedCandidates.push({ ...c, sysSource: 'VENDOR_FLOATED', candId: c.id });
                }
             });
             // 3. Submissions
             pipelineSubmissions.forEach(c => {
-               if (c.requirementId === req.id || c.reqId === req.id || c.jobId === req.id) {
+               if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id || c.jobId === req.id) {
                    unifiedCandidates.push({ ...c, sysSource: 'SUBMISSION', candId: c.candidateId });
                }
             });

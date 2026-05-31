@@ -309,6 +309,7 @@ export default function JobsTab() {
                 );
                 const newSub = {
                   id: subId,
+                  canonicalRequirementId: job.id,
                   requirementId: job.id,
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
@@ -371,6 +372,7 @@ export default function JobsTab() {
                 );
                 await setDoc(roomRef, {
                   id: roomId,
+                  canonicalRequirementId: job.id,
                   requirementId: job.id,
                   submissionId: subId,
                   clientId: job.clientId || "ORG-da6tlbeo1",
@@ -802,6 +804,7 @@ export default function JobsTab() {
       }
 
       const newReq = {
+        canonicalRequirementId: reqId,
         requirementId: reqId,
         clientId: orgId || "default-client-org",
         title: manualTitle || parsed.title || fallbackTitle,

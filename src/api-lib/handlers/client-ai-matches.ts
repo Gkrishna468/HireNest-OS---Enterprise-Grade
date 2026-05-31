@@ -31,7 +31,7 @@ export default async function handler(req: any, res: any) {
 
     for (const doc of allMatchesSnapshot.docs) {
       const matchData = doc.data();
-      const matchReqId = matchData.requirementId || matchData.reqId || doc.id; 
+      const matchReqId = matchData.canonicalRequirementId || matchData.requirementId || matchData.reqId || doc.id; 
 
       if (reqIds.has(matchReqId)) {
          reqFiltered++;
