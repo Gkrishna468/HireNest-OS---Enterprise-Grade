@@ -529,63 +529,63 @@ export default function CandidatesTab() {
 
     setIsSubmitting(true);
     try {
-      const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
+      let finalCandId = "CAND-" + Math.random().toString(36).substr(2, 9);
+      let isDupe = false;
+      const dMatch = checkDuplicate(formData.email, formData.phone);
 
       // Candidate Ownership Vault Logic
       let candHash = null;
-      let targetStage = "Added";
-      let isDupe = false;
-      let dupeReason = "";
-      let dupeOfId = "";
-      let dupeOfName = "";
-
       if (formData.email || formData.phone) {
         candHash = await generateIdentityHash(formData.email, formData.phone);
-        if (candHash) {
-          const vaultResult = await checkAndClaimOwnership(candHash, userOrgId, formData.name, "Manual Form Onboarding", formData.email, formData.phone);
-          if (!vaultResult.success) {
-             targetStage = "Duplicate Review";
-             isDupe = true;
-             dupeReason = `Ownership Vault: Active claim held by another vendor. Dispute ${vaultResult.disputeId} generated.`;
-          }
-        }
       }
 
-      // Legacy check duplicate fallback
-      if (!isDupe) {
-        const dMatch = checkDuplicate(formData.email, formData.phone);
-        if (dMatch) {
-          targetStage = "Duplicate Review";
-          isDupe = true;
-          dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
-          dupeOfName = dMatch.candidate.name;
-          dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
-        }
+      if (dMatch) {
+         isDupe = true;
+         finalCandId = dMatch.candidate.candidateId || dMatch.candidate.id;
+         // Merging logic instead of creating new duplicate doc
+         await updateDoc(doc(db, "candidatePool", finalCandId), {
+           updatedAt: serverTimestamp(),
+           resumeText: formData.resumeText ? 
+              ((dMatch.candidate.resumeText || "") + "\n\n=== Merged Context ===\n" + formData.resumeText) : 
+              dMatch.candidate.resumeText,
+         });
+         
+         if (candHash) {
+           const vaultResult = await checkAndClaimOwnership(candHash, userOrgId, formData.name, "Manual Form Onboarding", formData.email, formData.phone);
+           if (!vaultResult.success) {
+             alert(`Ownership Vault: Active claim held by another vendor. Dispute ${vaultResult.disputeId} generated.`);
+           } else {
+             alert("Merged candidate into existing profile successfully.");
+           }
+         }
+      } else {
+         const initialCandidate = {
+           ...formData,
+           fullName: formData.name,
+           primaryEmail: formData.email,
+           phoneHash: formData.phone,
+           skills: getSkillsArray(formData.skills),
+           candidateId: finalCandId,
+           vendorId: userOrgId,
+           pipelineStage: "Added",
+           isDuplicate: false,
+           createdAt: serverTimestamp(),
+           updatedAt: serverTimestamp(),
+         };
+         await setDoc(doc(db, "candidatePool", finalCandId), initialCandidate);
+         
+         if (candHash) {
+           await checkAndClaimOwnership(candHash, userOrgId, formData.name, "Manual Form Onboarding", formData.email, formData.phone);
+         }
+         alert("Candidate successfully onboarded. Intelligence processing in background.");
       }
-
-      const initialCandidate = {
-        ...formData,
-        skills: getSkillsArray(formData.skills),
-        candidateId: candId,
-        vendorId: userOrgId,
-        pipelineStage: targetStage,
-        isDuplicate: isDupe,
-        duplicateOf: dupeOfId,
-        duplicateOfName: dupeOfName,
-        duplicateReason: dupeReason,
-        matchScore: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      await setDoc(doc(db, "candidatePool", candId), initialCandidate);
 
       setIsSubmitting(false);
       setShowAddForm(false);
 
       // AI ENRICHMENT: Trigger background processing if intelligence is available via resume text
       if (formData.resumeText) {
-        enrichCandidate(candId, formData.resumeText);
+        enrichCandidate(finalCandId, formData.resumeText);
       }
 
       setFormData({
@@ -598,15 +598,6 @@ export default function CandidatesTab() {
         experience: "",
       });
 
-      if (isDupe) {
-        alert(
-          "Warning: Duplicate candidate detected. This profile has been routed to 'Duplicate Review' for assessment.",
-        );
-      } else {
-        alert(
-          "Candidate successfully onboarded. Intelligence processing in background.",
-        );
-      }
     } catch (e: any) {
       alert("Manual onboarding failed: " + e.message);
       setIsSubmitting(false);

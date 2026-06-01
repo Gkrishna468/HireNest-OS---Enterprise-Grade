@@ -8,6 +8,10 @@ import {
   serverTimestamp,
   setDoc,
   doc,
+  getDocs,
+  query,
+  where,
+  updateDoc
 } from "firebase/firestore";
 import { workflowOrchestrator } from "../services/workflow/workflowOrchestrator";
 import { SubmissionState, WorkflowInstance } from "../types/workflow";
@@ -115,46 +119,69 @@ export default function CandidateSubmissionModal({
     if (!name || !email) return;
     setIsSubmitting(true);
     try {
-      // 1. ALWAYS CREATE THE CANONICAL CANDIDATE RECORD FIRST
-      const candRef = await addDoc(collection(db, "candidatePool"), {
-        // Updated Canonical Candidate Schema
-        fullName: name,
-        primaryEmail: email,
-        phoneHash: phone,
-        linkedin: "",
-        skills: keySkills
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        experience: experience, // In a real system, this would be structured data
-        canonicalProfile: true,
-        visibilityScopes: ["VENDOR_NETWORK"], // Example
-        sourceOrganizations: ["local"], // Or current vendor org ID
-        dedupeFingerprint: email.toLowerCase(), // Simple dedupe hash for now
+      // 1. ALWAYS GET/CREATE THE CANONICAL CANDIDATE RECORD FIRST
+      // First check for a deterministic match via hash / email
+      const candQuery = query(collection(db, "candidatePool"), where("email", "==", email));
+      const existingSnap = await getDocs(candQuery);
+      
+      let candidateId = "";
+      
+      if (!existingSnap.empty) {
+        // Merge into existing candidate
+        candidateId = existingSnap.docs[0].id;
+        const candData = existingSnap.docs[0].data();
+        
+        await updateDoc(doc(db, "candidatePool", candidateId), {
+          updatedAt: serverTimestamp(),
+          resumeText: aiAnalysis?.analysis || candData.resumeText || "",
+          skills: keySkills
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        });
+      } else {
+        // Safe creation of new candidate
+        const candRef = await addDoc(collection(db, "candidatePool"), {
+          // Updated Canonical Candidate Schema
+          fullName: name,
+          primaryEmail: email,
+          phoneHash: phone,
+          linkedin: "",
+          skills: keySkills
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          experience: experience, // In a real system, this would be structured data
+          canonicalProfile: true,
+          visibilityScopes: ["VENDOR_NETWORK"], // Example
+          sourceOrganizations: ["local"], // Or current vendor org ID
+          dedupeFingerprint: email.toLowerCase(), // Simple dedupe hash for now
 
-        // Legacy payload mappings for backward compatibility during migration
-        name: name,
-        email: email,
-        phone: phone,
-        location: currentLocation,
-        preferredLocation,
-        noticePeriod,
-        currentCtc,
-        expectedCtc,
-        resumeText: aiAnalysis?.analysis || "",
-        vendorId: "local",
-        pipelineStage: "Candidate Added",
-        status: "QUEUED",
-        source: "Manual Intake UI",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: "local_user",
-      });
+          // Legacy payload mappings for backward compatibility during migration
+          name: name,
+          email: email,
+          phone: phone,
+          location: currentLocation,
+          preferredLocation,
+          noticePeriod,
+          currentCtc,
+          expectedCtc,
+          resumeText: aiAnalysis?.analysis || "",
+          vendorId: "local",
+          pipelineStage: "Candidate Added",
+          status: "QUEUED",
+          source: "Manual Intake UI",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          createdBy: "local_user",
+        });
+        candidateId = candRef.id;
+      }
 
       await emitEvent(
         "CandidateUploaded",
         "CANDIDATE",
-        candRef.id,
+        candidateId,
         "local_user",
         "vendor",
         {
@@ -183,7 +210,7 @@ export default function CandidateSubmissionModal({
             await import("firebase/firestore");
           const q = query(
             collection(db, "submissions"),
-            where("candidateId", "==", candRef.id),
+            where("candidateId", "==", candidateId),
             where("requirementId", "==", reqId),
             where("vendorOrgId", "==", "local"),
           );
@@ -200,7 +227,7 @@ export default function CandidateSubmissionModal({
         const subRef = await addDoc(collection(db, "submissions"), {
           // Updated Submission Schema
           canonicalRequirementId: reqId,
-          candidateId: candRef.id,
+          candidateId: candidateId,
           requirementId: reqId,
           submittedBy: "local_user",
           vendorOrgId: "local",
