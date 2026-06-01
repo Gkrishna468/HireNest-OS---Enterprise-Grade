@@ -209,6 +209,7 @@ async function createServer() {
         case 'analytics/vendor':
         case 'analytics/recruiter':
         case 'analytics/hq':
+        case 'analytics/hq-production-health':
           return await analyticsHandler(req, res);
       }
       

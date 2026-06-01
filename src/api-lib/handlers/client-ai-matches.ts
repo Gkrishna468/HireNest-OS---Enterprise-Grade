@@ -83,7 +83,7 @@ export default async function handler(req: any, res: any) {
          matches.push({
              id: doc.id,
              candidateId: candId,
-             candidateName: cand.fullName || cand.name || matchData.candidateName || "Unknown",
+             candidateName: cand.fullName || "Anonymous Candidate",
              requirementId: matchReqId,
              reqId: matchReqId,
              matchScore: matchData.matchScore || 0,

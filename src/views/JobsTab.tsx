@@ -317,16 +317,8 @@ export default function JobsTab() {
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
                   candidateId: cand.id,
-                  candidateName:
-                    cand.fullName ||
-                    cand.name ||
-                    cand.candidateName ||
-                    "Unknown Candidate",
-                  name:
-                    cand.fullName ||
-                    cand.name ||
-                    cand.candidateName ||
-                    "Unknown Candidate",
+                  candidateName: cand.fullName || "Anonymous Candidate",
+                  name: cand.fullName || "Anonymous Candidate",
                   email: cand.primaryEmail || cand.email || "No Email Provided",
                   phone: cand.phoneHash || cand.phone || "No Phone Provided",
                   skills: cand.skills || [],

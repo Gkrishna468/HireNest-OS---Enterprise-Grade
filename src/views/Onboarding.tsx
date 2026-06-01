@@ -380,6 +380,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Network Authorization Pass</label>
               <input 
                 type="password" 
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 focus:bg-white rounded-2xl p-3.5 text-sm font-bold transition-all outline-none"

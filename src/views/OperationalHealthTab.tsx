@@ -15,7 +15,13 @@ export default function OperationalHealthTab({ userRole, orgId, userId }: { user
     }
 
     fetch(`/api/analytics/hq-production-health?orgId=${orgId}&userId=${userId}&role=${userRole}`)
-      .then(r => r.json())
+      .then(r => {
+        const type = r.headers.get("content-type");
+        if (!type?.includes("application/json")) {
+          throw new Error(`Expected JSON got ${type}`);
+        }
+        return r.json();
+      })
       .then(data => {
         setHealthData(data);
         setLoading(false);

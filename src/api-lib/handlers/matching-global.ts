@@ -109,7 +109,7 @@ export default async function matchingGlobalHandler(req: any, res: any) {
           const resultObj = {
             id: cand.id || cand.candidateId || "unknown",
             candidateId: cand.candidateId || cand.id || "unknown",
-            name: cand.fullName || cand.name || "Unknown Candidate",
+            name: cand.fullName,
             email: cand.primaryEmail || cand.email || "No Email Provided",
             phone: cand.phoneHash || cand.phone || "No Phone Provided",
             linkedin: cand.linkedin || "",
