@@ -17,6 +17,7 @@ import {
 import { db } from "../lib/firebase";
 import { collection, query, getDocs, onSnapshot, orderBy, limit, where } from "firebase/firestore";
 import { cn } from "../lib/utils";
+import StressTestRunner from "../components/StressTestRunner";
 
 export default function AdminGovernanceDashboard() {
   const [loading, setLoading] = useState(true);
@@ -209,6 +210,7 @@ export default function AdminGovernanceDashboard() {
            environment: "Production",
            dateFound: new Date().toISOString().split("T")[0],
            affectedCollections: ["candidatePool"],
+           affectedCandidates: dupes.flat().slice(0, 5),
            fixVersion: "TBD",
            regressionStatus: "Failing"
          });
@@ -536,6 +538,8 @@ export default function AdminGovernanceDashboard() {
             </div>
          )}
       </div>
+
+      <StressTestRunner />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         

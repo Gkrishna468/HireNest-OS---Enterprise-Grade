@@ -276,7 +276,7 @@ export default function CandidateSubmissionModal({
           "local_user",
           "vendor",
           {
-            candidateId: candRef.id,
+            candidateId: candidateId,
             candidateName: name,
             requirementId: reqId,
             reqTitle: reqTitle,
