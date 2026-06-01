@@ -1,20 +1,25 @@
-import { Type } from "@google/genai";
+import { Type, GoogleGenAI } from "@google/genai";
 import { adminDb } from "../src/lib/firebase-admin.js";
 import crypto from "crypto";
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
+
 const generateAIPayload = async (orgId: string, systemInstruction: string, prompt: string, options: any) => {
-   console.log(`[AI GATEWAY] Mocking generation for ${orgId}`);
-   return JSON.stringify({
-       name: "Local Mock Generated",
-       email: "mock@example.com",
-       phone: "555-0199",
-       skills: ["React", "TypeScript", "Node.js"],
-       experience: "2 Years",
-       currentRole: "Software Engineer",
-       riskScore: 10,
-       isRisky: false,
-       summary: "A passionate engineer..."
-   });
+   try {
+       const response = await ai.models.generateContent({
+           model: "gemini-2.5-flash",
+           contents: prompt,
+           config: {
+               systemInstruction: systemInstruction,
+               responseMimeType: options.responseMimeType,
+               responseSchema: options.responseSchema,
+           }
+       });
+       return response.text;
+   } catch (err: any) {
+       console.error("[AI GATEWAY] Gemini generation error:", err);
+       throw err;
+   }
 };
 
 const generateEmbedding = async (orgId: string, text: string) => {

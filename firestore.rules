@@ -965,6 +965,20 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // EXECUTION EVENTS
+    // =====================================================
+
+    match /execution_events/{eventId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        isSameOrg(resource.data.orgId)
+      );
+      allow create: if isVerified();
+      allow update, delete: if false;
+    }
+
+    // =====================================================
     // SYSTEM HEALTH
     // =====================================================
 

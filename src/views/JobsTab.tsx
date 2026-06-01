@@ -90,6 +90,7 @@ export default function JobsTab() {
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
   const [fallbackMatches, setFallbackMatches] = useState<any[]>([]);
   const [ledgerCounts, setLedgerCounts] = useState<any>(null);
+  const [ledgerCandidates, setLedgerCandidates] = useState<any[]>([]);
   const [localMatchCompleted, setLocalMatchCompleted] = useState<
     Record<string, boolean>
   >({});
@@ -676,6 +677,9 @@ export default function JobsTab() {
             setFallbackMatches(data.fallbackMatches || []);
             if (data.ledgerCounts) {
                 setLedgerCounts(data.ledgerCounts);
+            }
+            if (data.ledgerCandidates) {
+                setLedgerCandidates(data.ledgerCandidates);
             }
           } else {
             console.warn(
@@ -1916,14 +1920,14 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  Array.from(
+                  (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : Array.from(
                     new Map(
                       [...submissions, ...globalMatches].map((c) => [
                         c.candidateId || c.id || c.email,
                         c,
                       ]),
                     ).values(),
-                  ).length === 0 ? (
+                  )).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -1955,20 +1959,20 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {Array.from(
+                      {(ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : Array.from(
                         new Map(
                           [...submissions, ...globalMatches].map((cand) => [
                             cand.candidateId || cand.id || cand.email,
                             cand,
                           ]),
                         ).values(),
-                      )
+                      ))
                         .filter(
                           (sub) =>
-                            (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
+                            (sub.matchScore || 0) >= 0 || sub.isGlobalMatch,
                         )
                         .sort(
-                          (a, b) => (b.matchScore || 0) - (a.matchScore || 0),
+                          (a, b) => ((b.matchScore || b.aiMatchScore) || 0) - ((a.matchScore || a.aiMatchScore) || 0),
                         )
                         .map((sub) => (
                           <div
