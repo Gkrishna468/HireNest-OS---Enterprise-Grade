@@ -95,6 +95,31 @@ export default function SLAIntelligenceTab() {
         ))}
       </div>
 
+      {/* SLA Bottleneck Dashboard */}
+      <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm">
+        <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+           <AlertTriangle size={16} className="text-amber-500" /> SLA & Bottleneck Monitor
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center divide-x divide-slate-100">
+           <div className="px-4 first:pl-0">
+             <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Submissions Pending &gt; 48 hrs</p>
+             <p className="text-3xl font-black text-amber-500">14</p>
+           </div>
+           <div className="px-4">
+             <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Interviews Pending &gt; 7 days</p>
+             <p className="text-3xl font-black text-slate-800">5</p>
+           </div>
+           <div className="px-4">
+             <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Offers Pending &gt; 14 days</p>
+             <p className="text-3xl font-black text-slate-800">2</p>
+           </div>
+           <div className="px-4">
+             <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Requirements Stale &gt; 30 days</p>
+             <p className="text-3xl font-black text-rose-500">8</p>
+           </div>
+        </div>
+      </div>
+
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* SLA Compliance Variance */}

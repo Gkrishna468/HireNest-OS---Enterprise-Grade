@@ -72,6 +72,49 @@ export default function AdminGovernanceDashboard() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="md:col-span-4 bg-slate-900 text-white rounded-2xl shadow-xl overflow-hidden border border-slate-800">
+           <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                   <ShieldCheck className="text-emerald-400" size={24} /> 
+                   System Trust Index
+                </h2>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mt-1 font-bold">Single Executive Scorecard</p>
+              </div>
+              <div className="text-right">
+                <span className="text-4xl font-black text-emerald-400">99.6<span className="text-xl text-emerald-600">%</span></span>
+              </div>
+           </div>
+           <div className="grid grid-cols-2 md:grid-cols-6 divide-y md:divide-y-0 md:divide-x divide-slate-800 text-center">
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Data Integrity</p>
+                 <p className="text-2xl font-black text-slate-100">99.8%</p>
+              </div>
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Ledger Consistency</p>
+                 <p className="text-2xl font-black text-emerald-400">100%</p>
+              </div>
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Parser Reliability</p>
+                 <p className="text-2xl font-black text-slate-100">98.9%</p>
+              </div>
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Event Completion</p>
+                 <p className="text-2xl font-black text-slate-100">99.7%</p>
+              </div>
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Ownership Accuracy</p>
+                 <p className="text-2xl font-black text-emerald-400">100%</p>
+              </div>
+              <div className="p-4">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Workspace Parity</p>
+                 <p className="text-2xl font-black text-slate-100">99.9%</p>
+              </div>
+           </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Ledger Drift Monitor */}

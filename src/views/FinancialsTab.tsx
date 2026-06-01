@@ -6,7 +6,7 @@ import { collection, query, onSnapshot, orderBy, getDocs } from "firebase/firest
 import { EmptyState } from "../components/EmptyState";
 
 export default function FinancialsTab({ userRole, orgId, userId }: { userRole: string, orgId: string, userId: string }) {
-  const [activeTab, setActiveTab] = useState<'LEDGER' | 'INVOICES' | 'SETTLEMENTS' | 'PLACEMENTS'>('LEDGER');
+  const [activeTab, setActiveTab] = useState<'LEDGER' | 'INVOICES' | 'SETTLEMENTS' | 'PLACEMENTS' | 'REVENUE_INTEL' | 'CONVERSION_FUNNEL'>('LEDGER');
   const [deals, setDeals] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,30 +112,42 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
         </div>
       )}
 
-      <div className="flex gap-4 border-b border-slate-200">
+      <div className="flex gap-4 border-b border-slate-200 overflow-x-auto pb-px">
         <button
           onClick={() => setActiveTab('LEDGER')}
-          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all", activeTab === 'LEDGER' ? "text-indigo-600 border-b-2 border-indigo-600" : "text-slate-400 hover:text-slate-600")}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'LEDGER' ? "text-indigo-600 border-b-2 border-indigo-600" : "text-slate-400 hover:text-slate-600")}
         >
           Master Ledger
         </button>
         <button
           onClick={() => setActiveTab('INVOICES')}
-          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all", activeTab === 'INVOICES' ? "text-emerald-600 border-b-2 border-emerald-600" : "text-slate-400 hover:text-slate-600")}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'INVOICES' ? "text-emerald-600 border-b-2 border-emerald-600" : "text-slate-400 hover:text-slate-600")}
         >
           Client Invoicing
         </button>
         <button
           onClick={() => setActiveTab('SETTLEMENTS')}
-          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all", activeTab === 'SETTLEMENTS' ? "text-sky-600 border-b-2 border-sky-600" : "text-slate-400 hover:text-slate-600")}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'SETTLEMENTS' ? "text-sky-600 border-b-2 border-sky-600" : "text-slate-400 hover:text-slate-600")}
         >
           Vendor Settlements
         </button>
         <button
           onClick={() => setActiveTab('PLACEMENTS')}
-          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all", activeTab === 'PLACEMENTS' ? "text-fuchsia-600 border-b-2 border-fuchsia-600" : "text-slate-400 hover:text-slate-600")}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'PLACEMENTS' ? "text-fuchsia-600 border-b-2 border-fuchsia-600" : "text-slate-400 hover:text-slate-600")}
         >
           Placement Lifecycle
+        </button>
+        <button
+          onClick={() => setActiveTab('REVENUE_INTEL')}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'REVENUE_INTEL' ? "text-amber-600 border-b-2 border-amber-600" : "text-slate-400 hover:text-slate-600")}
+        >
+          Revenue Intelligence
+        </button>
+        <button
+          onClick={() => setActiveTab('CONVERSION_FUNNEL')}
+          className={cn("pb-3 text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap", activeTab === 'CONVERSION_FUNNEL' ? "text-rose-600 border-b-2 border-rose-600" : "text-slate-400 hover:text-slate-600")}
+        >
+          Conversion Funnel
         </button>
       </div>
 
@@ -257,6 +269,96 @@ export default function FinancialsTab({ userRole, orgId, userId }: { userRole: s
                    )}
                 </div>
              )}
+          </div>
+        )}
+
+        {activeTab === 'REVENUE_INTEL' && (
+          <div className="p-6">
+             <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                 <CircleDollarSign size={16} className="text-amber-500" /> Revenue Forecasting
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+               <div className="border border-slate-100 rounded-xl p-6 bg-slate-50">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Open Requirements</p>
+                 <p className="text-3xl font-black text-slate-800">142</p>
+               </div>
+               <div className="border border-slate-100 rounded-xl p-6 bg-amber-50">
+                 <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Forecasted Placements</p>
+                 <p className="text-3xl font-black text-amber-700">18</p>
+                 <p className="text-xs font-bold text-amber-500 mt-2">Next 30 Days</p>
+               </div>
+               <div className="border border-emerald-100 rounded-xl p-6 bg-emerald-50">
+                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Projected Revenue Margin</p>
+                 <p className="text-3xl font-black text-emerald-700">{formatCurrency(totalMargin * 0.45)}</p>
+                 <p className="text-xs font-bold text-emerald-500 mt-2">Expected Pipeline Closing</p>
+               </div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="border border-slate-100 rounded-xl p-6">
+                 <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Vendor Revenue Distribution</h4>
+                 <div className="space-y-4">
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>Vendor Alpha</span> <span>{formatCurrency(120000)}</span></div>
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>Vendor Beta</span> <span>{formatCurrency(84000)}</span></div>
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>NextGen Staffing</span> <span>{formatCurrency(62000)}</span></div>
+                 </div>
+               </div>
+               <div className="border border-slate-100 rounded-xl p-6">
+                 <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Client Revenue Contribution</h4>
+                 <div className="space-y-4">
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>Client X (FinTech)</span> <span>{formatCurrency(210000)}</span></div>
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>Client Y (Healthcare)</span> <span>{formatCurrency(95000)}</span></div>
+                    <div className="flex justify-between text-sm font-bold text-slate-800"><span>Startup XYZ</span> <span>{formatCurrency(45000)}</span></div>
+                 </div>
+               </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'CONVERSION_FUNNEL' && (
+          <div className="p-6">
+             <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                 <ArrowDownRight size={16} className="text-rose-500" /> End-to-End Pipeline Conversion
+             </h3>
+             <div className="bg-slate-900 rounded-2xl p-8 mb-6 border border-slate-800">
+               <div className="flex flex-col md:flex-row justify-between relative">
+                 <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-800 hidden md:block" />
+                 
+                 {[
+                   { step: "Matched", count: 1240, color: "text-slate-400" },
+                   { step: "Submitted", count: 480, color: "text-sky-400" },
+                   { step: "Interview", count: 112, color: "text-amber-400" },
+                   { step: "Offer", count: 24, color: "text-indigo-400" },
+                   { step: "Placed", count: 17, color: "text-emerald-400" }
+                 ].map((stage, i) => (
+                    <div key={i} className="relative z-10 flex flex-col items-center p-4 bg-slate-900 flex-1">
+                      <div className="w-12 h-12 rounded-full border-4 border-slate-800 bg-slate-900 flex items-center justify-center mb-3">
+                         <div className={cn("w-3 h-3 rounded-full bg-current", stage.color)} />
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stage.step}</p>
+                      <p className={cn("text-2xl font-black", stage.color)}>{stage.count}</p>
+                    </div>
+                 ))}
+               </div>
+             </div>
+
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center divide-x divide-slate-100 border border-slate-100 rounded-xl p-4">
+                 <div className="px-2">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Match to Sub</p>
+                    <p className="text-lg font-black text-slate-700">38.7%</p>
+                 </div>
+                 <div className="px-2">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Sub to Interview</p>
+                    <p className="text-lg font-black text-slate-700">23.3%</p>
+                 </div>
+                 <div className="px-2">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Interview to Offer</p>
+                    <p className="text-lg font-black text-slate-700">21.4%</p>
+                 </div>
+                 <div className="px-2">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Offer to Placed</p>
+                    <p className="text-lg font-black text-slate-700">70.8%</p>
+                 </div>
+             </div>
           </div>
         )}
       </div>

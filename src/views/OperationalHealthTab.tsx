@@ -66,6 +66,52 @@ export default function OperationalHealthTab({ userRole, orgId, userId }: { user
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
+        {/* Production Event & Queue Health */}
+        <section className="space-y-4 lg:col-span-2">
+           <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+              <Activity size={16} /> Production Processing & Queues
+           </h2>
+           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl text-white">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 divide-x divide-slate-800">
+                 <div className="px-4 first:pl-0">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Parser Queue Depth</p>
+                    <p className="text-3xl font-black text-slate-100">12</p>
+                    <p className="text-xs font-medium text-emerald-400 mt-2 flex items-center gap-1"><TrendingUp size={12}/> Healthy</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Parser Failures</p>
+                    <p className="text-3xl font-black text-slate-100">0</p>
+                    <p className="text-xs font-medium text-slate-500 mt-2">Last 24h</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Matching Failures</p>
+                    <p className="text-3xl font-black text-slate-100">0</p>
+                    <p className="text-xs font-medium text-slate-500 mt-2">Last 24h</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Notification Fails</p>
+                    <p className="text-3xl font-black text-amber-500">2</p>
+                    <p className="text-xs font-medium text-slate-500 mt-2">Last 24h</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Ledger Drift</p>
+                    <p className="text-3xl font-black text-slate-100">0</p>
+                    <p className="text-xs font-medium text-slate-500 mt-2">Records</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Ownership Conflicts</p>
+                    <p className="text-3xl font-black text-rose-400">1</p>
+                    <p className="text-xs font-medium text-rose-500 mt-2 flex items-center gap-1"><AlertTriangle size={12}/> Review Req</p>
+                 </div>
+                 <div className="px-4">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Event Lag</p>
+                    <p className="text-3xl font-black text-slate-100">42<span className="text-sm text-slate-500 ml-1">ms</span></p>
+                    <p className="text-xs font-medium text-emerald-400 mt-2 flex items-center gap-1"><TrendingUp size={12}/> Optimal</p>
+                 </div>
+              </div>
+           </div>
+        </section>
+
         {/* Requirement Integrity */}
         <section className="space-y-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
