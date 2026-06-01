@@ -54,6 +54,7 @@ import TrustEngineTab from "./views/TrustEngineTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import AdminOverview from "./views/AdminOverview";
+import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
 import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
 import AdminOpsDashboard from "./views/AdminOpsDashboard";
 import AdminUsersManager from "./views/AdminUsersManager";
@@ -645,6 +646,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/governance"
+                icon={ShieldCheck}
+                label="Governance"
+                active={location.pathname === "/governance"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/users"
                 icon={Users}
                 label="Users"
@@ -811,6 +819,7 @@ const AppContent = () => {
               />
             )}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
+            {isAdmin && <Route path="/governance" element={<AdminGovernanceDashboard />} />}
             {isAdmin && (
               <Route
                 path="/users"

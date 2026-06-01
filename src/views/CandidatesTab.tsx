@@ -123,6 +123,8 @@ export default function CandidatesTab() {
       setIsSavingName(true);
       const newName = editingName.name.trim();
       const candRef = doc(db, "candidatePool", candId);
+      const candSnap = await getDoc(candRef);
+      
       await updateDoc(candRef, {
         name: newName,
         fullName: newName,
@@ -130,6 +132,25 @@ export default function CandidatesTab() {
         isNameManuallyEdited: true,
         updatedAt: serverTimestamp(),
       });
+
+      if (candSnap.exists()) {
+         const data = candSnap.data();
+         const candHash = await generateIdentityHash(data.email || "", data.phone !== "No Phone Provided" ? data.phone || "" : "");
+         if (candHash) {
+             try {
+                await updateDoc(doc(db, "candidate_identity", candHash), {
+                    candidateName: newName
+                });
+             } catch(e) { }
+             try {
+                const octq = query(collection(db, "ownership_claims"), where("candidateHash", "==", candHash));
+                const octsnap = await getDocs(octq);
+                await Promise.all(octsnap.docs.map(octDoc => updateDoc(doc(db, "ownership_claims", octDoc.id), {
+                   candidateName: newName
+                })));
+             } catch(e) { }
+         }
+      }
 
       // Update submissions as well so it populates across workspaces
       const subQuery = query(
@@ -146,14 +167,34 @@ export default function CandidatesTab() {
       );
       await Promise.all(updatePromises);
 
-      publishEvent("CANDIDATE_NAME_UPDATED", {
-        candidateId: candId,
-        newName: newName,
+      const oldName = candSnap.exists() ? candSnap.data().name : "Unknown Name";
+
+      // Create Immutable Candidate Change Log (especially for ABAC and Ownership Ledger reconciliation)
+      try {
+        const changeLogId = `LOG-${Math.random().toString(36).substr(2, 9)}`;
+        await setDoc(doc(db, "candidate_change_log", changeLogId), {
+          logId: changeLogId,
+          candidateId: candId,
+          field: "fullName",
+          oldValue: oldName,
+          newValue: newName,
+          editedBy: userRole,
+          editedAt: serverTimestamp(),
+        });
+      } catch (logErr) {
+        console.warn("Failed to write to candidate_change_log:", logErr);
+      }
+
+      await publishEvent({
+        type: "info",
+        title: "Candidate Name Corrected",
+        message: `Candidate name changed from ${oldName} to ${newName} by ${userRole}`,
+        recipients: ["GLOBAL_ADMIN", userRole.includes("vendor") ? userOrgId || "GLOBAL_VENDOR" : "GLOBAL_VENDOR"],
       });
       setEditingName(null);
     } catch (err) {
       console.error("Failed to update candidate name:", err);
-      handleFirestoreError(err, OperationType.UPDATE);
+      handleFirestoreError(err, OperationType.UPDATE, "candidatePool");
     } finally {
       setIsSavingName(false);
     }

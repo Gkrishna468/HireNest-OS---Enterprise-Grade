@@ -510,7 +510,7 @@ service cloud.firestore {
           isAdmin() ||
           existing().vendorId == currentOrgId() ||
           request.resource.data.diff(resource.data).changedKeys().hasOnly([
-             "status", "updatedAt", "expiresAt"
+             "status", "updatedAt", "expiresAt", "candidateName"
           ])
       );
       allow delete: if isSuperAdmin();
@@ -534,6 +534,12 @@ service cloud.firestore {
       allow create: if isVerified();
       allow update: if isVerified();
       allow delete: if isSuperAdmin();
+    }
+
+    match /candidate_change_log/{logId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update, delete: if false;
     }
 
     // =====================================================
@@ -700,7 +706,7 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // NOTIFICATIONS
+    // NOTIFICATIONS & EVENT LEDGER
     // =====================================================
 
     match /notifications/{notifId} {
@@ -719,6 +725,12 @@ service cloud.firestore {
 
       allow delete:
       if isSuperAdmin();
+    }
+
+    match /event_ledger/{eventId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update, delete: if false; // Immutable event ledger
     }
 
     // =====================================================

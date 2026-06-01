@@ -5,6 +5,7 @@ export type EventType =
   | "CandidateUploaded"
   | "CandidateMatched"
   | "SubmissionCreated"
+  | "SubmissionMatched"
   | "InterviewScheduled"
   | "JobPublished"
   | "JobClosed"
