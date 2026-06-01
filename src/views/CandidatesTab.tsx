@@ -17,6 +17,8 @@ import {
   ShieldAlert,
   Fingerprint,
   Users,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -97,6 +99,8 @@ export default function CandidatesTab() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [mappingResult, setMappingResult] = useState<any | null>(null);
   const [isMapping, setIsMapping] = useState(false);
+  const [editingName, setEditingName] = useState<{ id: string; name: string } | null>(null);
+  const [isSavingName, setIsSavingName] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
   const [vendorMap, setVendorMap] = useState<Record<string, string>>({});
@@ -111,6 +115,48 @@ export default function CandidatesTab() {
     userRole.includes("admin") ||
     userRole === "super_admin" ||
     userRole === "ops_admin";
+
+  const handleNameSave = async (candId: string) => {
+    if (!editingName || !editingName.name.trim()) return;
+    try {
+      setIsSavingName(true);
+      const newName = editingName.name.trim();
+      const candRef = doc(db, "candidates", candId);
+      await updateDoc(candRef, {
+        name: newName,
+        fullName: newName,
+        status: "UPLOADED", // Optionally advance status if needed
+        isNameManuallyEdited: true,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update submissions as well so it populates across workspaces
+      const subQuery = query(
+        collection(db, "submissions"),
+        where("candidateId", "==", candId)
+      );
+      const subSnap = await getDocs(subQuery);
+      const updatePromises = subSnap.docs.map((subDoc) =>
+        updateDoc(doc(db, "submissions", subDoc.id), {
+          name: newName,
+          candidateName: newName,
+          updatedAt: serverTimestamp(),
+        })
+      );
+      await Promise.all(updatePromises);
+
+      publishEvent("CANDIDATE_NAME_UPDATED", {
+        candidateId: candId,
+        newName: newName,
+      });
+      setEditingName(null);
+    } catch (err) {
+      console.error("Failed to update candidate name:", err);
+      handleFirestoreError(err, OperationType.UPDATE);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
 
   const handleDeleteCandidate = async (candId: string) => {
     if (!isAdmin) {
@@ -1246,12 +1292,51 @@ export default function CandidatesTab() {
                                 }
                               }}
                             />
-                            <div className="flex flex-col gap-1">
-                              <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                                {cand.fullName ||
-                                  cand.name ||
-                                  "Unnamed Candidate"}
-                              </h3>
+                            <div className="flex flex-col gap-1 w-full relative">
+                              {editingName?.id === cand.id ? (
+                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    className="border border-slate-300 rounded px-2 py-1 text-sm font-semibold uppercase tracking-tight text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none w-48 bg-white"
+                                    value={editingName.name}
+                                    onChange={(e) => setEditingName({ ...editingName, name: e.target.value })}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleNameSave(cand.id);
+                                      if (e.key === 'Escape') setEditingName(null);
+                                    }}
+                                  />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleNameSave(cand.id); }}
+                                    disabled={isSavingName}
+                                    className="p-1.5 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-200 shadow-sm"
+                                  >
+                                    <Check size={14} className="stroke-[3]" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setEditingName(null); }}
+                                    className="p-1.5 rounded-md bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm"
+                                  >
+                                    <X size={14} className="stroke-[3]" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 group/title w-full">
+                                  <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                                    {cand.fullName || cand.name || "Unnamed Candidate"}
+                                  </h3>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingName({ id: cand.id, name: cand.fullName || cand.name || "" });
+                                    }}
+                                    className="opacity-0 group-hover/title:opacity-100 p-1 text-slate-400 hover:text-indigo-600 transition-opacity rounded hover:bg-slate-100"
+                                    title="Edit Candidate Name"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                </div>
+                              )}
                               <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
                                 <Fingerprint
                                   size={12}
@@ -1611,11 +1696,59 @@ export default function CandidatesTab() {
                   <X size={16} />
                 </Button>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black text-slate-800">
-                      {selectedCandidate.name}
-                    </h2>
-                    <Badge className="bg-blue-50 text-blue-700 text-[10px] font-bold border-blue-200 uppercase">
+                  <div className="flex items-center gap-2 relative">
+                    {editingName?.id === selectedCandidate.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          autoFocus
+                          className="border border-slate-300 rounded px-2 py-1 text-base font-black text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none w-48 bg-white"
+                          value={editingName.name}
+                          onChange={(e) => setEditingName({ ...editingName, name: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleNameSave(selectedCandidate.id);
+                              setSelectedCandidate({...selectedCandidate, name: editingName.name.trim(), fullName: editingName.name.trim()});
+                            }
+                            if (e.key === 'Escape') setEditingName(null);
+                          }}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNameSave(selectedCandidate.id);
+                            setSelectedCandidate({...selectedCandidate, name: editingName.name.trim(), fullName: editingName.name.trim()});
+                          }}
+                          disabled={isSavingName}
+                          className="p-1.5 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-200 shadow-sm"
+                        >
+                          <Check size={14} className="stroke-[3]" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingName(null); }}
+                          className="p-1.5 rounded-md bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm"
+                        >
+                          <X size={14} className="stroke-[3]" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 group/modal-title">
+                        <h2 className="text-base font-black text-slate-800">
+                          {selectedCandidate.fullName || selectedCandidate.name}
+                        </h2>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingName({ id: selectedCandidate.id, name: selectedCandidate.fullName || selectedCandidate.name || "" });
+                          }}
+                          className="opacity-0 group-hover/modal-title:opacity-100 p-1 text-slate-400 hover:text-indigo-600 transition-opacity rounded hover:bg-slate-100"
+                          title="Edit Candidate Name"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <Badge className="bg-blue-50 text-blue-700 text-[10px] font-bold border-blue-200 uppercase ml-2">
                       {selectedCandidate.candidateId || "CAND-PENDING"}
                     </Badge>
                   </div>
