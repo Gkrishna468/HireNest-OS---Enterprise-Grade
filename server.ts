@@ -3,7 +3,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 
 // Add global error handlers
@@ -35,8 +34,7 @@ import auditHandler from './src/api-lib/handlers/audit.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = process.cwd();
 
 async function createServer() {
   const app = express();
@@ -243,9 +241,10 @@ async function createServer() {
       }
     });
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 

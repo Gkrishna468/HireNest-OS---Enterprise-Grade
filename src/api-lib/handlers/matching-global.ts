@@ -152,17 +152,33 @@ export default async function matchingGlobalHandler(req: any, res: any) {
         rejected: 0,
     };
     
+    let ledgerCandidates: any[] = [];
+    
     if (adminDb) {
         try {
             const allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).get();
             const allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).get();
             
             const uniqueMap = new Map();
-            allCandidatesSnap.docs.forEach((d:any) => uniqueMap.set(d.id, d.data()));
-            allSubsSnap.docs.forEach((d:any) => uniqueMap.set(d.data().candidateId || d.id, d.data()));
-            matchedCandidates.forEach((c:any) => uniqueMap.set(c.candidateId, c));
             
-            Array.from(uniqueMap.values()).forEach((c:any) => {
+            matchedCandidates.forEach((c:any) => uniqueMap.set(c.candidateId, { ...c, sysSource: 'AI_MATCH' }));
+            
+            allCandidatesSnap.docs.forEach((d:any) => {
+               const candData = d.data();
+               const existing = uniqueMap.get(d.id);
+               uniqueMap.set(d.id, { ...candData, id: d.id, sysSource: 'VENDOR_FLOATED', matchScore: candData.matchScore || candData.aiMatchScore || existing?.matchScore || null });
+            });
+            
+            allSubsSnap.docs.forEach((d:any) => {
+               const subData = d.data();
+               const candId = subData.candidateId || d.id;
+               const existing = uniqueMap.get(candId);
+               uniqueMap.set(candId, { ...existing, ...subData, id: candId, sysSource: 'SUBMISSION', submissionId: d.id });
+            });
+            
+            ledgerCandidates = Array.from(uniqueMap.values());
+            
+            ledgerCandidates.forEach((c:any) => {
                 const stage = c.pipelineStage || c.status || "Matched";
                 if (stage === "Matched") ledgerCounts.matches++;
                 else if (stage === "Added") ledgerCounts.floated++;
@@ -202,6 +218,7 @@ export default async function matchingGlobalHandler(req: any, res: any) {
       matches: sortedMatches,
       fallbackMatches: sortedFallback,
       ledgerCounts,
+      ledgerCandidates,
       count: sortedMatches.length,
       fallbackCount: sortedFallback.length,
       timestamp: new Date().toISOString(),

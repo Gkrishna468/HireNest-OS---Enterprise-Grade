@@ -928,7 +928,7 @@ export default function RagIntelligenceTab() {
                       <span>Avg Velocity (90d)</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] font-bold text-slate-700 pt-1">
-                      <span>Sarah Jenkins</span>
+                      <span>Alex Chen</span>
                       <span className="text-emerald-600">8.4 days</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] font-bold text-slate-700">

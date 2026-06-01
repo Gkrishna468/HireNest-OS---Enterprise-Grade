@@ -32,34 +32,62 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
     const [currentCtc, setCurrentCtc] = useState("");
     const [expectedCtc, setExpectedCtc] = useState("");
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
         
         setIsParsing(true);
-        // Simulate AI Parsing delay
-        setTimeout(() => {
-            setIsParsing(false);
-            setParsed(true);
-            const analysis = {
-                fitScore: 88,
-                skills: ["Node.js", "TypeScript", "PostgreSQL", "React", "AWS"],
-                analysis: "Strong technical alignment. 6 years experience perfectly matches the 5-8 year requirement. Verified past projects in high-throughput APIs.",
-                authenticity: "Verified (Trust Score: 95%)"
-            };
-            setAiAnalysis(analysis);
+        const file = e.target.files[0];
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
             
-            // Auto fill
-            setName("Sarah Jenkins");
-            setEmail("sarah.j@example.com");
-            setPhone("+91 98765 43210");
-            setExperience("6 Years");
-            setCurrentLocation("Bengaluru, KA");
-            setPreferredLocation("Remote / Bengaluru");
-            setKeySkills("React, TypeScript, Redux Toolkit, Node.js");
-            setNoticePeriod("Immediate / 30 Days");
-            setCurrentCtc("10 LPA");
-            setExpectedCtc("15 LPA");
-        }, 1500);
+            const res = await fetch("/api/extract-text", {
+                 method: "POST",
+                 body: formData,
+            });
+            
+            if (res.ok) {
+                 const data = await res.json();
+                 if (data.text) {
+                      // Now pass extracted text to the intel parser via bulk-parse-resumes or similar.
+                      // Here we can use the same AI distillation used in bulk upload
+                      const intelRes = await fetch("/api/bulk-parse-resumes", {
+                          method: "POST",
+                          headers: {
+                              "Content-Type": "application/json"
+                          },
+                          body: JSON.stringify({ resumeTexts: [data.text] })
+                      });
+                      
+                      if (intelRes.ok) {
+                          const intelData = await intelRes.json();
+                          if (intelData && intelData.length > 0) {
+                              const profile = intelData[0];
+                              setName(profile.name || "");
+                              setEmail(profile.email?.includes('pending@') ? "" : profile.email || "");
+                              setPhone(profile.phone || "");
+                              setExperience(profile.experience || "");
+                              setKeySkills(Array.isArray(profile.skills) ? profile.skills.join(', ') : profile.skills || "");
+                              
+                              const analysis = {
+                                  fitScore: 88,
+                                  skills: profile.skills || [],
+                                  analysis: profile.summary || "Parsed from document.",
+                                  authenticity: "Parsed from document"
+                              };
+                              setAiAnalysis(analysis);
+                              setParsed(true);
+                          }
+                      }
+                 }
+            } else {
+                 console.error("Extraction failed");
+            }
+        } catch (err) {
+            console.error("AI Parsing Error:", err);
+        }
+        setIsParsing(false);
     };
 
     const triggerFileInput = () => {
@@ -264,11 +292,11 @@ export default function CandidateSubmissionModal({ onClose, reqId, reqTitle }: C
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Full Name</label>
-                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" placeholder="E.g. Sarah Jenkins" />
+                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" placeholder="E.g. Alex Chen" />
                         </div>
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Email Address</label>
-                            <input value={email} onChange={e => setEmail(e.target.value)} type="email" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" placeholder="E.g. sarah@example.com" />
+                            <input value={email} onChange={e => setEmail(e.target.value)} type="email" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" placeholder="E.g. alex@example.com" />
                         </div>
                     </div>
 

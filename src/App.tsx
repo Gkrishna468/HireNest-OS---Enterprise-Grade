@@ -447,6 +447,7 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Administration
               </div>
+              <SidebarItem to="/health" icon={Activity} label="Prod Health" active={location.pathname === "/health"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/users" icon={Users} label="Users" active={location.pathname === "/users"} onClick={() => setIsMobileMenuOpen(false)} />
               <SidebarItem to="/settings" icon={Settings} label="Settings" active={location.pathname === "/settings"} onClick={() => setIsMobileMenuOpen(false)} />
             </>

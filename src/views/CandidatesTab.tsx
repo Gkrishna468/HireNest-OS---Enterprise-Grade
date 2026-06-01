@@ -588,7 +588,7 @@ export default function CandidatesTab() {
           candidateId: candId,
           vendorId: userOrgId,
           sourceOrganizations: [userOrgId],
-          pipelineStage: "Added",
+          pipelineStage: "Candidate Added",
           source: "Bulk Upload",
           resumeText: extText,
           resumeHash: resumeHash,

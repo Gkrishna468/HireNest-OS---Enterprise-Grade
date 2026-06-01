@@ -11,8 +11,6 @@ import { InterviewSchedulerModal } from '../../components/modals/InterviewSchedu
 export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
   const [requirements, setRequirements] = useState<any[]>([]);
   const [aiMatches, setAiMatches] = useState<any[]>([]);
-  const [floatedCandidates, setFloatedCandidates] = useState<any[]>([]);
-  const [pipelineSubmissions, setPipelineSubmissions] = useState<any[]>([]);
   
   const [reviewData, setReviewData] = useState<{sub: any, req: any} | null>(null);
   const [scheduleData, setScheduleData] = useState<{sub: any, req: any} | null>(null);
@@ -27,23 +25,13 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       setRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 2. Fetch submissions for this client
-    const subq = query(collection(db, "submissions"), where("clientId", "==", orgId));
-    const unsubSub = onSnapshot(subq, snap => {
-      setPipelineSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // 3. Fetch Floated candidates from candidatePool
-    const floatq = query(collection(db, "candidatePool"), where("clientId", "==", orgId));
-    const unsubFloat = onSnapshot(floatq, snap => {
-      setFloatedCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // 4. Fetch AI Matches using the unified matching/global intelligence engine
+    // 2. Fetch AI Matches using the unified matching/global intelligence engine
     const fetchMatches = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
         const role = "client"; // Enforce client role for scoped queries
+
+        let accLedger: any[] = [];
 
         for (const req of requirements) {
           const res = await fetch(`/api/matching/global?requirementId=${req.id}&orgId=${orgId}&role=${role}`, {
@@ -51,22 +39,21 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
           });
           if (res.ok) {
              const data = await res.json();
-             // Aggregate global dynamic matches into our client LEDGER
-             const combinedMatches = [...(data.matches || []), ...(data.fallbackMatches || [])];
              
-             setAiMatches(prev => {
-                const filtered = prev.filter(m => m.requirementId !== req.id && m.reqId !== req.id);
-                const newlyTagged = combinedMatches.map(m => ({
-                    ...m,
+             // Directly use the server-validated Ledger Candidates array
+             if (data.ledgerCandidates && data.ledgerCandidates.length > 0) {
+                 const tagged = data.ledgerCandidates.map((c: any) => ({
+                    ...c,
                     canonicalRequirementId: req.id,
                     requirementId: req.id,
-                    reqId: req.id,
-                    sysSource: 'AI_MATCH'
-                }));
-                return [...filtered, ...newlyTagged];
-             });
+                    reqId: req.id
+                 }));
+                 accLedger = [...accLedger, ...tagged];
+             }
           }
         }
+        
+        setAiMatches(accLedger);
       } catch (err) {
         console.error("Global Match fetch err", err);
       }
@@ -82,8 +69,6 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
 
     return () => {
       unsubReq();
-      unsubSub();
-      unsubFloat();
       clearInterval(matchInterval);
     };
   }, [orgId, requirements.length]);
@@ -147,44 +132,7 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
         <div className="space-y-6">
           {requirements.map(req => {
             // Unified Requirement Candidate Ledger approach
-            const unifiedCandidates: any[] = [];
-            
-            // 1. AI Matches
-            aiMatches.forEach(c => {
-               if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id) {
-                   unifiedCandidates.push({ ...c, sysSource: 'AI_MATCH', candId: c.candidateId || c.id });
-               }
-            });
-            // 2. Vendor Floated
-            floatedCandidates.forEach(c => {
-               if (c.canonicalRequirementId === req.id || c.mappedJobId === req.id || c.mappedJobId === req.reqId) {
-                   unifiedCandidates.push({ ...c, sysSource: 'VENDOR_FLOATED', candId: c.candidateId || c.id });
-               }
-            });
-            // 3. Submissions
-            pipelineSubmissions.forEach(c => {
-               if (c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id || c.jobId === req.id) {
-                   unifiedCandidates.push({ ...c, sysSource: 'SUBMISSION', candId: c.candidateId || c.id });
-               }
-            });
-
-            // Deduplicate by candidateId prioritizing Submissions > Vendor Floated > AI Matches
-            const dedupedCandMap = new Map();
-            for (const cand of unifiedCandidates) {
-               if (!cand.candId) continue;
-               const existing = dedupedCandMap.get(cand.candId);
-               if (existing) {
-                  if (cand.sysSource === 'SUBMISSION' && existing.sysSource !== 'SUBMISSION') {
-                      dedupedCandMap.set(cand.candId, cand);
-                  } else if (cand.sysSource === 'VENDOR_FLOATED' && existing.sysSource === 'AI_MATCH') {
-                      dedupedCandMap.set(cand.candId, cand);
-                  }
-               } else {
-                  dedupedCandMap.set(cand.candId, cand);
-               }
-            }
-
-            const finalCandidates = Array.from(dedupedCandMap.values());
+            const finalCandidates = aiMatches.filter(c => c.canonicalRequirementId === req.id || c.requirementId === req.id || c.reqId === req.id);
 
             const reqAiMatches = finalCandidates.filter(c => c.sysSource === 'AI_MATCH');
             const reqFloated = finalCandidates.filter(c => c.sysSource === 'VENDOR_FLOATED');

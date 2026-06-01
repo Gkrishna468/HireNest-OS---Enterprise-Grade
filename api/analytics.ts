@@ -149,6 +149,93 @@ export default async function analyticsHandler(req: any, res: any) {
        });
     }
 
+    if (apiPath === 'hq-production-health') {
+       if (userRole !== 'admin' && userRole !== 'hq_admin' && userRole !== 'super_admin' && userRole !== 'ops_admin') {
+          return res.status(403).json({ error: "Access Denied. HQ Role required." });
+       }
+
+       const reqsSnap = await adminDb.collection("requirements_public").get();
+       const candsSnap = await adminDb.collection("candidatePool").get();
+       const subsSnap = await adminDb.collection("submissions").get();
+       
+       const allReqs = reqsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+       const allCands = candsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+       const allSubs = subsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+
+       // Requirement Integrity & Parity
+       let parityHealthy = 0;
+       let parityFailure = 0;
+       let reqsNoMatches = 0;
+       let reqsStale = 0;
+       let healthyReqs = 0;
+       
+       const now = new Date();
+       
+       allReqs.forEach((r: any) => {
+         const hasMatches = (r.matchesCount || 0) > 0;
+         if (!hasMatches) reqsNoMatches++;
+         
+         const isStale = r.updatedAt ? (now.getTime() - new Date(r.updatedAt).getTime() > 7 * 24 * 60 * 60 * 1000) : true;
+         if (isStale && r.status === 'PUBLISHED') reqsStale++;
+         
+         // Mock Parity Check (checking if match count anomalies exist)
+         if (r.adminHQMatches === undefined || r.adminHQMatches === r.matchesCount) {
+             parityHealthy++;
+             if (hasMatches && !isStale) healthyReqs++;
+         } else {
+             parityFailure++;
+         }
+       });
+
+       // Candidate Ledger
+       let mappedCorrectly = 0;
+       let orphaned = 0;
+       let missingVendor = 0;
+       
+       allCands.forEach((c: any) => {
+         if (!c.vendorId && !c.uploaderId) missingVendor++;
+         if (c.canonicalRequirementId) {
+             mappedCorrectly++;
+         } else {
+             orphaned++;
+         }
+       });
+
+       // Submissions Health
+       const submissionsByStatus = allSubs.reduce((acc: any, s: any) => {
+         acc[s.status] = (acc[s.status] || 0) + 1;
+         return acc;
+       }, {});
+       
+       const waiting48 = allSubs.filter((s: any) => s.updatedAt && (now.getTime() - new Date(s.updatedAt).getTime() > 2 * 24 * 60 * 60 * 1000) && ['SUBMITTED', 'INTERVIEWING'].includes(s.status)).length;
+       const waiting7d = allSubs.filter((s: any) => s.updatedAt && (now.getTime() - new Date(s.updatedAt).getTime() > 7 * 24 * 60 * 60 * 1000)).length;
+
+       return res.status(200).json({
+          integrity: {
+             healthyReqs,
+             parityHealthy,
+             parityFailure,
+             reqsNoMatches,
+             reqsStale
+          },
+          ledger: {
+             totalCandidates: allCands.length,
+             mappedCorrectly,
+             orphaned,
+             duplicate: 0, // Mock duplicates for now until vector deduplication
+             missingVendor
+          },
+          submissions: {
+             submitted: submissionsByStatus['SUBMITTED'] || 0,
+             interviewing: submissionsByStatus['INTERVIEWING'] || 0,
+             offers: submissionsByStatus['OFFER'] || 0,
+             placed: submissionsByStatus['PLACED'] || submissionsByStatus['HIRED'] || 0,
+             waiting48,
+             waiting7d
+          }
+       });
+    }
+
     if (apiPath === 'hq-health') {
        // Only accessible if role is 'admin', 'hq_admin', or 'super_admin'
        if (userRole !== 'admin' && userRole !== 'hq_admin' && userRole !== 'super_admin' && userRole !== 'ops_admin') {
