@@ -1024,7 +1024,18 @@ export default function CandidatesTab() {
                         </div>
                       </div>
 
-                      {/* INTELLIGENCE */}
+                      {/* INTELLIGENCE AND REQUIREMENT MAPPING */}
+                      {(cand.canonicalRequirementId || cand.mappedJobId) && cand.pipelineStage === "Matched" && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-xs">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Matched Requirement</div>
+                          <div className="font-semibold text-slate-800">{cand.requirementTitle || "Assigned Role"}</div>
+                          <div className="flex justify-between items-center mt-2">
+                             <div className="text-[10px] text-slate-500 font-mono">Req ID: {cand.canonicalRequirementId || cand.mappedJobId}</div>
+                             <div className="text-indigo-600 font-bold">{cand.matchScore || "0"}% Match</div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap gap-2 mb-4">
                         <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">
                           {cand.matchScore || "0"}% AI Match

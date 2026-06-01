@@ -25,31 +25,30 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       setRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 2. Fetch AI Matches using the unified matching/global intelligence engine
     const fetchMatches = async () => {
       try {
-        const token = await auth.currentUser?.getIdToken();
-        const role = "client"; // Enforce client role for scoped queries
-
+        const { getDocs, query, collection, where } = await import("firebase/firestore");
         let accLedger: any[] = [];
 
+        // For each client requirement, fetch the bound submissions or matched candidates
         for (const req of requirements) {
-          const res = await fetch(`/api/matching/global?requirementId=${req.id}&orgId=${orgId}&role=${role}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-             const data = await res.json();
-             
-             // Directly use the server-validated Ledger Candidates array
-             if (data.ledgerCandidates && data.ledgerCandidates.length > 0) {
-                 const tagged = data.ledgerCandidates.map((c: any) => ({
-                    ...c,
-                    canonicalRequirementId: req.id,
-                    requirementId: req.id,
-                    reqId: req.id
-                 }));
-                 accLedger = [...accLedger, ...tagged];
-             }
+          try {
+            const qSub = query(collection(db, "submissions"), where("canonicalRequirementId", "==", req.id));
+            const snap = await getDocs(qSub);
+            const tagged = snap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                 id: doc.id,
+                 ...data,
+                 canonicalRequirementId: req.id,
+                 requirementId: req.id,
+                 reqId: req.id,
+                 sysSource: data.status === 'MATCHED' ? 'AI_MATCH' : (data.vendorId === 'ORG-EXTERNAL-VENDOR' ? 'VENDOR_FLOATED' : 'SUBMISSION')
+              };
+            });
+            accLedger = [...accLedger, ...tagged];
+          } catch (e) {
+            console.warn("Failed to fetch matches for req", req.id, e);
           }
         }
         

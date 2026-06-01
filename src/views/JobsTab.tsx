@@ -219,6 +219,17 @@ export default function JobsTab() {
             .filter(Boolean);
 
           for (const cand of candidateList) {
+            // Wait until parsing is fully complete before scanning
+            if (
+               cand.name === "Pending Distillation" || 
+               cand.name === "Unnamed Candidate" || 
+               !cand.name ||
+               cand.distillationStatus === "PROCESSING" ||
+               cand.distillationStatus === "PENDING"
+            ) {
+               continue;
+            }
+
             // PIPELINE ISOLATION: Do not auto-submit candidates to other jobs if they are mapped to a specific job
             if (cand.mappedJobId && cand.mappedJobId !== job.id) continue;
 
@@ -301,24 +312,25 @@ export default function JobsTab() {
 
             // Check if match is good (>= 75%)
             if (matchScore >= 75) {
-              // Ensure submission document is created in Firestore
+              // Ensure match document is created in Firestore (Pipeline stage: MATCHED)
               const subId = `SUB-${job.id.replace("REQ-", "")}-${cand.id.slice(-6)}`;
               const subRef = doc(db, "submissions", subId);
               const subSnap = await getDoc(subRef);
 
               if (!subSnap.exists()) {
                 console.log(
-                  `[AUTO_SCANNER] High alignment found (${matchScore}%). Auto-submitting ${cand.name} for ${job.title}...`,
+                  `[AUTO_SCANNER] High alignment found (${matchScore}%). Auto-matching ${cand.name} for ${job.title}...`,
                 );
                 const newSub = {
                   id: subId,
                   canonicalRequirementId: job.id,
                   requirementId: job.id,
+                  requirementTitle: job.title || "Strategic Role",
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
                   candidateId: cand.id,
-                  candidateName: cand.fullName || "Anonymous Candidate",
-                  name: cand.fullName || "Anonymous Candidate",
+                  candidateName: cand.fullName || cand.name || "Anonymous Candidate",
+                  name: cand.fullName || cand.name || "Anonymous Candidate",
                   email: cand.primaryEmail || cand.email || "No Email Provided",
                   phone: cand.phoneHash || cand.phone || "No Phone Provided",
                   skills: cand.skills || [],
@@ -327,13 +339,13 @@ export default function JobsTab() {
                     cand.resumeText ||
                     `Candidate matching tech stack ${candSkills.join(", ")}.`,
                   matchScore: matchScore,
-                  status: "SUBMITTED",
+                  status: "MATCHED",
                   createdAt: serverTimestamp(),
                 };
                 await setDoc(subRef, newSub);
 
                 await emitEvent(
-                  "SubmissionCreated",
+                  "SubmissionMatched",
                   "SUBMISSION",
                   subId,
                   "system",
@@ -346,85 +358,16 @@ export default function JobsTab() {
                   },
                 );
 
-                // Log execution event
-                await logExecutionEvent(
-                  ExecutionEventType.SUBMISSION_RECEIVED,
-                  subId,
-                  "candidate",
-                  { requirementId: job.id, candidateId: cand.id, matchScore },
-                  job.id,
-                );
-              }
-
-              // Now automatically transition 75% to 100% matches into the Deal Room!
-              const roomId = `DR-${job.id.replace("REQ-", "")}-${cand.id.slice(-6)}`;
-              const roomRef = doc(db, "dealRooms", roomId);
-              const roomSnap = await getDoc(roomRef);
-
-              if (!roomSnap.exists()) {
-                console.log(
-                  `[AUTO_SCANNER] Moving ${cand.name} (${matchScore}%) to Deal Room ${roomId}...`,
-                );
-                await setDoc(roomRef, {
-                  id: roomId,
-                  canonicalRequirementId: job.id,
-                  requirementId: job.id,
-                  submissionId: subId,
-                  clientId: job.clientId || "ORG-da6tlbeo1",
-                  vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
-                  candidateName:
-                    cand.name || cand.candidateName || "Talent Match",
-                  jobTitle: job.title || "Strategic Role",
-                  experience: job.experience || "8+ YRS",
-                  status: "ACTIVE",
-                  currentStage: "Ai-Matched Pipeline",
-                  identitiesRevealed: false,
-                  createdAt: serverTimestamp(),
-                });
-
-                await emitEvent(
-                  "DealRoomOpened",
-                  "DEAL_ROOM",
-                  roomId,
-                  "system",
-                  "ai_agent",
-                  {
-                    requirementId: job.id,
-                    submissionId: subId,
-                    candidateName:
-                      cand.name || cand.candidateName || "Talent Match",
-                    clientId: job.clientId,
-                    vendorId: cand.vendorId,
-                    autoMatched: true,
-                  },
-                );
-
-                // Add welcoming copilot message to thread
-                await addDoc(collection(db, "dealRooms", roomId, "messages"), {
-                  senderRole: "AI Copilot",
-                  senderId: "system",
-                  text: `Enterprise Core Alert: Automatic cross-boundary candidate matching completed. ${cand.name} possesses high-density skill alignment (${matchScore}%) mapped under requirements. Transitioning candidate thread into Deal Room format to expedite placement negotiations.`,
-                  timestamp: serverTimestamp(),
-                });
-
-                // Trigger notification for the client
-                await addDoc(collection(db, "notifications"), {
-                  id: `NOTIF-${Date.now()}`,
-                  recipientId: job.ownerId || "default-user",
-                  title: "New Automated Marketplace Match",
-                  text: `AI Agent successfully matched and fast-tracked candidate ${cand.name || "Talent"} (${matchScore}%) for your role "${job.title}". Deal Room created.`,
-                  read: false,
-                  createdAt: serverTimestamp(),
-                });
-
                 // Synchronize candidate stage & matching score in global candidate pool
                 try {
                   const candRef = doc(db, "candidatePool", cand.id);
                   await setDoc(
                     candRef,
                     {
-                      pipelineStage: "Submitted",
+                      pipelineStage: "Matched",
                       matchScore: matchScore,
+                      canonicalRequirementId: job.id,
+                      requirementTitle: job.title || "Strategic Role",
                       updatedAt: serverTimestamp(),
                     },
                     { merge: true },
