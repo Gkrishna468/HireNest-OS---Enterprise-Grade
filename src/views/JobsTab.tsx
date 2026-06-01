@@ -52,6 +52,7 @@ import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
 import { EmptyState } from "../components/EmptyState";
+import { publishEvent } from "../lib/eventEngine";
 
 import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
@@ -428,6 +429,19 @@ export default function JobsTab() {
                     },
                     { merge: true },
                   );
+
+                  // Publish Notification Event
+                  await publishEvent({
+                    type: "info",
+                    title: "Candidate Matched",
+                    message: `${cand.name || "A candidate"} was auto-matched to ${job.title} (${matchScore}%)`,
+                    actionUrl: "/deal-rooms",
+                    recipients: [
+                      "GLOBAL_ADMIN",
+                      "GLOBAL_CLIENT",
+                      "GLOBAL_VENDOR",
+                    ],
+                  });
                 } catch (candErr) {
                   console.warn(
                     "[AUTO_SCANNER] Skipped candidate pool stage sync:",

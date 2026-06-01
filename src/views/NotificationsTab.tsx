@@ -34,7 +34,13 @@ interface Notification {
   actionUrl?: string;
 }
 
-export default function NotificationsTab({ org }: { org: any }) {
+export default function NotificationsTab({
+  org,
+  role,
+}: {
+  org: any;
+  role?: string;
+}) {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +55,13 @@ export default function NotificationsTab({ org }: { org: any }) {
     const orgId = org?.organizationId || org?.id;
     if (orgId) {
       recipients.push(orgId);
+    }
+
+    // Broadcast tokens based on role
+    if (role) {
+      if (role.includes("admin")) recipients.push("GLOBAL_ADMIN");
+      if (role.includes("client")) recipients.push("GLOBAL_CLIENT");
+      if (role.includes("vendor")) recipients.push("GLOBAL_VENDOR");
     }
 
     const q = query(
@@ -169,21 +182,22 @@ export default function NotificationsTab({ org }: { org: any }) {
                   navigate(n.actionUrl);
                   return;
                 }
-                
-                const fullText = `${n.title || ""} ${n.text || ""} ${n.message || ""}`.toLowerCase();
-                
+
+                const fullText =
+                  `${n.title || ""} ${n.text || ""} ${n.message || ""}`.toLowerCase();
+
                 if (fullText.includes("deal room") || n.type === "DEAL_ROOM") {
                   navigate("/deal-rooms");
                 } else if (
-                  fullText.includes("resume") || 
-                  fullText.includes("candidate") || 
-                  n.type === "CANDIDATE" || 
+                  fullText.includes("resume") ||
+                  fullText.includes("candidate") ||
+                  n.type === "CANDIDATE" ||
                   n.type === "RESUME"
                 ) {
                   navigate("/candidates");
                 } else if (
-                  fullText.includes("job") || 
-                  fullText.includes("requirement") || 
+                  fullText.includes("job") ||
+                  fullText.includes("requirement") ||
                   n.type === "JOB_BROADCAST"
                 ) {
                   navigate("/jobs");
@@ -192,7 +206,7 @@ export default function NotificationsTab({ org }: { org: any }) {
                 } else if (fullText.includes("client")) {
                   navigate("/network");
                 } else if (fullText.includes("match")) {
-                  // Fallback for match could be jobs or candidates, Deal Room might catch it earlier. 
+                  // Fallback for match could be jobs or candidates, Deal Room might catch it earlier.
                   navigate("/candidates");
                 }
               }}
@@ -230,7 +244,10 @@ export default function NotificationsTab({ org }: { org: any }) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(n.id);
+                        }}
                         className="h-8 w-8 text-slate-300 hover:text-red-500"
                       >
                         <Trash2 size={14} />
@@ -239,7 +256,10 @@ export default function NotificationsTab({ org }: { org: any }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={(e) => { e.stopPropagation(); markAsRead(n.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(n.id);
+                          }}
                           className="h-8 w-8 text-slate-300 hover:text-indigo-500"
                         >
                           <CheckCircle size={14} />
@@ -287,7 +307,10 @@ export default function NotificationsTab({ org }: { org: any }) {
           browser push notifications can be toggled in your individual OS
           settings panel.
         </p>
-        <Button onClick={() => setShowConfigModal(true)} className="mt-4 bg-white/10 hover:bg-white/20 text-white border border-white/10 text-[10px] font-black uppercase tracking-widest rounded-xl">
+        <Button
+          onClick={() => setShowConfigModal(true)}
+          className="mt-4 bg-white/10 hover:bg-white/20 text-white border border-white/10 text-[10px] font-black uppercase tracking-widest rounded-xl"
+        >
           Configure Alerts
         </Button>
       </div>
@@ -298,85 +321,156 @@ export default function NotificationsTab({ org }: { org: any }) {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
               <div className="flex items-center gap-3">
                 <Bell className="text-indigo-600" size={20} />
-                <h2 className="text-lg font-black text-slate-900 tracking-tight">Alert Preferences</h2>
+                <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                  Alert Preferences
+                </h2>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setShowConfigModal(false)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowConfigModal(false)}
+              >
                 X
               </Button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               <section>
                 <div className="mb-4">
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Admin Alerts</h3>
-                  <p className="text-xs text-slate-500 font-medium">Critical system and governance notifications</p>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
+                    Admin Alerts
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Critical system and governance notifications
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Activity Timeline Thresholds</h4>
-                      <p className="text-xs text-slate-500">Alert when error rates exceed safe limits</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Activity Timeline Thresholds
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Alert when error rates exceed safe limits
+                      </p>
                     </div>
-                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">Default On</span>
+                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">
+                      Default On
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">New Node Provisioning</h4>
-                      <p className="text-xs text-slate-500">Alerts when new workspaces are created</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        New Node Provisioning
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Alerts when new workspaces are created
+                      </p>
                     </div>
-                    <Button variant="outline" size="sm" className="text-[10px] h-7 uppercase font-black">Schedule</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[10px] h-7 uppercase font-black"
+                    >
+                      Schedule
+                    </Button>
                   </div>
                 </div>
               </section>
 
               <section>
                 <div className="mb-4">
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Vendor OS Alerts</h3>
-                  <p className="text-xs text-slate-500 font-medium">Supply chain and placement operations</p>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
+                    Vendor OS Alerts
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Supply chain and placement operations
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Deal Room Invites</h4>
-                      <p className="text-xs text-slate-500">When assigned to a new enterprise deal</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Deal Room Invites
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        When assigned to a new enterprise deal
+                      </p>
                     </div>
-                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">Default On</span>
+                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">
+                      Default On
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Candidate Status Updates</h4>
-                      <p className="text-xs text-slate-500">When candidate moves through pipeline stages</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Candidate Status Updates
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        When candidate moves through pipeline stages
+                      </p>
                     </div>
-                    <Button variant="outline" size="sm" className="text-[10px] h-7 uppercase font-black">Schedule</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[10px] h-7 uppercase font-black"
+                    >
+                      Schedule
+                    </Button>
                   </div>
                 </div>
               </section>
 
               <section>
                 <div className="mb-4">
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Client OS Alerts</h3>
-                  <p className="text-xs text-slate-500 font-medium">Hiring manager and intake notifications</p>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
+                    Client OS Alerts
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Hiring manager and intake notifications
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Pipeline Match Readiness</h4>
-                      <p className="text-xs text-slate-500">When AI flags a highly compatible candidate</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Pipeline Match Readiness
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        When AI flags a highly compatible candidate
+                      </p>
                     </div>
-                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">Default On</span>
+                    <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">
+                      Default On
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Invoice Generation</h4>
-                      <p className="text-xs text-slate-500">When payment milestones are reached</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Invoice Generation
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        When payment milestones are reached
+                      </p>
                     </div>
-                    <Button variant="outline" size="sm" className="text-[10px] h-7 uppercase font-black">Schedule</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[10px] h-7 uppercase font-black"
+                    >
+                      Schedule
+                    </Button>
                   </div>
                 </div>
               </section>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
-               <Button onClick={() => setShowConfigModal(false)} className="bg-slate-900 text-white hover:bg-slate-800 text-xs font-black uppercase tracking-widest">Done</Button>
+              <Button
+                onClick={() => setShowConfigModal(false)}
+                className="bg-slate-900 text-white hover:bg-slate-800 text-xs font-black uppercase tracking-widest"
+              >
+                Done
+              </Button>
             </div>
           </div>
         </div>

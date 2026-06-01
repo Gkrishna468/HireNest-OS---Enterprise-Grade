@@ -44,6 +44,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
+import { publishEvent } from "../lib/eventEngine";
 
 import CandidateSubmissionModal from "../components/CandidateSubmissionModal";
 import { EmptyState } from "../components/EmptyState";
@@ -760,6 +761,13 @@ export default function CandidatesTab() {
             doc(db, "candidatePool", resolvedCandId),
             updatePayload,
           );
+
+          await publishEvent({
+            type: "success",
+            title: "Candidate Parsed",
+            message: `Intelligence extraction complete for ${result.name}`,
+            recipients: ["GLOBAL_ADMIN", "GLOBAL_CLIENT", "GLOBAL_VENDOR"],
+          });
         }
 
         // Update stats
@@ -1078,9 +1086,31 @@ export default function CandidatesTab() {
               Assign Vendor
             </Button>
             <Button
-              onClick={() => {
-                alert("Candidates Rejected.");
-                setSelectedCandidatesIds([]);
+              onClick={async () => {
+                if (
+                  window.confirm(
+                    `Are you sure you want to reject ${selectedCandidatesIds.length} candidate(s)?`,
+                  )
+                ) {
+                  for (const id of selectedCandidatesIds) {
+                    await updateDoc(doc(db, "candidatePool", id), {
+                      pipelineStage: "Rejected",
+                      updatedAt: serverTimestamp(),
+                    });
+                  }
+                  await publishEvent({
+                    type: "warning",
+                    title: "Candidates Rejected",
+                    message: `${selectedCandidatesIds.length} candidate(s) have been rejected.`,
+                    actionUrl: "/candidates",
+                    recipients: [
+                      "GLOBAL_ADMIN",
+                      "GLOBAL_CLIENT",
+                      "GLOBAL_VENDOR",
+                    ],
+                  });
+                  setSelectedCandidatesIds([]);
+                }
               }}
               variant="outline"
               className="border-rose-200 text-rose-700 bg-rose-50 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-rose-100"

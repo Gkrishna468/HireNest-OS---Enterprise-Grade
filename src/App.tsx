@@ -67,6 +67,7 @@ import TimesheetsTab from "./views/TimesheetsTab";
 import InvoicesTab from "./views/InvoicesTab";
 import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
 import { OnboardingGuide } from "./components/OnboardingGuide";
+import { LiveToaster } from "./components/LiveToaster";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -325,6 +326,7 @@ const AppContent = () => {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans">
+      <LiveToaster orgId={userData?.organizationId} userRole={userData?.role} />
       {hasCompletedOnboarding && showDemo && (
         <WelcomeDemo
           type={isAdmin || isClient ? "client" : "vendor"}
@@ -832,7 +834,10 @@ const AppContent = () => {
             <Route
               path="/notifications"
               element={
-                <NotificationsTab org={{ id: userData?.organizationId }} />
+                <NotificationsTab
+                  org={{ id: userData?.organizationId }}
+                  role={userData?.role}
+                />
               }
             />
             <Route
