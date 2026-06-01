@@ -3,6 +3,7 @@ import { Activity, Brain, ShieldAlert, TrendingUp, Mail, AlertCircle, CheckCircl
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import ReactMarkdown from "react-markdown";
+import { RequirementLedgerModal } from "../components/modals/RequirementLedgerModal";
 
 export default function AgentHQ() {
   const [analysis, setAnalysis] = useState<string>("");
@@ -132,7 +133,7 @@ export default function AgentHQ() {
             <div className="h-64 bg-white rounded-3xl p-6 shadow-xl border border-slate-200 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 flex items-center gap-2">
-                        <Activity size={14}/> Active Requirements
+                        <Activity size={14}/> Active Requirements Ledger
                     </h3>
                     <span className="text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
                         {activeRequirements.length} ACTIVE
@@ -145,7 +146,13 @@ export default function AgentHQ() {
                         activeRequirements.map(req => {
                             const reqMatches = activeMatches.filter(m => m.requirementId === req.id);
                             return (
-                                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 gap-2">
+                                <div key={req.id} 
+                                   onClick={() => {
+                                       // Open Ledger Debugger
+                                       const evt = new CustomEvent("openLedgerPanel", { detail: req.id });
+                                       window.dispatchEvent(evt);
+                                   }}
+                                   className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer rounded-xl border border-slate-100 gap-2 transition-colors">
                                     <div>
                                         <div className="text-xs font-black text-slate-800">{req.title}</div>
                                         <div className="text-[10px] uppercase font-bold text-slate-500">{req.clientName || req.clientId}</div>
@@ -274,6 +281,7 @@ export default function AgentHQ() {
           </div>
         </div>
       </div>
+      <RequirementLedgerModal />
     </div>
   );
 }
