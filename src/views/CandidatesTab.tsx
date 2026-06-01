@@ -62,17 +62,20 @@ const getSkillsArray = (skills: any): string[] => {
 import { ClientCandidatePipeline } from "./workspaces/ClientCandidatePipeline";
 
 const STAGES = [
+  "Processing",
   "Added",
   "Matched",
   "Submitted",
   "Interviewing",
-  "Placed"
+  "Placed",
 ];
 
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCandidatesIds, setSelectedCandidatesIds] = useState<string[]>([]);
+  const [selectedCandidatesIds, setSelectedCandidatesIds] = useState<string[]>(
+    [],
+  );
   const [candidateSubmissions, setCandidateSubmissions] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -96,6 +99,13 @@ export default function CandidatesTab() {
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
   const [vendorMap, setVendorMap] = useState<Record<string, string>>({});
+  const [processingStats, setProcessingStats] = useState<{
+    show: boolean;
+    total: number;
+    processing: number;
+    parsed: number;
+    matched: number;
+  } | null>(null);
   const isAdmin =
     userRole.includes("admin") ||
     userRole === "super_admin" ||
@@ -132,13 +142,16 @@ export default function CandidatesTab() {
           orgId = userData.organizationId || "ORG-GLOBAL-HQ";
           role = userData.role || "guest";
         }
-        
+
         // Apply super admin logic
         const superAdmins = [
           "gopal@hirenestworkforce.com",
           "gopalkrishna0046@gmail.com",
         ];
-        if (auth.currentUser.email && superAdmins.includes(auth.currentUser.email.toLowerCase())) {
+        if (
+          auth.currentUser.email &&
+          superAdmins.includes(auth.currentUser.email.toLowerCase())
+        ) {
           role = "super_admin";
           orgId = "ORG-GLOBAL-HQ";
         }
@@ -197,14 +210,16 @@ export default function CandidatesTab() {
                   where("vendorId", "==", orgId),
                   limit(100),
                 );
-          
+
           if (!q) {
-             setCandidates([]);
+            setCandidates([]);
           } else {
             unsubscribe = onSnapshot(
               q,
               (snap) => {
-                setCandidates(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+                setCandidates(
+                  snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                );
               },
               (error: any) => {
                 handleFirestoreError(error, OperationType.GET, "candidatePool");
@@ -247,20 +262,36 @@ export default function CandidatesTab() {
     const loadSubmissions = async () => {
       try {
         const id = selectedCandidate.id || selectedCandidate.candidateId;
-        let qId = query(collection(db, "submissions"), where("candidateId", "==", id));
-        
+        let qId = query(
+          collection(db, "submissions"),
+          where("candidateId", "==", id),
+        );
+
         const isClientUser = userRole.includes("client");
-        const isVendorUser = userRole.includes("vendor") || userRole.includes("recruiter") || userRole.includes("independent");
-        
+        const isVendorUser =
+          userRole.includes("vendor") ||
+          userRole.includes("recruiter") ||
+          userRole.includes("independent");
+
         if (isClientUser) {
-          qId = query(collection(db, "submissions"), where("candidateId", "==", id), where("clientId", "==", userOrgId));
+          qId = query(
+            collection(db, "submissions"),
+            where("candidateId", "==", id),
+            where("clientId", "==", userOrgId),
+          );
         } else if (isVendorUser && !isAdmin) {
-          qId = query(collection(db, "submissions"), where("candidateId", "==", id), where("vendorId", "==", userOrgId));
+          qId = query(
+            collection(db, "submissions"),
+            where("candidateId", "==", id),
+            where("vendorId", "==", userOrgId),
+          );
         }
-        
+
         // Listen to submissions via candidateId
         const unsub = onSnapshot(qId, (snap) => {
-          setCandidateSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setCandidateSubmissions(
+            snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          );
         });
         unsubs.push(unsub);
       } catch (err) {
@@ -269,7 +300,7 @@ export default function CandidatesTab() {
     };
     loadSubmissions();
 
-    return () => unsubs.forEach(u => u());
+    return () => unsubs.forEach((u) => u());
   }, [selectedCandidate]);
 
   const checkDuplicate = (email: string, phone: string, currentId?: string) => {
@@ -510,9 +541,14 @@ export default function CandidatesTab() {
 
       setBulkText("");
       setShowBulkUpload(false);
-      alert(
-        `Successfully queued ${count} candidates for background intelligence distillation.`,
-      );
+
+      setProcessingStats({
+        show: true,
+        total: count,
+        processing: count,
+        parsed: 0,
+        matched: 0,
+      });
     } catch (e: any) {
       alert("Bulk upload failed: " + (e.message || "Unknown error"));
     }
@@ -557,21 +593,32 @@ export default function CandidatesTab() {
         } catch (e) {
           console.warn("Extraction failed, skipping text extraction", e);
         }
-        
+
         // --- ADD DEDUPLICATION BEFORE SAVING ---
         const encoder = new TextEncoder();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(extText));
+        const hashBuffer = await crypto.subtle.digest(
+          "SHA-256",
+          encoder.encode(extText),
+        );
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const resumeHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const resumeHash = hashArray
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
 
         try {
-           const { getDocs, query, collection, where } = await import("firebase/firestore");
-           const existingUserQ = query(collection(db, "candidatePool"), where("resumeHash", "==", resumeHash));
-           const existingDocs = await getDocs(existingUserQ);
-           if (!existingDocs.empty) {
-               console.warn(`File ${file.name} is a duplicate submission (resume matched exactly). Skipping.`);
-               continue; // Skip this duplicate fully
-           }
+          const { getDocs, query, collection, where } =
+            await import("firebase/firestore");
+          const existingUserQ = query(
+            collection(db, "candidatePool"),
+            where("resumeHash", "==", resumeHash),
+          );
+          const existingDocs = await getDocs(existingUserQ);
+          if (!existingDocs.empty) {
+            console.warn(
+              `File ${file.name} is a duplicate submission (resume matched exactly). Skipping.`,
+            );
+            continue; // Skip this duplicate fully
+          }
         } catch (e) {}
         // ----------------------------------------
 
@@ -614,9 +661,27 @@ export default function CandidatesTab() {
     setShowBulkUpload(false);
 
     if (failCount > 0) {
-      alert(`Finished. ${successCount} queued, ${failCount} failed to upload.`);
+      setProcessingStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              show: true,
+              total: successCount,
+              processing: successCount,
+              parsed: 0,
+              matched: 0,
+            }
+          : null,
+      );
+      if (successCount === 0) setProcessingStats(null);
     } else {
-      alert(`Successfully queued ${successCount} candidates for background intelligence distillation.`);
+      setProcessingStats({
+        show: true,
+        total: successCount,
+        processing: successCount,
+        parsed: 0,
+        matched: 0,
+      });
     }
   };
 
@@ -634,7 +699,7 @@ export default function CandidatesTab() {
         parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
       if (result && result.name && result.name !== "Pending Distillation") {
-        const updatePayload: any = {
+        let updatePayload: any = {
           ...result,
           fullName: result.name, // Map to new schema
           name: result.name, // Legacy
@@ -645,11 +710,87 @@ export default function CandidatesTab() {
         };
         // Do not override user original data if it exists (for manual form updates)
         if (result.name === "Unnamed Candidate") {
-            delete updatePayload.name;
-            delete updatePayload.fullName;
+          delete updatePayload.name;
+          delete updatePayload.fullName;
         }
 
-        await updateDoc(doc(db, "candidatePool", candId), updatePayload);
+        // Update basic payload
+        let resolvedCandId = candId;
+
+        // IDENTITY RESOLUTION ENGINE
+        try {
+          if (
+            result.email &&
+            result.email !== "No Email Provided" &&
+            result.email !== "" &&
+            !result.email.includes("pending@")
+          ) {
+            const { query, collection, where, getDocs, deleteDoc } =
+              await import("firebase/firestore");
+            const q = query(
+              collection(db, "candidatePool"),
+              where("email", "==", result.email),
+            );
+            const snap = await getDocs(q);
+            const duplicates = snap.docs.filter((d) => d.id !== candId);
+
+            if (duplicates.length > 0) {
+              const primary = duplicates[0];
+              resolvedCandId = primary.id;
+              console.log(
+                `[IDENTITY RESOLUTION] Merging duplicate upload for ${result.email} into existing primary ID: ${resolvedCandId}`,
+              );
+              // Update the primary instead
+              await updateDoc(doc(db, "candidatePool", resolvedCandId), {
+                resumeText:
+                  updatePayload.resumeText || primary.data().resumeText,
+                updatedAt: serverTimestamp(),
+              });
+              // Delete the ghost duplicate
+              await deleteDoc(doc(db, "candidatePool", candId));
+              updatePayload = null; // Prevent update of the deleted document
+            }
+          }
+        } catch (idErr) {
+          console.warn("Identity Resolution Error:", idErr);
+        }
+
+        if (updatePayload) {
+          await updateDoc(
+            doc(db, "candidatePool", resolvedCandId),
+            updatePayload,
+          );
+        }
+
+        // Update stats
+        setProcessingStats((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            processing: Math.max(0, prev.processing - 1),
+            parsed: prev.parsed + 1,
+          };
+        });
+
+        // Phase 4 - Historical Submission Repair
+        try {
+          const { query, collection, where, getDocs } =
+            await import("firebase/firestore");
+          const subsRef = collection(db, "submissions");
+          const q = query(subsRef, where("candidateId", "==", resolvedCandId));
+          const snap = await getDocs(q);
+          for (const sDoc of snap.docs) {
+            await updateDoc(doc(db, "submissions", sDoc.id), {
+              candidateName: result.name,
+              name: result.name,
+              skills: result.skills || sDoc.data().skills,
+              email: result.email || sDoc.data().email,
+              phone: result.phone || sDoc.data().phone,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to repair history", e);
+        }
       } else {
         await updateDoc(doc(db, "candidatePool", candId), {
           distillationStatus: "FAILED",
@@ -779,18 +920,38 @@ export default function CandidatesTab() {
     }
   };
 
-  const filteredCandidates = candidates.filter((c) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      c.name?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      c.skills?.join(",").toLowerCase().includes(q) ||
-      c.canonicalRequirementId?.toLowerCase().includes(q)
-    );
-  });
+  const filteredCandidates = candidates
+    .map((c) => {
+      let stage = c.pipelineStage || "Added";
+      const n = c.name || "";
+      if (
+        n.toUpperCase().startsWith("CANDIDATE ") ||
+        n === "Pending Distillation" ||
+        n === "Unnamed Candidate" ||
+        n === "Local Mock Generated" ||
+        n === "Unknown Candidate" ||
+        n === "Sarah Jenkins" ||
+        n === "" ||
+        n.includes("Parsing Pending") ||
+        c.distillationStatus === "PROCESSING" ||
+        c.distillationStatus === "PENDING"
+      ) {
+        stage = "Processing";
+      }
+      return { ...c, pipelineStage: stage };
+    })
+    .filter((c) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        c.name?.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.skills?.join(",").toLowerCase().includes(q) ||
+        c.canonicalRequirementId?.toLowerCase().includes(q)
+      );
+    });
 
-  if (userRole.startsWith('client') && !isAdmin && userOrgId) {
+  if (userRole.startsWith("client") && !isAdmin && userOrgId) {
     return <ClientCandidatePipeline orgId={userOrgId} />;
   }
 
@@ -808,19 +969,19 @@ export default function CandidatesTab() {
                 Candidate Matrix
               </h1>
               <div className="flex items-center mt-2 gap-4">
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                   <span className="text-indigo-600">Unified Global Pool</span> •
-                   Real-time Intelligence Processing
-                 </p>
-                 <div className="relative">
-                   <input
-                     type="text"
-                     placeholder="Search candidates globally..."
-                     value={searchQuery}
-                     onChange={(e) => setSearchQuery(e.target.value)}
-                     className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
-                   />
-                 </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                  <span className="text-indigo-600">Unified Global Pool</span> •
+                  Real-time Intelligence Processing
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search candidates globally..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -843,11 +1004,23 @@ export default function CandidatesTab() {
             <Button
               onClick={() => {
                 candidates.forEach((c) => {
-                  if (c.name?.toUpperCase().startsWith("CANDIDATE ") || c.name === "Pending Distillation" || c.name === "Unnamed Candidate") {
+                  const n = c.name || "";
+                  if (
+                    n.toUpperCase().startsWith("CANDIDATE ") ||
+                    n === "Pending Distillation" ||
+                    n === "Unnamed Candidate" ||
+                    n === "Local Mock Generated" ||
+                    n === "Unknown Candidate" ||
+                    n === "Sarah Jenkins" ||
+                    n === "" ||
+                    n.includes("Parsing Pending")
+                  ) {
                     if (c.resumeText) enrichCandidate(c.id, c.resumeText);
                   }
                 });
-                alert("Triggered intelligence extraction for all placeholder candidates with resumes.");
+                alert(
+                  "Triggered intelligence extraction for all placeholder candidates with resumes.",
+                );
               }}
               variant="outline"
               className="border-amber-200 bg-amber-50 text-amber-700 h-12 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all font-black uppercase tracking-widest text-[11px]"
@@ -857,52 +1030,71 @@ export default function CandidatesTab() {
           </div>
         )}
         {selectedCandidatesIds.length > 0 && (
-           <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 p-2 rounded-2xl shadow-sm">
-             <div className="px-4 text-[11px] font-black uppercase tracking-widest text-indigo-800">
-               {selectedCandidatesIds.length} Selected
-             </div>
-             <Button
-               onClick={() => { alert('Bulk Submit Initiated for ' + selectedCandidatesIds.length + ' candidates.'); setSelectedCandidatesIds([]); }}
-               className="bg-indigo-600 hover:bg-indigo-700 text-white h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all"
-             >
-               Bulk Submit
-             </Button>
-             <Button
-               onClick={() => { alert('Bulk Shortlist applied.'); setSelectedCandidatesIds([]); }}
-               variant="outline"
-               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
-             >
-               Bulk Shortlist
-             </Button>
-             <Button
-               onClick={() => { alert('Stage Move initiated.'); setSelectedCandidatesIds([]); }}
-               variant="outline"
-               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
-             >
-               Bulk Move Stage
-             </Button>
-             <Button
-               onClick={() => { alert('Bulk Assign Vendor triggered.'); setSelectedCandidatesIds([]); }}
-               variant="outline"
-               className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
-             >
-               Assign Vendor
-             </Button>
-             <Button
-               onClick={() => { alert('Candidates Rejected.'); setSelectedCandidatesIds([]); }}
-               variant="outline"
-               className="border-rose-200 text-rose-700 bg-rose-50 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-rose-100"
-             >
-               Reject
-             </Button>
-             <Button
-               onClick={() => setSelectedCandidatesIds([])}
-               variant="ghost"
-               className="text-slate-500 hover:text-slate-700 px-3"
-             >
-               <X size={16} />
-             </Button>
-           </div>
+          <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 p-2 rounded-2xl shadow-sm">
+            <div className="px-4 text-[11px] font-black uppercase tracking-widest text-indigo-800">
+              {selectedCandidatesIds.length} Selected
+            </div>
+            <Button
+              onClick={() => {
+                alert(
+                  "Bulk Submit Initiated for " +
+                    selectedCandidatesIds.length +
+                    " candidates.",
+                );
+                setSelectedCandidatesIds([]);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all"
+            >
+              Bulk Submit
+            </Button>
+            <Button
+              onClick={() => {
+                alert("Bulk Shortlist applied.");
+                setSelectedCandidatesIds([]);
+              }}
+              variant="outline"
+              className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+            >
+              Bulk Shortlist
+            </Button>
+            <Button
+              onClick={() => {
+                alert("Stage Move initiated.");
+                setSelectedCandidatesIds([]);
+              }}
+              variant="outline"
+              className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+            >
+              Bulk Move Stage
+            </Button>
+            <Button
+              onClick={() => {
+                alert("Bulk Assign Vendor triggered.");
+                setSelectedCandidatesIds([]);
+              }}
+              variant="outline"
+              className="border-indigo-200 bg-white text-indigo-700 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-indigo-50"
+            >
+              Assign Vendor
+            </Button>
+            <Button
+              onClick={() => {
+                alert("Candidates Rejected.");
+                setSelectedCandidatesIds([]);
+              }}
+              variant="outline"
+              className="border-rose-200 text-rose-700 bg-rose-50 h-10 px-4 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-rose-100"
+            >
+              Reject
+            </Button>
+            <Button
+              onClick={() => setSelectedCandidatesIds([])}
+              variant="ghost"
+              className="text-slate-500 hover:text-slate-700 px-3"
+            >
+              <X size={16} />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -919,236 +1111,356 @@ export default function CandidatesTab() {
       ) : (
         <div className="flex-1 flex space-x-4 overflow-x-auto overflow-y-hidden pb-2 custom-scrollbar">
           {STAGES.map((stage, sIdx) => {
-            const list = filteredCandidates.filter((c) => c.pipelineStage === stage);
+            const list = filteredCandidates.filter(
+              (c) => c.pipelineStage === stage,
+            );
             return (
               <div
                 key={stage}
                 className="w-[340px] flex-shrink-0 flex flex-col h-full bg-slate-100/30 rounded-3xl border border-slate-200 overflow-hidden"
               >
-              <div className="p-5 bg-slate-900 border-b flex items-center justify-between shrink-0 shadow-lg border-white/5">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "h-2 w-2 rounded-full animate-pulse",
-                      sIdx === 0
-                        ? "bg-slate-500"
-                        : sIdx === 1
-                          ? "bg-amber-500"
-                          : sIdx === 2
-                            ? "bg-indigo-500"
-                            : sIdx === 3
-                              ? "bg-blue-500"
-                              : "bg-emerald-500",
-                    )}
-                  />
-                  <h3 className="font-black text-[11px] uppercase tracking-[0.2em] text-white">
-                    {stage}
-                  </h3>
+                <div className="p-5 bg-slate-900 border-b flex items-center justify-between shrink-0 shadow-lg border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "h-2 w-2 rounded-full animate-pulse",
+                        sIdx === 0
+                          ? "bg-slate-500"
+                          : sIdx === 1
+                            ? "bg-amber-500"
+                            : sIdx === 2
+                              ? "bg-indigo-500"
+                              : sIdx === 3
+                                ? "bg-blue-500"
+                                : "bg-emerald-500",
+                      )}
+                    />
+                    <h3 className="font-black text-[11px] uppercase tracking-[0.2em] text-white">
+                      {stage}
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 shadow-inner">
+                    {list.length}
+                  </span>
                 </div>
-                <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 shadow-inner">
-                  {list.length}
-                </span>
-              </div>
 
-              <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
-                {list.map((cand) => (
-                  <div
-                    key={cand.id}
-                    onClick={() => {
-                      setSelectedCandidate(cand);
-                      setMappingResult(cand.matchData || null);
-                      setSelectedJobId(cand.mappedJobId || "");
-                    }}
-                    className={cn(
-                      "group relative bg-white border border-slate-100 rounded-2xl p-5 transition-all shadow-sm hover:shadow-xl hover:shadow-slate-200 cursor-pointer overflow-hidden ring-1 ring-slate-100",
-                      selectedCandidate?.id === cand.id &&
-                        "ring-2 ring-indigo-600 shadow-indigo-50",
-                    )}
-                  >
-                    {cand.distillationStatus === "PENDING" && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex items-center justify-center rounded-2xl z-10 transition-opacity">
-                        <div className="flex flex-col items-center gap-3">
-                          <Activity
-                            size={20}
-                            className="text-indigo-600 animate-spin"
-                          />
-                          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-700">
-                            OS Sync...
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {cand.isDuplicate && (
-                      <div className="mb-3 text-[9px] font-black text-amber-700 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-100 flex items-center gap-1.5 w-fit uppercase tracking-wider animate-pulse">
-                        <AlertTriangle size={11} className="text-amber-500" />{" "}
-                        Duplicate Detected
-                      </div>
-                    )}
-                    
-                    {cand.name === "Unnamed Candidate" && (
-                      <div className="mb-3 text-[9px] font-black text-rose-700 bg-rose-50/80 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center gap-1.5 w-fit uppercase tracking-wider">
-                        <AlertTriangle size={11} className="text-rose-500" />{" "}
-                        Name Extraction Needs Review
-                      </div>
-                    )}
-
-                    <div className="flex flex-col mb-4 bg-white rounded-xl">
-                      {/* HEADER */}
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-start gap-3">
-                          <input 
-                            type="checkbox" 
-                            className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            checked={selectedCandidatesIds.includes(cand.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              if (e.target.checked) {
-                                setSelectedCandidatesIds(prev => [...prev, cand.id]);
-                              } else {
-                                setSelectedCandidatesIds(prev => prev.filter(id => id !== cand.id));
-                              }
-                            }}
-                          />
-                          <div className="flex flex-col gap-1">
-                            <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                              {cand.fullName || cand.name || "Unnamed Candidate"}
-                            </h3>
-                            <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
-                               <Fingerprint size={12} className="text-slate-300" /> {cand.id}
-                            </div>
-                            <p className="text-xs font-medium text-slate-600 mt-1">
-                              {cand.currentRole || cand.experience || "Professional Candidate"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* INTELLIGENCE AND REQUIREMENT MAPPING */}
-                      {(cand.canonicalRequirementId || cand.mappedJobId) && cand.pipelineStage === "Matched" && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-xs">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Matched Requirement</div>
-                          <div className="font-semibold text-slate-800">{cand.requirementTitle || "Assigned Role"}</div>
-                          <div className="flex justify-between items-center mt-2">
-                             <div className="text-[10px] text-slate-500 font-mono">Req ID: {cand.canonicalRequirementId || cand.mappedJobId}</div>
-                             <div className="text-indigo-600 font-bold">{cand.matchScore || "0"}% Match</div>
+                <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
+                  {list.map((cand) => (
+                    <div
+                      key={cand.id}
+                      onClick={() => {
+                        setSelectedCandidate(cand);
+                        setMappingResult(cand.matchData || null);
+                        setSelectedJobId(cand.mappedJobId || "");
+                      }}
+                      className={cn(
+                        "group relative bg-white border border-slate-100 rounded-2xl p-5 transition-all shadow-sm hover:shadow-xl hover:shadow-slate-200 cursor-pointer overflow-hidden ring-1 ring-slate-100",
+                        selectedCandidate?.id === cand.id &&
+                          "ring-2 ring-indigo-600 shadow-indigo-50",
+                      )}
+                    >
+                      {cand.distillationStatus === "PENDING" && (
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex items-center justify-center rounded-2xl z-10 transition-opacity">
+                          <div className="flex flex-col items-center gap-3">
+                            <Activity
+                              size={20}
+                              className="text-indigo-600 animate-spin"
+                            />
+                            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-700">
+                              OS Sync...
+                            </span>
                           </div>
                         </div>
                       )}
 
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">
-                          {cand.matchScore || "0"}% AI Match
-                        </Badge>
-                        <Badge variant="outline" className="text-slate-600 border-slate-200 text-[10px]">
-                          {cand.experience || "Experience N/A"}
-                        </Badge>
-                        <Badge variant="outline" className="text-slate-600 border-slate-200 text-[10px]">
-                          {cand.location || "Location Flexible"}
-                        </Badge>
-                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] flex items-center gap-1">
-                          <ShieldCheck size={10} />
-                          {cand.distillationMetadata?.confidence ? Math.round(cand.distillationMetadata.confidence * 100) : "85"}% Verified
-                        </Badge>
-                      </div>
+                      {cand.isDuplicate && (
+                        <div className="mb-3 text-[9px] font-black text-amber-700 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-100 flex items-center gap-1.5 w-fit uppercase tracking-wider animate-pulse">
+                          <AlertTriangle size={11} className="text-amber-500" />{" "}
+                          Duplicate Detected
+                        </div>
+                      )}
 
-                      {/* SOURCE SECTION */}
-                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-[10px] font-medium text-slate-600 mb-4 space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-400 w-16">Source:</span>
-                          {!cand.vendorId || cand.vendorId === "ORG-GLOBAL-HQ" || cand.vendorId === "ADMIN_POOL" ? (
-                            <span className="text-indigo-600 font-bold uppercase tracking-wider">Admin HQ</span>
-                          ) : (
-                            <span className="text-emerald-600 font-bold uppercase tracking-wider">
-                              {cand.vendorName || vendorMap[cand.vendorId] || cand.vendorId}
+                      {cand.name === "Unnamed Candidate" && (
+                        <div className="mb-3 text-[9px] font-black text-rose-700 bg-rose-50/80 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center gap-1.5 w-fit uppercase tracking-wider">
+                          <AlertTriangle size={11} className="text-rose-500" />{" "}
+                          Name Extraction Needs Review
+                        </div>
+                      )}
+
+                      <div className="flex flex-col mb-4 bg-white rounded-xl">
+                        {/* HEADER */}
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              checked={selectedCandidatesIds.includes(cand.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.checked) {
+                                  setSelectedCandidatesIds((prev) => [
+                                    ...prev,
+                                    cand.id,
+                                  ]);
+                                } else {
+                                  setSelectedCandidatesIds((prev) =>
+                                    prev.filter((id) => id !== cand.id),
+                                  );
+                                }
+                              }}
+                            />
+                            <div className="flex flex-col gap-1">
+                              <h3 className="font-semibold text-base text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                                {cand.fullName ||
+                                  cand.name ||
+                                  "Unnamed Candidate"}
+                              </h3>
+                              <div className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-1">
+                                <Fingerprint
+                                  size={12}
+                                  className="text-slate-300"
+                                />{" "}
+                                {cand.id}
+                              </div>
+                              <p className="text-xs font-medium text-slate-600 mt-1">
+                                {cand.currentRole ||
+                                  cand.experience ||
+                                  "Professional Candidate"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* INTELLIGENCE AND REQUIREMENT MAPPING */}
+                        {cand.matchedRequirements &&
+                        cand.matchedRequirements.length > 0 ? (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-xs">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
+                              <span>
+                                Requirement Matches (
+                                {cand.matchedRequirements.length})
+                              </span>
+                            </div>
+                            <div className="space-y-4">
+                              {cand.matchedRequirements
+                                .slice(0, 3)
+                                .map((match: any) => (
+                                  <div
+                                    key={match.requirementId}
+                                    className="flex flex-col border-b border-slate-200 last:border-0 pb-3 last:pb-0"
+                                  >
+                                    <div className="flex justify-between items-center mb-2">
+                                      <div className="font-bold text-slate-800 text-[10px] truncate max-w-[180px]">
+                                        {match.requirementTitle}
+                                      </div>
+                                      <div className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-black text-[10px]">
+                                        {match.matchScore}%
+                                      </div>
+                                    </div>
+                                    {match.matchBreakdown && (
+                                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] font-medium text-slate-500">
+                                        <div className="flex justify-between">
+                                          <span>Domain</span>
+                                          <span className="text-slate-700 font-bold">
+                                            {match.matchBreakdown.domain}/40
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Skills</span>
+                                          <span className="text-slate-700 font-bold">
+                                            {match.matchBreakdown.skills}/35
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Experience</span>
+                                          <span className="text-slate-700 font-bold">
+                                            {match.matchBreakdown.experience}/10
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Contextual</span>
+                                          <span className="text-slate-700 font-bold">
+                                            {match.matchBreakdown.contextual}/15
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              {cand.matchedRequirements.length > 3 && (
+                                <div className="text-[9px] text-slate-500 pt-1 font-bold">
+                                  +{cand.matchedRequirements.length - 3} MORE
+                                  MATCHES
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          (cand.canonicalRequirementId || cand.mappedJobId) &&
+                          cand.pipelineStage === "Matched" && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-xs">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                Matched Requirement
+                              </div>
+                              <div className="font-semibold text-slate-800">
+                                {cand.requirementTitle || "Assigned Role"}
+                              </div>
+                              <div className="flex justify-between items-center mt-2">
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  Req ID:{" "}
+                                  {cand.canonicalRequirementId ||
+                                    cand.mappedJobId}
+                                </div>
+                                <div className="text-indigo-600 font-bold">
+                                  {cand.matchScore || "0"}% Match
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        )}
+
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">
+                            {cand.matchScore || "0"}% AI Match
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-slate-600 border-slate-200 text-[10px]"
+                          >
+                            {cand.experience || "Experience N/A"}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-slate-600 border-slate-200 text-[10px]"
+                          >
+                            {cand.location || "Location Flexible"}
+                          </Badge>
+                          <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] flex items-center gap-1">
+                            <ShieldCheck size={10} />
+                            {cand.distillationMetadata?.confidence
+                              ? Math.round(
+                                  cand.distillationMetadata.confidence * 100,
+                                )
+                              : "85"}
+                            % Verified
+                          </Badge>
+                        </div>
+
+                        {/* SOURCE SECTION */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-[10px] font-medium text-slate-600 mb-4 space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-400 w-16">
+                              Source:
+                            </span>
+                            {!cand.vendorId ||
+                            cand.vendorId === "ORG-GLOBAL-HQ" ||
+                            cand.vendorId === "ADMIN_POOL" ? (
+                              <span className="text-indigo-600 font-bold uppercase tracking-wider">
+                                Admin HQ
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600 font-bold uppercase tracking-wider">
+                                {cand.vendorName ||
+                                  vendorMap[cand.vendorId] ||
+                                  cand.vendorId}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-400 w-16">
+                              Vendor ID:
+                            </span>
+                            <span className="font-mono text-slate-700">
+                              {cand.vendorId || "SYSTEM"}
+                            </span>
+                          </div>
+                          {cand.uploaderName && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-400 w-16">
+                                Uploader:
+                              </span>
+                              <span className="font-medium text-slate-700">
+                                {cand.uploaderName}
+                              </span>
+                            </div>
+                          )}
+                          {cand.source === "Bulk Upload" && (
+                            <div className="flex items-center gap-1.5 pt-1">
+                              <Badge className="text-[8px] font-black px-1.5 py-0 bg-slate-200 text-slate-600 border-none uppercase">
+                                UPLOADED VIA PIPELINE
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* SKILL SECTION */}
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          {getSkillsArray(cand.skills)
+                            .slice(0, 4)
+                            .map((s: string) => (
+                              <span
+                                key={s}
+                                className="text-[9px] font-bold bg-white text-slate-700 border border-slate-200 rounded px-2 py-0.5 uppercase tracking-tighter"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          {getSkillsArray(cand.skills).length > 4 && (
+                            <span className="text-[9px] font-bold text-slate-400">
+                              +{getSkillsArray(cand.skills).length - 4} MORE
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-400 w-16">Vendor ID:</span>
-                          <span className="font-mono text-slate-700">{cand.vendorId || "SYSTEM"}</span>
-                        </div>
-                        {cand.uploaderName && (
+
+                        {/* SYSTEM SECTION */}
+                        <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-3">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-400 w-16">Uploader:</span>
-                            <span className="font-medium text-slate-700">{cand.uploaderName}</span>
-                          </div>
-                        )}
-                        {cand.source === "Bulk Upload" && (
-                          <div className="flex items-center gap-1.5 pt-1">
-                            <Badge className="text-[8px] font-black px-1.5 py-0 bg-slate-200 text-slate-600 border-none uppercase">UPLOADED VIA PIPELINE</Badge>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* SKILL SECTION */}
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {getSkillsArray(cand.skills)
-                          .slice(0, 4)
-                          .map((s: string) => (
-                            <span
-                              key={s}
-                              className="text-[9px] font-bold bg-white text-slate-700 border border-slate-200 rounded px-2 py-0.5 uppercase tracking-tighter"
-                            >
-                              {s}
+                            <span>Candidate ID: </span>
+                            <span className="font-mono text-slate-600">
+                              {cand.candidateId || cand.id}
                             </span>
-                          ))}
-                        {getSkillsArray(cand.skills).length > 4 && (
-                          <span className="text-[9px] font-bold text-slate-400">
-                            +{getSkillsArray(cand.skills).length - 4} MORE
-                          </span>
-                        )}
+                          </div>
+                          <div>{cand.pipelineStage || "Matched"}</div>
+                        </div>
                       </div>
 
-                      {/* SYSTEM SECTION */}
-                      <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-3">
-                        <div className="flex items-center gap-1.5">
-                          <span>Candidate ID: </span>
-                          <span className="font-mono text-slate-600">{cand.candidateId || cand.id}</span>
+                      {(cand.distillationStatus === "FAILED" ||
+                        cand.distillationStatus === "PENDING" ||
+                        cand.distillationStatus === "PROCESSING") && (
+                        <div className="mt-4 pt-4 border-t border-slate-50 flex flex-col gap-2">
+                          <div className="flex items-center gap-2 text-amber-500 text-[10px] font-black uppercase tracking-widest">
+                            <AlertTriangle size={12} />{" "}
+                            {cand.distillationStatus === "FAILED"
+                              ? "Sync Failed"
+                              : "Sync Stuck in Queue"}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              enrichCandidate(cand.id, cand.resumeText);
+                            }}
+                            className="text-[10px] font-black text-indigo-600 hover:text-slate-900 uppercase tracking-widest text-left transition-colors"
+                          >
+                            Retry Intelligence ↺
+                          </button>
                         </div>
-                        <div>
-                           {cand.pipelineStage || "Matched"}
-                        </div>
-                      </div>
+                      )}
                     </div>
+                  ))}
 
-                    {(cand.distillationStatus === "FAILED" ||
-                      cand.distillationStatus === "PENDING" ||
-                      cand.distillationStatus === "PROCESSING") && (
-                      <div className="mt-4 pt-4 border-t border-slate-50 flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-amber-500 text-[10px] font-black uppercase tracking-widest">
-                          <AlertTriangle size={12} />{" "}
-                          {cand.distillationStatus === "FAILED"
-                            ? "Sync Failed"
-                            : "Sync Stuck in Queue"}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            enrichCandidate(cand.id, cand.resumeText);
-                          }}
-                          className="text-[10px] font-black text-indigo-600 hover:text-slate-900 uppercase tracking-widest text-left transition-colors"
-                        >
-                          Retry Intelligence ↺
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {list.length === 0 && (
-                  <div className="py-20 text-center opacity-20 flex flex-col items-center">
-                    <Briefcase size={40} className="mb-4" />
-                    <p className="text-[11px] font-black uppercase tracking-widest">
-                      NIL_QUEUE
-                    </p>
-                  </div>
-                )}
+                  {list.length === 0 && (
+                    <div className="py-20 text-center opacity-20 flex flex-col items-center">
+                      <Briefcase size={40} className="mb-4" />
+                      <p className="text-[11px] font-black uppercase tracking-widest">
+                        NIL_QUEUE
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Manual Entry Form */}
@@ -1388,17 +1700,24 @@ export default function CandidatesTab() {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-[12px] font-black uppercase text-rose-800 tracking-wider mb-2">
-                         Action Required: Missing Critical Skills
+                        Action Required: Missing Critical Skills
                       </h3>
                       <p className="text-[11px] text-rose-700 font-medium mb-3 max-w-xl leading-relaxed">
-                        The client has reviewed this profile and requested an updated resume. The current parsing indicates the following skills are missing from the JD: 
+                        The client has reviewed this profile and requested an
+                        updated resume. The current parsing indicates the
+                        following skills are missing from the JD:
                       </p>
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {(selectedCandidate.missingSkills || []).map((skill: string, i: number) => (
-                           <Badge key={i} className="bg-rose-100 text-rose-800 border-rose-200">
-                             {skill}
-                           </Badge>
-                        ))}
+                        {(selectedCandidate.missingSkills || []).map(
+                          (skill: string, i: number) => (
+                            <Badge
+                              key={i}
+                              className="bg-rose-100 text-rose-800 border-rose-200"
+                            >
+                              {skill}
+                            </Badge>
+                          ),
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <input
@@ -1407,41 +1726,64 @@ export default function CandidatesTab() {
                           className="hidden"
                           accept=".pdf,.doc,.docx,.txt"
                           onChange={async (e) => {
-                             if (!e.target.files || e.target.files.length === 0) return;
-                             try {
-                               // Simulate AI Parsing delay
-                               alert("Extracting new data. AI recalibrating match...");
-                               const newProfileData = "User updated resume containing: " + Array.from(e.target.files).map(f => f.name).join(", ");
-                               
-                               const candRef = doc(db, "candidatePool", selectedCandidate.id);
-                               await updateDoc(candRef, {
-                                 resumeText: (selectedCandidate.resumeText || "") + "\n\n[UPDATED PROFILE DATA]: " + newProfileData,
-                                 pipelineStage: "Matched", // push back to matched state
-                                 missingSkills: [],
-                                 updatedAt: serverTimestamp()
-                               });
-                               
-                               // Notify Client 
-                               await addDoc(collection(db, "notifications"), {
-                                  id: `NOTIF-${Date.now()}`,
-                                  recipientId: "admin",
-                                  title: "Resume Updated",
-                                  text: `Vendor has provided an updated resume for ${selectedCandidate.name || 'Candidate'}. Matching intelligence is ready.`,
-                                  read: false,
-                                  createdAt: serverTimestamp(),
-                               });
+                            if (!e.target.files || e.target.files.length === 0)
+                              return;
+                            try {
+                              // Simulate AI Parsing delay
+                              alert(
+                                "Extracting new data. AI recalibrating match...",
+                              );
+                              const newProfileData =
+                                "User updated resume containing: " +
+                                Array.from(e.target.files)
+                                  .map((f) => f.name)
+                                  .join(", ");
 
-                               alert("Resume updated successfully. Candidate returned to Matched pipeline.");
-                             } catch (err: any) {
-                               alert("Failed to upload: " + err.message);
-                             }
+                              const candRef = doc(
+                                db,
+                                "candidatePool",
+                                selectedCandidate.id,
+                              );
+                              await updateDoc(candRef, {
+                                resumeText:
+                                  (selectedCandidate.resumeText || "") +
+                                  "\n\n[UPDATED PROFILE DATA]: " +
+                                  newProfileData,
+                                pipelineStage: "Matched", // push back to matched state
+                                missingSkills: [],
+                                updatedAt: serverTimestamp(),
+                              });
+
+                              // Notify Client
+                              await addDoc(collection(db, "notifications"), {
+                                id: `NOTIF-${Date.now()}`,
+                                recipientId: "admin",
+                                title: "Resume Updated",
+                                text: `Vendor has provided an updated resume for ${selectedCandidate.name || "Candidate"}. Matching intelligence is ready.`,
+                                read: false,
+                                createdAt: serverTimestamp(),
+                              });
+
+                              alert(
+                                "Resume updated successfully. Candidate returned to Matched pipeline.",
+                              );
+                            } catch (err: any) {
+                              alert("Failed to upload: " + err.message);
+                            }
                           }}
                         />
-                        <Button 
-                          onClick={() => document.getElementById(`resume-upload-${selectedCandidate.id}`)?.click()}
+                        <Button
+                          onClick={() =>
+                            document
+                              .getElementById(
+                                `resume-upload-${selectedCandidate.id}`,
+                              )
+                              ?.click()
+                          }
                           className="bg-slate-900 hover:bg-slate-800 text-white shadow-xl h-10 uppercase tracking-widest text-[10px] font-bold"
                         >
-                          <Upload size={14} className="mr-2" /> Upload Updated Resume
+                          <Upload size={14} className="mr-2" /> Upload Updated
+                          Resume
                         </Button>
                       </div>
                     </div>
@@ -1670,57 +2012,192 @@ export default function CandidatesTab() {
                   {/* Candidate Opportunity Graph */}
                   <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                     <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                       <Activity size={14} className="text-indigo-500" /> Candidate Opportunity Graph
+                      <Activity size={14} className="text-indigo-500" />{" "}
+                      Candidate Opportunity Graph
                     </h3>
                     <div className="grid grid-cols-5 gap-2 mb-4">
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
-                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.length}</span>
-                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Matched</span>
+                        <span className="text-lg font-black text-slate-700">
+                          {candidateSubmissions.length}
+                        </span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">
+                          Matched
+                        </span>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
-                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase() === 'submitted').length}</span>
-                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Submitted</span>
+                        <span className="text-lg font-black text-slate-700">
+                          {
+                            candidateSubmissions.filter(
+                              (s) => s.status?.toLowerCase() === "submitted",
+                            ).length
+                          }
+                        </span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">
+                          Submitted
+                        </span>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
-                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase().includes('interview')).length}</span>
-                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Interviewing</span>
+                        <span className="text-lg font-black text-slate-700">
+                          {
+                            candidateSubmissions.filter((s) =>
+                              s.status?.toLowerCase().includes("interview"),
+                            ).length
+                          }
+                        </span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">
+                          Interviewing
+                        </span>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
-                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => s.status?.toLowerCase() === 'offer').length}</span>
-                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Offers</span>
+                        <span className="text-lg font-black text-slate-700">
+                          {
+                            candidateSubmissions.filter(
+                              (s) => s.status?.toLowerCase() === "offer",
+                            ).length
+                          }
+                        </span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">
+                          Offers
+                        </span>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center">
-                        <span className="text-lg font-black text-slate-700">{candidateSubmissions.filter(s => ['hired', 'placed'].includes(s.status?.toLowerCase())).length}</span>
-                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">Placements</span>
+                        <span className="text-lg font-black text-slate-700">
+                          {
+                            candidateSubmissions.filter((s) =>
+                              ["hired", "placed"].includes(
+                                s.status?.toLowerCase(),
+                              ),
+                            ).length
+                          }
+                        </span>
+                        <span className="text-[8px] uppercase tracking-tighter text-slate-400 font-bold mt-1">
+                          Placements
+                        </span>
                       </div>
                     </div>
 
                     <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mt-6">
                       <div className="bg-slate-50 uppercase tracking-widest font-black text-slate-500 border-b border-slate-100 px-4 py-3 text-[10px]">
-                         Candidate Audit Trail (Immutable & Time-Stamped)
+                        Candidate Audit Trail (Immutable & Time-Stamped)
                       </div>
                       <div className="p-4 space-y-4">
                         {[
-                          { label: "Added", time: selectedCandidate.createdAt?.toDate ? selectedCandidate.createdAt.toDate().toLocaleString() : '---', active: true },
-                          { label: "Matched", time: selectedCandidate.matchedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 1 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 1 },
-                          { label: "Floated", time: selectedCandidate.floatedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 },
-                          { label: "Submitted", time: selectedCandidate.submittedAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 2 },
-                          { label: "Interviewing", time: selectedCandidate.interviewingAt || (STAGES.indexOf(selectedCandidate.pipelineStage) >= 3 ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : '---'), active: STAGES.indexOf(selectedCandidate.pipelineStage) >= 3 },
-                          { label: "Rejected", time: selectedCandidate.pipelineStage === "Rejected" ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : "---", active: selectedCandidate.pipelineStage === "Rejected" },
-                          { label: "Placed", time: selectedCandidate.pipelineStage === "Placed" ? selectedCandidate.updatedAt?.toDate?.()?.toLocaleString() : "---", active: selectedCandidate.pipelineStage === "Placed" }
+                          {
+                            label: "Added",
+                            time: selectedCandidate.createdAt?.toDate
+                              ? selectedCandidate.createdAt
+                                  .toDate()
+                                  .toLocaleString()
+                              : "---",
+                            active: true,
+                          },
+                          {
+                            label: "Matched",
+                            time:
+                              selectedCandidate.matchedAt ||
+                              (STAGES.indexOf(
+                                selectedCandidate.pipelineStage,
+                              ) >= 1
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---"),
+                            active:
+                              STAGES.indexOf(selectedCandidate.pipelineStage) >=
+                              1,
+                          },
+                          {
+                            label: "Floated",
+                            time:
+                              selectedCandidate.floatedAt ||
+                              (STAGES.indexOf(
+                                selectedCandidate.pipelineStage,
+                              ) >= 2
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---"),
+                            active:
+                              STAGES.indexOf(selectedCandidate.pipelineStage) >=
+                              2,
+                          },
+                          {
+                            label: "Submitted",
+                            time:
+                              selectedCandidate.submittedAt ||
+                              (STAGES.indexOf(
+                                selectedCandidate.pipelineStage,
+                              ) >= 2
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---"),
+                            active:
+                              STAGES.indexOf(selectedCandidate.pipelineStage) >=
+                              2,
+                          },
+                          {
+                            label: "Interviewing",
+                            time:
+                              selectedCandidate.interviewingAt ||
+                              (STAGES.indexOf(
+                                selectedCandidate.pipelineStage,
+                              ) >= 3
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---"),
+                            active:
+                              STAGES.indexOf(selectedCandidate.pipelineStage) >=
+                              3,
+                          },
+                          {
+                            label: "Rejected",
+                            time:
+                              selectedCandidate.pipelineStage === "Rejected"
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---",
+                            active:
+                              selectedCandidate.pipelineStage === "Rejected",
+                          },
+                          {
+                            label: "Placed",
+                            time:
+                              selectedCandidate.pipelineStage === "Placed"
+                                ? selectedCandidate.updatedAt
+                                    ?.toDate?.()
+                                    ?.toLocaleString()
+                                : "---",
+                            active:
+                              selectedCandidate.pipelineStage === "Placed",
+                          },
                         ].map((event, i) => (
-                           <div key={i} className="flex items-start gap-3">
-                              <div className="flex flex-col items-center">
-                                <div className={`w-3 h-3 rounded-full border-2 ${event.active ? 'bg-indigo-600 border-indigo-100 shadow-sm' : 'bg-slate-100 border-slate-200'} `} />
-                                {i < 6 && <div className={`w-0.5 h-6 ${event.active ? 'bg-indigo-100' : 'bg-slate-100'}`} />}
-                              </div>
-                              <div className="flex-1 -mt-1">
-                                <span className={`text-[11px] font-bold uppercase tracking-widest ${event.active ? 'text-slate-800' : 'text-slate-400'}`}>{event.label}</span>
-                                {event.active && event.time !== '---' && (
-                                  <div className="text-[9px] text-slate-500 font-mono mt-0.5">{event.time}</div>
-                                )}
-                              </div>
-                           </div>
+                          <div key={i} className="flex items-start gap-3">
+                            <div className="flex flex-col items-center">
+                              <div
+                                className={`w-3 h-3 rounded-full border-2 ${event.active ? "bg-indigo-600 border-indigo-100 shadow-sm" : "bg-slate-100 border-slate-200"} `}
+                              />
+                              {i < 6 && (
+                                <div
+                                  className={`w-0.5 h-6 ${event.active ? "bg-indigo-100" : "bg-slate-100"}`}
+                                />
+                              )}
+                            </div>
+                            <div className="flex-1 -mt-1">
+                              <span
+                                className={`text-[11px] font-bold uppercase tracking-widest ${event.active ? "text-slate-800" : "text-slate-400"}`}
+                              >
+                                {event.label}
+                              </span>
+                              {event.active && event.time !== "---" && (
+                                <div className="text-[9px] text-slate-500 font-mono mt-0.5">
+                                  {event.time}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1807,20 +2284,22 @@ export default function CandidatesTab() {
                     </section>
 
                     <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                      <Shield size={12} className="text-indigo-400" /> Contact Governance (Identity Masking)
+                      <Shield size={12} className="text-indigo-400" /> Contact
+                      Governance (Identity Masking)
                     </h3>
                     <div className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">
-                          Primary Email 
+                          Primary Email
                         </span>
                         <div className="flex items-center gap-2">
-                           <span className="text-xs font-bold text-slate-400 font-mono">
-                             hidden_asset_{selectedCandidate.id?.slice(0, 5)}@hirenest.vault
-                           </span>
-                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
-                             Masked
-                           </span>
+                          <span className="text-xs font-bold text-slate-400 font-mono">
+                            hidden_asset_{selectedCandidate.id?.slice(0, 5)}
+                            @hirenest.vault
+                          </span>
+                          <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                            Masked
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
@@ -1828,12 +2307,13 @@ export default function CandidatesTab() {
                           Phone Verification
                         </span>
                         <div className="flex items-center gap-2">
-                           <span className="text-xs font-bold text-slate-400 font-mono">
-                             +** ••••• ••{selectedCandidate.phone?.slice(-2) || "42"}
-                           </span>
-                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
-                             Masked
-                           </span>
+                          <span className="text-xs font-bold text-slate-400 font-mono">
+                            +** ••••• ••
+                            {selectedCandidate.phone?.slice(-2) || "42"}
+                          </span>
+                          <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                            Masked
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
@@ -1841,12 +2321,12 @@ export default function CandidatesTab() {
                           LinkedIn Profile
                         </span>
                         <div className="flex items-center gap-2">
-                           <span className="text-xs font-bold text-slate-400 font-mono">
-                             linkedin.com/in/hidden-profile
-                           </span>
-                           <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
-                             Masked
-                           </span>
+                          <span className="text-xs font-bold text-slate-400 font-mono">
+                            linkedin.com/in/hidden-profile
+                          </span>
+                          <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-indigo-100">
+                            Masked
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 border-t border-slate-50 pt-2">
@@ -1939,6 +2419,85 @@ export default function CandidatesTab() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* OS Processing Stats Overlay */}
+      {processingStats && processingStats.show && (
+        <div className="fixed bottom-8 right-8 bg-slate-900 shadow-2xl rounded-2xl p-6 border border-slate-800 w-80 z-50 text-white flex flex-col gap-4 animate-in slide-in-from-bottom-5">
+          <div className="flex justify-between items-center mb-1">
+            <div className="flex items-center gap-2">
+              <Activity
+                size={16}
+                className={
+                  processingStats.processing > 0
+                    ? "text-indigo-400 animate-spin"
+                    : "text-emerald-400"
+                }
+              />
+              <h3 className="font-black text-sm uppercase tracking-wider">
+                {processingStats.total} Resumes Received
+              </h3>
+            </div>
+            <button
+              onClick={() => setProcessingStats(null)}
+              className="text-slate-500 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-300">
+              <span>Processing</span>
+              <span
+                className={
+                  processingStats.processing > 0
+                    ? "text-indigo-400"
+                    : "text-slate-500"
+                }
+              >
+                {processingStats.processing}
+              </span>
+            </div>
+            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+              <div
+                className="bg-indigo-500 h-full transition-all duration-1000"
+                style={{
+                  width: `${(processingStats.processing / processingStats.total) * 100}%`,
+                }}
+              ></div>
+            </div>
+
+            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-300 pt-1">
+              <span>Parsed</span>
+              <span
+                className={
+                  processingStats.parsed > 0
+                    ? "text-emerald-400"
+                    : "text-slate-500"
+                }
+              >
+                {processingStats.parsed}
+              </span>
+            </div>
+            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full transition-all duration-1000"
+                style={{
+                  width: `${(processingStats.parsed / processingStats.total) * 100}%`,
+                }}
+              ></div>
+            </div>
+
+            {/* Note: Matching happens automatically in background via JobsTab */}
+          </div>
+
+          {processingStats.processing === 0 && (
+            <div className="mt-2 text-[10px] text-emerald-400/80 font-mono text-center bg-emerald-900/30 p-2 rounded border border-emerald-900/50">
+              ALL PROCESSES COMPLETED
+            </div>
+          )}
         </div>
       )}
     </div>

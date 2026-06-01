@@ -56,13 +56,7 @@ import { EmptyState } from "../components/EmptyState";
 import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
 
-const STAGES = [
-  "Added",
-  "Matched",
-  "Submitted",
-  "Interviewing",
-  "Placed"
-];
+const STAGES = ["Added", "Matched", "Submitted", "Interviewing", "Placed"];
 
 export default function JobsTab() {
   const navigate = useNavigate();
@@ -126,9 +120,9 @@ export default function JobsTab() {
     }
 
     const runAutomatedScanner = async () => {
-      if (userRole.startsWith('client')) {
-         console.log("[AUTO_SCANNER] Client node bypassed.");
-         return;
+      if (userRole.startsWith("client")) {
+        console.log("[AUTO_SCANNER] Client node bypassed.");
+        return;
       }
       console.log(
         "[AUTO_SCANNER] Initiating background scan of candidates vs requirements...",
@@ -221,13 +215,13 @@ export default function JobsTab() {
           for (const cand of candidateList) {
             // Wait until parsing is fully complete before scanning
             if (
-               cand.name === "Pending Distillation" || 
-               cand.name === "Unnamed Candidate" || 
-               !cand.name ||
-               cand.distillationStatus === "PROCESSING" ||
-               cand.distillationStatus === "PENDING"
+              cand.name === "Pending Distillation" ||
+              cand.name === "Unnamed Candidate" ||
+              !cand.name ||
+              cand.distillationStatus === "PROCESSING" ||
+              cand.distillationStatus === "PENDING"
             ) {
-               continue;
+              continue;
             }
 
             // PIPELINE ISOLATION: Do not auto-submit candidates to other jobs if they are mapped to a specific job
@@ -269,46 +263,81 @@ export default function JobsTab() {
               if (jdWords.includes(s)) descOverlap++;
             });
 
-            // Scoring formula: baseline 60, scale up to 100 based on overlap & skills matching
-            let matchScore = 60; // baseline
+            // New Matching Formula - strict domain checks
+            let matchScore = 0; // zero baseline
+            let breakdown = {
+              domain: 0,
+              skills: 0,
+              experience: 0,
+              contextual: 0,
+            };
 
-            // Add boost for any skill or resume overlap
-            if (overlapCount > 0 || resumeOverlapCount > 0) {
-              matchScore += 15;
+            // Domain Gate: if job title doesn't appear in resume at all or no skills match, penalty
+            const jobTitleLower = String(job.title || "").toLowerCase();
+            const jobTitleWords = jobTitleLower
+              .split(" ")
+              .filter((w) => w.length > 3);
+            let domainHit = false;
+
+            jobTitleWords.forEach((w) => {
+              if (
+                resumeLower.includes(w) ||
+                candSkills.some((s) => s.includes(w))
+              ) {
+                domainHit = true;
+              }
+            });
+
+            if (domainHit) {
+              breakdown.domain = 40; // Base score if they have the domain
+            } else {
+              breakdown.domain = 10; // Out of domain penalty
             }
 
             if (jobSkills.length > 0) {
-              const skillScore = Math.round(
-                (overlapCount / jobSkills.length) * 20,
+              breakdown.skills = Math.round(
+                (overlapCount / jobSkills.length) * 35,
               );
-              const resumeScore = Math.round(
-                (resumeOverlapCount / jobSkills.length) * 10,
-              );
-              const descScore = Math.min(10, descOverlap * 2);
-              matchScore = Math.min(
-                100,
-                matchScore + skillScore + resumeScore + descScore,
-              );
+              breakdown.contextual =
+                Math.round(
+                  (Math.min(resumeOverlapCount, jobSkills.length) /
+                    jobSkills.length) *
+                    15,
+                ) + Math.min(10, descOverlap * 2);
             } else {
-              // fallback skill match
-              matchScore = Math.min(
-                98,
-                matchScore + Math.min(30, descOverlap * 4),
-              );
+              breakdown.contextual = Math.min(40, descOverlap * 4);
             }
 
             // Check experience range compatibility
-            const jobTitleLower = String(job.title || "").toLowerCase();
             if (
               jobTitleLower.includes("senior") ||
               jobTitleLower.includes("sr") ||
-              jobTitleLower.includes("lead")
+              jobTitleLower.includes("lead") ||
+              jobTitleLower.includes("architect") ||
+              jobTitleLower.includes("manager")
             ) {
-              const candExpInt = parseInt(String(cand.experience || "0"));
-              if (candExpInt > 5) {
-                matchScore = Math.min(100, matchScore + 5);
+              const candExpInt = parseInt(
+                String(cand.experience || "0").replace(/\D/g, ""),
+              );
+              if (!isNaN(candExpInt)) {
+                if (candExpInt > 8) breakdown.experience = 10;
+                else if (candExpInt < 4) breakdown.experience = -20; // Penalty for junior
               }
             }
+
+            matchScore = Math.max(
+              0,
+              Math.min(
+                100,
+                breakdown.domain +
+                  breakdown.skills +
+                  breakdown.contextual +
+                  breakdown.experience,
+              ),
+            );
+
+            // Final cut-off minimum gate
+            if (matchScore < 40) continue;
 
             // Check if match is good (>= 75%)
             if (matchScore >= 75) {
@@ -329,7 +358,8 @@ export default function JobsTab() {
                   clientId: job.clientId || "ORG-da6tlbeo1",
                   vendorId: cand.vendorId || "ORG-EXTERNAL-VENDOR",
                   candidateId: cand.id,
-                  candidateName: cand.fullName || cand.name || "Anonymous Candidate",
+                  candidateName:
+                    cand.fullName || cand.name || "Anonymous Candidate",
                   name: cand.fullName || cand.name || "Anonymous Candidate",
                   email: cand.primaryEmail || cand.email || "No Email Provided",
                   phone: cand.phoneHash || cand.phone || "No Phone Provided",
@@ -361,13 +391,39 @@ export default function JobsTab() {
                 // Synchronize candidate stage & matching score in global candidate pool
                 try {
                   const candRef = doc(db, "candidatePool", cand.id);
+                  const candSnap = await getDoc(candRef);
+                  const existingCandData = candSnap.exists()
+                    ? candSnap.data()
+                    : {};
+                  const existingMatches =
+                    existingCandData.matchedRequirements || [];
+
+                  // Add this match without duplicates
+                  const updatedMatches = [
+                    ...existingMatches.filter(
+                      (m: any) => m.requirementId !== job.id,
+                    ),
+                    {
+                      requirementId: job.id,
+                      requirementTitle: job.title || "Strategic Role",
+                      matchScore: matchScore,
+                      matchBreakdown: breakdown,
+                    },
+                  ].sort((a, b) => b.matchScore - a.matchScore); // Highest first
+
                   await setDoc(
                     candRef,
                     {
-                      pipelineStage: "Matched",
-                      matchScore: matchScore,
-                      canonicalRequirementId: job.id,
-                      requirementTitle: job.title || "Strategic Role",
+                      pipelineStage:
+                        existingCandData.pipelineStage === "Submitted" ||
+                        existingCandData.pipelineStage === "Interviewing" ||
+                        existingCandData.pipelineStage === "Placed"
+                          ? existingCandData.pipelineStage
+                          : "Matched",
+                      matchScore: updatedMatches[0].matchScore, // highest score
+                      canonicalRequirementId: updatedMatches[0].requirementId, // primary
+                      requirementTitle: updatedMatches[0].requirementTitle,
+                      matchedRequirements: updatedMatches,
                       updatedAt: serverTimestamp(),
                     },
                     { merge: true },
@@ -419,23 +475,26 @@ export default function JobsTab() {
           const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
           let role = "user";
           let userOrgId = "";
-          
+
           if (userDoc.exists()) {
             const data = userDoc.data();
             role = data.role;
             userOrgId = data.organizationId;
           }
-          
+
           // Apply super admin logic
           const superAdmins = [
             "gopal@hirenestworkforce.com",
             "gopalkrishna0046@gmail.com",
           ];
-          if (auth.currentUser.email && superAdmins.includes(auth.currentUser.email.toLowerCase())) {
+          if (
+            auth.currentUser.email &&
+            superAdmins.includes(auth.currentUser.email.toLowerCase())
+          ) {
             role = "super_admin";
             userOrgId = "ORG-GLOBAL-HQ";
           }
-          
+
           if (!userDoc.exists() && role === "user") {
             const knownAdmins = [
               "0xpXdzSQE6V92xbnCkiczPHexiU2",
@@ -447,7 +506,7 @@ export default function JobsTab() {
               userOrgId = "ORG-GLOBAL-HQ";
             }
           }
-          
+
           setUserRole(role);
           setOrgId(userOrgId);
 
@@ -562,31 +621,33 @@ export default function JobsTab() {
         setSubmissions(Array.from(map.values()));
       };
 
-      const unsubCand = qCand ? onSnapshot(
-        qCand,
-        (snap) => {
-          currentMappedCands = snap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              candidateId: d.id,
-              requirementId: selectedJob.id,
-              candidateName: data.name || "Candidate",
-              skills: data.skills || [],
-              status: data.pipelineStage || "Matched",
-              resumeText: data.resumeText || "",
-              matchScore: data.matchScore,
-              source: "manual_mapping",
-              createdAt: data.updatedAt || data.createdAt,
-              ...data,
-            };
-          });
-          updateMergedSubmissions();
-        },
-        (error) => {
-          console.warn("[CANDIDATE_FETCH_WARN]", error.message);
-        },
-      ) : () => {};
+      const unsubCand = qCand
+        ? onSnapshot(
+            qCand,
+            (snap) => {
+              currentMappedCands = snap.docs.map((d) => {
+                const data = d.data();
+                return {
+                  id: d.id,
+                  candidateId: d.id,
+                  requirementId: selectedJob.id,
+                  candidateName: data.name || "Candidate",
+                  skills: data.skills || [],
+                  status: data.pipelineStage || "Matched",
+                  resumeText: data.resumeText || "",
+                  matchScore: data.matchScore,
+                  source: "manual_mapping",
+                  createdAt: data.updatedAt || data.createdAt,
+                  ...data,
+                };
+              });
+              updateMergedSubmissions();
+            },
+            (error) => {
+              console.warn("[CANDIDATE_FETCH_WARN]", error.message);
+            },
+          )
+        : () => {};
 
       const unsubSub = onSnapshot(
         qSub,
@@ -611,10 +672,10 @@ export default function JobsTab() {
             setGlobalMatches(data.matches || []);
             setFallbackMatches(data.fallbackMatches || []);
             if (data.ledgerCounts) {
-                setLedgerCounts(data.ledgerCounts);
+              setLedgerCounts(data.ledgerCounts);
             }
             if (data.ledgerCandidates) {
-                setLedgerCandidates(data.ledgerCandidates);
+              setLedgerCandidates(data.ledgerCandidates);
             }
           } else {
             console.warn(
@@ -1144,11 +1205,11 @@ export default function JobsTab() {
               </div>
               <div className="relative ml-4">
                 <input
-                     type="text"
-                     placeholder="Search requirements..."
-                     value={searchQuery}
-                     onChange={(e) => setSearchQuery(e.target.value)}
-                     className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
+                  type="text"
+                  placeholder="Search requirements..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 h-8 text-[10px] bg-slate-50 border border-slate-200 rounded px-3 py-1 font-bold outline-none hover:border-indigo-300 focus:border-indigo-500 transition-colors uppercase tracking-widest"
                 />
               </div>
             </div>
@@ -1351,7 +1412,7 @@ export default function JobsTab() {
                 Active Requirements Pipeline
               </h2>
             </div>
-            
+
             {(() => {
               const visibleJobs = filteredJobs.filter(
                 (j) =>
@@ -1368,8 +1429,14 @@ export default function JobsTab() {
                       icon={Briefcase}
                       title="No requirements available"
                       description="You don't have any active requirements in your pipeline at the moment. Let's create one based on your hiring needs."
-                      actionLabel={(isAdmin || isClient) ? "Create Requirement" : undefined}
-                      onAction={(isAdmin || isClient) ? () => setShowIntakeForm(true) : undefined}
+                      actionLabel={
+                        isAdmin || isClient ? "Create Requirement" : undefined
+                      }
+                      onAction={
+                        isAdmin || isClient
+                          ? () => setShowIntakeForm(true)
+                          : undefined
+                      }
                     />
                   </div>
                 );
@@ -1383,124 +1450,127 @@ export default function JobsTab() {
                       onClick={() => setSelectedJob(job)}
                       className={`group relative flex flex-col bg-white border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedJob?.id === job.id ? "border-indigo-600 shadow-xl shadow-indigo-50 ring-1 ring-indigo-600" : "border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-100"}`}
                     >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600",
-                            selectedJob?.id === job.id &&
-                              "bg-indigo-600 text-white shadow-indigo-100",
-                          )}
-                        >
-                          <Briefcase size={20} />
-                        </div>
-                        <div>
-                          <h3
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div
                             className={cn(
-                              "text-base font-black uppercase tracking-tight leading-none group-hover:text-indigo-600 transition-colors",
-                              selectedJob?.id === job.id
-                                ? "text-indigo-600"
-                                : "text-slate-900",
+                              "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600",
+                              selectedJob?.id === job.id &&
+                                "bg-indigo-600 text-white shadow-indigo-100",
                             )}
                           >
-                            {job.title}
-                          </h3>
-                          <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">
-                            ID: {job.requirementId?.replace("REQ-", "")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <Badge
-                          className={cn(
-                            "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
-                            job.status === "PUBLISHED"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : job.status === "PENDING_FINANCIAL_APPROVAL"
-                                ? "bg-amber-100 text-amber-700"
-                                : job.status === "DRAFT"
-                                  ? "bg-slate-100 text-slate-500"
-                                  : job.status === "CLOSED"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-indigo-50 text-indigo-600",
-                          )}
-                        >
-                          {job.status}
-                        </Badge>
-                        {(isAdmin || (isClient && job.clientId === orgId)) &&
-                          (job.status === "PUBLISHED" ||
-                            job.status === "CLOSED") && (
-                            <div
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span className="text-[9px] font-bold text-slate-400 uppercase">
-                                {job.status === "PUBLISHED"
-                                  ? "Active"
-                                  : "Closed"}
-                              </span>
-                              <Switch
-                                checked={job.status === "PUBLISHED"}
-                                onCheckedChange={() =>
-                                  handleToggleStatus(job.id, job.status)
-                                }
-                              />
-                            </div>
-                          )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase">
-                          <Clock size={12} className="text-slate-300" />{" "}
-                          {job.experience}
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
-                          <MapPin size={12} className="text-slate-300" />{" "}
-                          {job.location || job.workMode}
-                        </div>
-                        {(job.budget?.amount > 0 ||
-                          job.clientTargetBudget > 0) && (
-                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
-                            <DollarSign size={12} className="text-slate-300" />{" "}
-                            {job.budget?.currency || "INR"}{" "}
-                            {job.budget?.amount || job.clientTargetBudget}{" "}
-                            {job.budget?.period || "LPA"}
+                            <Briefcase size={20} />
                           </div>
-                        )}
+                          <div>
+                            <h3
+                              className={cn(
+                                "text-base font-black uppercase tracking-tight leading-none group-hover:text-indigo-600 transition-colors",
+                                selectedJob?.id === job.id
+                                  ? "text-indigo-600"
+                                  : "text-slate-900",
+                              )}
+                            >
+                              {job.title}
+                            </h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">
+                              ID: {job.requirementId?.replace("REQ-", "")}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge
+                            className={cn(
+                              "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
+                              job.status === "PUBLISHED"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : job.status === "PENDING_FINANCIAL_APPROVAL"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : job.status === "DRAFT"
+                                    ? "bg-slate-100 text-slate-500"
+                                    : job.status === "CLOSED"
+                                      ? "bg-red-100 text-red-700"
+                                      : "bg-indigo-50 text-indigo-600",
+                            )}
+                          >
+                            {job.status}
+                          </Badge>
+                          {(isAdmin || (isClient && job.clientId === orgId)) &&
+                            (job.status === "PUBLISHED" ||
+                              job.status === "CLOSED") && (
+                              <div
+                                className="flex items-center gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">
+                                  {job.status === "PUBLISHED"
+                                    ? "Active"
+                                    : "Closed"}
+                                </span>
+                                <Switch
+                                  checked={job.status === "PUBLISHED"}
+                                  onCheckedChange={() =>
+                                    handleToggleStatus(job.id, job.status)
+                                  }
+                                />
+                              </div>
+                            )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {isAdmin &&
-                          job.status === "PENDING_FINANCIAL_APPROVAL" && (
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowApprovalModal(job);
-                              }}
-                              size="sm"
-                              className="bg-amber-500 hover:bg-slate-900 text-white text-[10px] h-8 px-4 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-amber-50"
-                            >
-                              Approve
-                            </Button>
-                          )}
-                        <div className="flex -space-x-1.5 translate-x-1">
-                          {[1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className="h-6 w-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400 overflow-hidden"
-                            >
-                              <Activity size={10} />
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase">
+                            <Clock size={12} className="text-slate-300" />{" "}
+                            {job.experience}
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
+                            <MapPin size={12} className="text-slate-300" />{" "}
+                            {job.location || job.workMode}
+                          </div>
+                          {(job.budget?.amount > 0 ||
+                            job.clientTargetBudget > 0) && (
+                            <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
+                              <DollarSign
+                                size={12}
+                                className="text-slate-300"
+                              />{" "}
+                              {job.budget?.currency || "INR"}{" "}
+                              {job.budget?.amount || job.clientTargetBudget}{" "}
+                              {job.budget?.period || "LPA"}
                             </div>
-                          ))}
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isAdmin &&
+                            job.status === "PENDING_FINANCIAL_APPROVAL" && (
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowApprovalModal(job);
+                                }}
+                                size="sm"
+                                className="bg-amber-500 hover:bg-slate-900 text-white text-[10px] h-8 px-4 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-amber-50"
+                              >
+                                Approve
+                              </Button>
+                            )}
+                          <div className="flex -space-x-1.5 translate-x-1">
+                            {[1, 2, 3].map((i) => (
+                              <div
+                                key={i}
+                                className="h-6 w-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400 overflow-hidden"
+                              >
+                                <Activity size={10} />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            );
+                  ))}
+                </div>
+              );
             })()}
           </div>
         </div>
@@ -1523,7 +1593,8 @@ export default function JobsTab() {
                   <X size={14} />
                 </Button>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
-                  <Activity size={14} className="text-indigo-600" /> Candidate Insights
+                  <Activity size={14} className="text-indigo-600" /> Candidate
+                  Insights
                 </h2>
               </div>
               <div className="flex items-center gap-2">
@@ -1703,67 +1774,117 @@ export default function JobsTab() {
                 {(() => {
                   let counts = ledgerCounts;
                   if (!counts) {
-                     const uniqueCandidates = Array.from(
-                        new Map(
-                          [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
-                            c.candidateId || c.id || c.email,
-                            c,
-                          ]),
-                        ).values()
-                      );
-                      
-                      counts = {
-                        matches: 0,
-                        floated: 0,
-                        submitted: 0,
-                        interviewing: 0,
-                        offers: 0,
-                        placed: 0,
-                        rejected: 0,
-                      };
-                      
-                      uniqueCandidates.forEach(c => {
-                          const stage = c.pipelineStage || c.status || "Matched";
-                          if (stage === "Matched") counts.matches++;
-                          else if (stage === "Added") counts.floated++;
-                          else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) counts.submitted++;
-                          else if (stage === "Interviewing") counts.interviewing++;
-                          else if (stage === "Offer") counts.offers++;
-                          else if (stage === "Placed" || stage === "hired") counts.placed++;
-                          else if (stage === "Rejected") counts.rejected++;
-                      });
+                    const uniqueCandidates = Array.from(
+                      new Map(
+                        [
+                          ...submissions,
+                          ...globalMatches,
+                          ...fallbackMatches,
+                        ].map((c) => [c.candidateId || c.id || c.email, c]),
+                      ).values(),
+                    );
+
+                    counts = {
+                      matches: 0,
+                      floated: 0,
+                      submitted: 0,
+                      interviewing: 0,
+                      offers: 0,
+                      placed: 0,
+                      rejected: 0,
+                    };
+
+                    uniqueCandidates.forEach((c) => {
+                      const stage = c.pipelineStage || c.status || "Matched";
+                      if (stage === "Matched") counts.matches++;
+                      else if (stage === "Added") counts.floated++;
+                      else if (
+                        stage === "Submitted" ||
+                        stage === "Deal Room Active" ||
+                        stage.includes("SUBMITTED")
+                      )
+                        counts.submitted++;
+                      else if (stage === "Interviewing") counts.interviewing++;
+                      else if (stage === "Offer") counts.offers++;
+                      else if (stage === "Placed" || stage === "hired")
+                        counts.placed++;
+                      else if (stage === "Rejected") counts.rejected++;
+                    });
                   }
 
                   return (
                     <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8 mt-8">
-                       <div className="relative z-10">
-                          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-                             <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] flex items-center gap-2">
-                                <ShieldCheck size={14} /> Requirement Candidate Ledger (Single Source of Truth)
-                             </h4>
-                             <Badge className="bg-white/10 text-slate-300 text-[9px]">ID: {selectedJob.requirementId}</Badge>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                             {[
-                               { label: "AI Matches", value: counts.matches, color: "text-indigo-300" },
-                               { label: "Vendor Floated", value: counts.floated, color: "text-amber-300" },
-                               { label: "Submitted", value: counts.submitted, color: "text-blue-300" },
-                               { label: "Interviewing", value: counts.interviewing, color: "text-fuchsia-300" },
-                               { label: "Offers", value: counts.offers, color: "text-emerald-300" },
-                               { label: "Placed", value: counts.placed, color: "text-emerald-500" },
-                               { label: "Rejected", value: counts.rejected, color: "text-rose-400" },
-                             ].map((item, i) => (
-                               <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                                  <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1">{item.label}</p>
-                                  <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
-                               </div>
-                             ))}
-                          </div>
-                          <div className="mt-4 flex items-center gap-2">
-                             <CheckCircle size={12} className="text-emerald-500" />
-                             <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Counts strictly validated across all network nodes (Client, Vendor, Core HQ).</span>
-                          </div>
-                       </div>
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+                          <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] flex items-center gap-2">
+                            <ShieldCheck size={14} /> Requirement Candidate
+                            Ledger (Single Source of Truth)
+                          </h4>
+                          <Badge className="bg-white/10 text-slate-300 text-[9px]">
+                            ID: {selectedJob.requirementId}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {[
+                            {
+                              label: "AI Matches",
+                              value: counts.matches,
+                              color: "text-indigo-300",
+                            },
+                            {
+                              label: "Vendor Floated",
+                              value: counts.floated,
+                              color: "text-amber-300",
+                            },
+                            {
+                              label: "Submitted",
+                              value: counts.submitted,
+                              color: "text-blue-300",
+                            },
+                            {
+                              label: "Interviewing",
+                              value: counts.interviewing,
+                              color: "text-fuchsia-300",
+                            },
+                            {
+                              label: "Offers",
+                              value: counts.offers,
+                              color: "text-emerald-300",
+                            },
+                            {
+                              label: "Placed",
+                              value: counts.placed,
+                              color: "text-emerald-500",
+                            },
+                            {
+                              label: "Rejected",
+                              value: counts.rejected,
+                              color: "text-rose-400",
+                            },
+                          ].map((item, i) => (
+                            <div
+                              key={i}
+                              className="bg-white/5 border border-white/10 rounded-2xl p-4"
+                            >
+                              <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1">
+                                {item.label}
+                              </p>
+                              <p
+                                className={`text-2xl font-black ${item.color}`}
+                              >
+                                {item.value}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 flex items-center gap-2">
+                          <CheckCircle size={12} className="text-emerald-500" />
+                          <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500">
+                            Counts strictly validated across all network nodes
+                            (Client, Vendor, Core HQ).
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
@@ -1855,14 +1976,17 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : Array.from(
-                    new Map(
-                      [...submissions, ...globalMatches].map((c) => [
-                        c.candidateId || c.id || c.email,
-                        c,
-                      ]),
-                    ).values(),
-                  )).length === 0 ? (
+                  (ledgerCandidates && ledgerCandidates.length > 0
+                    ? ledgerCandidates
+                    : Array.from(
+                        new Map(
+                          [...submissions, ...globalMatches].map((c) => [
+                            c.candidateId || c.id || c.email,
+                            c,
+                          ]),
+                        ).values(),
+                      )
+                  ).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -1894,20 +2018,25 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {(ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : Array.from(
-                        new Map(
-                          [...submissions, ...globalMatches].map((cand) => [
-                            cand.candidateId || cand.id || cand.email,
-                            cand,
-                          ]),
-                        ).values(),
-                      ))
+                      {(ledgerCandidates && ledgerCandidates.length > 0
+                        ? ledgerCandidates
+                        : Array.from(
+                            new Map(
+                              [...submissions, ...globalMatches].map((cand) => [
+                                cand.candidateId || cand.id || cand.email,
+                                cand,
+                              ]),
+                            ).values(),
+                          )
+                      )
                         .filter(
                           (sub) =>
                             (sub.matchScore || 0) >= 0 || sub.isGlobalMatch,
                         )
                         .sort(
-                          (a, b) => ((b.matchScore || b.aiMatchScore) || 0) - ((a.matchScore || a.aiMatchScore) || 0),
+                          (a, b) =>
+                            (b.matchScore || b.aiMatchScore || 0) -
+                            (a.matchScore || a.aiMatchScore || 0),
                         )
                         .map((sub) => (
                           <div

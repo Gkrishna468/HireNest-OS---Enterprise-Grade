@@ -261,15 +261,9 @@ export default function ExecutionTracker() {
                             require manual authority alignment.
                         </p>
                         <div className="mt-8 flex gap-4">
-                            <Link to="/settings">
-                                <Button className="bg-slate-900 text-white rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 hover:scale-105 transition-transform">
-                                    Open Security Dashboard
-                                </Button>
-                            </Link>
                             <Button 
                                 onClick={() => window.location.reload()}
-                                variant="outline"
-                                className="rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest border-2"
+                                className="bg-slate-900 text-white rounded-2xl h-12 px-8 font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 hover:scale-105 transition-transform"
                             >
                                 Retry Handshake
                             </Button>
