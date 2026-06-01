@@ -479,9 +479,18 @@ service cloud.firestore {
          isValidCandidate(incoming());
 
       allow update:
-      if isAdmin() ||
+      if isVerified() && (
+         isAdmin() ||
          isSameOrg(existing().vendorId) ||
-         isSameOrg(existing().clientId);
+         isSameOrg(existing().clientId) ||
+         request.resource.data.diff(resource.data).changedKeys().hasOnly([
+             "fullName",
+             "name",
+             "updatedAt",
+             "status",
+             "isNameManuallyEdited"
+         ])
+      );
 
       allow delete:
       if isAdmin() ||
@@ -490,7 +499,45 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // CANDIDATE OWNERSHIP
+    // OWNERSHIP VAULT & IDENTITY RESOLUTION
+    // =====================================================
+
+    match /ownership_claims/{claimId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+          // Allow system/admins or the vendor owning the claim to update it
+          isAdmin() ||
+          existing().vendorId == currentOrgId() ||
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+             "status", "updatedAt", "expiresAt"
+          ])
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ownership_disputes/{disputeId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update: if isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ownership_audit_log/{logId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    match /candidate_identity/{hashId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
+    // =====================================================
+    // CANDIDATE OWNERSHIP (LEGACY / OLD)
     // =====================================================
 
     match /candidateOwnership/{ownershipId} {

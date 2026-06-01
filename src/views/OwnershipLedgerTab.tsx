@@ -21,12 +21,12 @@ export default function OwnershipLedgerTab() {
             }
          }
          
-         let q: any = collection(db, "candidate_ownership");
+         let q: any = collection(db, "ownership_claims");
          if (filterOrgId && filterOrgId !== "ORG-GLOBAL-HQ") {
             q = query(q, where("vendorId", "==", filterOrgId));
             // Firestore might need index if combining where + orderBy. So just where initially.
          } else {
-            q = query(q, orderBy("submittedAt", "desc"));
+            q = query(q, orderBy("claimedAt", "desc"));
          }
          
          const snap = await getDocs(q);
@@ -133,7 +133,8 @@ export default function OwnershipLedgerTab() {
               <tbody>
                 {ledgerEntries.map(entry => {
                   const now = new Date();
-                  const windowEnd = new Date(entry.windowEnd || Date.now() + 90 * 24 * 60 * 60 * 1000);
+                  const windowEnd = entry.expiresAt?.toDate ? entry.expiresAt.toDate() : new Date(entry.expiresAt || Date.now() + 180 * 24 * 60 * 60 * 1000);
+                  const claimedAt = entry.claimedAt?.toDate ? entry.claimedAt.toDate() : new Date(entry.claimedAt || Date.now());
                   const daysRemaining = Math.max(0, Math.floor((windowEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
                   const isSoonExpired = daysRemaining < 15;
                   
@@ -141,28 +142,28 @@ export default function OwnershipLedgerTab() {
                   <tr key={entry.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                     <td className="p-3">
                       <div className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                        {entry.candidateName}
+                        {entry.candidateName || entry.candidateHash?.slice(0,8)}
                         {entry.isMasked && <span className="bg-slate-100 text-slate-500 text-[8px] px-1 py-0.5 rounded uppercase tracking-wider tooltip">Masked</span>}
                       </div>
                       <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
-                        <Fingerprint size={10} /> Hash: {entry.candidateHash || `0x${entry.id.slice(0,10)}`}
+                        <Fingerprint size={10} /> Hash: {entry.candidateHash?.slice(0, 16)}...
                       </div>
                     </td>
                     <td className="p-3">
-                      <div className="font-bold text-sm text-indigo-700">{entry.vendorName}</div>
+                      <div className="font-bold text-sm text-indigo-700">{entry.vendorName || entry.vendorId}</div>
                       <div className="text-xs text-slate-500 flex items-center gap-1">
                         <ShieldAlert size={10} /> Primary Claimant
                       </div>
                     </td>
                     <td className="p-3 font-mono text-xs font-medium text-slate-600">
-                      {new Date(entry.submittedAt || Date.now()).toLocaleString()}
+                      {claimedAt.toLocaleString()}
                     </td>
                     <td className="p-3 text-xs font-bold text-slate-700">
-                       {entry.clientName || 'General Pool'}
+                       Global (Not Job Specific)
                     </td>
                     <td className="p-3">
                        <span className="text-xs font-medium text-slate-600">
-                          {entry.windowStart} <span className="mx-1 text-slate-400">→</span> {entry.windowEnd}
+                           Extended up to {windowEnd.toLocaleDateString()}
                        </span>
                        <div className={`text-[10px] uppercase font-bold mt-1 ${isSoonExpired ? 'text-amber-500' : 'text-emerald-500'}`}>
                          {daysRemaining} Days Remaining

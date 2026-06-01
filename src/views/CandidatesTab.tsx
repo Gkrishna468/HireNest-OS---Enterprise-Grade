@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
+import { generateIdentityHash, checkAndClaimOwnership } from "../lib/ownershipVault";
 import {
   db,
   auth,
@@ -121,7 +122,7 @@ export default function CandidatesTab() {
     try {
       setIsSavingName(true);
       const newName = editingName.name.trim();
-      const candRef = doc(db, "candidates", candId);
+      const candRef = doc(db, "candidatePool", candId);
       await updateDoc(candRef, {
         name: newName,
         fullName: newName,
@@ -489,20 +490,36 @@ export default function CandidatesTab() {
     try {
       const candId = "CAND-" + Math.random().toString(36).substr(2, 9);
 
-      // Perform duplicate checks
-      const dMatch = checkDuplicate(formData.email, formData.phone);
+      // Candidate Ownership Vault Logic
+      let candHash = null;
       let targetStage = "Added";
       let isDupe = false;
+      let dupeReason = "";
       let dupeOfId = "";
       let dupeOfName = "";
-      let dupeReason = "";
 
-      if (dMatch) {
-        targetStage = "Duplicate Review";
-        isDupe = true;
-        dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
-        dupeOfName = dMatch.candidate.name;
-        dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
+      if (formData.email || formData.phone) {
+        candHash = await generateIdentityHash(formData.email, formData.phone);
+        if (candHash) {
+          const vaultResult = await checkAndClaimOwnership(candHash, userOrgId, formData.name, "Manual Form Onboarding", formData.email, formData.phone);
+          if (!vaultResult.success) {
+             targetStage = "Duplicate Review";
+             isDupe = true;
+             dupeReason = `Ownership Vault: Active claim held by another vendor. Dispute ${vaultResult.disputeId} generated.`;
+          }
+        }
+      }
+
+      // Legacy check duplicate fallback
+      if (!isDupe) {
+        const dMatch = checkDuplicate(formData.email, formData.phone);
+        if (dMatch) {
+          targetStage = "Duplicate Review";
+          isDupe = true;
+          dupeOfId = dMatch.candidate.candidateId || dMatch.candidate.id;
+          dupeOfName = dMatch.candidate.name;
+          dupeReason = `Matches existing candidate ${dMatch.candidate.name} by ${dMatch.type} (${dMatch.value})`;
+        }
       }
 
       const initialCandidate = {
@@ -764,7 +781,7 @@ export default function CandidatesTab() {
         // Update basic payload
         let resolvedCandId = candId;
 
-        // IDENTITY RESOLUTION ENGINE
+        // IDENTITY RESOLUTION ENGINE & OWNERSHIP VAULT
         try {
           if (
             result.email &&
@@ -772,8 +789,26 @@ export default function CandidatesTab() {
             result.email !== "" &&
             !result.email.includes("pending@")
           ) {
-            const { query, collection, where, getDocs, deleteDoc } =
+            const { query, collection, where, getDocs, deleteDoc, getDoc } =
               await import("firebase/firestore");
+              
+            const candSnap = await getDoc(doc(db, "candidatePool", candId));
+            const submissionVendorId = candSnap.exists() ? candSnap.data().vendorId : "UNKNOWN_VENDOR";
+
+            const candHash = await generateIdentityHash(result.email, result.phone !== "No Phone Provided" ? result.phone : "");
+            
+            if (candHash) {
+                const vaultResult = await checkAndClaimOwnership(candHash, submissionVendorId, result.name, "Bulk Upload AI Parse", result.email, result.phone !== "No Phone Provided" ? result.phone : "");
+                
+                if (!vaultResult.success) {
+                   // This vendor doesn't own the candidate, flag as dispute!
+                   updatePayload.pipelineStage = "Duplicate Review";
+                   updatePayload.isDuplicate = true;
+                   updatePayload.duplicateReason = `Ownership Vault: Active claim held by another vendor. Dispute ${vaultResult.disputeId} generated.`;
+                }
+            }
+
+            // Legacy Identity resolution for UI consolidation
             const q = query(
               collection(db, "candidatePool"),
               where("email", "==", result.email),
