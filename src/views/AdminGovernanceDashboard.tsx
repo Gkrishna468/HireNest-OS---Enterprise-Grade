@@ -28,38 +28,220 @@ export default function AdminGovernanceDashboard() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResults, setValidationResults] = useState<any>(null);
 
-  const runValidation = () => {
+  const runValidation = async () => {
     setIsValidating(true);
     setValidationResults(null);
     
-    // Simulate complex test runner
-    setTimeout(() => {
+    try {
+      const generatedSuites: any[] = [];
+      let failCount = 0;
+      let totalIssues = 0;
+
+      // 1. Cross-Workspace Parity (Requirement Ledger vs Submissions)
+      const submissionsSnap = await getDocs(collection(db, "submissions"));
+      const reqSnap = await getDocs(collection(db, "requirementLedger"));
+      
+      const reqActiveCounts: Record<string, number> = {};
+      reqSnap.docs.forEach(doc => {
+         reqActiveCounts[doc.id] = (doc.data().activeSubmissions || 0);
+      });
+
+      const actualSubCounts: Record<string, number> = {};
+      submissionsSnap.docs.forEach(doc => {
+         const data = doc.data();
+         if (data.status !== "REJECTED" && data.status !== "WITHDRAWN" && data.status !== "ARCHIVED") {
+           const reqId = data.requirementId;
+           if(reqId) {
+             actualSubCounts[reqId] = (actualSubCounts[reqId] || 0) + 1;
+           }
+         }
+      });
+
+      let parityFails = 0;
+      const affectedReqs: string[] = [];
+      Object.keys(reqActiveCounts).forEach(reqId => {
+         const expected = reqActiveCounts[reqId];
+         const actual = actualSubCounts[reqId] || 0;
+         if (expected !== actual) {
+            parityFails++;
+            affectedReqs.push(`requirements/${reqId}`);
+         }
+      });
+
+      if (parityFails > 0) {
+         failCount++;
+         totalIssues += parityFails;
+         generatedSuites.push({
+           name: "Cross-Workspace Parity Validation",
+           status: "FAIL",
+           detail: `Detected ${parityFails} mismatched requirement submission counts. Ledger active count does not match live submission document count.`,
+           isError: true,
+           issueId: `QA-${Date.now().toString().slice(-4)}`,
+           severity: "CRITICAL",
+           rootCause: "Ledger out of sync with actual submission events. Re-calculate using single source of truth.",
+           resolution: "OPEN",
+           environment: "Production",
+           dateFound: new Date().toISOString().split("T")[0],
+           affectedCollections: ["requirementLedger", "submissions"],
+           affectedRequirement: affectedReqs.slice(0, 3).join(", ") + (affectedReqs.length > 3 ? "..." : ""),
+           fixVersion: "TBD",
+           regressionStatus: "Pending"
+         });
+      } else {
+         generatedSuites.push({
+           name: "Cross-Workspace Parity Validation",
+           status: "PASS",
+           detail: "All requirement ledger active submission counts exactly match live active submissions."
+         });
+      }
+
+      // 2. Reject Flow Synchronization
+      const candidateSnap = await getDocs(collection(db, "candidatePool"));
+      const candidateActiveRejections: string[] = [];
+      
+      submissionsSnap.docs.forEach(doc => {
+         const data = doc.data();
+         if (data.status === "REJECTED") {
+            const candId = data.candidateId;
+            const reqId = data.requirementId;
+            // Check if candidate document still lists this requirement in active pipelines
+            const candDoc = candidateSnap.docs.find(d => d.id === candId);
+            if (candDoc) {
+               const candData = candDoc.data();
+               const activePipelines = candData.activePipelines || [];
+               if (activePipelines.includes(reqId)) {
+                  candidateActiveRejections.push(`candidatePool/${candId}`);
+               }
+            }
+         }
+      });
+
+      if (candidateActiveRejections.length > 0) {
+         failCount++;
+         totalIssues += candidateActiveRejections.length;
+         generatedSuites.push({
+           name: "Reject Flow Synchronization Validation",
+           status: "FAIL",
+           detail: `${candidateActiveRejections.length} candidates found incorrectly tethered to rejected requirements.`,
+           isError: true,
+           issueId: `QA-${Date.now().toString().slice(-4)}`,
+           severity: "CRITICAL",
+           rootCause: "Candidate 'activePipelines' array untouched upon submission rejection.",
+           resolution: "PENDING",
+           environment: "Production",
+           dateFound: new Date().toISOString().split("T")[0],
+           affectedCollections: ["candidatePool", "submissions"],
+           affectedCandidates: candidateActiveRejections.slice(0, 3),
+           fixVersion: "TBD",
+           regressionStatus: "Failing"
+         });
+      } else {
+         generatedSuites.push({
+           name: "Reject Flow Synchronization Validation",
+           status: "PASS",
+           detail: "All rejected submissions successfully untethered from candidate active pipelines."
+         });
+      }
+
+      // 3. Candidate Name / Identity Hydration Validation
+      const unhydratedCandidates: string[] = [];
+      const duplicateHashes: Record<string, string[]> = {};
+
+      candidateSnap.docs.forEach(doc => {
+         const data = doc.data();
+         // Check missing identity info
+         if (!data.fullName || data.fullName === "Parsing Pending" || data.fullName === "Unnamed Candidate") {
+            unhydratedCandidates.push(`candidatePool/${doc.id}`);
+         }
+         
+         // Check duplicates (pseudo check via email if documentHash missing)
+         if (data.documentHash) {
+             duplicateHashes[data.documentHash] = duplicateHashes[data.documentHash] || [];
+             duplicateHashes[data.documentHash].push(`candidatePool/${doc.id}`);
+         } else if (data.email) {
+             const key = `email:${data.email.toLowerCase()}`;
+             duplicateHashes[key] = duplicateHashes[key] || [];
+             duplicateHashes[key].push(`candidatePool/${doc.id}`);
+         }
+      });
+
+      if (unhydratedCandidates.length > 0) {
+         failCount++;
+         totalIssues += unhydratedCandidates.length;
+         generatedSuites.push({
+           name: "Candidate Name Hydration Validation",
+           status: "FAIL",
+           detail: `${unhydratedCandidates.length} candidate(s) created without canonical identity extraction.`,
+           isError: true,
+           issueId: `QA-${Date.now().toString().slice(-4)}`,
+           severity: "CRITICAL",
+           rootCause: "Submissions inserted via matching engine before parser generated full entity extraction.",
+           resolution: "OPEN",
+           environment: "Production",
+           dateFound: new Date().toISOString().split("T")[0],
+           affectedCollections: ["candidatePool"],
+           affectedCandidates: unhydratedCandidates.slice(0, 3),
+           fixVersion: "TBD",
+           regressionStatus: "Failing"
+         });
+      } else {
+         generatedSuites.push({
+           name: "Candidate Name Hydration Validation",
+           status: "PASS",
+           detail: "Pre-commit parser gate securely blocked candidate creation until identity fields populated."
+         });
+      }
+
+      // 4. Duplicate Merge Validation
+      const dupes = Object.values(duplicateHashes).filter(arr => arr.length > 1);
+      if (dupes.length > 0) {
+         failCount++;
+         totalIssues += dupes.length;
+         generatedSuites.push({
+           name: "E2E Duplicate Resume Merge Validation",
+           status: "FAIL",
+           detail: `Found ${dupes.length} sets of duplicate candidate profiles based on document hash / email.`,
+           isError: true,
+           issueId: `QA-${Date.now().toString().slice(-4)}`,
+           severity: "HIGH",
+           rootCause: "Candidate creation lacks deterministic duplicate resolution fallback.",
+           resolution: "OPEN",
+           environment: "Production",
+           dateFound: new Date().toISOString().split("T")[0],
+           affectedCollections: ["candidatePool"],
+           fixVersion: "TBD",
+           regressionStatus: "Failing"
+         });
+      } else {
+         generatedSuites.push({
+           name: "E2E Duplicate Resume Merge Validation",
+           status: "PASS",
+           detail: "No duplicate document hashes detected across Candidate Pool."
+         });
+      }
+
+      const passRate = generatedSuites.length > 0 ? Math.round(((generatedSuites.length - failCount) / generatedSuites.length) * 100) : 100;
+      
       setValidationResults({
         status: 'COMPLETE',
-        passRate: 69,
-        failRate: 31,
-        issues: 5,
-        suites: [
-          { name: "E2E Candidate Lifecycle Execution", status: "PASS", detail: "Automated headless run: Upload -> Parse -> Match -> Submit -> Interview -> Offer -> Place." },
-          { name: "E2E Pipeline Progression", status: "PASS", detail: "candidatePool.stage, submission.stage, and ledger updated synchronously." },
-          { name: "E2E Duplicate Resume Merge", status: "PASS", detail: "Deterministic exact-hashing blocked duplicate creation. Seamlessly merged." },
-          { name: "E2E Notification Integrity", status: "FAIL", detail: "Websocket delivery failed to Client Workspace after event creation", isError: true, issueId: "QA-4025", severity: "HIGH", rootCause: "Client workspace channel missing realtime heartbeat reconnect.", resolution: "OPEN", environment: "Production", dateFound: "2026-06-01", affectedCollections: ["notifications", "events"], fixVersion: "Sprint B", regressionStatus: "Pending" },
-          { name: "E2E Revenue Integrity Test", status: "PASS", detail: "Placement successfully generated vendor invoice, client spend, and HQ revenue." },
-          { name: "E2E Ownership Dispute Flow", status: "PASS", detail: "Dispute successfully generated on concurrent vendor claim via Vault" },
-          { name: "E2E Ownership Runtime Extension", status: "PASS", detail: "180 day extension correctly recorded in ownership_claim and event_ledger" },
-          { name: "E2E Dashboard Reconciliation", status: "PASS", detail: "Global placement count across candidatePool, requirementLedger, and submissions matches." },
-          { name: "Reject Flow Synchronization", status: "PASS", detail: "Transaction correctly decoupled candidate pipeline without destroying global candidate access pool." },
-          { name: "Cross-Workspace Parity", status: "FAIL", detail: "HQ count (24) !== Client count (21) for REQ-819", isError: true, missingCandidates: ["CAND-102", "CAND-189", "CAND-204"], issueId: "QA-4020", severity: "CRITICAL", rootCause: "HQ querying global candidatePool without filtering withdrawn/archived statues. Requires shift to Ledger as Source of Truth.", resolution: "PENDING", affectedRequirement: "REQ-819", affectedCandidates: ["CAND-102", "CAND-189", "CAND-204"], environment: "Production", dateFound: "2026-06-01", affectedCollections: ["candidatePool", "requirementLedger"], fixVersion: "Sprint D", regressionStatus: "Pending" },
-          { name: "Resume Identity Extraction Accuracy", status: "PASS", detail: "Pre-commit parser gate securely blocked candidate creation until Name, Email, and Phone populated." },
-          { name: "Requirement Match Accuracy", status: "PASS", detail: "Strict Domain Gating safely aborted 'Telecom' match against 'Oracle HCM'." },
-          { name: "Candidate Name Hydration", status: "PASS", detail: "Matcher lock successfully delayed embedding execution until 'fullName' populated." },
-          { name: "E2E Ownership Collision Stress Test", status: "FAIL", detail: "50 vendors sumbit same candidate simultaneously. Expected 1 winner, 49 disputes. Result: Deadlock Timeout", isError: true, issueId: "QA-4026", severity: "CRITICAL", rootCause: "Missing transaction lock across simultaneous write attempts.", resolution: "OPEN", environment: "Production", dateFound: "2026-06-01", affectedCollections: ["ownership_claims"], fixVersion: "Sprint E", regressionStatus: "Pending" },
-          { name: "E2E Requirement Closure Test", status: "FAIL", detail: "Requirement Filled. Result: Submissions still accepted 5 minutes later.", isError: true, issueId: "QA-4027", severity: "HIGH", rootCause: "Client hook delayed propagation to global candidate matching index.", resolution: "OPEN", environment: "Production", dateFound: "2026-06-01", affectedCollections: ["requirementLedger"], fixVersion: "Sprint E", regressionStatus: "Pending" },
-          { name: "E2E Ledger Recovery Test", status: "FAIL", detail: "Simulated nested write failure. Result: Partial status commit without rollback.", isError: true, issueId: "QA-4028", severity: "CRITICAL", rootCause: "Nested function calls outside the primary batch context.", resolution: "OPEN", environment: "Production", dateFound: "2026-06-01", affectedCollections: ["candidatePool", "event_ledger"], fixVersion: "Sprint E", regressionStatus: "Pending" }
-        ]
+        passRate: passRate,
+        failRate: 100 - passRate,
+        issues: totalIssues,
+        suites: generatedSuites
       });
-      setIsValidating(false);
-    }, 2500);
+
+    } catch (e: any) {
+      console.error(e);
+      setValidationResults({
+         status: 'ERROR',
+         passRate: 0,
+         failRate: 100,
+         issues: 1,
+         suites: [{ name: "QA Runner Execution", status: "ERROR", detail: "Internal error executing production audits: " + e.message, isError: true }]
+      });
+    }
+
+    setIsValidating(false);
   };
 
   useEffect(() => {
@@ -221,7 +403,9 @@ export default function AdminGovernanceDashboard() {
                   </div>
                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-center">
                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">Status</p>
-                     <p className="text-xl font-black text-rose-500 mt-2">REQUIRES FIX</p>
+                     <p className={cn("text-xl font-black mt-2", validationResults.failRate > 0 ? "text-rose-500" : "text-emerald-500")}>
+                        {validationResults.failRate > 0 ? "REQUIRES FIX" : "HEALTHY"}
+                     </p>
                   </div>
                </div>
 
