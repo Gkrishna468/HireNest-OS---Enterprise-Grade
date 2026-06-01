@@ -939,10 +939,16 @@ export default function CandidatesTab() {
         n === "Local Mock Generated" ||
         n === "Unknown Candidate" ||
         n === "Sarah Jenkins" ||
+        n === "Candidate (Requires Human Review)" ||
         n === "" ||
         n.includes("Parsing Pending") ||
         c.distillationStatus === "PROCESSING" ||
-        c.distillationStatus === "PENDING"
+        c.distillationStatus === "PENDING" ||
+        !c.email ||
+        c.email === "" ||
+        c.email.includes("pending@") ||
+        !c.skills ||
+        c.skills.length === 0
       ) {
         stage = "Processing";
       }
@@ -1020,6 +1026,7 @@ export default function CandidatesTab() {
                     n === "Local Mock Generated" ||
                     n === "Unknown Candidate" ||
                     n === "Sarah Jenkins" ||
+                    n === "Candidate (Requires Human Review)" ||
                     n === "" ||
                     n.includes("Parsing Pending")
                   ) {

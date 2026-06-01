@@ -215,14 +215,29 @@ export default function JobsTab() {
 
           for (const cand of candidateList) {
             // Wait until parsing is fully complete before scanning
+            const n = cand.name || "";
+            const pendingNames = [
+              "Pending Distillation",
+              "Unnamed Candidate",
+              "Local Mock Generated",
+              "Unknown Candidate",
+              "Sarah Jenkins",
+              "Candidate (Requires Human Review)",
+            ];
             if (
-              cand.name === "Pending Distillation" ||
-              cand.name === "Unnamed Candidate" ||
-              !cand.name ||
+              !n ||
+              pendingNames.includes(n) ||
+              n.toUpperCase().startsWith("CANDIDATE ") ||
+              n.includes("Parsing Pending") ||
               cand.distillationStatus === "PROCESSING" ||
-              cand.distillationStatus === "PENDING"
+              cand.distillationStatus === "PENDING" ||
+              !cand.email ||
+              cand.email === "" ||
+              cand.email.includes("pending@") ||
+              !cand.skills ||
+              cand.skills.length === 0
             ) {
-              continue;
+              continue; // Block matching until identity is fully extracted
             }
 
             // PIPELINE ISOLATION: Do not auto-submit candidates to other jobs if they are mapped to a specific job

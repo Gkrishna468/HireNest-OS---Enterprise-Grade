@@ -22,6 +22,17 @@ export async function publishEvent(event: NotificationEvent) {
         createdAt: serverTimestamp(),
       }),
     );
+
+    // Push the global event ledger
+    const ledgerPromise = addDoc(collection(db, "event_ledger"), {
+      title: event.title,
+      message: event.message,
+      type: event.type,
+      recipients: event.recipients,
+      createdAt: serverTimestamp(),
+    });
+    promises.push(ledgerPromise);
+
     await Promise.all(promises);
     console.log(`[EVENT ENGINE] Published event: ${event.title}`);
   } catch (err) {
