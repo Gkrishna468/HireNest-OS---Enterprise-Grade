@@ -770,7 +770,7 @@ const AppContent = () => {
                 element={
                   <ClientCandidatePipeline
                     orgId={userData?.organizationId || ""}
-                    userRole={userRole}
+                    userRole={role || ""}
                   />
                 }
               />
@@ -783,7 +783,7 @@ const AppContent = () => {
               element={
                 <ClientCandidatePipeline
                   orgId={userData?.organizationId || ""}
-                  userRole={userRole}
+                  userRole={role || ""}
                 />
               } 
             />
