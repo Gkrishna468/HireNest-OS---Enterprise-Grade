@@ -835,35 +835,37 @@ export default function CandidatesTab() {
                 
                 if (!vaultResult.success) {
                    // This vendor doesn't own the candidate, flag as dispute!
-                   updatePayload.pipelineStage = "Duplicate Review";
+                   updatePayload.pipelineStage = "Added";
                    updatePayload.isDuplicate = true;
+                   updatePayload.status = "DISPUTED";
                    updatePayload.duplicateReason = `Ownership Vault: Active claim held by another vendor. Dispute ${vaultResult.disputeId} generated.`;
+                   // Skip legacy merge so we don't pollute the actual owner's candidate pool record
+                } else {
+                   // Legacy Identity resolution for UI consolidation
+                   const q = query(
+                     collection(db, "candidatePool"),
+                     where("email", "==", result.email),
+                   );
+                   const snap = await getDocs(q);
+                   const duplicates = snap.docs.filter((d) => d.id !== candId);
+       
+                   if (duplicates.length > 0) {
+                     const primary = duplicates[0];
+                     resolvedCandId = primary.id;
+                     console.log(
+                       `[IDENTITY RESOLUTION] Merging duplicate upload for ${result.email} into existing primary ID: ${resolvedCandId}`,
+                     );
+                     // Update the primary instead
+                     await updateDoc(doc(db, "candidatePool", resolvedCandId), {
+                       resumeText:
+                         updatePayload.resumeText || primary.data().resumeText,
+                       updatedAt: serverTimestamp(),
+                     });
+                     // Delete the ghost duplicate
+                     await deleteDoc(doc(db, "candidatePool", candId));
+                     updatePayload = null; // Prevent update of the deleted document
+                   }
                 }
-            }
-
-            // Legacy Identity resolution for UI consolidation
-            const q = query(
-              collection(db, "candidatePool"),
-              where("email", "==", result.email),
-            );
-            const snap = await getDocs(q);
-            const duplicates = snap.docs.filter((d) => d.id !== candId);
-
-            if (duplicates.length > 0) {
-              const primary = duplicates[0];
-              resolvedCandId = primary.id;
-              console.log(
-                `[IDENTITY RESOLUTION] Merging duplicate upload for ${result.email} into existing primary ID: ${resolvedCandId}`,
-              );
-              // Update the primary instead
-              await updateDoc(doc(db, "candidatePool", resolvedCandId), {
-                resumeText:
-                  updatePayload.resumeText || primary.data().resumeText,
-                updatedAt: serverTimestamp(),
-              });
-              // Delete the ghost duplicate
-              await deleteDoc(doc(db, "candidatePool", candId));
-              updatePayload = null; // Prevent update of the deleted document
             }
           }
         } catch (idErr) {
@@ -1036,6 +1038,35 @@ export default function CandidatesTab() {
         activeDealId: roomId,
         updatedAt: serverTimestamp(),
       });
+      
+      // Update submissions ledger so client and HQ boards are in sync
+      const { query, collection, where, getDocs, updateDoc: fireUpdate } = await import("firebase/firestore");
+      const subq = query(collection(db, "submissions"), where("candidateId", "==", selectedCandidate.id), where("requirementId", "==", selectedJobId));
+      const subsnap = await getDocs(subq);
+      
+      if (!subsnap.empty) {
+        await fireUpdate(doc(db, "submissions", subsnap.docs[0].id), {
+          status: "SUBMITTED",
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await addDoc(collection(db, "submissions"), {
+           canonicalRequirementId: selectedJobId,
+           candidateId: selectedCandidate.id,
+           requirementId: selectedJobId,
+           clientId: job.clientId || "HQ",
+           vendorOrgId: userOrgId || "HQ",
+           status: "SUBMITTED",
+           submittedBy: userRole || "vendor",
+           matchScore: mappingResult.matchScore || 0,
+           timeline: [
+             { action: "submitted", timestamp: new Date().toISOString() },
+           ],
+           submittedAt: serverTimestamp(),
+           reqTitle: job.title,
+           candidateName: selectedCandidate.fullName || selectedCandidate.name || selectedCandidate.candidateId || "Unknown"
+        });
+      }
 
       await addDoc(collection(db, "notifications"), {
         id: `NOTIF-${Date.now()}`,
@@ -1103,7 +1134,7 @@ export default function CandidatesTab() {
     });
 
   if (userRole.startsWith("client") && !isAdmin && userOrgId) {
-    return <ClientCandidatePipeline orgId={userOrgId} />;
+    return <ClientCandidatePipeline orgId={userOrgId} userRole={userRole} />;
   }
 
   return (

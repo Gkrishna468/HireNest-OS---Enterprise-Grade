@@ -69,6 +69,7 @@ import InvoicesTab from "./views/InvoicesTab";
 import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
 import { OnboardingGuide } from "./components/OnboardingGuide";
 import { LiveToaster } from "./components/LiveToaster";
+import SignalsTab from "./views/SignalsTab";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -572,6 +573,13 @@ const AppContent = () => {
                 Work
               </div>
               <SidebarItem
+                to="/signals"
+                icon={Activity}
+                label="Signals Center"
+                active={location.pathname === "/signals"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/jobs"
                 icon={Briefcase}
                 label="Requirements"
@@ -741,6 +749,7 @@ const AppContent = () => {
           <Routes>
             <Route path="/" element={<DashboardTab />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
+            {isAdmin && <Route path="/signals" element={<SignalsTab />} />}
             {isAdmin && (
               <Route path="/rag-intel" element={<RagIntelligenceTab />} />
             )}
@@ -761,6 +770,7 @@ const AppContent = () => {
                 element={
                   <ClientCandidatePipeline
                     orgId={userData?.organizationId || ""}
+                    userRole={userRole}
                   />
                 }
               />
@@ -768,6 +778,15 @@ const AppContent = () => {
               <Route path="/candidates" element={<CandidatesTab />} />
             ) : null}
             <Route path="/jobs" element={<JobsTab />} />
+            <Route 
+              path="/pipeline" 
+              element={
+                <ClientCandidatePipeline
+                  orgId={userData?.organizationId || ""}
+                  userRole={userRole}
+                />
+              } 
+            />
             {(isAdmin || isRecruiter) && (
               <Route path="/network" element={<NetworkDirectoryTab />} />
             )}

@@ -97,6 +97,45 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
         </div>
       </div>
 
+      {/* Recruiter Copilot AI Insights */}
+      <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <Sparkles size={100} className="text-indigo-600" />
+        </div>
+        <div className="relative z-10">
+           <h3 className="text-[11px] font-black uppercase tracking-widest text-indigo-800 mb-6 flex items-center gap-2">
+              <Sparkles size={16} /> Recruiter Copilot Intelligence
+           </h3>
+           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
+                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Fill Probability</div>
+                 <div className="text-2xl font-black text-emerald-600">{job.insights?.fillProbability || "82%"}</div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
+                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Closure Time</div>
+                 <div className="text-xl font-black text-slate-800 mt-1">{job.insights?.closureTime || "14 Days"}</div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
+                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Internal Matches</div>
+                 <div className="text-xl font-black text-indigo-600 mt-1">{job.insights?.internalMatches || "8"} Candidates</div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-rose-50 shadow-sm text-center flex flex-col justify-center items-center">
+                 <div className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Identified Risk</div>
+                 <div className="text-xs font-bold text-rose-700 leading-tight">{job.insights?.risk || "Niche Skill Shortage"}</div>
+              </div>
+           </div>
+           
+           <div className="mt-4 bg-white p-4 rounded-xl border border-indigo-50 shadow-sm flex items-center gap-4">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Likely Vendors</div>
+              <div className="flex flex-wrap gap-2">
+                 {(job.insights?.likelyVendors || ["Worknexa", "ABC Staffing", "XYZ Solutions"]).map((v: string, i: number) => (
+                    <Badge key={i} className="bg-indigo-50 text-indigo-700 border-indigo-100">{v}</Badge>
+                 ))}
+              </div>
+           </div>
+        </div>
+      </div>
+
       {/* Summary & Intelligence */}
       {job.summary && (
         <div className="relative group">

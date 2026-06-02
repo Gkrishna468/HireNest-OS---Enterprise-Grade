@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { Users, Filter, CheckCircle2, Copy, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
@@ -8,7 +8,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { CandidateReviewModal } from '../../components/modals/CandidateReviewModal';
 import { InterviewSchedulerModal } from '../../components/modals/InterviewSchedulerModal';
 
-export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
+export function ClientCandidatePipeline({ orgId, userRole }: { orgId: string, userRole: string | null }) {
   const [requirements, setRequirements] = useState<any[]>([]);
   const [aiMatches, setAiMatches] = useState<any[]>([]);
   
@@ -17,16 +17,33 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
   const [expandedReq, setExpandedReq] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!orgId) return;
+    if (!orgId || !userRole) return;
 
-    // 1. Fetch requirements
-    const reqq = query(collection(db, "requirements_public"), where("clientId", "==", orgId));
+    // 1. Fetch requirements based on role
+    let reqq;
+    if (userRole === "admin" || userRole === "hq") {
+       reqq = query(collection(db, "requirements_public"));
+    } else if (userRole.includes("vendor") || userRole.includes("recruiter")) {
+       // Vendors see requirements globally or assigned to them. Just fetching all active for now for the pipeline view (where their candidates are)
+       reqq = query(collection(db, "requirements_public"));
+    } else {
+       reqq = query(collection(db, "requirements_public"), where("clientId", "==", orgId));
+    }
+    
     const unsubReq = onSnapshot(reqq, snap => {
       setRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 2. Fetch submissions via real-time listener
-    const subQ = query(collection(db, "submissions"), where("clientId", "==", orgId));
+    // 2. Fetch submissions via real-time listener depending on role
+    let subQ;
+    if (userRole === "admin" || userRole === "hq") {
+       subQ = query(collection(db, "submissions"));
+    } else if (userRole.includes("vendor") || userRole.includes("recruiter")) {
+       subQ = query(collection(db, "submissions"), where("vendorOrgId", "==", orgId));
+    } else {
+       subQ = query(collection(db, "submissions"), where("clientId", "==", orgId));
+    }
+    
     const unsubSub = onSnapshot(subQ, snap => {
       const allSubs = snap.docs.map(doc => {
         const data = doc.data();
@@ -76,21 +93,23 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
     try {
       const subData = JSON.parse(e.dataTransfer.getData("application/json"));
       if (subData && subData.id) {
-        // Move submission to new stage
-        if (subData.sysSource === 'AI_MATCH' && !subData.status) {
-           // Wait, AI_MATCH might not be a real submission yet if it's from general pool.
-           // But since Sprint A, mappings ARE submissions. We update the submission!
-        }
-        await updateDoc(doc(db, "submissions", subData.id), {
-          status: newStage
+        const batch = writeBatch(db);
+        
+        // Update submission
+        batch.update(doc(db, "submissions", subData.id), {
+          status: newStage,
+          updatedAt: serverTimestamp()
         });
         
         // Also fire update to candidate globally!
         if (subData.candidateId) {
-           await updateDoc(doc(db, "candidatePool", subData.candidateId), {
-             pipelineStage: newStage
+           batch.update(doc(db, "candidatePool", subData.candidateId), {
+             pipelineStage: newStage,
+             updatedAt: serverTimestamp()
            });
         }
+        
+        await batch.commit();
       }
     } catch (err) {
       console.error("Drop error", err);

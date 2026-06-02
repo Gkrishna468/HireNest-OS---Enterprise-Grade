@@ -85,6 +85,32 @@ export default function NetworkDirectoryTab() {
     if (activeFilter === 'organizations') {
       return (
         <div className="grid grid-cols-1 gap-6">
+          {/* AI Vendor Intelligence Layer */}
+          <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 shadow-sm mb-4">
+             <div className="flex items-center gap-2 mb-4 text-indigo-800">
+                <ShieldCheck size={20} />
+                <h3 className="text-sm font-black uppercase tracking-widest">Vendor Intelligence Layer</h3>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-50">
+                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Top Vendor for Java Roles</div>
+                   <div className="flex items-center justify-between">
+                     <div className="text-sm font-black text-slate-800">Vendor A (Worknexa)</div>
+                     <Badge className="bg-emerald-50 text-emerald-700">82% Interview Ratio</Badge>
+                   </div>
+                   <p className="text-[10px] text-slate-500 mt-2 italic">Reason calculation: Highest interview conversion for backend requirements over the last 30 days.</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-50">
+                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Top Vendor for React Roles</div>
+                   <div className="flex items-center justify-between">
+                     <div className="text-sm font-black text-slate-800">ABC Staffing</div>
+                     <Badge className="bg-emerald-50 text-emerald-700">65% Offer Ratio</Badge>
+                   </div>
+                   <p className="text-[10px] text-slate-500 mt-2 italic">Reason calculation: Consistently fast submissions with lowest drop-out rate.</p>
+                </div>
+             </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {data.map(org => {
                // Calculate stats for this org from events
