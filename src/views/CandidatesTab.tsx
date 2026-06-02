@@ -44,6 +44,7 @@ import {
   updateDoc,
   deleteDoc,
   limit,
+  arrayUnion,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
@@ -965,6 +966,28 @@ export default function CandidatesTab() {
         const data = await res.json();
         setMappingResult(data);
 
+        // 1. Create submission document (Single Source of Truth)
+        await addDoc(collection(db, "submissions"), {
+           canonicalRequirementId: jobId,
+           candidateId: selectedCandidate.id,
+           requirementId: jobId,
+           clientId: job.clientId || "HQ",
+           vendorOrgId: userOrgId || "HQ",
+           status: "MATCHED",
+           submittedBy: userRole || "vendor",
+           matchScore: data.matchScore || 0,
+           timeline: [
+             { action: "matched", timestamp: new Date().toISOString() },
+           ],
+           submittedAt: serverTimestamp(),
+           
+           // Legacy fields mapping
+           reqTitle: job.title,
+           candidateName: selectedCandidate.fullName || selectedCandidate.name || selectedCandidate.candidateId || "Unknown",
+           candidateEmail: selectedCandidate.primaryEmail || selectedCandidate.email || "",
+        });
+
+        // 2. Update Candidate Pool
         await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
           pipelineStage: "Matched",
           canonicalRequirementId: jobId,
@@ -972,6 +995,7 @@ export default function CandidatesTab() {
           clientId: job.clientId,
           matchScore: data.matchScore,
           matchData: data,
+          activePipelines: arrayUnion(jobId),
           updatedAt: serverTimestamp(),
         });
       }

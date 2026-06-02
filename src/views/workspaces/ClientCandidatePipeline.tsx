@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { Users, Filter, CheckCircle2, Copy, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
@@ -25,52 +25,31 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
       setRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const fetchMatches = async () => {
-      try {
-        const { getDocs, query, collection, where } = await import("firebase/firestore");
-        let accLedger: any[] = [];
-
-        // For each client requirement, fetch the bound submissions or matched candidates
-        for (const req of requirements) {
-          try {
-            const qSub = query(collection(db, "submissions"), where("canonicalRequirementId", "==", req.id));
-            const snap = await getDocs(qSub);
-            const tagged = snap.docs.map(doc => {
-              const data = doc.data();
-              return {
-                 id: doc.id,
-                 ...data,
-                 canonicalRequirementId: req.id,
-                 requirementId: req.id,
-                 reqId: req.id,
-                 sysSource: data.status === 'MATCHED' ? 'AI_MATCH' : (data.vendorId === 'ORG-EXTERNAL-VENDOR' ? 'VENDOR_FLOATED' : 'SUBMISSION')
-              };
-            });
-            accLedger = [...accLedger, ...tagged];
-          } catch (e) {
-            console.warn("Failed to fetch matches for req", req.id, e);
-          }
-        }
+    // 2. Fetch submissions via real-time listener
+    const subQ = query(collection(db, "submissions"), where("clientId", "==", orgId));
+    const unsubSub = onSnapshot(subQ, snap => {
+      const allSubs = snap.docs.map(doc => {
+        const data = doc.data();
+        let sourceStr = 'SUBMISSION';
+        if (data.status === 'MATCHED') sourceStr = 'AI_MATCH';
+        if (data.vendorId === 'ORG-EXTERNAL-VENDOR') sourceStr = 'VENDOR_FLOATED';
         
-        setAiMatches(accLedger);
-      } catch (err) {
-        console.error("Global Match fetch err", err);
-      }
-    };
-    
-    // Only fetch matches if requirements exist. We can run this once they drop in.
-    if (requirements.length > 0) {
-       fetchMatches();
-    }
-    
-    // Refresh periodically but less aggressively since it's a dynamic computation
-    const matchInterval = setInterval(fetchMatches, 45000); 
+        return {
+           id: doc.id,
+           ...data,
+           canonicalRequirementId: data.requirementId || data.canonicalRequirementId,
+           reqId: data.requirementId,
+           sysSource: sourceStr
+        };
+      });
+      setAiMatches(allSubs);
+    });
 
     return () => {
       unsubReq();
-      clearInterval(matchInterval);
+      unsubSub();
     };
-  }, [orgId, requirements.length]);
+  }, [orgId]);
 
   if (requirements.length === 0) {
     return (
@@ -84,15 +63,59 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
     );
   }
 
-  const renderSection = (title: string, items: any[], req: any, statusBadge: string) => {
-     if (items.length === 0) return null;
-     
+  const handleDragStart = (e: React.DragEvent, sub: any) => {
+    e.dataTransfer.setData("application/json", JSON.stringify(sub));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStage: string) => {
+    e.preventDefault();
+    try {
+      const subData = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (subData && subData.id) {
+        // Move submission to new stage
+        if (subData.sysSource === 'AI_MATCH' && !subData.status) {
+           // Wait, AI_MATCH might not be a real submission yet if it's from general pool.
+           // But since Sprint A, mappings ARE submissions. We update the submission!
+        }
+        await updateDoc(doc(db, "submissions", subData.id), {
+          status: newStage
+        });
+        
+        // Also fire update to candidate globally!
+        if (subData.candidateId) {
+           await updateDoc(doc(db, "candidatePool", subData.candidateId), {
+             pipelineStage: newStage
+           });
+        }
+      }
+    } catch (err) {
+      console.error("Drop error", err);
+    }
+  };
+
+  const renderKanbanColumn = (title: string, items: any[], req: any, statusBadge: string) => {
      return (
-        <div className="space-y-3">
-           <h3 className="font-bold text-slate-700 uppercase tracking-wider text-xs">{title} ({items.length})</h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div 
+           className="flex-shrink-0 w-80 bg-slate-100 rounded-2xl p-4 flex flex-col max-h-[800px]"
+           onDragOver={handleDragOver}
+           onDrop={(e) => handleDrop(e, statusBadge)}
+        >
+           <h3 className="font-black text-slate-800 tracking-tight text-sm mb-4 flex justify-between items-center">
+              {title}
+              <span className="bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full text-[10px]">{items.length}</span>
+           </h3>
+           <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1 pb-4">
              {items.map(sub => (
-               <div key={sub.id} className="bg-white border text-left border-slate-200 p-4 rounded-xl shadow-sm space-y-4 hover:border-indigo-300 transition-colors">
+               <div 
+                 key={sub.id} 
+                 draggable
+                 onDragStart={(e) => handleDragStart(e, sub)}
+                 className="bg-white border text-left border-slate-200 p-4 rounded-xl shadow-sm space-y-4 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
+               >
                  <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-slate-900">{sub.candidateName || sub.fullName || sub.name || 'Anonymous Candidate'}</h3>
@@ -111,6 +134,11 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
                  </div>
                </div>
              ))}
+             {items.length === 0 && (
+                <div className="h-24 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center text-slate-400 text-[11px] font-bold uppercase tracking-widest">
+                   Drop Here
+                </div>
+             )}
            </div>
         </div>
      );
@@ -201,14 +229,14 @@ export function ClientCandidatePipeline({ orgId }: { orgId: string }) {
                          No candidates found for this requirement.
                        </div>
                      ) : (
-                       <div className="space-y-8">
-                         {renderSection("AI Matches", reqAiMatches, req, "AI MATCH")}
-                         {renderSection("Vendor Floated", reqFloated, req, "FLOATED")}
-                         {renderSection("Submitted", submitted, req, "SUBMITTED")}
-                         {renderSection("Interviewing", interviewing, req, "INTERVIEW")}
-                         {renderSection("Offers", offers, req, "OFFER")}
-                         {renderSection("Hired", hired, req, "HIRED")}
-                         {renderSection("Rejected", rejected, req, "REJECTED")}
+                       <div className="flex gap-6 overflow-x-auto overflow-y-hidden pb-4 pt-2 px-2 custom-scrollbar">
+                          {renderKanbanColumn("AI Matched", reqAiMatches, req, "MATCHED")}
+                          {renderKanbanColumn("Vendor Floated", reqFloated, req, "FLOATED")}
+                          {renderKanbanColumn("Submitted", submitted, req, "SUBMITTED")}
+                          {renderKanbanColumn("Interview", interviewing, req, "INTERVIEW")}
+                          {renderKanbanColumn("Offer", offers, req, "OFFER")}
+                          {renderKanbanColumn("Placed", hired, req, "PLACED")}
+                          {renderKanbanColumn("Rejected", rejected, req, "REJECTED")}
                        </div>
                      )}
                   </div>

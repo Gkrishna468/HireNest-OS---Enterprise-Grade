@@ -144,7 +144,60 @@ export default function AdminGovernanceDashboard() {
          });
       }
 
-      // 3. Candidate Name / Identity Hydration Validation
+      // 3. Cross Workspace Visibility Drift Validation
+      const driftIssues: string[] = [];
+      candidateSnap.docs.forEach(doc => {
+          const cand = doc.data();
+          if (cand.activePipelines && Array.isArray(cand.activePipelines)) {
+              cand.activePipelines.forEach(reqId => {
+                  const hasSub = submissionsSnap.docs.some(s => {
+                      const sData = s.data();
+                      return sData.candidateId === doc.id && (sData.requirementId === reqId || sData.canonicalRequirementId === reqId);
+                  });
+                  if (!hasSub) {
+                      driftIssues.push(`candidatePool/${doc.id} mapped to ${reqId} but no submission record exists.`);
+                  }
+              });
+          }
+      });
+      submissionsSnap.docs.forEach(doc => {
+          const s = doc.data();
+          const candDoc = candidateSnap.docs.find(c => c.id === s.candidateId);
+          if (candDoc) {
+             const cData = candDoc.data();
+             const hasPipeline = cData.activePipelines && cData.activePipelines.includes(s.requirementId || s.canonicalRequirementId);
+             if (!hasPipeline && s.status !== "REJECTED" && s.status !== "REJECT") {
+                 driftIssues.push(`submissions/${doc.id} exists but candidate ${s.candidateId} lacks it in activePipelines.`);
+             }
+          }
+      });
+
+      if (driftIssues.length > 0) {
+          failCount++;
+          totalIssues += driftIssues.length;
+          generatedSuites.push({
+            name: "Candidate Submission Visibility Test",
+            status: "FAIL",
+            detail: `Detected ${driftIssues.length} visibility drift anomalies. Vendor/Client counts will not match.`,
+            isError: true,
+            issueId: window.crypto.randomUUID(),
+            severity: "CRITICAL",
+            rootCause: "Cross Workspace Visibility Drift",
+            resolution: "PENDING",
+            environment: "Production",
+            dateFound: new Date().toISOString().split("T")[0],
+            affectedCollections: ["candidatePool", "submissions"],
+            affectedCandidates: driftIssues.slice(0, 3) as any,
+          });
+      } else {
+          generatedSuites.push({
+            name: "Candidate Submission Visibility Test",
+            status: "PASS",
+            detail: "Vendor Count = Client Count = HQ Count. All workspaces share perfect parity."
+          });
+      }
+
+      // 4. Candidate Name / Identity Hydration Validation
       const unhydratedCandidates: string[] = [];
       const duplicateHashes: Record<string, string[]> = {};
 
