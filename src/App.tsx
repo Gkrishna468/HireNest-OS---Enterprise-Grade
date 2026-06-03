@@ -34,6 +34,7 @@ import {
   Clock,
   Receipt,
   BookOpen,
+  Search,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -70,6 +71,7 @@ import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
 import { OnboardingGuide } from "./components/OnboardingGuide";
 import { LiveToaster } from "./components/LiveToaster";
 import SignalsTab from "./views/SignalsTab";
+import { NotificationCenter } from "./components/NotificationCenter";
 
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -263,7 +265,7 @@ const AppContent = () => {
     );
   }
 
-  if (!user && location.pathname !== "/onboarding") {
+  if (!user) {
     return (
       <Onboarding
         onComplete={async () => {
@@ -712,9 +714,27 @@ const AppContent = () => {
                       ? "Recruiter Workspace"
                       : "User Workspace"}
             </div>
-            <div className="flex items-center gap-2">
+            
+            {/* Universal Search Bar */}
+            <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 focus-within:w-80 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+               <Search size={16} className="text-slate-400 shrink-0" />
+               <input 
+                 type="text" 
+                 placeholder="Search Candidates, Requirements..." 
+                 className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400"
+                 onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                       // Universal Search handling (placeholder behavior for MVP)
+                       alert(`Universal Search for: ${e.currentTarget.value}\n(Routing implementation pending)`);
+                    }
+                 }}
+               />
+               <div className="ml-2 bg-slate-200 text-slate-500 text-[9px] rounded px-1.5 py-0.5 font-mono opacity-60 pointer-events-none">⌘K</div>
+            </div>
+
+            <div className="flex items-center gap-2 hidden lg:flex">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline-block">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Protocol Active
               </span>
             </div>
@@ -735,13 +755,7 @@ const AppContent = () => {
                 Onboard Nodes
               </Link>
             )}
-            <Link
-              to="/notifications"
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-indigo-600 transition-colors relative"
-            >
-              <Bell size={18} />
-              <div className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-            </Link>
+            <NotificationCenter userRole={userData?.role} />
           </div>
         </header>
 

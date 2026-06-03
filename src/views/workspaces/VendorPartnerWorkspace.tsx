@@ -184,6 +184,17 @@ export default function VendorPartnerWorkspace({
                     </p>
                   </div>
                 </div>
+
+                {(metrics?.totalCandidates === 0 && metrics?.totalJobs === 0) && (
+                  <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+                     <Users className="w-12 h-12 text-indigo-300 mx-auto mb-4" />
+                     <h3 className="text-lg font-bold text-indigo-900 mb-2">No candidates mapped yet</h3>
+                     <p className="text-sm text-indigo-700/80 mb-6">Upload resumes to your bench or use AI Matching to get started.</p>
+                     <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors">
+                        Upload Candidates
+                     </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Financials */}

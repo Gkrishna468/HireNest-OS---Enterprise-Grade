@@ -211,6 +211,17 @@ export default function RecruiterWorkspace({
                     </div>
                   </div>
                 </div>
+
+                {(metrics?.totalJobs === 0 && metrics?.totalCandidates === 0) && (
+                  <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+                     <UploadCloud className="w-12 h-12 text-indigo-300 mx-auto mb-4" />
+                     <h3 className="text-lg font-bold text-indigo-900 mb-2">No candidates mapped yet</h3>
+                     <p className="text-sm text-indigo-700/80 mb-6">Upload resumes to your roster or view active jobs to start building your pipeline.</p>
+                     <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors">
+                        Upload Resumes
+                     </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Performance */}

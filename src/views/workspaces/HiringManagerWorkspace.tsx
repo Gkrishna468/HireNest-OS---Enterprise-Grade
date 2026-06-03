@@ -169,6 +169,17 @@ export default function HiringManagerWorkspace({
                     </p>
                   </div>
                 </div>
+
+                {(metrics?.totalJobs === 0 && metrics?.totalCandidates === 0) && (
+                  <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+                     <Briefcase className="w-12 h-12 text-indigo-300 mx-auto mb-4" />
+                     <h3 className="text-lg font-bold text-indigo-900 mb-2">No active requirements yet</h3>
+                     <p className="text-sm text-indigo-700/80 mb-6">Create a job requirement to start receiving candidate submissions.</p>
+                     <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors">
+                        Create Requirement
+                     </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Pipeline Health */}

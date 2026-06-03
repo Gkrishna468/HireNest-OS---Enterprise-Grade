@@ -3,11 +3,27 @@ import { adminDb, adminAuth } from "../src/lib/firebase-admin.js";
 export default async function handler(req: any, res: any) {
   // Extract action from path or query
   const rawPath = req.path || req.url || '';
-  const action = req.body?.action || req.query?.action || (rawPath.includes('create') ? 'create' : (rawPath.includes('delete') ? 'delete' : (rawPath.includes('assign') ? 'assign' : 'context')));
+  const action = req.body?.action || req.query?.action || (rawPath.includes('create') ? 'create' : (rawPath.includes('delete') ? 'delete' : (rawPath.includes('assign') ? 'assign' : (rawPath.includes('finalize-onboarding') ? 'finalize-onboarding' : 'context'))));
 
   console.log(`[USER_API] Action: ${action} Method: ${req.method} Path: ${rawPath}`);
 
   try {
+    if (action === 'finalize-onboarding') {
+      if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+      const { orgId, orgType, companyName, userProfile } = req.body;
+      if (!adminDb || !adminAuth) return res.status(400).json({ error: "Authority node not initialized" });
+      
+      console.log(`[USER_API] Finalize Onboarding for UI: ${userProfile.uid} in Org: ${orgId}`);
+      await adminDb.collection("organizations").doc(orgId).set({
+        id: orgId, organizationId: orgId, type: orgType, companyName, status: 'ACTIVE', createdAt: new Date().toISOString()
+      }, { merge: true });
+      
+      await adminDb.collection("users").doc(userProfile.uid).set(userProfile, { merge: true });
+      await adminAuth.setCustomUserClaims(userProfile.uid, { role: userProfile.role, orgId: orgId });
+      
+      return res.status(200).json({ ok: true });
+    }
+
     if (action === 'create') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       const { email, password, role, companyName } = req.body;

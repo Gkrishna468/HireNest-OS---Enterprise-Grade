@@ -12,10 +12,28 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
   const [requirements, setRequirements] = useState<any[]>([]);
   const [reviewData, setReviewData] = useState<{sub: any, req: any} | null>(null);
   const [scheduleData, setScheduleData] = useState<{sub: any, req: any} | null>(null);
+  const [vendorMap, setVendorMap] = useState<Record<string, string>>({});
 
   const isAdmin = userRole?.includes("admin") || userRole === "hq" || userRole === "super_admin" || userRole === "ops_admin";
   const isVendor = userRole?.includes("vendor") || userRole?.includes("recruiter");
   const isClient = userRole === "client" || userRole?.startsWith("client_");
+
+  useEffect(() => {
+     const fetchVendors = async () => {
+         try {
+            const orgSnap = await getDocs(collection(db, "organizations"));
+            const vMap: Record<string, string> = {};
+            orgSnap.docs.forEach(d => { if(d.data().name) vMap[d.id] = d.data().name; });
+            const usersSnap = await getDocs(collection(db, "users"));
+            usersSnap.docs.forEach(d => { 
+                const data = d.data();
+                if(data.organizationId && data.name && !vMap[data.organizationId]) vMap[data.organizationId] = data.name; 
+            });
+            setVendorMap(vMap);
+         } catch(e) {}
+     };
+     fetchVendors();
+  }, []);
 
   useEffect(() => {
     if (!userRole) return;
@@ -72,6 +90,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
              isRaw: true,
              candidateId: cand.candidateId || cand.id,
              name: cand.name || cand.fullName,
+             vendorId: cand.vendorId || "",
              vendorName: cand.vendorName || cand.vendorId, // Fallback
              experience: cand.experience,
              skills: cand.skills,
@@ -101,10 +120,12 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
         isRaw: false,
         candidateId: sub.candidateId || sub.id,
         name: sub.candidateName || cData?.fullName || cData?.name || "Anonymous",
+        vendorId: sub.vendorId || cData?.vendorId || "",
         vendorName: sub.vendorName || cData?.vendorName || sub.vendorId,
         experience: sub.experience || cData?.experience,
         skills: cData?.skills || [],
         matchScore: sub.matchScore || sub.aiMatchScore || null,
+        aiAnalysis: sub.aiAnalysis || cData?.aiAnalysis || null,
         reqId: rData?.id,
         reqTitle: rData?.title || 'Unknown Requirement',
         status: computedStatus.toUpperCase(),
@@ -191,7 +212,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                         onClick={() => {
                           if (onCandidateClick) {
                              const originalCandidate = candidates.find(cand => cand.id === c.candidateId || cand.candidateId === c.candidateId);
-                             onCandidateClick(originalCandidate ? { ...originalCandidate, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore } : { ...c.data, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore });
+                             onCandidateClick(originalCandidate ? { ...originalCandidate, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore, aiAnalysis: c.aiAnalysis } : { ...c.data, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore, aiAnalysis: c.aiAnalysis });
                           }
                         }}
                         className={`bg-white p-4 rounded-xl shadow-sm border border-slate-200 transition-all ${c.isRaw ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md'}`}
@@ -209,7 +230,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                          <div className="space-y-1.5 text-xs">
                             <div className="flex justify-between">
                                <span className="text-slate-500">Vendor:</span>
-                               <span className="font-medium text-slate-700 truncate max-w-[120px]" title={c.vendorName || "Unknown"}>{c.vendorName || "Unknown"}</span>
+                               <span className="font-medium text-slate-700 truncate max-w-[120px]" title={vendorMap[c.vendorId] || c.vendorName || "Unknown"}>{vendorMap[c.vendorId] || c.vendorName || "Unknown"}</span>
                             </div>
                             <div className="flex justify-between">
                                <span className="text-slate-500">Experience:</span>

@@ -1615,8 +1615,7 @@ export default function JobsTab() {
                   <X size={14} />
                 </Button>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
-                  <Activity size={14} className="text-indigo-600" /> Candidate
-                  Insights
+                  <Activity size={14} className="text-indigo-600" /> Requirement 360
                 </h2>
               </div>
               <div className="flex items-center gap-2">

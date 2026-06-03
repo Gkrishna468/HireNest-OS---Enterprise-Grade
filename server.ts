@@ -128,6 +128,7 @@ async function createServer() {
         case 'user-context':
         case 'user/context':
         case 'user':
+        case 'finalize-onboarding':
           return await userHandler(req, res);
           
         case 'metrics':
