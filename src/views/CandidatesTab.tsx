@@ -1,4 +1,5 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
+import { BulkUploadProcess } from "../components/BulkUploadProcess";
 import { Badge } from "../lib/Badge";
 import {
   Activity,
@@ -79,6 +80,7 @@ const STAGES = [
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"GRID"|"PIPELINE">("GRID");
   const [selectedCandidatesIds, setSelectedCandidatesIds] = useState<string[]>(
     [],
   );
@@ -118,7 +120,8 @@ export default function CandidatesTab() {
   const isAdmin =
     userRole.includes("admin") ||
     userRole === "super_admin" ||
-    userRole === "ops_admin";
+    userRole === "ops_admin" ||
+    userRole === "hq";
 
   const handleNameSave = async (candId: string) => {
     if (!editingName || !editingName.name.trim()) return;
@@ -1032,34 +1035,14 @@ ${extText}`;
     }
   };
 
-  const finalizeDeal = async () => {
+  const processSubmission = async () => {
     if (!selectedCandidate || !selectedJobId || !mappingResult) return;
     const job = jobs.find((j) => j.id === selectedJobId);
     if (!job) return;
 
-    const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
     const candidateDbId = selectedCandidate.originalId || selectedCandidate.id;
 
     try {
-      const { setDoc, doc, updateDoc, serverTimestamp, collection, addDoc } = await import("firebase/firestore");
-      const dealPayload = {
-        id: roomId,
-        requirementId: selectedJobId,
-        candidateId: candidateDbId,
-        vendorId: userOrgId,
-        clientId: job.clientId,
-        candidateName: selectedCandidate.name,
-        jobTitle: job.title || "Strategic Role",
-        experience: selectedCandidate.experience || "Not Specified",
-        status: "ACTIVE",
-        currentStage: "shortlisted",
-        identitiesRevealed: false,
-        createdAt: serverTimestamp(),
-        matchData: mappingResult,
-      };
-
-      await setDoc(doc(db, "dealRooms", roomId), dealPayload);
-
       // Submission Orchestrator handles Identity, Ownership, Submission, Ledger
       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
       const resp = await SubmissionOrchestrator.submitCandidate({
@@ -1077,112 +1060,333 @@ ${extText}`;
       });
       
       if (!resp.success) {
-        console.error("Orchestrator failed", resp.message);
+        alert("Submission failed: " + resp.message);
+        return;
       }
       
+      const { updateDoc, doc, serverTimestamp, collection, addDoc } = await import("firebase/firestore");
       await updateDoc(doc(db, "candidatePool", candidateDbId), {
-        activeDealId: roomId,
         updatedAt: serverTimestamp(),
       });
       
       await addDoc(collection(db, "notifications"), {
         id: `NOTIF-${Date.now()}`,
         recipientId: job.clientId,
-        title: "New Submission",
-        text: `A candidate has been submitted for ${job.title}. Deal Room DR-${roomId.slice(0, 6)} is now active.`,
+        title: "New Candidate Submission",
+        text: `A candidate has been submitted for ${job.title}.`,
         read: false,
-        type: "DEAL_ROOM",
+        type: "SUBMISSION",
         createdAt: serverTimestamp(),
       });
       
-    } catch (e) {
+      alert(`Candidate successfully submitted for ${job.title}!`);
+      setMappingResult(null);
+      setSelectedJobId("");
+      setSelectedCandidate(null);
+    } catch (e: any) {
       console.error(e);
+      alert("Error processing submission: " + e.message);
     }
   };
+
   return (
-    <div className="flex h-screen bg-slate-50 relative">
-      <div className="p-8 pb-32">
-        <h1 className="text-2xl font-bold tracking-tight mb-6">Candidates</h1>
-        <p className="text-slate-500 mb-8">AI Studio Data Integrity Check Mode Active. UI temporarily simplified.</p>
-
-      {/* OS Processing Stats Overlay */}
-      {processingStats && processingStats.show && (
-        <div className="fixed bottom-8 right-8 bg-slate-900 shadow-2xl rounded-2xl p-6 border border-slate-800 w-80 z-50 text-white flex flex-col gap-4 animate-in slide-in-from-bottom-5">
-          <div className="flex justify-between items-center mb-1">
-            <div className="flex items-center gap-2">
-              <Activity
-                size={16}
-                className={
-                  processingStats.processing > 0
-                    ? "text-indigo-400 animate-spin"
-                    : "text-emerald-400"
-                }
-              />
-              <h3 className="font-black text-sm uppercase tracking-wider">
-                {processingStats.total} Resumes Received
-              </h3>
-            </div>
-            <button
-              onClick={() => setProcessingStats(null)}
-              className="text-slate-500 hover:text-white transition-colors"
-            >
-              <X size={16} />
-            </button>
+    <div className="flex bg-slate-50 relative min-h-screen">
+      <div className="p-8 pb-32 flex-1 max-w-7xl mx-auto w-full overflow-y-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Candidates</h1>
+            <p className="text-slate-500 mt-1">Manage, enrich, and map your candidate bench securely.</p>
           </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-300">
-              <span>Processing</span>
-              <span
-                className={
-                  processingStats.processing > 0
-                    ? "text-indigo-400"
-                    : "text-slate-500"
-                }
-              >
-                {processingStats.processing}
-              </span>
-            </div>
-            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-indigo-500 h-full transition-all duration-1000"
-                style={{
-                  width: `${(processingStats.processing / processingStats.total) * 100}%`,
-                }}
-              ></div>
-            </div>
-
-            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-300 pt-1">
-              <span>Parsed</span>
-              <span
-                className={
-                  processingStats.parsed > 0
-                    ? "text-emerald-400"
-                    : "text-slate-500"
-                }
-              >
-                {processingStats.parsed}
-              </span>
-            </div>
-            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-500 h-full transition-all duration-1000"
-                style={{
-                  width: `${(processingStats.parsed / processingStats.total) * 100}%`,
-                }}
-              ></div>
-            </div>
-
-            {/* Note: Matching happens automatically in background via JobsTab */}
-          </div>
-
-          {processingStats.processing === 0 && (
-            <div className="mt-2 text-[10px] text-emerald-400/80 font-mono text-center bg-emerald-900/30 p-2 rounded border border-emerald-900/50">
-              ALL PROCESSES COMPLETED
+          
+          {!isClient && (
+            <div className="flex items-center gap-3">
+              <div className="flex bg-slate-200 border border-slate-200 rounded-md p-1">
+                 <button onClick={() => setViewMode("GRID")} className={cn("px-3 py-1.5 text-xs font-semibold rounded transition-colors", viewMode === "GRID" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}>Grid</button>
+                 <button onClick={() => setViewMode("PIPELINE")} className={cn("px-3 py-1.5 text-xs font-semibold rounded transition-colors", viewMode === "PIPELINE" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}>Pipeline</button>
+              </div>
+              {viewMode === "GRID" && <input type="text" placeholder="Search..." className="border rounded-md px-3 py-2 text-sm" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />}
+              <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
+                <Upload className="w-4 h-4 mr-2" /> Bulk Upload
+              </Button>
+              <Button onClick={() => setShowAddForm(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Add Candidate
+              </Button>
             </div>
           )}
         </div>
-      )}
+
+        {isClient || viewMode === "PIPELINE" ? (
+          <ClientCandidatePipeline
+            orgId={userOrgId || ""} 
+            userRole={userRole}
+            onCandidateClick={setSelectedCandidate}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {candidates
+              .filter(
+                (c) =>
+                  !searchQuery ||
+                  c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))
+              )
+              .map((candidate) => (
+                <div
+                  key={candidate.id}
+                  className="bg-white rounded-xl shadow-[0_2px_8px_-4px_rgba(0,0,0,0.1)] border border-slate-200 p-5 flex flex-col hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+                  onClick={() => setSelectedCandidate(candidate)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 shadow-inner">
+                      {(candidate.fullName || candidate.name || "U")[0]}
+                    </div>
+                    <Badge variant={candidate.status === "ACTIVE" ? "success" : "default"}>
+                      {candidate.status || "NEW"}
+                    </Badge>
+                  </div>
+                  
+                  <h3 className="font-semibold text-lg text-slate-900 flex flex-col gap-1">
+                    <span className="flex items-center gap-2">
+                       {candidate.fullName || candidate.name || "Unknown"}
+                       {candidate.email && <CheckCircle className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                    </span>
+                    <span className="text-xs font-mono text-slate-400 font-normal">
+                       {candidate.candidateId || candidate.id || "HN-CAN-PENDING"}
+                    </span>
+                  </h3>
+                  
+                  <p className="text-sm text-slate-500 truncate mb-4">
+                    {candidate.email || "No email provided"}
+                  </p>
+
+                  <div className="mt-auto pt-4 border-t border-slate-100">
+                    <div className="flex flex-wrap gap-1.5">
+                      {getSkillsArray(candidate.skills)
+                        .slice(0, 3)
+                        .map((skill: string, idx: number) => (
+                          <Badge key={idx} variant="outline" className="text-[10px] bg-slate-50 text-slate-600 border-slate-200">
+                            {skill}
+                          </Badge>
+                        ))}
+                      {getSkillsArray(candidate.skills).length > 3 && (
+                        <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-500">
+                          +{getSkillsArray(candidate.skills).length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            {candidates.length === 0 && (
+              <div className="col-span-full py-12">
+                <EmptyState
+                  icon={Users} title="No Candidates Found"
+                  description="Your bench is currently empty or no candidates match your search."
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Selected Candidate Modal */}
+        {selectedCandidate && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedCandidate(null)}>
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+               <div className="p-8 pb-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur z-10">
+                  <div className="flex items-center gap-4">
+                     <div className="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xl font-bold">
+                        {(selectedCandidate.fullName || selectedCandidate.name || "U")[0]}
+                     </div>
+                     <div>
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">{selectedCandidate.fullName || selectedCandidate.name || "Unknown"}</h2>
+                        <div className="text-sm font-mono text-slate-400 mt-0.5">{selectedCandidate.candidateId || selectedCandidate.id || "HN-CAN-PENDING"}</div>
+                        <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
+                           <MapPin className="w-4 h-4" />
+                           {selectedCandidate.location || "Remote"}
+                        </div>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                     {isAdmin && (
+                        <Button variant="outline" onClick={() => handleDeleteCandidate(selectedCandidate.id)} className="text-red-500 hover:text-red-600 hover:bg-red-50">Delete</Button>
+                     )}
+                     <button onClick={() => setSelectedCandidate(null)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
+                        <X className="w-5 h-5" />
+                     </button>
+                  </div>
+               </div>
+               
+               <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 space-y-8">
+                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+                        <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2"><Bot className="w-4 h-4 text-indigo-500" /> AI Resume Knowledge</h3>
+                        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedCandidate.resumeText || "No context available. Requires enrichment."}</p>
+                     </div>
+                     
+                     <div className="bg-white p-6 rounded-xl border border-slate-200">
+                        <h3 className="font-semibold text-slate-900 mb-4 uppercase tracking-wider text-sm">Professional Experience</h3>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedCandidate.experience || "Not specified."}</p>
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Contact & Core Info</h3>
+                         <div className="space-y-3 text-sm">
+                            <p className="text-slate-600 flex justify-between"><span className="font-medium text-slate-900">Email:</span> <span>{selectedCandidate.email || "N/A"}</span></p>
+                            <p className="text-slate-600 flex justify-between"><span className="font-medium text-slate-900">Phone:</span> <span>{selectedCandidate.phone || "N/A"}</span></p>
+                            <p className="text-slate-600 flex justify-between"><span className="font-medium text-slate-900">Vendor:</span> <span className="truncate max-w-[150px]">{selectedCandidate.vendorName || selectedCandidate.vendorId || "Direct"}</span></p>
+                         </div>
+                     </div>
+                     
+                     {(selectedCandidate.skills && selectedCandidate.skills.length > 0) && (
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Skills</h3>
+                            <div className="flex flex-wrap gap-2">
+                               {selectedCandidate.skills.map((skill: string) => (
+                                  <Badge key={skill} variant="secondary" className="text-xs bg-slate-100 text-slate-700">{skill}</Badge>
+                               ))}
+                            </div>
+                        </div>
+                     )}
+                     
+                     {selectedCandidate.pipelineStage && selectedCandidate.pipelineStage !== 'ADDED' ? (
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                           <h3 className="font-semibold text-slate-900 mb-4 uppercase tracking-wider text-sm flex items-center gap-2">
+                              Pipeline Status
+                           </h3>
+                           <div className="space-y-4">
+                              <div className="flex justify-between items-center text-sm">
+                                 <span className="text-slate-500">Requirement</span>
+                                 <span className="font-medium text-slate-900 truncate max-w-[150px]">{selectedCandidate.reqTitle || "Unknown"}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                 <span className="text-slate-500">Match Score</span>
+                                 <span className="font-bold text-indigo-600">{selectedCandidate.matchScore ? `${selectedCandidate.matchScore}%` : "Pending"}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                 <span className="text-slate-500">Current Stage</span>
+                                 <Badge variant="default" className="uppercase bg-indigo-50 text-indigo-700 border-indigo-200">{selectedCandidate.pipelineStage}</Badge>
+                              </div>
+                              
+                              <div className="mt-4 pt-4 border-t border-slate-100">
+                                 <div className="relative pt-2">
+                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-slate-100 mt-2">
+                                       <div style={{ width: selectedCandidate.pipelineStage === 'MATCHED' ? '10%' : selectedCandidate.pipelineStage === 'SUBMITTED' ? '25%' : selectedCandidate.pipelineStage === 'SHORTLISTED' ? '50%' : selectedCandidate.pipelineStage === 'INTERVIEW' ? '75%' : '100%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500 transition-all duration-500"></div>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-400">
+                                       <span className={selectedCandidate.pipelineStage !== 'MATCHED' ? 'text-indigo-600' : ''}>Submit</span>
+                                       <span className={['SHORTLISTED', 'INTERVIEW', 'SELECTED', 'ONBOARDED'].includes(selectedCandidate.pipelineStage) ? 'text-indigo-600' : ''}>Shortlist</span>
+                                       <span className={['INTERVIEW', 'SELECTED', 'ONBOARDED'].includes(selectedCandidate.pipelineStage) ? 'text-indigo-600' : ''}>Interview</span>
+                                       <span className={['SELECTED', 'ONBOARDED'].includes(selectedCandidate.pipelineStage) ? 'text-indigo-600' : ''}>Select</span>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     ) : (
+                        <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                           <h3 className="font-semibold text-indigo-900 mb-2">Automated Execution</h3>
+                           <p className="text-sm text-indigo-700/80 mb-4">Map this candidate to an open requirement and instantiate a Deal Room via the Orchestrator.</p>
+                           <select className="w-full text-sm rounded-md border-indigo-200 py-2.5 px-3 mb-3 bg-white" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)}>
+                              <option value="">Select Requirement...</option>
+                              {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.company})</option>)}
+                           </select>
+                           <Button 
+                              variant="default" 
+                              className="w-full bg-indigo-600 hover:bg-indigo-700" 
+                              onClick={() => handleMapToJob(selectedJobId)}
+                              disabled={isMapping || !selectedJobId}
+                           >
+                              {isMapping ? "Analyzing Fit..." : "Map & Match Candidate"}
+                           </Button>
+                           
+                           {mappingResult && (
+                              <div className="mt-4 pt-4 border-t border-indigo-200/60 animate-in fade-in">
+                                 <div className="flex items-center justify-between mb-3 text-sm">
+                                    <span className="font-medium text-indigo-900">Fit Score</span>
+                                    <span className="font-bold text-indigo-700">{mappingResult.matchScore}%</span>
+                                 </div>
+                                 <Button variant="default" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={processSubmission}>
+                                    Process Submission
+                                 </Button>
+                              </div>
+                           )}
+                        </div>
+                     )}
+                  </div>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Modal */}
+        {showAddForm && (
+          <CandidateSubmissionModal
+            onClose={() => setShowAddForm(false)}
+            reqId="GENERAL"
+            reqTitle="General Pool"
+          />
+        )}
+        
+        {/* Bulk Upload logic */}
+        {showBulkUpload && (
+          <BulkUploadProcess
+             onClose={() => setShowBulkUpload(false)}
+             userOrgId={userOrgId || "HQ"}
+             onImport={async (imported) => {
+                 setShowBulkUpload(false);
+                 setProcessingStats({ show: true, processing: imported.length, total: imported.length, parsed: 0, matched: 0 });
+                 
+                 try {
+                     const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+                     
+                     let count = 0;
+                     for(const c of imported) {
+                        const candId = "HN-CAN-" + Math.random().toString(36).substr(2, 9);
+                        await setDoc(doc(db, "candidatePool", candId), {
+                          fullName: c.name,
+                          name: c.name,
+                          primaryEmail: "pending@extraction.io",
+                          email: "pending@extraction.io",
+                          candidateId: candId,
+                          vendorId: userOrgId || "HQ",
+                          sourceOrganizations: [userOrgId || "HQ"],
+                          pipelineStage: "Added",
+                          source: "Bulk Upload",
+                          resumeText: c.extractedText,
+                          fileName: c.fileName,
+                          status: "QUEUED",
+                          distillationStatus: "PROCESSING",
+                          createdAt: serverTimestamp(),
+                          updatedAt: serverTimestamp(),
+                        });
+                        
+                        enrichCandidate(candId, c.extractedText);
+                        count++;
+                     }
+                 } catch (e) {
+                     console.error("Import error", e);
+                 }
+             }}
+          />
+        )}
+
+        {/* Stats Overlay */}
+        {processingStats && processingStats.show && (
+          <div className="fixed bottom-8 right-8 bg-slate-900 shadow-2xl rounded-2xl p-6 border border-slate-800 w-80 z-50 text-white flex flex-col gap-4 animate-in slide-in-from-bottom-5">
+            <div className="flex justify-between items-center mb-1">
+              <div className="flex items-center gap-2">
+                <Activity size={16} className={processingStats.processing > 0 ? "text-indigo-400 animate-spin" : "text-emerald-400"} />
+                <h3 className="font-black text-sm uppercase tracking-wider">{processingStats.total} Resumes Uploaded</h3>
+              </div>
+              <button onClick={() => setProcessingStats(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
+            </div>
+            {/* progress bars... */}
+            <div className="text-xs text-slate-400 mt-2">Processed: {processingStats.parsed}/{processingStats.total}</div>
+          </div>
+        )}
       </div>
     </div>
   );

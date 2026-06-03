@@ -148,6 +148,8 @@ export class SubmissionOrchestrator {
         // 5. Create Submission (Source of Truth for Pipeline Progress)
         const newSubRef = await addDoc(collection(db, "submissions"), {
             candidateId,
+            candidateName: candidateData.name || candidateData.fullName || "Anonymous",
+            candidateEmail: candidateData.email || candidateData.primaryEmail || "",
             requirementId,
             canonicalRequirementId: requirementId,
             clientId,

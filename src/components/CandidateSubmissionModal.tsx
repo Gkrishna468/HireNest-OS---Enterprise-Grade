@@ -119,6 +119,36 @@ export default function CandidateSubmissionModal({
     if (!name || !email) return;
     setIsSubmitting(true);
     try {
+      if (reqId === "GENERAL") {
+         const candId = "HN-CAN-" + Math.random().toString(36).substr(2, 9);
+         await setDoc(doc(db, "candidatePool", candId), {
+            fullName: name,
+            name: name,
+            primaryEmail: email,
+            email: email,
+            phone: phone,
+            experience: experience,
+            location: currentLocation,
+            candidateId: candId,
+            vendorId: "local",
+            sourceOrganizations: ["local"],
+            pipelineStage: "Added",
+            source: "Manual Add",
+            resumeText: aiAnalysis?.analysis || "",
+            skills: keySkills.split(",").map((s) => s.trim()).filter(Boolean),
+            status: "QUEUED",
+            distillationStatus: "COMPLETED",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+         });
+         onClose();
+         if (typeof alert !== "undefined") {
+            alert("Candidate added to pool securely.");
+         }
+         setIsSubmitting(false);
+         return;
+      }
+
       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
       
       let targetClientId = "";

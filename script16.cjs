@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const content = `import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Users, Filter } from 'lucide-react';
@@ -6,20 +8,19 @@ import { Badge } from '../../lib/Badge';
 import { CandidateReviewModal } from '../../components/modals/CandidateReviewModal';
 import { InterviewSchedulerModal } from '../../components/modals/InterviewSchedulerModal';
 
-export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: { orgId: string, userRole: string | null, onCandidateClick?: (c: any) => void }) {
+export function ClientCandidatePipeline({ orgId, userRole }: { orgId: string, userRole: string | null }) {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [reviewData, setReviewData] = useState<{sub: any, req: any} | null>(null);
   const [scheduleData, setScheduleData] = useState<{sub: any, req: any} | null>(null);
 
-  const isAdmin = userRole?.includes("admin") || userRole === "hq" || userRole === "super_admin" || userRole === "ops_admin";
+  const isAdmin = userRole === "admin" || userRole === "hq";
   const isVendor = userRole?.includes("vendor") || userRole?.includes("recruiter");
   const isClient = userRole === "client" || userRole?.startsWith("client_");
 
   useEffect(() => {
-    if (!userRole) return;
-    if (!isAdmin && !orgId) return;
+    if (!orgId || !userRole) return;
 
     // Fetch Candidates (Only Admin & Vendor)
     let unsubCand = () => {};
@@ -75,8 +76,6 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
              vendorName: cand.vendorName || cand.vendorId, // Fallback
              experience: cand.experience,
              skills: cand.skills,
-             matchScore: cand.matchScore,
-             reqTitle: cand.matchData?.jobTitle || cand.mappedJobId || '',
              status: 'ADDED',
              createdAt: cand.createdAt,
              data: cand
@@ -188,13 +187,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                         key={c.id}
                         draggable={!c.isRaw}
                         onDragStart={e => handleDragStart(e, c)}
-                        onClick={() => {
-                          if (onCandidateClick) {
-                             const originalCandidate = candidates.find(cand => cand.id === c.candidateId || cand.candidateId === c.candidateId);
-                             onCandidateClick(originalCandidate ? { ...originalCandidate, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore } : { ...c.data, pipelineStage: c.status, reqTitle: c.reqTitle, matchScore: c.matchScore });
-                          }
-                        }}
-                        className={`bg-white p-4 rounded-xl shadow-sm border border-slate-200 transition-all ${c.isRaw ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md'}`}
+                        className={\`bg-white p-4 rounded-xl shadow-sm border border-slate-200 transition-all \${c.isRaw ? '' : 'cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md'}\`}
                       >
                          <div className="flex justify-between items-start mb-3">
                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 shadow-inner shrink-0 mr-3">
@@ -216,10 +209,10 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                                <span className="font-medium text-slate-700 truncate">{c.experience || "Not specified"}</span>
                             </div>
                             
-                            {c.reqTitle && (
+                            {!c.isRaw && c.reqTitle && (
                                <div className="mt-3 pt-3 border-t border-slate-100">
                                   <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 mb-1">
-                                     Best Match
+                                     Requirement
                                      {c.matchScore && <span className="text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{c.matchScore}% Match</span>}
                                   </div>
                                   <div className="font-medium text-slate-800 line-clamp-2">{c.reqTitle}</div>
@@ -273,3 +266,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/views/workspaces/ClientCandidatePipeline.tsx', content);
+console.log('Replaced ClientCandidatePipeline with Candidate Kanban Board');
