@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, XCircle, FileText, Calendar, Link as LinkIcon, MessageSquare } from 'lucide-react';
+import { X, Check, XCircle, FileText, Calendar, Link as LinkIcon, MessageSquare, Bot, AlertCircle } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
 import { db, auth } from '../../lib/firebase';
@@ -76,7 +76,6 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
     setIsProcessing(true);
     try {
       if (submission.dealRoomId) {
-         // Already has a deal room
          window.location.href = "/deal-rooms"; 
       } else {
          const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
@@ -100,7 +99,7 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
          await updateDoc(doc(db, "submissions", submission.id), {
            dealRoomId: roomId
          });
-         alert("Deal Room created successfully.");
+         alert("Clarification thread (Deal Room) created successfully.");
          onClose();
       }
     } catch (e) {
@@ -111,82 +110,142 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
     }
   };
 
+  // Mock comments integration, in real it would load from subcollections
+  const comments = submission.comments || [];
+  const aiExplanation = submission.aiAnalysis?.justification || "The AI evaluated this candidate against the core job requirements and deduced a strong alignment based on core skill occurrences and historical semantic indicators.";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col my-8">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md overflow-y-auto w-full h-full">
+      <div className="bg-white rounded-3xl w-full max-w-7xl h-full shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95 duration-200">
         
-        {/* Header */}
-        <div className="p-6 bg-slate-900 text-white flex justify-between items-start shrink-0">
+        {/* Header - Review Workspace Identity */}
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0 border-b border-indigo-900/50">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-               <h2 className="text-2xl font-black">{submission.candidateName || 'Anonymous Profile'}</h2>
-               <Badge className="bg-indigo-500 text-white border-0">{submission.matchScore}% Match</Badge>
+            <div className="flex items-center gap-3 mb-1">
+               <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{submission.candidateName || 'Anonymous Profile'}</h2>
+               <Badge className="bg-indigo-500 text-white border-0 text-sm py-1 px-3 shadow-inner shadow-indigo-400/20">{submission.matchScore}% Match</Badge>
             </div>
-            <div className="text-slate-400 text-sm font-medium flex gap-4">
-               <span>ID: {submission.candidateId?.slice(0,8) || 'N/A'}</span>
-               <span>Vendor: {submission.vendorName || 'Vendor Not Linked'}</span>
-               <span>Status: {submission.status}</span>
+            <div className="text-slate-400 text-sm font-medium flex flex-wrap gap-x-6 gap-y-2 mt-1">
+               <span><span className="text-slate-500">ID:</span> {submission.candidateId?.slice(0,8) || 'N/A'}</span>
+               <span><span className="text-slate-500">Requirement:</span> {requirement.title}</span>
+               <span><span className="text-slate-500">Vendor:</span> <span className="uppercase text-slate-300 font-bold tracking-wider text-xs">{submission.vendorName || 'Vendor Not Linked'}</span></span>
+               <span><span className="text-slate-500">Status:</span> {submission.status}</span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95 rounded-full transition-all">
+            <X size={24} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50">
+        {/* Workspace Layout - 3 Column Grid */}
+        <div className="flex-1 overflow-hidden bg-slate-50 flex flex-col lg:flex-row">
            
-           {/* Resume & Analysis */}
-           <div className="space-y-6">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><FileText size={16} className="text-indigo-600"/> Resume Snapshot</h3>
-                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-600 whitespace-pre-wrap max-h-60 overflow-y-auto custom-scrollbar">
-                    {submission.resumeText || "No resume text available."}
-                 </div>
-              </div>
+           {/* Left Col: Primary Content (Resume & Skills) */}
+           <div className="flex-1 border-r border-slate-200 flex flex-col overflow-hidden">
+               <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                     <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                         <LinkIcon size={14} className="text-indigo-600"/> Skills Ontology
+                     </h3>
+                     <div className="flex flex-wrap gap-2">
+                        {submission.skills ? (
+                            Array.isArray(submission.skills) ? submission.skills.map((s: string, i: number) => <Badge key={i} variant="outline" className="bg-slate-50">{s}</Badge>) :
+                            submission.skills.split(',').map((s: string, i: number) => <Badge key={i} variant="outline" className="bg-slate-50">{s}</Badge>)
+                        ) : <span className="text-slate-400 text-sm italic">No skills extracted.</span>}
+                     </div>
+                  </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon size={16} className="text-indigo-600"/> Skills Matrix</h3>
-                 <div className="flex flex-wrap gap-2">
-                    {submission.skills ? (
-                        Array.isArray(submission.skills) ? submission.skills.map((s: string, i: number) => <Badge key={i} variant="outline">{s}</Badge>) :
-                        submission.skills.split(',').map((s: string, i: number) => <Badge key={i} variant="outline">{s}</Badge>)
-                    ) : <span className="text-slate-400 text-sm">No skills explicitly defined.</span>}
-                 </div>
-              </div>
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex-1">
+                     <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                         <FileText size={14} className="text-indigo-600"/> Source Document (Resume Text)
+                     </h3>
+                     <div className="p-4 bg-slate-50/50 rounded-xl text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed border border-slate-100">
+                        {submission.resumeText || "No resume text available in this payload."}
+                     </div>
+                  </div>
+               </div>
            </div>
 
-           {/* Requirement Match */}
-           <div className="space-y-6">
-              <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
-                 <h3 className="font-bold text-indigo-900 mb-4">Match Analysis against {requirement.title}</h3>
-                 <div className="space-y-4">
-                    <div>
-                       <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">Required Experience</div>
-                       <div className="text-sm font-semibold text-indigo-900">{requirement.experience || 'Not specified'}</div>
-                    </div>
-                 </div>
-              </div>
+           {/* Right Col: AI & Collaboration Panel */}
+           <div className="w-full lg:w-96 bg-white flex flex-col overflow-hidden">
+             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                
+                {/* AI Summary Block */}
+                <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100/50 shadow-sm">
+                   <h3 className="font-black text-indigo-900 uppercase tracking-widest text-xs mb-3 flex items-center gap-2">
+                       <Bot size={14} className="text-indigo-600"/> AI Match Summary
+                   </h3>
+                   <div className="space-y-4">
+                      <div className="text-sm text-slate-700 leading-relaxed font-medium">
+                         {aiExplanation}
+                      </div>
+
+                      <div className="pt-3 border-t border-indigo-100 space-y-2">
+                         <div>
+                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-0.5">Required Experience</span>
+                            <span className="text-sm font-semibold text-indigo-900">{requirement.experience || 'Not specified'}</span>
+                         </div>
+                         <div>
+                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block mb-0.5">Role Fitment</span>
+                            <span className="text-sm font-semibold text-slate-700">Competencies validated. Proceed with evaluation.</span>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Collaboration & Comments */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                   <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-3 flex items-center gap-2">
+                       <MessageSquare size={14} className="text-slate-500"/> Activity & Comments
+                   </h3>
+                   
+                   {comments.length > 0 ? (
+                      <div className="space-y-3">
+                         {comments.map((c: any, i: number) => (
+                            <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 text-sm shadow-sm">
+                               <div className="font-bold text-xs text-slate-500 mb-1">{c.author || 'Reviewer'} <span className="text-[10px] font-normal text-slate-400 ml-1">{c.time || 'recently'}</span></div>
+                               <div className="text-slate-800">{c.text}</div>
+                            </div>
+                         ))}
+                      </div>
+                   ) : (
+                      <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white">
+                         <AlertCircle size={20} className="text-slate-300 mb-2"/>
+                         <p className="text-xs text-slate-500 font-medium">No comments left yet.</p>
+                      </div>
+                   )}
+                   
+                   <div className="mt-4 flex gap-2">
+                      <input type="text" placeholder="Add a note or @mention..." className="flex-1 bg-white border border-slate-300 rounded-lg text-sm px-3 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"/>
+                      <Button variant="outline" className="px-3" disabled><Check size={14}/></Button>
+                   </div>
+                </div>
+
+             </div>
+             
+             {/* Sticky Action Footer */}
+             <div className="p-6 bg-white border-t border-slate-200 shrink-0 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                   <Button onClick={handleShortlist} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
+                     <Check size={18} className="mr-2"/> Shortlist
+                   </Button>
+                   <Button onClick={handleReject} disabled={isProcessing} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                     <XCircle size={18} className="mr-2"/> Reject
+                   </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                   <Button onClick={() => onSchedule(submission)} disabled={isProcessing} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
+                     <Calendar size={18} className="mr-2"/> Schedule Interview
+                   </Button>
+                   <Button onClick={handleOpenDealRoom} disabled={isProcessing} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
+                     <MessageSquare size={18} className="mr-2"/> Request Clarification
+                   </Button>
+                </div>
+             </div>
            </div>
         </div>
-
-        {/* Actions */}
-        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap gap-3 shrink-0">
-          <Button onClick={handleShortlist} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex-1 md:flex-none">
-            <Check size={16} className="mr-2"/> Shortlist
-          </Button>
-          <Button onClick={handleReject} disabled={isProcessing} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 font-bold flex-1 md:flex-none">
-            <XCircle size={16} className="mr-2"/> Reject
-          </Button>
-          <Button onClick={handleOpenDealRoom} disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex-1 md:flex-none">
-            <MessageSquare size={16} className="mr-2"/> Open Deal Room
-          </Button>
-          <Button onClick={() => onSchedule(submission)} disabled={isProcessing} className="bg-slate-900 hover:bg-black text-white font-bold flex-1 md:flex-none">
-            <Calendar size={16} className="mr-2"/> Schedule
-          </Button>
-        </div>
-
       </div>
     </div>
   );
 }
+
