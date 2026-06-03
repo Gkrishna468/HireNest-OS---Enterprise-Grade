@@ -36,6 +36,7 @@ import {
   BookOpen,
   Search,
   TrendingUp,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -83,6 +84,7 @@ import SettingsTab from "./views/SettingsTab";
 import BenchmarkDashboard from "./views/BenchmarkDashboard";
 import CustomerSuccessDashboard from "./views/CustomerSuccessDashboard";
 import AILearningLoopTab from "./views/AILearningLoopTab";
+import EvidenceDashboard from "./views/EvidenceDashboard";
 
 const SidebarItem = ({
   to,
@@ -676,6 +678,13 @@ const AppContent = () => {
                 active={location.pathname === "/ai-learning"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <SidebarItem
+                to="/evidence"
+                icon={ShieldAlert}
+                label="Evidence Dashboard"
+                active={location.pathname === "/evidence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Administration
@@ -839,6 +848,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/benchmarks" element={<BenchmarkDashboard />} />}
             {isAdmin && <Route path="/adoption" element={<CustomerSuccessDashboard />} />}
             {isAdmin && <Route path="/ai-learning" element={<AILearningLoopTab />} />}
+            {isAdmin && <Route path="/evidence" element={<EvidenceDashboard />} />}
             {isAdmin && (
               <Route
                 path="/health"
