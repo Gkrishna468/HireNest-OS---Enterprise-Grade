@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, Video, Users, AlignLeft } from 'lucide-react';
+import { X, Calendar, Clock, Video, Users, AlignLeft, Globe, Link } from 'lucide-react';
 import { Button } from '../../lib/Button';
 import { db } from '../../lib/firebase';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -7,11 +7,14 @@ import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/fi
 export function InterviewSchedulerModal({ submission, requirement, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
-    round: 'Technical Round 1',
+    round: 'Interview Scheduled',
     date: '',
     time: '',
+    endTime: '',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     interviewer: '',
     mode: 'Teams',
+    meetingLink: '',
     notes: ''
   });
 
@@ -43,17 +46,20 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
            jobTitle: requirement.title || "Strategic Role",
            experience: requirement.experience || "Not Specified",
            status: "ACTIVE",
-           currentStage: "shortlisted",
+           currentStage: formData.round.toLowerCase().replace(/ /g, '_'),
            identitiesRevealed: false,
            createdAt: serverTimestamp(),
            matchData: { matchScore: submission.matchScore || 0 }
          });
-         await updateDoc(doc(db, "submissions", submission.id), {
-           dealRoomId: roomId
-         });
       }
 
-      // 2. Create Interview Record linked to submission
+      // 2. Update Submission Status
+      await updateDoc(doc(db, "submissions", submission.id), {
+        dealRoomId: roomId,
+        status: formData.round.toUpperCase()
+      });
+
+      // 3. Create Interview Record linked to submission
       await addDoc(collection(db, "interviews"), {
         submissionId: submission.id,
         candidateId: submission.candidateId,
@@ -62,6 +68,11 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         round: formData.round,
         date: formData.date,
         time: formData.time,
+        startTime: `${formData.date}T${formData.time}`,
+        endTime: formData.endTime ? `${formData.date}T${formData.endTime}` : null,
+        timezone: formData.timezone,
+        calendarProvider: formData.mode,
+        meetingLink: formData.meetingLink,
         interviewer: formData.interviewer,
         mode: formData.mode,
         notes: formData.notes,
@@ -69,21 +80,15 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         createdAt: serverTimestamp()
       });
 
-      // 3. Add system message to Deal Room
+      // 4. Add system message to Deal Room
       await addDoc(collection(db, "dealRooms", roomId, "messages"), {
          senderRole: "System",
          senderId: "system",
          type: "system",
-         text: `📅 INTERVIEW SCHEDULED: ${formData.round} on ${formData.date} at ${formData.time}. Mode: ${formData.mode}. Interviewer: ${formData.interviewer}.`,
+         text: `📅 INTERVIEW SCHEDULED: ${formData.round} on ${formData.date} at ${formData.time} ${formData.timezone}. Mode: ${formData.mode}. Interviewer: ${formData.interviewer}.`,
          timestamp: serverTimestamp()
       });
 
-      // 4. Update deal room stage if needed
-      await updateDoc(doc(db, "dealRooms", roomId), {
-         currentStage: "technical_l1",
-         updatedAt: serverTimestamp()
-      });
-      
       // 5. Send notifications
       const notifBase = {
         title: "Interview Scheduled",
@@ -94,13 +99,17 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
       };
       
       // Client Notification
-      await addDoc(collection(db, "notifications"), {
-        ...notifBase, recipientId: requirement.clientId, actionUrl: `/deal-rooms?view=interviews`
-      });
+      if (requirement.clientId) {
+         await addDoc(collection(db, "notifications"), {
+           ...notifBase, recipientId: requirement.clientId, actionUrl: `/deal-rooms?view=interviews`
+         });
+      }
       // Vendor Notification
-      await addDoc(collection(db, "notifications"), {
-        ...notifBase, recipientId: submission.vendorId || submission.vendorOrgId, actionUrl: `/deal-rooms?view=interviews`
-      });
+      if (submission.vendorId || submission.vendorOrgId) {
+         await addDoc(collection(db, "notifications"), {
+           ...notifBase, recipientId: submission.vendorId || submission.vendorOrgId, actionUrl: `/deal-rooms?view=interviews`
+         });
+      }
 
       alert("Interview Scheduled successfully!");
       onClose();
@@ -114,7 +123,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-8">
+      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col my-8">
         
         {/* Header */}
         <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
@@ -128,58 +137,75 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         </div>
 
         {/* Form */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div className="p-6 overflow-y-auto flex-1 space-y-5">
            
            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Interview Round</label>
-              <select name="round" value={formData.round} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50">
-                 <option>Introductory Call</option>
-                 <option>Technical Round 1</option>
-                 <option>Technical Round 2</option>
-                 <option>Final Round</option>
-                 <option>HR Round</option>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pipeline Stage / Round</label>
+              <select name="round" value={formData.round} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                 <option>Interview Scheduled</option>
+                 <option>Interview Round 1</option>
+                 <option>Interview Round 2</option>
+                 <option>Final Interview</option>
+                 <option>Offer Released</option>
               </select>
            </div>
 
-           <div className="grid grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={12}/> Date</label>
-                 <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50" />
+                 <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Start Time</label>
+                    <input type="time" name="time" value={formData.time} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> End Time</label>
+                    <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                 </div>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12}/> Timezone</label>
+                 <input type="text" name="timezone" placeholder="e.g. America/New_York" value={formData.timezone} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Time</label>
-                 <input type="time" name="time" value={formData.time} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50" />
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Users size={12}/> Interviewer(s)</label>
+                 <input type="text" name="interviewer" placeholder="e.g. Jane Doe" value={formData.interviewer} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Video size={12}/> Mode / Provider</label>
+                 <select name="mode" value={formData.mode} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>Teams</option>
+                    <option>Google Meet</option>
+                    <option>Zoom</option>
+                    <option>Webex</option>
+                    <option>In-Person</option>
+                 </select>
+              </div>
+              <div>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Link size={12}/> Meeting Link</label>
+                 <input type="url" name="meetingLink" placeholder="https://..." value={formData.meetingLink} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
            </div>
 
            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Users size={12}/> Interviewer(s)</label>
-              <input type="text" name="interviewer" placeholder="e.g. Jane Doe" value={formData.interviewer} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><AlignLeft size={12}/> Preparation Notes</label>
+              <textarea name="notes" placeholder="Any specific instructions..." value={formData.notes} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows={3}></textarea>
            </div>
-
-           <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Video size={12}/> Mode</label>
-              <select name="mode" value={formData.mode} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50">
-                 <option>Teams</option>
-                 <option>Google Meet</option>
-                 <option>Zoom</option>
-                 <option>Webex</option>
-                 <option>In-Person</option>
-              </select>
-           </div>
-
-           <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><AlignLeft size={12}/> Notes</label>
-              <textarea name="notes" placeholder="Any specific instructions..." value={formData.notes} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" rows={3}></textarea>
-           </div>
-
         </div>
 
         {/* Actions */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
-          <Button onClick={onClose} disabled={isProcessing} variant="outline" className="text-slate-600">Cancel</Button>
-          <Button onClick={handleSave} disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
-            {isProcessing ? 'Saving...' : 'Save & Notify'}
+          <Button onClick={onClose} disabled={isProcessing} variant="outline" className="text-slate-600 bg-white">Cancel</Button>
+          <Button onClick={handleSave} disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6">
+            {isProcessing ? 'Saving...' : 'Book & Notify'}
           </Button>
         </div>
 

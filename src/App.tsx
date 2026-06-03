@@ -38,6 +38,7 @@ import {
   TrendingUp,
   ShieldAlert,
   Globe2,
+  Video
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -50,6 +51,7 @@ import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
+import InterviewsTab from "./views/InterviewsTab";
 import { ClientCandidatePipeline } from "./views/workspaces/ClientCandidatePipeline";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
@@ -429,6 +431,14 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                id="tour-interviews"
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/network"
                 icon={Building2}
                 label="Vendors"
@@ -484,6 +494,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/trust-sla"
                 icon={Target}
                 label="Performance"
@@ -524,10 +541,10 @@ const AppContent = () => {
               />
               <SidebarItem
                 id="tour-interviews"
-                to="/deal-rooms?view=interviews"
-                icon={MessageSquare}
+                to="/interviews"
+                icon={Video}
                 label="Interviews"
-                active={location.pathname === "/deal-rooms?view=interviews"}
+                active={location.pathname === "/interviews"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -611,6 +628,13 @@ const AppContent = () => {
                 icon={MessageSquare}
                 label="Submissions"
                 active={location.pathname === "/deal-rooms"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
 
@@ -895,6 +919,7 @@ const AppContent = () => {
               />
             )}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
+            <Route path="/interviews" element={<InterviewsTab />} />
             {isAdmin && (
               <Route
                 path="/operations"

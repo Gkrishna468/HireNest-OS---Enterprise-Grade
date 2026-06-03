@@ -136,11 +136,11 @@ export default function Candidate360Modal({
                       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm col-span-2">
                          <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-100 pb-2">Candidate Summary</h3>
                          <div className="space-y-4 text-sm font-medium">
-                            <p className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{candidate.email || candidate.primaryEmail || 'N/A'}</span></p>
-                            <p className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{candidate.phone || candidate.phoneHash || 'N/A'}</span></p>
-                            <p className="flex justify-between items-center"><span className="text-slate-500">Vendor:</span> <span className="text-slate-900">{vendorStr}</span></p>
-                            <p className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || 'Not Stated'}</span></p>
-                            <p className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{candidate.pipelineStage || 'Added'}</Badge></p>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{candidate.email || candidate.primaryEmail || 'N/A'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{candidate.phone || candidate.phoneHash || 'N/A'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Vendor:</span> <span className="text-slate-900">{vendorStr}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || 'Not Stated'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{candidate.pipelineStage || 'Added'}</Badge></div>
                          </div>
                       </div>
                       

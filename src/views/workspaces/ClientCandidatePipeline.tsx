@@ -144,8 +144,8 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
   }
   columns.push({ id: 'SUBMITTED', title: 'Submitted' });
   columns.push({ id: 'SHORTLISTED', title: 'Shortlisted' });
-  columns.push({ id: 'INTERVIEW', title: 'Interview' });
-  columns.push({ id: 'SELECTED', title: 'Selected' });
+  columns.push({ id: 'INTERVIEW', title: 'Interviewing' });
+  columns.push({ id: 'OFFER', title: 'Offer' });
   columns.push({ id: 'ONBOARDED', title: 'Onboarded' });
   if (isAdmin || isClient) {
      columns.push({ id: 'REJECTED', title: 'Rejected' });
