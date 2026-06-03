@@ -37,6 +37,7 @@ import {
   Search,
   TrendingUp,
   ShieldAlert,
+  Globe2,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -85,6 +86,7 @@ import BenchmarkDashboard from "./views/BenchmarkDashboard";
 import CustomerSuccessDashboard from "./views/CustomerSuccessDashboard";
 import AILearningLoopTab from "./views/AILearningLoopTab";
 import EvidenceDashboard from "./views/EvidenceDashboard";
+import FounderControlTower from "./views/FounderControlTower";
 
 const SidebarItem = ({
   to,
@@ -690,6 +692,13 @@ const AppContent = () => {
                 Administration
               </div>
               <SidebarItem
+                to="/founder-tower"
+                icon={Globe2}
+                label="Founder Tower"
+                active={location.pathname === "/founder-tower"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/health"
                 icon={TrendingUp}
                 label="Operational Intelligence"
@@ -849,6 +858,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/adoption" element={<CustomerSuccessDashboard />} />}
             {isAdmin && <Route path="/ai-learning" element={<AILearningLoopTab />} />}
             {isAdmin && <Route path="/evidence" element={<EvidenceDashboard />} />}
+            {isAdmin && <Route path="/founder-tower" element={<FounderControlTower />} />}
             {isAdmin && (
               <Route
                 path="/health"
