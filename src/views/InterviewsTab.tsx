@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Calendar, Clock, Video, Users, UserCheck, XCircle, CheckCircle, Navigation, Monitor, ArrowRight, Save, RefreshCw } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { Badge } from '../lib/Badge';
 import { publishEvent } from '../lib/eventEngine';
@@ -71,25 +72,33 @@ export default function InterviewsTab() {
    const [calLoading, setCalLoading] = useState(false);
 
    useEffect(() => {
-      const checkStatus = async () => {
-         const user = auth.currentUser;
-         if (!user) return;
+      let active = true;
+      const checkStatus = async (user: any) => {
          try {
             const token = await user.getIdToken();
             const res = await fetch('/api/oauth/status', {
                headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            setIsConnected(data.connected);
-            if (data.connected) {
-               fetchCalendarEvents(token);
+            if (active) {
+               setIsConnected(data.connected);
+               if (data.connected) {
+                  fetchCalendarEvents(token);
+               }
             }
          } catch (e) {
             console.error(e);
          }
       };
       
-      setTimeout(checkStatus, 500);
+      const unsubAuth = onAuthStateChanged(auth, (user) => {
+         if (!active) return;
+         if (user) {
+            checkStatus(user);
+         } else {
+            setIsConnected(false);
+         }
+      });
 
       if (auth.currentUser) {
          getDoc(doc(db, "users", auth.currentUser.uid)).then(snap => {
@@ -105,7 +114,11 @@ export default function InterviewsTab() {
          const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          setInterviews(data);
       });
-      return () => unsub();
+      return () => {
+         active = false;
+         unsub();
+         unsubAuth();
+      };
    }, []);
 
    const fetchCalendarEvents = async (providedToken?: string) => {

@@ -4,6 +4,7 @@ import { Badge } from '../lib/Badge';
 import { Button } from '../lib/Button';
 import { EmptyState } from '../components/EmptyState';
 import { auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function InboxTab() {
   const [emails, setEmails] = useState<any[]>([]);
@@ -12,27 +13,32 @@ export default function InboxTab() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const checkStatus = async () => {
-       const user = auth.currentUser;
-       if (!user) return;
-       const token = await user.getIdToken();
-       
+    let active = true;
+    const unsub = onAuthStateChanged(auth, async (user) => {
+       if (!user) {
+         if (active) setIsConnected(false);
+         return;
+       }
        try {
+          const token = await user.getIdToken();
           const res = await fetch('/api/oauth/status', {
              headers: { 'Authorization': `Bearer ${token}` }
           });
           const data = await res.json();
-          setIsConnected(data.connected);
-          if (data.connected) {
-             fetchEmails(token);
+          if (active) {
+            setIsConnected(data.connected);
+            if (data.connected) {
+               fetchEmails(token);
+            }
           }
        } catch (e) {
           console.error(e);
        }
+    });
+    return () => {
+      active = false;
+      unsub();
     };
-    
-    // Slight delay to ensure auth is loaded
-    setTimeout(checkStatus, 500);
   }, []);
 
   const fetchEmails = async (providedToken?: string) => {

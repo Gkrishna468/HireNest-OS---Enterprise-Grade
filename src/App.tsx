@@ -152,10 +152,16 @@ const AppContent = () => {
             deleteDoc,
           } = await import("firebase/firestore");
           const { db } = await import("./lib/firebase");
-          const d = await getDoc(doc(db, "users", u.uid));
+          let d;
           let data: any = {};
-          if (d.exists()) {
-            data = d.data();
+          try {
+            d = await getDoc(doc(db, "users", u.uid));
+            if (d.exists()) {
+              data = d.data();
+            }
+          } catch (offlineError) {
+             console.warn("Failed to get user doc, possibly offline.", offlineError);
+             data = {}; 
           }
 
           const superAdmins = [
