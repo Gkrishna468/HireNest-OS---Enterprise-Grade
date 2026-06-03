@@ -40,12 +40,24 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
     }
   };
 
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
+  const [localComments, setLocalComments] = useState<any[]>(submission.comments || []);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+
   const handleReject = async () => {
+    if (!rejectReason) {
+       setShowRejectForm(true);
+       return;
+    }
+    
     setIsProcessing(true);
     try {
       if (submission.sysSource === 'SUBMISSION') {
         await updateDoc(doc(db, "submissions", submission.id), {
-          status: "REJECTED"
+          status: "REJECTED",
+          rejectReason: rejectReason,
+          rejectNote: rejectNote
         });
       } else {
         const { SubmissionOrchestrator } = await import("../../lib/workflows/SubmissionOrchestrator");
@@ -62,7 +74,10 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
           matchScore: submission.matchScore || 0
         });
       }
-      alert("Candidate rejected.");
+      import("../../lib/eventEngine").then(({ publishEvent }) => {
+         publishEvent({ type: "urgent", title: "Candidate Rejected", message: `Reason: ${rejectReason}`, metadata: { reason: rejectReason, note: rejectNote } })
+      });
+      alert(`Candidate rejected. Reason: ${rejectReason}`);
       onClose();
     } catch (e) {
       console.error(e);
@@ -116,6 +131,49 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md overflow-y-auto w-full h-full">
+      {showRejectForm && (
+         <div className="absolute inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+               <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+                  <XCircle className="text-red-500" /> Provide Hiring Feedback
+               </h3>
+               <p className="text-sm text-slate-500 mb-4">Your feedback helps improve our AI Match capabilities.</p>
+               
+               <div className="space-y-4">
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Rejection Reason</label>
+                     <select 
+                        value={rejectReason} 
+                        onChange={e => setRejectReason(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                     >
+                        <option value="">Select a reason...</option>
+                        <option value="Missing Skill">Missing Core Skill</option>
+                        <option value="Experience Gap">Insufficient Experience</option>
+                        <option value="Over Budget">Over Budget / Salary Expectations</option>
+                        <option value="Location Constraint">Location Constraint / Relocation</option>
+                        <option value="Cultural Fit">Cultural Fit</option>
+                        <option value="Other">Other</option>
+                     </select>
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Additional Context & Mentions</label>
+                     <textarea 
+                        value={rejectNote} 
+                        onChange={e => setRejectNote(e.target.value)}
+                        placeholder="Add notes for the recruiter (e.g. '@Jane they need more Python')..."
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-500 outline-none h-24 resize-none"
+                     ></textarea>
+                  </div>
+                  <div className="flex gap-3 pt-4 border-t border-slate-100">
+                     <Button variant="outline" className="flex-1" onClick={() => setShowRejectForm(false)}>Cancel</Button>
+                     <Button className="flex-1 bg-red-600 hover:bg-red-700 font-bold" onClick={handleReject}>Submit Decision</Button>
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
       <div className="bg-white rounded-3xl w-full max-w-7xl h-full shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95 duration-200">
         
         {/* Header - Review Workspace Identity */}
@@ -215,10 +273,38 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
                       </div>
                    )}
                    
-                   <div className="mt-4 flex gap-2">
-                      <input type="text" placeholder="Add a note or @mention..." className="flex-1 bg-white border border-slate-300 rounded-lg text-sm px-3 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"/>
-                      <Button variant="outline" className="px-3" disabled><Check size={14}/></Button>
-                   </div>
+                   <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const form = e.target as HTMLFormElement;
+                      const input = form.elements.namedItem('commentText') as HTMLInputElement;
+                      if (!input.value.trim()) return;
+                      const newComment = {
+                         author: "Reviewing Client",
+                         text: input.value,
+                         timestamp: new Date()
+                      };
+                      setLocalComments([...localComments, newComment]);
+                      import('../../lib/eventEngine').then(({ publishEvent }) => {
+                         const mentions = input.value.match(/@\w+/g);
+                         if (mentions) {
+                             mentions.forEach(m => publishEvent({
+                                 type: 'communication',
+                                 title: 'Client Mentions You',
+                                 message: `Client mentioned you in candidate review: ${submission.candidateName}`,
+                                 recipients: [m.substring(1).toUpperCase()]
+                             }));
+                         }
+                      });
+                      import('firebase/firestore').then(({ doc, updateDoc }) => {
+                         if (submission.id) {
+                            updateDoc(doc(db, "submissions", submission.id), { comments: [...localComments, newComment] }).catch(() => {});
+                         }
+                      });
+                      input.value = "";
+                   }} className="mt-4 flex gap-2">
+                      <input name="commentText" type="text" placeholder="Add a note or @mention..." className="flex-1 bg-white border border-slate-300 rounded-lg text-sm px-3 py-2 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"/>
+                      <Button type="submit" variant="outline" className="px-3"><Check size={14}/></Button>
+                   </form>
                 </div>
 
              </div>

@@ -53,6 +53,7 @@ import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";
 import { EmptyState } from "../components/EmptyState";
 import { publishEvent } from "../lib/eventEngine";
+import { RequirementDiscussionThread } from "../components/RequirementDiscussionThread";
 
 import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
@@ -2244,6 +2245,12 @@ export default function JobsTab() {
                       )}
                     </div>
                   )}
+
+                  <RequirementDiscussionThread 
+                     requirementId={selectedJob.id} 
+                     requirementTitle={selectedJob.title || "Requirement"} 
+                  />
+                  
                 </div>
               </div>
             </div>

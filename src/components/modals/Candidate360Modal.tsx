@@ -352,21 +352,60 @@ export default function Candidate360Modal({
                             <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                <div className="flex items-center gap-2 mb-2">
                                   <div className="font-bold text-sm text-slate-800">{c.author || 'User'}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">{c.time || 'recently'}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{c.timestamp?.toDate ? c.timestamp.toDate().toLocaleString() : c.time || 'recently'}</div>
                                </div>
-                               <div className="text-sm text-slate-700">{c.text}</div>
+                               <div className="text-sm text-slate-700 font-medium">
+                                  {c.text.split(/(@\w+)/g).map((part: string, i: number) => 
+                                     part.startsWith('@') ? <span key={i} className="text-indigo-600 bg-indigo-50 px-1 rounded font-bold">{part}</span> : part
+                                  )}
+                               </div>
                             </div>
                          ))
                       )}
                    </div>
-                   <div className="bg-slate-50 p-4 rounded-b-xl border border-slate-200 border-t-0 flex items-center gap-3 shrink-0">
+                   <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const form = e.target as HTMLFormElement;
+                      const input = form.elements.namedItem('comment') as HTMLInputElement;
+                      if (!input.value.trim()) return;
+                      const newComment = {
+                         author: "Current User",
+                         text: input.value,
+                         timestamp: new Date()
+                      };
+                      setComments([...comments, newComment]);
+                      
+                      // Notify mentions
+                      const mentions = input.value.match(/@\w+/g);
+                      if (mentions) {
+                         import('../../lib/eventEngine').then(({ publishEvent }) => {
+                            mentions.forEach(m => publishEvent({
+                               type: 'communication',
+                               title: 'You were mentioned',
+                               message: `You were mentioned in Candidate ${nameStr} thread.`,
+                               recipients: [m.substring(1).toUpperCase()]
+                            }));
+                         });
+                      }
+                      
+                      const id = candidate.originalId || candidate.id || candidate.candidateId;
+                      import('firebase/firestore').then(({ doc, updateDoc }) => {
+                         if (id) {
+                            updateDoc(doc(db, "candidates", id), { comments: [...comments, newComment] }).catch(err => {
+                               // Fallback on candidates global
+                            });
+                         }
+                      });
+                      input.value = "";
+                   }} className="bg-slate-50 p-4 rounded-b-xl border border-slate-200 border-t-0 flex items-center gap-3 shrink-0">
                       <input 
+                         name="comment"
                          type="text" 
                          className="flex-1 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
                          placeholder="Type a note or use @mention..."
                       />
-                      <Button className="bg-indigo-600 hover:bg-indigo-700">Send</Button>
-                   </div>
+                      <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">Send</Button>
+                   </form>
                 </div>
              )}
 
