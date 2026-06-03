@@ -212,9 +212,24 @@ export default function CandidatesTab() {
       return;
     }
 
-    // Automatically confirmed
     try {
-      await deleteDoc(doc(db, "candidatePool", candId));
+      const realCandidateId = selectedCandidate?.candidateId || selectedCandidate?.originalId || candId;
+      
+      // Delete the candidate itself
+      await deleteDoc(doc(db, "candidatePool", realCandidateId));
+      
+      // Delete any associated submissions securely
+      const q = query(collection(db, "submissions"), where("candidateId", "==", realCandidateId));
+      const qSnap = await getDocs(q);
+      for (const d of qSnap.docs) {
+         await deleteDoc(doc(db, "submissions", d.id));
+      }
+      
+      // If the passed in ID was actually just a loose submission ID due to missing parent data, delete it too
+      if (candId !== realCandidateId) {
+         await deleteDoc(doc(db, "submissions", candId));
+      }
+
       setSelectedCandidate(null);
     } catch (e: any) {
       console.error("Failed to delete candidate: " + e.message);
