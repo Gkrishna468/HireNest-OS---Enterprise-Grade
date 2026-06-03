@@ -1,5 +1,10 @@
 # Data Governance Document
 
+## Mock Data Prohibition (Enterprise Validation Rule)
+- **NO MOCK DATA IN PRODUCTION OR STAGING**.
+- All dashboards, analytics, AI scoring, adoption metrics, benchmarks, executive reports, and operational intelligence modules **must derive exclusively from Firebase** as the system of record.
+- Hardcoded arrays (e.g. `const data = [...]`) or random number generators (`Math.random()`) for metrics are strictly prohibited unless explicitly marked for development only and excluded from production builds.
+
 ## Source of Truth
 - **Candidate Pipeline Stage**: The absolute source of truth is `submissions.status`.
 - **Candidate Metadata (Name, Exp, Skills)**: Source of truth is `candidatePool`.

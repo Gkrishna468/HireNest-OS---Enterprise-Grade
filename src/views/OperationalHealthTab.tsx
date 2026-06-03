@@ -6,6 +6,9 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
   const [healthData, setHealthData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const [aiMetrics, setAiMetrics] = useState({ averageMatchScore: 0, acceptanceRate: 0, rejectionRate: 0, mostSuccessfulSkills: [] as string[] });
+  const [vendorMetrics, setVendorMetrics] = useState<any[]>([]);
+
   useEffect(() => {
     if (!userId) return;
     
@@ -14,16 +17,76 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
       return;
     }
 
-    fetch(`/api/analytics/hq-production-health?orgId=${orgId}&userId=${userId}&role=${userRole}`)
-      .then(r => r.json())
-      .then(data => {
+    const fetchAllData = async () => {
+      try {
+        const res = await fetch(`/api/analytics/hq-production-health?orgId=${orgId}&userId=${userId}&role=${userRole}`);
+        const data = await res.json();
         setHealthData(data);
-        setLoading(false);
-      })
-      .catch(err => {
+
+        // Fetch vendor metrics and AI metrics directly from Firestore as non-mocked data
+        const { collection, getDocs } = await import("firebase/firestore");
+        const { db } = await import("../lib/firebase");
+
+        const subsSnap = await getDocs(collection(db, "submissions"));
+        const vendorMap = new Map<string, { name: string, submissions: number, interviews: number, placements: number }>();
+        
+        subsSnap.docs.forEach(doc => {
+          const s = doc.data();
+          const vid = s.vendorId || "Unknown Vendor";
+          if (!vendorMap.has(vid)) {
+            vendorMap.set(vid, { name: vid, submissions: 0, interviews: 0, placements: 0 });
+          }
+          const v = vendorMap.get(vid)!;
+          v.submissions++;
+          if (s.status === 'INTERVIEWING') v.interviews++;
+          if (s.status === 'PLACED' || s.status === 'HIRED') v.placements++;
+        });
+
+        const vMetrics = Array.from(vendorMap.values()).map(v => ({
+          ...v,
+          conversion: v.submissions > 0 ? ((v.placements / v.submissions) * 100).toFixed(1) : 0
+        }));
+        setVendorMetrics(vMetrics);
+
+        const aiFeedbackSnap = await getDocs(collection(db, "aiFeedback"));
+        let accepted = 0;
+        let total = 0;
+        let totalScore = 0;
+        aiFeedbackSnap.docs.forEach(doc => {
+           const f = doc.data();
+           total++;
+           if (f.action === 'ACCEPT') accepted++;
+           if (f.score) totalScore += Number(f.score);
+        });
+
+        // Derive skills from candidate pool
+        const candsSnap = await getDocs(collection(db, "candidatePool"));
+        const skillCounts: Record<string, number> = {};
+        candsSnap.docs.forEach(doc => {
+           const c = doc.data();
+           if (c.skills && Array.isArray(c.skills)) {
+              c.skills.forEach((sk: string) => {
+                 skillCounts[sk] = (skillCounts[sk] || 0) + 1;
+              });
+           }
+        });
+        const topSkills = Object.keys(skillCounts).sort((a,b) => skillCounts[b] - skillCounts[a]).slice(0, 3);
+
+        setAiMetrics({
+           averageMatchScore: total > 0 ? Math.round(totalScore / total) : 0,
+           acceptanceRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
+           rejectionRate: total > 0 ? Math.round(((total - accepted) / total) * 100) : 0,
+           mostSuccessfulSkills: topSkills
+        });
+
+      } catch (err) {
         console.error("Health fetch error:", err);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    
+    fetchAllData();
   }, [userRole, orgId, userId]);
 
   const isAdmin = ['admin', 'super_admin', 'hq_admin', 'ops_admin'].includes(userRole);
@@ -40,20 +103,15 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
     return <div className="p-8 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest">Loading Operational Intelligence...</div>;
   }
 
+  if (healthData?.error) {
+    return <div className="p-8 flex items-center justify-center font-bold text-rose-500 uppercase tracking-widest">{healthData.error}</div>;
+  }
+
+  if (!healthData?.ledger || !healthData?.submissions) {
+    return <div className="p-8 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest">Operational Intelligence Unavailable.</div>;
+  }
+
   const { ledger, submissions } = healthData;
-
-  // Derive mock metrics for AI and Executive dashboards
-  const aiMetrics = {
-     averageMatchScore: 88.5,
-     acceptanceRate: 72,
-     rejectionRate: 28,
-     mostSuccessfulSkills: ["React", "Node.js", "TypeScript"]
-  };
-
-  const vendorMetrics = [
-     { name: "Vendor Alpha", submissions: 124, interviews: 45, placements: 12, conversion: 9.6 },
-     { name: "Vendor Beta", submissions: 98, interviews: 32, placements: 8, conversion: 8.1 },
-  ];
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">

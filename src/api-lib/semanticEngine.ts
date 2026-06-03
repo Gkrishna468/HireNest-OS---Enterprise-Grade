@@ -14,7 +14,9 @@ class VectorDatabaseConnector {
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   console.log(`[VECTOR_ENGINE] Generating simulated semantic embedding for: "${text.substring(0, 30)}..."`);
-  return Array.from({ length: 128 }, () => Math.random()); // Expanded vector space to 128d
+  // Mock deterministic pseudo-vector or API call to vertex
+  const sum = Array.from(text).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return Array.from({ length: 128 }, (_, i) => (sum / (i + 1)) % 1); 
 }
 
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {

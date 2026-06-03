@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from "react";
 import { BrainCircuit, ThumbsUp, ThumbsDown, GitMerge, Sparkles, RefreshCcw, ArrowRight } from "lucide-react";
 import { cn } from "../lib/utils";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 export default function AILearningLoopTab() {
   const [loading, setLoading] = useState(true);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState({ rejectionCount: 0 });
 
   useEffect(() => {
-    // Simulate fetching AI feedback loop data
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
+    const fetchAIFeedback = async () => {
+      try {
+        const snap = await getDocs(collection(db, "aiFeedback"));
+        const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        setFeedbacks(data.reverse()); // most recent first
+        
+        let rejectCount = 0;
+        data.forEach(d => {
+          if (d.action === 'REJECT') rejectCount++;
+        });
+        setMetrics({ rejectionCount: rejectCount });
+      } catch(err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAIFeedback();
   }, []);
 
   if (loading) {
@@ -42,23 +61,20 @@ export default function AILearningLoopTab() {
             </div>
             <div className="p-6 flex-1 space-y-4 max-h-[500px] overflow-y-auto">
                
-               {[
-                  { id: 1, action: "REJECT", reason: "Overweighted standard dev certs", user: "Recruiter A", candidate: "Michael Chen", req: "Senior React Dev" },
-                  { id: 2, action: "ACCEPT", reason: "Found obscure but valid framework match", user: "Recruiter B", candidate: "Sarah Jenkins", req: "Frontend Lead" },
-                  { id: 3, action: "REJECT", reason: "Location mismatch ignored", user: "Recruiter A", candidate: "David Kim", req: "On-site Data Eng" },
-                  { id: 4, action: "ACCEPT", reason: "Strong domain crossover recognized", user: "Hiring Mgr C", candidate: "Alicia Reyes", req: "Fintech PM" },
-               ].map((fb) => (
+               {feedbacks.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic p-4 text-center">No AI Feedback events recorded yet.</p>
+               ) : feedbacks.map((fb) => (
                   <div key={fb.id} className={cn("p-4 rounded-xl border flex gap-4 items-start", fb.action === 'REJECT' ? 'bg-rose-50/50 border-rose-100' : 'bg-emerald-50/50 border-emerald-100')}>
                      <div className={cn("p-2 rounded-lg mt-0.5", fb.action === 'REJECT' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600')}>
                         {fb.action === 'REJECT' ? <ThumbsDown size={16} /> : <ThumbsUp size={16} />}
                      </div>
                      <div className="flex-1">
                         <div className="flex justify-between">
-                           <p className="text-sm font-bold text-slate-800">{fb.candidate} <ArrowRight size={12} className="inline mx-1 text-slate-400" /> {fb.req}</p>
-                           <span className="text-[10px] font-mono font-black text-slate-400">{fb.user}</span>
+                           <p className="text-sm font-bold text-slate-800">{fb.candidateName || fb.candidateId || "Candidate"} <ArrowRight size={12} className="inline mx-1 text-slate-400" /> {fb.requirementName || fb.requirementId || "Requirement"}</p>
+                           <span className="text-[10px] font-mono font-black text-slate-400">{fb.userId || "System"}</span>
                         </div>
                         <p className={cn("text-xs mt-2 font-medium italic", fb.action === 'REJECT' ? 'text-rose-700' : 'text-emerald-700')}>
-                           "{fb.reason}"
+                           "{fb.reason || "No explicit reason provided"}"
                         </p>
                      </div>
                   </div>
@@ -86,7 +102,7 @@ export default function AILearningLoopTab() {
                      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex">
                         <div className="bg-slate-500 h-full w-[40%]"></div>
                      </div>
-                     <p className="text-[10px] text-slate-500 mt-2 italic border-l-2 border-slate-700 pl-2">Triggered by 14 consecutive rejections citing over-indexing on keyword-stuffed resumes.</p>
+                     <p className="text-[10px] text-slate-500 mt-2 italic border-l-2 border-slate-700 pl-2">Triggered by {metrics.rejectionCount} specific rejections citing over-indexing on keyword-stuffed resumes.</p>
                   </div>
 
                   <div>

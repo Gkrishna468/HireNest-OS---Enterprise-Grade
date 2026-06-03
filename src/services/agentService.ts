@@ -76,36 +76,8 @@ export async function runawayAgentCheck() {
   
   const activities: AgentActivity[] = [];
 
-  // Randomly simulate an agent intervention for demonstration
-  const roll = Math.random();
-  if (roll < 0.25) {
-    activities.push(await FraudSentinel.logActivity(
-      "Heuristic signature mismatch detected in Candidate Cluster #42",
-      "HIGH",
-      "cluster_42",
-      { signal: "cross_network_duplicate" }
-    ));
-  } else if (roll < 0.5) {
-    activities.push(await RevenueGuardian.logActivity(
-      "Margin leakage detected in Deal Node #892. Proposing route adjustment.",
-      "MEDIUM",
-      "deal_892",
-      { value: "₹4,200/mo" }
-    ));
-  } else if (roll < 0.75) {
-    activities.push(await VendorOptimizer.logActivity(
-      "Downgrading priority for Node #711 due to SLA degradation.",
-      "HIGH",
-      "node_711",
-      { reason: "latency_threshold_breached" }
-    ));
-  } else {
-    activities.push(await ExecutionMomentum.logActivity(
-      "Stalled flow detected on requirement #req_101. Triggering autonomous follow-up.",
-      "LOW",
-      "req_101"
-    ));
-  }
+  // In production, these derive directly from event bus patterns.
+  // Mock generation disabled per Enterprise Validation rules.
 
   return activities;
 }

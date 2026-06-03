@@ -18,6 +18,7 @@ The `dataGovernanceAuditor` monitors the platform for split-brain data conflicts
 **Rules:**
 - **Redundant State Fields:** Detects when domain states (like `candidate.status`) are being stored when they should be derived from system events (like `submissions` or `eventLedger`).
 - **PII Leakage:** Validates that secure fields do not leak into unstructured log data or derived fields.
+- **Mock Data Prohibition:** Detects hardcoded values (e.g. `const data = [...]`), random generators for metrics, or fake data in analytics, executive dashboards, or operational intelligence screens. Failing to back these screens with actual Firebase documents will trigger a `Release Blocked` failure.
 
 ## AI Governance Auditing
 
