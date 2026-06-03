@@ -45,9 +45,9 @@ export default function DashboardTab() {
       allSubs.forEach(s => {
          const stage = (s.status || "").toUpperCase();
          if (stage === "SUBMITTED" || stage === "DEAL ROOM" || stage === "MATCHED" || stage === "MATCH") submissions++;
-         if (stage === "INTERVIEWING" || stage === "INTERVIEW") interviews++;
-         if (stage === "OFFER") offers++;
-         if (stage === "PLACED" || stage === "HIRED") placements++;
+         if (stage.includes("INTERVIEW") || stage === "SHORTLISTED") interviews++;
+         if (stage.includes("OFFER")) offers++;
+         if (stage === "PLACED" || stage === "HIRED" || stage === "ONBOARDED") placements++;
       });
       
       const candSnap = await getDocs(collection(db, "candidatePool"));

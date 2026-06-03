@@ -50,21 +50,36 @@ export default async function analyticsHandler(req: any, res: any) {
           .get();
           
        let totalSpend = 0;
+       let activeReqs = 0;
+       
        reqsSnap.docs.forEach((d: any) => {
           const data = d.data();
+          if (data.status === 'PUBLISHED' || data.status === 'ACTIVE') activeReqs++;
           if (data.financials) {
              totalSpend += Number(data.financials.clientBudget) || 0;
           } else if (data.vendorVisibleBudget) {
              totalSpend += Number(data.vendorVisibleBudget) || 0;
           }
        });
+       
+       let pendingReview = 0;
+       let interviews = 0;
+       let placements = 0;
+       
+       subsSnap.docs.forEach((d: any) => {
+          const status = (d.data().status || '').toUpperCase();
+          if (status === 'SUBMITTED') pendingReview++;
+          if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+          if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) placements++;
+       });
 
        return res.status(200).json({
           spending: totalSpend,
-          totalJobs: reqsSnap.size,
-          openJobs: reqsSnap.docs.filter((d: any) => d.data().status === 'PUBLISHED').length,
-          activeDeals: subsSnap.size,
-          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED' || d.data().status === 'PLACED').length,
+          totalJobs: activeReqs, // Represents "Active Requirements"
+          openJobs: activeReqs,
+          totalCandidates: pendingReview, // Represents "Pending Review" on Client Dash
+          interviewsToday: interviews, // Represents "Interviews Scheduled"
+          placements: placements,
        });
     }
 
@@ -78,29 +93,48 @@ export default async function analyticsHandler(req: any, res: any) {
           .get();
           
        let revenue = 0;
+       let interviews = 0;
+       let placements = 0;
+       
        subsSnap.docs.forEach((d: any) => {
           const data = d.data();
-          if (data.status === 'HIRED' || data.status === 'PLACED') {
+          const status = (data.status || '').toUpperCase();
+          if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+          if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
+             placements++;
              revenue += Number(data.vendorPayout || data.financials?.vendorPayout) || 0;
+          }
+       });
+       
+       let allocatedReqs = 0;
+       reqsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (!data.assignedVendorIds || data.assignedVendorIds.includes(verifiedOrgId)) {
+             allocatedReqs++;
           }
        });
 
        return res.status(200).json({
           revenue: revenue,
-          totalCandidates: candsSnap.size,
+          totalJobs: allocatedReqs, // Represents "Allocated Requirements" on Vendor Dash
+          totalCandidates: candsSnap.size, // Represents "Bench Candidates" on Vendor Dash
+          interviewsToday: interviews, // Represents "Interviews Scheduled"
           activeDeals: subsSnap.size,
-          placements: subsSnap.docs.filter((d: any) => d.data().status === 'HIRED' || d.data().status === 'PLACED').length,
+          placements: placements, // Represents "Active Placements"
        });
     }
 
     if (apiPath === 'recruiter') {
-       // assignedRecruiterId fallback logic
-       let candsSnap = await adminDb.collection("candidatePool").get();
-       let subsSnap = await adminDb.collection("submissions").get();
+       const reqsSnap = await adminDb.collection("requirements_public").get();
+       const candsSnap = await adminDb.collection("candidatePool").get();
+       const subsSnap = await adminDb.collection("submissions").get();
        
        let activeCandidates = 0;
-       let actionQueue = 0;
+       let pendingSubmissions = 0;
+       let interviews = 0;
+       let offers = 0;
        let placements = 0;
+       let pendingFeedback = 0;
        
        candsSnap.docs.forEach((d: any) => {
           const data = d.data();
@@ -114,15 +148,33 @@ export default async function analyticsHandler(req: any, res: any) {
           const data = d.data();
           const p = data.assignedRecruiterId || data.uploaderId || 'ADMIN_HQ';
           if (p === userId || p === 'ADMIN_HQ') {
-             actionQueue++; // active submissions
-             if (data.status === 'HIRED') placements++;
+             const status = (data.status || '').toUpperCase();
+             if (status === 'MATCHED' || status === 'QUEUED') pendingSubmissions++;
+             if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+             if (['OFFER_RELEASED', 'OFFER_ACCEPTED'].includes(status)) offers++;
+             if (['ONBOARDED', 'HIRED', 'PLACED'].includes(status)) placements++;
+             if (status === 'SUBMITTED' || status.includes('INTERVIEW_ROUND')) pendingFeedback++;
           }
+       });
+       
+       let activeReqs = 0;
+       reqsSnap.docs.forEach((d: any) => {
+         const data = d.data();
+         if (data.status === 'PUBLISHED' || data.status === 'ACTIVE') activeReqs++;
        });
 
        return res.status(200).json({
-          activeCandidates,
-          actionQueue,
-          placements,
+          totalJobs: activeReqs, // Represents "New Requirements"
+          pendingSubmissions: pendingSubmissions, 
+          interviewsToday: interviews,
+          pendingFeedback: pendingFeedback,
+          
+          activeCandidates: activeCandidates,
+          actionQueue: interviews, // Represents "Interviewing"
+          offers: offers,
+          placements: placements,
+          
+          conversionRate: activeCandidates > 0 ? Math.round((placements / activeCandidates) * 100) : 0,
           recruiterProductivity: activeCandidates > 0 ? (placements / activeCandidates * 100) : 0,
        });
     }
