@@ -14,9 +14,9 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
   const [scheduleData, setScheduleData] = useState<{sub: any, req: any} | null>(null);
   const [vendorMap, setVendorMap] = useState<Record<string, string>>({});
 
-  const isAdmin = userRole?.includes("admin") || userRole === "hq" || userRole === "super_admin" || userRole === "ops_admin";
-  const isVendor = userRole?.includes("vendor") || userRole?.includes("recruiter");
-  const isClient = userRole === "client" || userRole?.startsWith("client_");
+  const isAdmin = userRole === "admin" || userRole === "hq" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin";
+  const isVendor = userRole === "vendor" || userRole === "vendor_admin" || userRole?.startsWith("vendor_") || userRole?.includes("recruiter");
+  const isClient = userRole === "client" || userRole === "client_admin" || userRole?.startsWith("client_");
 
   useEffect(() => {
      const fetchVendors = async () => {

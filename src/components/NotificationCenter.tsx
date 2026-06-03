@@ -8,7 +8,7 @@ export function NotificationCenter({ userRole }: { userRole?: string }) {
   // Derive notifications based on role for preview/demo
   let notifications = [];
   
-  if (userRole?.includes("admin")) {
+  if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq" || userRole === "hq_admin") {
      notifications = [
         { id: 1, type: "warning", text: "Delete Request: Candidate John Doe Data Erasure", time: "10m ago", icon: AlertTriangle },
         { id: 2, type: "alert", text: "Ownership Dispute: Multiple vendors claimed Sarah Jenkins", time: "1h ago", icon: ShieldAlert },

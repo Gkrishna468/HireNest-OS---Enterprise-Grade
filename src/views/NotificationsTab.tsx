@@ -59,7 +59,7 @@ export default function NotificationsTab({
 
     // Broadcast tokens based on role
     if (role) {
-      if (role.includes("admin")) recipients.push("GLOBAL_ADMIN");
+      if (role === "admin" || role === "super_admin" || role === "hq" || role === "ops_admin" || role === "hq_admin") recipients.push("GLOBAL_ADMIN");
       if (role.includes("client")) recipients.push("GLOBAL_CLIENT");
       if (role.includes("vendor")) recipients.push("GLOBAL_VENDOR");
     }

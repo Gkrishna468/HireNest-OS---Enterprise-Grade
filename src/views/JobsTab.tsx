@@ -626,14 +626,27 @@ export default function JobsTab() {
       // 1. Listen to explicit vendor submissions globally (ABAC handled, view is unified)
       let qSub = query(
         collection(db, "submissions"),
-        where("requirementId", "==", selectedJob.id),
+        where("requirementId", "==", selectedJob.id)
       );
+      if (isVendor) {
+        qSub = query(
+          collection(db, "submissions"),
+          where("requirementId", "==", selectedJob.id),
+          where("vendorId", "==", orgId)
+        );
+      }
 
-      // Listen to candidatePool for manually mapped candidates globally
       let qCand = query(
         collection(db, "candidatePool"),
-        where("mappedJobId", "==", selectedJob.id),
+        where("mappedJobId", "==", selectedJob.id)
       );
+      if (isVendor) {
+        qCand = query(
+          collection(db, "candidatePool"),
+          where("mappedJobId", "==", selectedJob.id),
+          where("vendorId", "==", orgId)
+        );
+      }
 
       let currentMappedCands: any[] = [];
       let currentSubs: any[] = [];

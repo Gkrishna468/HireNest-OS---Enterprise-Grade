@@ -62,11 +62,16 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
         const docsToEvaluate: any[] = [];
 
-        // Global sweeping matching logic MUST evaluate the entire pool for ALL roles 
-        // to ensure cross-workspace validation and identical counts everywhere.
-        // Vendor isolation is handled visually at the UI/Pipeline layer or ABAC rules for submissions,
-        // but the "AI Match Count" (Global Pool) is exactly the same source of truth for everyone.
-        const poolSnapshot = await adminDb.collection("candidatePool").get();
+        let poolSnapshot;
+        if (isAdmin) {
+          poolSnapshot = await adminDb.collection("candidatePool").get();
+        } else if (role?.includes("vendor") || role?.includes("recruiter")) {
+          poolSnapshot = await adminDb.collection("candidatePool").where("vendorId", "==", orgId).get();
+        } else {
+          // Client only sees submissions typically, but if hitting global match, they should only see theirs or what admin decided. In most cases, clients shouldn't run unrestricted semantic scans of the global pool.
+          poolSnapshot = await adminDb.collection("candidatePool").where("clientId", "==", orgId).get();
+        }
+        
         poolSnapshot.docs.forEach((d: any) =>
           docsToEvaluate.push({ id: d.id, ...d.data() }),
         );

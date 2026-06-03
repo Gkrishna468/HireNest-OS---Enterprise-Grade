@@ -121,9 +121,10 @@ export default function CandidatesTab() {
     matched: number;
   } | null>(null);
   const isAdmin =
-    userRole.includes("admin") ||
+    userRole === "admin" ||
     userRole === "super_admin" ||
     userRole === "ops_admin" ||
+    userRole === "hq_admin" ||
     userRole === "hq";
 
   const handleNameSave = async (candId: string) => {

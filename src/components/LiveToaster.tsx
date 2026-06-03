@@ -18,7 +18,7 @@ export function LiveToaster({
     const recipients = [auth.currentUser.uid];
     if (orgId) recipients.push(orgId);
     if (userRole) {
-      if (userRole.includes("admin")) recipients.push("GLOBAL_ADMIN");
+      if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq" || userRole === "hq_admin") recipients.push("GLOBAL_ADMIN");
       if (userRole.includes("client")) recipients.push("GLOBAL_CLIENT");
       if (userRole.includes("vendor")) recipients.push("GLOBAL_VENDOR");
     }
