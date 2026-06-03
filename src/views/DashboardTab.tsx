@@ -108,6 +108,41 @@ export default function DashboardTab() {
       }
   };
 
+  const handleFixDataDrift = async () => {
+      if(!window.confirm("This will migrate generic candidatePool.pipelineStage records to their actual submission.status (resolving data drift). Continue?")) {
+        return;
+      }
+      try {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          const cands = await getDocs(collection(db, "candidatePool"));
+          const subs = await getDocs(collection(db, "submissions"));
+
+          const subMap: Record<string, string> = {};
+          subs.forEach((d) => {
+            const data = d.data();
+            if (data.candidateId && data.status) {
+              subMap[data.candidateId] = data.status;
+            }
+          });
+
+          let migratedCount = 0;
+          for (const c of cands.docs) {
+            const cData = c.data();
+            const cId = cData.candidateId || c.id;
+            const subStatus = subMap[cId];
+            if (subStatus && cData.pipelineStage !== subStatus) {
+              await updateDoc(doc(db, "candidatePool", c.id), {
+                pipelineStage: subStatus
+              });
+              migratedCount++;
+            }
+          }
+          alert(`Migration Complete! Fixed drift for ${migratedCount} candidates.`);
+      } catch (err: any) {
+          alert("Migration failed: " + err.message);
+      }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -308,7 +343,7 @@ export default function DashboardTab() {
                         </button>
                       </div>
 
-                      <div className="mt-4 pt-4 border-t border-white/10">
+                      <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-4">
                         <Button
                            onClick={handlePurgeData}
                            variant="outline"
@@ -316,6 +351,14 @@ export default function DashboardTab() {
                         >
                            <AlertTriangle size={12} className="mr-2" />
                            Purge Demo / Test Data
+                        </Button>
+                        <Button
+                           onClick={handleFixDataDrift}
+                           variant="outline"
+                           className="text-[9px] uppercase font-bold tracking-widest border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-8"
+                        >
+                           <Database size={12} className="mr-2" />
+                           Fix Candidate Drift
                         </Button>
                       </div>
                     </div>

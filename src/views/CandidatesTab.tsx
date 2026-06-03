@@ -1124,7 +1124,9 @@ export default function CandidatesTab() {
   });
 
   candidates.forEach(c => {
-     const subs = subsByCandId[c.id || c.candidateId];
+     let subs = subsByCandId[c.id];
+     if (!subs && c.candidateId) subs = subsByCandId[c.candidateId];
+     if (!subs && c.originalId) subs = subsByCandId[c.originalId];
      
      let isProcessing = false;
      const n = c.name || "";
