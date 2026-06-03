@@ -43,6 +43,23 @@ export interface Candidate {
   matchScore?: number; // Optional for view layers
 }
 
+export enum CandidateLifecycleStatus {
+  SUBMITTED = 'SUBMITTED',
+  CLIENT_REVIEW = 'CLIENT_REVIEW',
+  SHORTLISTED = 'SHORTLISTED',
+  INTERVIEW_SCHEDULED = 'INTERVIEW_SCHEDULED',
+  INTERVIEW_ROUND_1 = 'INTERVIEW_ROUND_1',
+  INTERVIEW_ROUND_2 = 'INTERVIEW_ROUND_2',
+  FINAL_INTERVIEW = 'FINAL_INTERVIEW',
+  SELECTED = 'SELECTED',
+  OFFER_RELEASED = 'OFFER_RELEASED',
+  OFFER_ACCEPTED = 'OFFER_ACCEPTED',
+  ONBOARDING = 'ONBOARDING',
+  PLACED = 'PLACED',
+  REJECTED = 'REJECTED',
+  WITHDRAWN = 'WITHDRAWN'
+}
+
 export interface Submission {
   submissionId: string;
   candidateId: string;
@@ -50,8 +67,35 @@ export interface Submission {
   submittedBy: string;
   vendorOrgId?: string;
   clientOrgId?: string;
-  status: 'submitted' | 'screening' | 'interview' | 'offer' | 'rejected';
+  status: CandidateLifecycleStatus | string;
   timeline: any[];
+}
+
+export interface InterviewFeedback {
+  technical: number; // 1-5
+  communication: number; // 1-5
+  domain: number; // 1-5
+  decision: 'Proceed' | 'Hold' | 'Reject';
+  notes?: string;
+  submittedAt?: string;
+}
+
+export interface Interview {
+  interviewId: string;
+  submissionId: string;
+  candidateId: string;
+  requirementId: string;
+  round: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  meetingLink?: string;
+  calendarEventId?: string;
+  interviewer?: string;
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  feedback?: InterviewFeedback;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export enum DealStatus {

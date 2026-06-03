@@ -31,6 +31,8 @@ import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
 import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
 import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts';
 import auditHandler from './src/api-lib/handlers/audit.ts';
+import oauthHandler from './src/api-lib/handlers/oauth.ts';
+import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
@@ -78,7 +80,7 @@ async function createServer() {
 
   // --- Auth Middleware ---
   const verifyAuth = async (req: any, res: any, next: any) => {
-    if (req.path === '/audit' || req.originalUrl === '/api/audit') {
+    if (req.path === '/audit' || req.originalUrl === '/api/audit' || req.originalUrl.includes('/oauth/callback') || req.originalUrl.includes('/api/oauth/url')) {
       return next();
     }
     try {
@@ -103,8 +105,12 @@ async function createServer() {
     }
   };
 
-  // Temporarily bypass verifyAuth for certain public routes if any existed, but user requested everywhere
+  // Skip auth for oauth callback etc, then enforce it
   app.use('/api', verifyAuth);
+
+  // Mount OAuth and Google Proxy BEFORE global catch-all
+  app.use('/api/oauth', oauthHandler);
+  app.use('/api/google', googleProxyHandler);
 
   // API Route Handler
   app.use('/api', async (req: any, res: any) => {

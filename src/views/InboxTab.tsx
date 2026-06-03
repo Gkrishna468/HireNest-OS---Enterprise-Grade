@@ -3,76 +3,78 @@ import { Mail, Inbox, Send, RefreshCw, AlertCircle, FileText, LayoutDashboard } 
 import { Badge } from '../lib/Badge';
 import { Button } from '../lib/Button';
 import { EmptyState } from '../components/EmptyState';
+import { auth } from '../lib/firebase';
 
 export default function InboxTab() {
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Attempt to retrieve cached token from localStorage
-    const token = localStorage.getItem("google_access_token");
-    if (token) {
-      setAccessToken(token);
-    }
+    const checkStatus = async () => {
+       const user = auth.currentUser;
+       if (!user) return;
+       const token = await user.getIdToken();
+       
+       try {
+          const res = await fetch('/api/oauth/status', {
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await res.json();
+          setIsConnected(data.connected);
+          if (data.connected) {
+             fetchEmails(token);
+          }
+       } catch (e) {
+          console.error(e);
+       }
+    };
+    
+    // Slight delay to ensure auth is loaded
+    setTimeout(checkStatus, 500);
   }, []);
 
-  const fetchEmails = async () => {
-    if (!accessToken) return;
+  const fetchEmails = async (providedToken?: string) => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/gopal@hirenestworkforce.com/messages?maxResults=15', {
+      const token = providedToken || await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Not authenticated");
+
+      const response = await fetch('/api/google/gmail/messages', {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch emails or token expired.');
+        throw new Error('Failed to fetch emails via proxy.');
       }
 
       const data = await response.json();
-      if (data.messages && data.messages.length > 0) {
-        const fullMessages = await Promise.all(data.messages.map(async (msg: any) => {
-          const detailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/gopal@hirenestworkforce.com/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`, {
-             headers: {
-               'Authorization': `Bearer ${accessToken}`,
-               'Accept': 'application/json'
-             }
-          });
-          const detailData = await detailResponse.json();
-          const subjectHeader = detailData.payload?.headers?.find((h: any) => h.name === 'Subject');
-          const fromHeader = detailData.payload?.headers?.find((h: any) => h.name === 'From');
-          return {
-             id: msg.id,
-             snippet: detailData.snippet,
-             subject: subjectHeader?.value || '(No Subject)',
-             from: fromHeader?.value || '(Unknown Sender)'
-          };
-        }));
-        setEmails(fullMessages);
-      } else {
-        setEmails([]);
-      }
+      setEmails(data.messages || []);
     } catch (err: any) {
       setError(err.message);
-      if (err.message.includes('expired') || err.message.includes('Unauthorized') || err.message.includes('401')) {
-          localStorage.removeItem("google_access_token");
-          setAccessToken(null);
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (accessToken) {
-      fetchEmails();
-    }
-  }, [accessToken]);
+  const handleConnect = async () => {
+     const user = auth.currentUser;
+     if (!user) return;
+     try {
+        const res = await fetch(`/api/oauth/url?uid=${user.uid}&redirectTo=${encodeURIComponent(window.location.href)}`);
+        const data = await res.json();
+        if (data.url) {
+           window.location.href = data.url;
+        }
+     } catch (e) {
+        console.error(e);
+     }
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC]">
@@ -83,11 +85,11 @@ export default function InboxTab() {
              </div>
              <div>
                 <h1 className="text-xl font-black text-slate-800 tracking-tight">Work Email Integration</h1>
-                <p className="text-xs text-slate-500 font-medium">Synced with support inbox: gopal@hirenestworkforce.com</p>
+                <p className="text-xs text-slate-500 font-medium">Sync with your connected work account to send submissions and track activity</p>
              </div>
          </div>
-         {accessToken && (
-            <Button onClick={fetchEmails} variant="outline" className="gap-2" disabled={loading}>
+         {isConnected && (
+            <Button onClick={() => fetchEmails()} variant="outline" className="gap-2" disabled={loading}>
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               Sync Inbox
             </Button>
@@ -95,11 +97,12 @@ export default function InboxTab() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {!accessToken ? (
+        {!isConnected ? (
            <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center mt-12 space-y-4">
               <Mail className="mx-auto h-12 w-12 text-slate-300" />
               <h2 className="text-lg font-bold text-slate-800">No Email Integration connected</h2>
-              <p className="text-sm text-slate-500">Sign out and sign in using Google Auth to provision the Workspace scopes to empower this feature.</p>
+              <p className="text-sm text-slate-500">Connect your work account via OAuth to provision the Workspace scopes securely.</p>
+              <Button onClick={handleConnect} className="w-full bg-indigo-600 hover:bg-indigo-700">Connect Workspace</Button>
            </div>
         ) : error ? (
            <div className="max-w-md mx-auto bg-red-50 p-6 rounded-2xl border border-red-200 text-center mt-12 space-y-3">

@@ -14,17 +14,82 @@ export default function InterviewsTab() {
    const [userRole, setUserRole] = useState<string>('user');
    const [userOrgId, setUserOrgId] = useState<string>('');
 
-   const [showRejectForm, setShowRejectForm] = useState(false);
-   const [rejectReason, setRejectReason] = useState("");
-   const [feedbackNotes, setFeedbackNotes] = useState("");
-   
-   const [accessToken, setAccessToken] = useState<string | null>(null);
+   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+   const [feedback, setFeedback] = useState({
+     technical: 3,
+     communication: 3,
+     domain: 3,
+     decision: 'Proceed',
+     notes: ''
+   });
+
+   const submitFeedback = async () => {
+      if (!selectedInterview) return;
+
+      const newStatus = feedback.decision === 'Proceed' ? 'PASSED' : feedback.decision === 'Hold' ? 'ON_HOLD' : 'REJECTED';
+
+      try {
+         await updateDoc(doc(db, "interviews", selectedInterview.id), {
+            status: newStatus,
+            feedback: {
+               ...feedback,
+               submittedAt: new Date().toISOString()
+            },
+            outcomeNotes: `Decision: ${feedback.decision}. Technical: ${feedback.technical}, Comm: ${feedback.communication}, Domain: ${feedback.domain}. Notes: ${feedback.notes}`
+         });
+         
+         if (selectedInterview.submissionId) {
+             let nextSubStatus = 'INTERVIEW_SCHEDULED';
+             if (feedback.decision === 'Proceed') {
+                 nextSubStatus = 'SHORTLISTED';
+             } else if (feedback.decision === 'Reject') {
+                 nextSubStatus = 'REJECTED';
+             } else if (feedback.decision === 'Hold') {
+                 nextSubStatus = 'CLIENT_REVIEW';
+             }
+             await updateDoc(doc(db, "submissions", selectedInterview.submissionId), {
+                 status: nextSubStatus
+             });
+         }
+         
+         await publishEvent({
+            type: feedback.decision === 'Reject' ? 'urgent' : 'success',
+            title: `Interview Feedback Submitted`,
+            message: `Decision: ${feedback.decision} for ${selectedInterview.round}. ${feedback.notes ? `Notes: ${feedback.notes}` : ''}`,
+            recipients: ["GLOBAL_ADMIN"]
+         });
+         
+         setSelectedInterview({ ...selectedInterview, status: newStatus, feedback: { ...feedback } });
+         setShowFeedbackForm(false);
+         setFeedback({ technical: 3, communication: 3, domain: 3, decision: 'Proceed', notes: '' });
+      } catch (err) {
+         console.error(err);
+      }
+   };
+   const [isConnected, setIsConnected] = useState(false);
    const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
    const [calLoading, setCalLoading] = useState(false);
 
    useEffect(() => {
-      const token = localStorage.getItem("google_access_token");
-      if (token) setAccessToken(token);
+      const checkStatus = async () => {
+         const user = auth.currentUser;
+         if (!user) return;
+         try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/oauth/status', {
+               headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            setIsConnected(data.connected);
+            if (data.connected) {
+               fetchCalendarEvents(token);
+            }
+         } catch (e) {
+            console.error(e);
+         }
+      };
+      
+      setTimeout(checkStatus, 500);
 
       if (auth.currentUser) {
          getDoc(doc(db, "users", auth.currentUser.uid)).then(snap => {
@@ -43,40 +108,38 @@ export default function InterviewsTab() {
       return () => unsub();
    }, []);
 
-   const fetchCalendarEvents = async () => {
-      if (!accessToken) return;
+   const fetchCalendarEvents = async (providedToken?: string) => {
       setCalLoading(true);
       try {
+         const token = providedToken || await auth.currentUser?.getIdToken();
+         if (!token) throw new Error("Not authenticated");
+         
          const timeMin = new Date().toISOString();
-         const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/gopal@hirenestworkforce.com/events?timeMin=${timeMin}&maxResults=10&singleEvents=true&orderBy=startTime`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
+         const res = await fetch(`/api/google/calendar/events?timeMin=${encodeURIComponent(timeMin)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
          });
          if (!res.ok) throw new Error("Failed to fetch calendar");
          const data = await res.json();
          setCalendarEvents(data.items || []);
       } catch (err: any) {
          console.warn("Calendar fetch error:", err);
-         if (err.message.includes('401') || err.message.includes('expired')) {
-            localStorage.removeItem("google_access_token");
-            setAccessToken(null);
-         }
       } finally {
          setCalLoading(false);
       }
    };
 
-   useEffect(() => {
-      if (accessToken) {
-         fetchCalendarEvents();
-      }
-   }, [accessToken]);
-
    const pushToGoogleCalendar = async (inv: any) => {
-      if (!accessToken) return;
+      if (!isConnected) {
+         alert("Please connect your Google Workspace account first.");
+         return;
+      }
       const confirmed = window.confirm("Are you sure you want to schedule this interview on your Google Calendar?");
       if (!confirmed) return;
       
       try {
+         const token = await auth.currentUser?.getIdToken();
+         if (!token) throw new Error("Not authenticated");
+         
          // Create event body
          const event = {
             summary: `Interview: ${inv.round}`,
@@ -91,10 +154,10 @@ export default function InterviewsTab() {
             }
          };
          
-         const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/gopal@hirenestworkforce.com/events', {
+         const res = await fetch('/api/google/calendar/events', {
             method: 'POST',
             headers: {
-               'Authorization': `Bearer ${accessToken}`,
+               'Authorization': `Bearer ${token}`,
                'Content-Type': 'application/json'
             },
             body: JSON.stringify(event)
@@ -112,91 +175,74 @@ export default function InterviewsTab() {
       }
    };
 
-   const handleOutcome = async (outcome: string) => {
-      if (!selectedInterview) return;
-
-      if (outcome === 'Reject' && !rejectReason) {
-         setShowRejectForm(true);
-         return;
-      }
-
-      const newStatus = outcome === 'Pass' ? 'PASSED' : outcome === 'Hold' ? 'ON_HOLD' : 'REJECTED';
-
-      try {
-         await updateDoc(doc(db, "interviews", selectedInterview.id), {
-            status: newStatus,
-            outcomeNotes: outcome === 'Reject' ? `${rejectReason} - ${feedbackNotes}` : `Outcome marked as ${outcome} by ${userRole}.`,
-            rejectReason: outcome === 'Reject' ? rejectReason : null
-         });
-         
-         if (selectedInterview.submissionId) {
-             let nextSubStatus = selectedInterview.round?.toUpperCase() || 'INTERVIEW';
-             if (outcome === 'Pass') {
-                 nextSubStatus = `${nextSubStatus}_PASSED`;
-             } else if (outcome === 'Reject') {
-                 nextSubStatus = 'REJECTED';
-             }
-             await updateDoc(doc(db, "submissions", selectedInterview.submissionId), {
-                 status: nextSubStatus
-             });
-         }
-         
-         await publishEvent({
-            type: outcome === 'Reject' ? 'urgent' : 'success',
-            title: `Interview ${outcome}`,
-            message: outcome === 'Reject' ? `Candidate rejected: ${rejectReason}` : `Interview for ${selectedInterview.round} was passed.`,
-            recipients: ["GLOBAL_ADMIN"]
-         });
-         
-         setSelectedInterview({ ...selectedInterview, status: newStatus });
-         setShowRejectForm(false);
-         setRejectReason("");
-         setFeedbackNotes("");
-      } catch (err) {
-         console.error(err);
-      }
-   };
-
    return (
       <div className="flex-1 flex overflow-hidden p-4 gap-4 pb-0 h-full relative">
          
-         {showRejectForm && (
+         {showFeedbackForm && (
             <div className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
                   <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
-                     <XCircle className="text-red-500" /> Interview Rejection Feedback
+                     <CheckCircle className="text-indigo-500" /> Structured Interview Feedback
                   </h3>
-                  <p className="text-sm text-slate-500 mb-4">Select a structured reason for AI model training.</p>
+                  <p className="text-sm text-slate-500 mb-4">Provide detailed feedback to update the AI matching model.</p>
                   
                   <div className="space-y-4">
+                     <div className="grid grid-cols-3 gap-4">
+                        <div>
+                           <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Technical</label>
+                           <select 
+                              value={feedback.technical} 
+                              onChange={e => setFeedback({...feedback, technical: Number(e.target.value)})}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                           >
+                              {[1,2,3,4,5].map(v => <option key={v} value={v}>{v} / 5</option>)}
+                           </select>
+                        </div>
+                        <div>
+                           <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Communication</label>
+                           <select 
+                              value={feedback.communication} 
+                              onChange={e => setFeedback({...feedback, communication: Number(e.target.value)})}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                           >
+                              {[1,2,3,4,5].map(v => <option key={v} value={v}>{v} / 5</option>)}
+                           </select>
+                        </div>
+                        <div>
+                           <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Domain</label>
+                           <select 
+                              value={feedback.domain} 
+                              onChange={e => setFeedback({...feedback, domain: Number(e.target.value)})}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                           >
+                              {[1,2,3,4,5].map(v => <option key={v} value={v}>{v} / 5</option>)}
+                           </select>
+                        </div>
+                     </div>
                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Rejection Reason</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Final Decision</label>
                         <select 
-                           value={rejectReason} 
-                           onChange={e => setRejectReason(e.target.value)}
-                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                           value={feedback.decision} 
+                           onChange={e => setFeedback({...feedback, decision: e.target.value as any})}
+                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
-                           <option value="">Select a reason...</option>
-                           <option value="Technical Gap">Technical Gap</option>
-                           <option value="Communication Gap">Communication Gap</option>
-                           <option value="Budget Misalignment">Budget Misalignment</option>
-                           <option value="Culture Fit">Culture Fit</option>
-                           <option value="Experience Gap">Experience Gap</option>
-                           <option value="Other">Other</option>
+                           <option value="Proceed">Proceed (Pass / Advance)</option>
+                           <option value="Hold">Hold (Client Review)</option>
+                           <option value="Reject">Reject</option>
                         </select>
                      </div>
                      <div>
                         <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Additional Notes</label>
                         <textarea 
-                           value={feedbackNotes} 
-                           onChange={e => setFeedbackNotes(e.target.value)}
+                           value={feedback.notes} 
+                           onChange={e => setFeedback({...feedback, notes: e.target.value})}
                            placeholder="Provide specific feedback..."
-                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-500 outline-none h-24 resize-none"
+                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none"
                         ></textarea>
                      </div>
                      <div className="flex gap-3 pt-4 border-t border-slate-100">
-                        <Button variant="outline" className="flex-1" onClick={() => setShowRejectForm(false)}>Cancel</Button>
-                        <Button className="flex-1 bg-red-600 hover:bg-red-700 font-bold" onClick={() => handleOutcome('Reject')}>Confirm Rejection</Button>
+                        <Button variant="outline" className="flex-1" onClick={() => setShowFeedbackForm(false)}>Cancel</Button>
+                        <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={submitFeedback}>Submit Feedback</Button>
                      </div>
                   </div>
                </div>
@@ -228,11 +274,11 @@ export default function InterviewsTab() {
                   ))
                )}
 
-               {accessToken && (
+               {isConnected && (
                   <div className="mt-8 border-t border-slate-200 pt-4 px-2">
                      <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-xs uppercase tracking-widest text-slate-800 flex items-center gap-2">
-                           <Calendar size={14} className="text-emerald-600"/> <span className="hidden lg:inline">gopal@hirenestworkforce.com</span><span className="lg:hidden">Calendar</span>
+                           <Calendar size={14} className="text-emerald-600"/> <span className="hidden lg:inline">My Connected Calendar</span><span className="lg:hidden">Calendar</span>
                         </h3>
                         {calLoading && <RefreshCw size={12} className="animate-spin text-slate-400" />}
                      </div>
@@ -296,7 +342,7 @@ export default function InterviewsTab() {
                      </div>
                   </div>
                   
-                  {accessToken && selectedInterview.status === 'SCHEDULED' && (
+                  {isConnected && selectedInterview.status === 'SCHEDULED' && (
                      <div className="flex justify-end">
                         <Button 
                            onClick={() => pushToGoogleCalendar(selectedInterview)}
@@ -328,19 +374,10 @@ export default function InterviewsTab() {
                      <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800 mb-4 text-center">Capture Interview Outcome</h3>
                      
                      {selectedInterview.status === 'SCHEDULED' ? (
-                        <div className="grid grid-cols-3 gap-4">
-                           <button onClick={() => handleOutcome('Pass')} className="flex flex-col items-center justify-center p-6 bg-white border-2 border-emerald-100 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors group">
-                               <CheckCircle className="text-emerald-500 mb-2 w-8 h-8 group-hover:scale-110 transition-transform" />
-                               <span className="font-bold text-emerald-700">Pass</span>
-                           </button>
-                           <button onClick={() => handleOutcome('Hold')} className="flex flex-col items-center justify-center p-6 bg-white border-2 border-amber-100 rounded-xl hover:border-amber-500 hover:bg-amber-50 transition-colors group">
-                               <Clock className="text-amber-500 mb-2 w-8 h-8 group-hover:scale-110 transition-transform" />
-                               <span className="font-bold text-amber-700">Hold</span>
-                           </button>
-                           <button onClick={() => handleOutcome('Reject')} className="flex flex-col items-center justify-center p-6 bg-white border-2 border-rose-100 rounded-xl hover:border-rose-500 hover:bg-rose-50 transition-colors group">
-                               <XCircle className="text-rose-500 mb-2 w-8 h-8 group-hover:scale-110 transition-transform" />
-                               <span className="font-bold text-rose-700">Reject</span>
-                           </button>
+                        <div className="flex justify-center">
+                           <Button onClick={() => setShowFeedbackForm(true)} className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto font-bold gap-2">
+                              <CheckCircle size={16} /> Provide Structured Feedback
+                           </Button>
                         </div>
                      ) : (
                         <div className="text-center text-sm font-medium text-slate-500">

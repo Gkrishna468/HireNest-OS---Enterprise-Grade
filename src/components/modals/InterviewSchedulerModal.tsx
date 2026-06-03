@@ -6,8 +6,8 @@ import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/fi
 
 export function InterviewSchedulerModal({ submission, requirement, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [formData, setFormData] = useState({
-    round: 'Interview Scheduled',
+   const [formData, setFormData] = useState({
+    round: 'INTERVIEW_SCHEDULED',
     date: '',
     time: '',
     endTime: '',
@@ -46,7 +46,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
            jobTitle: requirement.title || "Strategic Role",
            experience: requirement.experience || "Not Specified",
            status: "ACTIVE",
-           currentStage: formData.round.toLowerCase().replace(/ /g, '_'),
+           currentStage: formData.round,
            identitiesRevealed: false,
            createdAt: serverTimestamp(),
            matchData: { matchScore: submission.matchScore || 0 }
@@ -56,7 +56,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
       // 2. Update Submission Status
       await updateDoc(doc(db, "submissions", submission.id), {
         dealRoomId: roomId,
-        status: formData.round.toUpperCase()
+        status: formData.round
       });
 
       // 3. Create Interview Record linked to submission
@@ -142,11 +142,11 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
            <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pipeline Stage / Round</label>
               <select name="round" value={formData.round} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                 <option>Interview Scheduled</option>
-                 <option>Interview Round 1</option>
-                 <option>Interview Round 2</option>
-                 <option>Final Interview</option>
-                 <option>Offer Released</option>
+                 <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
+                 <option value="INTERVIEW_ROUND_1">Interview Round 1</option>
+                 <option value="INTERVIEW_ROUND_2">Interview Round 2</option>
+                 <option value="FINAL_INTERVIEW">Final Interview</option>
+                 <option value="OFFER_RELEASED">Offer Released</option>
               </select>
            </div>
 

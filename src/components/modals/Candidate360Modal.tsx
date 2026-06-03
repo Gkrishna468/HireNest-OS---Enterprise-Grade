@@ -12,7 +12,7 @@ import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase
 import { publishEvent } from '../../lib/eventEngine';
 import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
 
-type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
+type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
 
 export default function Candidate360Modal({ 
   candidate, 
@@ -33,6 +33,7 @@ export default function Candidate360Modal({
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('OVERVIEW');
   const [events, setEvents] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>(candidate.comments || []);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [isMapping, setIsMapping] = useState(false);
@@ -41,13 +42,26 @@ export default function Candidate360Modal({
   useEffect(() => {
     // Load timeline events
     const id = candidate.originalId || candidate.id || candidate.candidateId;
+    
+    // Load interviews
+    const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id), orderBy("createdAt", "desc"));
+    const unsubInterviews = onSnapshot(qInterviews, snap => {
+       setInterviews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => {
+       console.warn("Interview timeline error:", err.message);
+    });
+
     const qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), orderBy("timestamp", "desc"));
-    const unsub = onSnapshot(qEvents, snap => {
+    const unsubEvents = onSnapshot(qEvents, snap => {
        setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, err => {
        console.warn("Event timeline error:", err.message);
     });
-    return () => unsub();
+    
+    return () => {
+       unsubEvents();
+       unsubInterviews();
+    };
   }, [candidate]);
 
   const candidateIdStr = candidate.candidateId || candidate.id || "HN-CAN-PENDING";
@@ -67,6 +81,7 @@ export default function Candidate360Modal({
     { id: 'RESUME', label: 'Resume', icon: FileText },
     { id: 'AI_ANALYSIS', label: 'AI Analysis', icon: Bot },
     { id: 'REQUIREMENTS', label: 'Requirements', icon: Briefcase },
+    { id: 'INTERVIEWS', label: 'Interviews', icon: Calendar },
     { id: 'TIMELINE', label: 'Timeline', icon: Activity },
     { id: 'COLLABORATION', label: 'Collaboration', icon: MessageSquare },
     { id: 'GOVERNANCE', label: 'Governance', icon: ShieldAlert },
@@ -305,6 +320,53 @@ export default function Candidate360Modal({
                           </div>
                        )}
                     </div>
+                </div>
+             )}
+
+             {/* INTERVIEWS TAB */}
+             {activeTab === 'INTERVIEWS' && (
+                <div className="max-w-3xl mx-auto animate-in fade-in duration-300">
+                   <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm">
+                      <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-6 text-slate-400 border-b border-slate-100 pb-2">Interview History</h3>
+                      
+                      {interviews.length === 0 ? (
+                         <div className="text-center p-8 bg-slate-50 rounded-lg border border-slate-200 border-dashed">
+                            <Calendar size={32} className="text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-semibold text-slate-600">No Interviews Scheduled</p>
+                            <p className="text-xs text-slate-400 mt-1">Interviews mapped to this candidate will appear here.</p>
+                         </div>
+                      ) : (
+                         <div className="space-y-4">
+                            {interviews.map(interview => (
+                               <div key={interview.id} className="bg-slate-50 border border-slate-200 rounded-xl p-5 hover:border-indigo-300 transition-colors">
+                                  <div className="flex justify-between items-start mb-3">
+                                     <div>
+                                        <h4 className="font-bold text-slate-900">{interview.round}</h4>
+                                        <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                                           <span className="flex items-center gap-1"><Calendar size={12}/> {interview.date}</span>
+                                           <span className="flex items-center gap-1"><User size={12}/> {interview.interviewer}</span>
+                                        </div>
+                                     </div>
+                                     <Badge variant="outline" className={`uppercase text-[10px] tracking-wider ${interview.status === 'SCHEDULED' ? 'bg-amber-50 text-amber-700' : interview.status === 'PASSED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                                        {interview.status}
+                                     </Badge>
+                                  </div>
+                                  {interview.notes && (
+                                     <div className="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-100 mt-3 whitespace-pre-wrap">
+                                        {interview.notes}
+                                     </div>
+                                  )}
+                                  {interview.outcomeNotes && (
+                                     <div className="text-sm text-indigo-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100 mt-3 whitespace-pre-wrap">
+                                        <span className="font-bold uppercase text-[10px] tracking-widest block mb-1">Feedback / Outcome</span>
+                                        {interview.outcomeNotes}
+                                     </div>
+                                  )}
+                               </div>
+                            ))}
+                         </div>
+                      )}
+                   </div>
                 </div>
              )}
 

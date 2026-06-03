@@ -775,7 +775,7 @@ The resume text for ${tempName} could not be fully extracted. Please review the 
             await import("firebase/firestore");
           
           let existingUserQ;
-          if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
+          if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin") {
             existingUserQ = query(
               collection(db, "candidatePool"),
               where("resumeHash", "==", resumeHash),
@@ -784,7 +784,7 @@ The resume text for ${tempName} could not be fully extracted. Please review the 
             existingUserQ = query(
               collection(db, "candidatePool"),
               where("resumeHash", "==", resumeHash),
-              where("vendorId", "==", orgId),
+              where("vendorId", "==", userOrgId),
             );
           }
           
@@ -928,7 +928,7 @@ ${extText}`;
                 } else {
                    // Legacy Identity resolution for UI consolidation
                    let q;
-                   if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
+                   if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin") {
                      q = query(
                        collection(db, "candidatePool"),
                        where("email", "==", result.email),
@@ -937,7 +937,7 @@ ${extText}`;
                      q = query(
                        collection(db, "candidatePool"),
                        where("email", "==", result.email),
-                       where("vendorId", "==", orgId),
+                       where("vendorId", "==", userOrgId),
                      );
                    }
                    const snap = await getDocs(q);
@@ -950,9 +950,10 @@ ${extText}`;
                        `[IDENTITY RESOLUTION] Merging duplicate upload for ${result.email} into existing primary ID: ${resolvedCandId}`,
                      );
                      // Update the primary instead
+                     const primaryData = primary.data() as any;
                      await updateDoc(doc(db, "candidatePool", resolvedCandId), {
                        resumeText:
-                         updatePayload.resumeText || primary.data().resumeText,
+                         updatePayload.resumeText || primaryData.resumeText,
                        updatedAt: serverTimestamp(),
                      });
                      // Delete the ghost duplicate
