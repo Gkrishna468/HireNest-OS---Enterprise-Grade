@@ -104,7 +104,6 @@ export function ClientCandidatePipeline({ orgId, userRole }: { orgId: string, us
         // Also fire update to candidate globally!
         if (subData.candidateId) {
            batch.update(doc(db, "candidatePool", subData.candidateId), {
-             pipelineStage: newStage,
              updatedAt: serverTimestamp()
            });
         }

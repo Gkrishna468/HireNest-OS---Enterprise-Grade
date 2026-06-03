@@ -33,7 +33,7 @@ export function ActivityFeed({ recipients }: { recipients: string[] }) {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        let evts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        let evts: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         evts.sort((a, b) => {
           const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
           const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;

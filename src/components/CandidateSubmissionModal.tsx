@@ -119,151 +119,59 @@ export default function CandidateSubmissionModal({
     if (!name || !email) return;
     setIsSubmitting(true);
     try {
-      // 1. ALWAYS GET/CREATE THE CANONICAL CANDIDATE RECORD FIRST
-      // First check for a deterministic match via hash / email
-      const candQuery = query(collection(db, "candidatePool"), where("email", "==", email));
-      const existingSnap = await getDocs(candQuery);
+      const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
       
-      let candidateId = "";
-      
-      if (!existingSnap.empty) {
-        // Merge into existing candidate
-        candidateId = existingSnap.docs[0].id;
-        const candData = existingSnap.docs[0].data();
-        
-        await updateDoc(doc(db, "candidatePool", candidateId), {
-          updatedAt: serverTimestamp(),
-          resumeText: aiAnalysis?.analysis || candData.resumeText || "",
-          skills: keySkills
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        });
-      } else {
-        // Safe creation of new candidate
-        const candRef = await addDoc(collection(db, "candidatePool"), {
-          // Updated Canonical Candidate Schema
-          fullName: name,
-          primaryEmail: email,
-          phoneHash: phone,
-          linkedin: "",
-          skills: keySkills
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          experience: experience, // In a real system, this would be structured data
-          canonicalProfile: true,
-          visibilityScopes: ["VENDOR_NETWORK"], // Example
-          sourceOrganizations: ["local"], // Or current vendor org ID
-          dedupeFingerprint: email.toLowerCase(), // Simple dedupe hash for now
-
-          // Legacy payload mappings for backward compatibility during migration
-          name: name,
-          email: email,
-          phone: phone,
-          location: currentLocation,
-          preferredLocation,
-          noticePeriod,
-          currentCtc,
-          expectedCtc,
-          resumeText: aiAnalysis?.analysis || "",
-          vendorId: "local",
-          pipelineStage: "Candidate Added",
-          status: "QUEUED",
-          source: "Manual Intake UI",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          createdBy: "local_user",
-        });
-        candidateId = candRef.id;
-      }
-
-      await emitEvent(
-        "CandidateUploaded",
-        "CANDIDATE",
-        candidateId,
-        "local_user",
-        "vendor",
-        {
-          name: name,
-          email: email,
-          source: "Manual Intake UI",
-        },
-      );
-
-      // 2. IF NOT GENERAL, CREATE THE INTERSECTION "SUBMISSION"
+      let targetClientId = "";
       if (reqId !== "GENERAL") {
-        let targetClientId = "";
         try {
           const { getDoc, doc } = await import("firebase/firestore");
           const reqSnap = await getDoc(doc(db, "requirements_public", reqId));
           if (reqSnap.exists()) {
-            targetClientId = reqSnap.data().clientId || "";
+            targetClientId = reqSnap.data().clientId || "HQ";
           }
         } catch (err) {
           console.log("Could not fetch requirement for clientId", err);
         }
+      }
 
-        // Check if submission exists
-        try {
-          const { getDocs, query, collection, where } =
-            await import("firebase/firestore");
-          const q = query(
-            collection(db, "submissions"),
-            where("candidateId", "==", candidateId),
-            where("requirementId", "==", reqId),
-            where("vendorOrgId", "==", "local"),
-          );
-          const existing = await getDocs(q);
-          if (!existing.empty) {
-            alert(
-              "This candidate has already been submitted to this requirement.",
-            );
-            setIsSubmitting(false);
-            return;
-          }
-        } catch (e) {}
+      const response = await SubmissionOrchestrator.submitCandidate({
+        candidateData: {
+          name,
+          email,
+          phone,
+          resumeText: aiAnalysis?.analysis || "",
+          skills: keySkills.split(",").map((s) => s.trim()).filter(Boolean),
+        },
+        requirementId: reqId,
+        clientId: targetClientId,
+        vendorId: "local",
+        submitterId: "local_user",
+        initialStatus: "PENDING_REVIEW",
+        matchScore: aiAnalysis?.fitScore || 0,
+        aiAnalysis: aiAnalysis || null,
+      });
 
-        const subRef = await addDoc(collection(db, "submissions"), {
-          // Updated Submission Schema
-          canonicalRequirementId: reqId,
-          candidateId: candidateId,
-          requirementId: reqId,
-          submittedBy: "local_user",
-          vendorOrgId: "local",
-          clientOrgId: targetClientId, // Would be determined by requirement
-          clientId: targetClientId,
-          status: "PENDING_REVIEW",
-          matchScore: aiAnalysis?.fitScore || 0,
-          timeline: [
-            { action: "submitted", timestamp: new Date().toISOString() },
-          ],
+      if (!response.success && response.ownershipDetails) {
+         alert("Blocked: " + response.message);
+         setIsSubmitting(false);
+         return;
+      }
+      
+      if (!response.success) {
+         alert("Submission failed: " + response.error);
+         setIsSubmitting(false);
+         return;
+      }
 
-          // Legacy mappings
-          reqId,
-          reqTitle,
-          candidateName: name,
-          candidateEmail: email,
-          candidatePhone: phone,
-          experience,
-          currentLocation,
-          preferredLocation,
-          keySkills,
-          noticePeriod,
-          currentCtc,
-          expectedCtc,
-          aiFitScore: aiAnalysis?.fitScore || 0,
-          aiAnalysisText: aiAnalysis?.analysis || "",
-          submittedAt: serverTimestamp(),
-          stage: "NEW",
-        });
+      const subRefId = response.submissionId;
 
+      if (reqId !== "GENERAL" && subRefId) {
         // TRIGGER GOVERNANCE ENGINE
         try {
           await fetch("/api/validate-submission", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ submissionId: subRef.id }),
+            body: JSON.stringify({ submissionId: subRefId }),
           });
         } catch (e) {
           console.error("Governance engine execution failed:", e);
@@ -272,11 +180,11 @@ export default function CandidateSubmissionModal({
         await emitEvent(
           "SubmissionCreated",
           "SUBMISSION",
-          subRef.id,
+          subRefId,
           "local_user",
           "vendor",
           {
-            candidateId: candidateId,
+            candidateId: response.candidateId,
             candidateName: name,
             requirementId: reqId,
             reqTitle: reqTitle,
@@ -284,41 +192,22 @@ export default function CandidateSubmissionModal({
           },
         );
 
-        await publishEvent({
-          type: "info",
-          title: "Candidate Submitted",
-          message: `${name} has been floated to the client for ${reqTitle}.`,
-          actionUrl: "/deal-rooms",
-          recipients: ["GLOBAL_ADMIN", "GLOBAL_CLIENT", "GLOBAL_VENDOR"],
-        });
-
-        // 3. INITIALIZE WORKFLOW GRAPH (NEW ENGINE)
+        // INITIALIZE WORKFLOW GRAPH
         await workflowOrchestrator.initializeWorkflow(
           "submission_lifecycle",
-          subRef.id,
+          subRefId,
           SubmissionState.SUBMITTED,
           "local", // Vendor org context
           "local_user",
           "vendor_recruiter", // actorRole
-          "submissions",
+          "submissions"
         );
-
-        try {
-          await fetch("/api/workflows", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "start",
-              workflowType: "CandidateLifecycle",
-              input: { submissionId: subRef.id },
-            }),
-          });
-        } catch (e) {
-          console.log("Could not trigger workflow (may be offline)", e);
-        }
       }
 
       onClose();
+      if (typeof alert !== "undefined") {
+        alert("Candidate ingested & indexed via AI. Orchestrated successfully.");
+      }
     } catch (error) {
       console.error("Submission failed: ", error);
       handleFirestoreError(error, OperationType.WRITE, "candidatePool");

@@ -3,6 +3,7 @@ import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Network, Users, Building2, Fingerprint, Activity, ActivityIcon, FileText, ShieldCheck, CheckCircle } from "lucide-react";
 import { cn } from "../lib/utils";
+import { Badge } from "../lib/Badge";
 import { subscribeToEvents } from "../services/eventBus";
 
 type FilterType = 'organizations' | 'people' | 'candidates' | 'activity';

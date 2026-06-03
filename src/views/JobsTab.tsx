@@ -430,12 +430,6 @@ export default function JobsTab() {
                   await setDoc(
                     candRef,
                     {
-                      pipelineStage:
-                        existingCandData.pipelineStage === "Submitted" ||
-                        existingCandData.pipelineStage === "Interviewing" ||
-                        existingCandData.pipelineStage === "Placed"
-                          ? existingCandData.pipelineStage
-                          : "Matched",
                       matchScore: updatedMatches[0].matchScore, // highest score
                       canonicalRequirementId: updatedMatches[0].requirementId, // primary
                       requirementTitle: updatedMatches[0].requirementTitle,
@@ -1135,7 +1129,6 @@ export default function JobsTab() {
 
       // 1. Update Candidate Stage
       await updateDoc(doc(db, "candidatePool", targetId), {
-        pipelineStage: "Update Requested",
         missingSkills: aiAnalysis.missingSkills || [],
         updatedAt: serverTimestamp(),
       });
@@ -2375,13 +2368,11 @@ export default function JobsTab() {
                                                   selectedSubmission.id || selectedSubmission.candidateId,
                                                 ),
                                                 {
-                                                  pipelineStage: s,
                                                   updatedAt: serverTimestamp(),
                                                 },
                                               );
                                             }
                                             selectedSubmission.status = s;
-                                            selectedSubmission.pipelineStage = s;
                                           } catch (err) {
                                             console.error(
                                               "Could not update status",

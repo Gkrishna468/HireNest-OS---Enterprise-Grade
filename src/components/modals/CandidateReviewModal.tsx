@@ -16,18 +16,18 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
           status: "SHORTLISTED"
         });
       } else {
-        await addDoc(collection(db, "submissions"), {
-          canonicalRequirementId: requirement.id,
-          candidateId: submission.candidateId || submission.id,
+        const { SubmissionOrchestrator } = await import("../../lib/workflows/SubmissionOrchestrator");
+        await SubmissionOrchestrator.submitCandidate({
+          candidateData: {
+            id: submission.candidateId || submission.id,
+            name: submission.candidateName || submission.name || "Anonymous Candidate"
+          },
           requirementId: requirement.id,
-          submittedBy: auth.currentUser?.uid || "system",
           clientId: requirement.clientId || "ORG-LOCAL",
-          status: "SHORTLISTED",
-          matchScore: submission.matchScore || 0,
-          candidateName: submission.candidateName || submission.name || "Anonymous Candidate",
-          vendorName: submission.vendorName || "Vendor Not Linked",
           vendorId: submission.vendorId || "ORG-EXTERNAL-VENDOR",
-          createdAt: serverTimestamp()
+          submitterId: auth.currentUser?.uid || "system",
+          initialStatus: "SHORTLISTED",
+          matchScore: submission.matchScore || 0
         });
       }
       alert("Candidate shortlisted successfully.");
@@ -48,18 +48,18 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
           status: "REJECTED"
         });
       } else {
-        await addDoc(collection(db, "submissions"), {
-          canonicalRequirementId: requirement.id,
-          candidateId: submission.candidateId || submission.id,
+        const { SubmissionOrchestrator } = await import("../../lib/workflows/SubmissionOrchestrator");
+        await SubmissionOrchestrator.submitCandidate({
+          candidateData: {
+            id: submission.candidateId || submission.id,
+            name: submission.candidateName || submission.name || "Anonymous Candidate"
+          },
           requirementId: requirement.id,
-          submittedBy: auth.currentUser?.uid || "system",
           clientId: requirement.clientId || "ORG-LOCAL",
-          status: "REJECTED",
-          matchScore: submission.matchScore || 0,
-          candidateName: submission.candidateName || submission.name || "Anonymous Candidate",
-          vendorName: submission.vendorName || "Vendor Not Linked",
           vendorId: submission.vendorId || "ORG-EXTERNAL-VENDOR",
-          createdAt: serverTimestamp()
+          submitterId: auth.currentUser?.uid || "system",
+          initialStatus: "REJECTED",
+          matchScore: submission.matchScore || 0
         });
       }
       alert("Candidate rejected.");
