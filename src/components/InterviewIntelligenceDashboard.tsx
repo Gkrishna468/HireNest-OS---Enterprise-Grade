@@ -24,15 +24,15 @@ export function InterviewIntelligenceDashboard({ userRole, orgId }: { userRole: 
                const submissions = subsSnap.docs.map(d => ({id: d.id, ...d.data()}));
                const interviews = intsSnap.docs.map(d => ({id: d.id, ...d.data()}));
                
-               const filteredSubs = userRole.includes('client') ? submissions.filter(s => s.clientId === orgId) : 
-                                    userRole.includes('vendor') ? submissions.filter(s => s.vendorId === orgId) : 
+               const filteredSubs = userRole.includes('client') ? submissions.filter((s:any) => s.clientId === orgId) : 
+                                    userRole.includes('vendor') ? submissions.filter((s:any) => s.vendorId === orgId) : 
                                     submissions;
                                     
-               const filteredInts = userRole.includes('client') ? interviews.filter(i => {
-                   const sub = submissions.find(s => s.id === i.submissionId);
+               const filteredInts = userRole.includes('client') ? interviews.filter((i:any) => {
+                   const sub = submissions.find(s => s.id === i.submissionId) as any;
                    return sub?.clientId === orgId;
-               }) : userRole.includes('vendor') ? interviews.filter(i => {
-                   const sub = submissions.find(s => s.id === i.submissionId);
+               }) : userRole.includes('vendor') ? interviews.filter((i:any) => {
+                   const sub = submissions.find(s => s.id === i.submissionId) as any;
                    return sub?.vendorId === orgId;
                }) : interviews;
 
@@ -40,15 +40,15 @@ export function InterviewIntelligenceDashboard({ userRole, orgId }: { userRole: 
                const totalInts = filteredInts.length;
                
                const subToInt = Math.round((totalInts / totalSubs) * 100);
-               const offers = filteredSubs.filter(s => s.status === 'OFFER_RELEASED' || s.status === 'OFFER_ACCEPTED' || s.status === 'PLACED').length;
+               const offers = filteredSubs.filter((s:any) => s.status === 'OFFER_RELEASED' || s.status === 'OFFER_ACCEPTED' || s.status === 'PLACED').length;
                
                const intToOffer = totalInts > 0 ? Math.round((offers / totalInts) * 100) : 0;
-               const passedInts = filteredInts.filter(i => i.status === 'PASSED').length;
+               const passedInts = filteredInts.filter((i:any) => i.status === 'PASSED').length;
                const intSuccess = totalInts > 0 ? Math.round((passedInts / totalInts) * 100) : 0;
                
                // AI Side: High Match Score -> Interviewed
-               const highMatchSubs = filteredSubs.filter(s => s.matchScore >= 85);
-               const highMatchInts = highMatchSubs.filter(s => filteredInts.some(i => i.submissionId === s.id)).length;
+               const highMatchSubs = filteredSubs.filter((s:any) => s.matchScore >= 85);
+               const highMatchInts = highMatchSubs.filter((s:any) => filteredInts.some((i:any) => i.submissionId === s.id)).length;
                const aiAccuracy = highMatchSubs.length > 0 ? Math.round((highMatchInts / highMatchSubs.length) * 100) : 0;
 
                setStats({

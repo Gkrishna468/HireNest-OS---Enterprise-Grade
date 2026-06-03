@@ -75,7 +75,7 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
         });
       }
       import("../../lib/eventEngine").then(({ publishEvent }) => {
-         publishEvent({ type: "urgent", title: "Candidate Rejected", message: `Reason: ${rejectReason}`, metadata: { reason: rejectReason, note: rejectNote } })
+         publishEvent({ type: "urgent", title: "Candidate Rejected", message: `Reason: ${rejectReason}`, recipients: ["GLOBAL_ADMIN"] })
       });
       alert(`Candidate rejected. Reason: ${rejectReason}`);
       onClose();
@@ -288,7 +288,7 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
                          const mentions = input.value.match(/@\w+/g);
                          if (mentions) {
                              mentions.forEach(m => publishEvent({
-                                 type: 'communication',
+                                 type: 'info',
                                  title: 'Client Mentions You',
                                  message: `Client mentioned you in candidate review: ${submission.candidateName}`,
                                  recipients: [m.substring(1).toUpperCase()]

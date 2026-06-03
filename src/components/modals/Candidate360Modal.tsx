@@ -380,7 +380,7 @@ export default function Candidate360Modal({
                       if (mentions) {
                          import('../../lib/eventEngine').then(({ publishEvent }) => {
                             mentions.forEach(m => publishEvent({
-                               type: 'communication',
+                               type: 'info',
                                title: 'You were mentioned',
                                message: `You were mentioned in Candidate ${nameStr} thread.`,
                                recipients: [m.substring(1).toUpperCase()]

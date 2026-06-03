@@ -13,7 +13,7 @@ export default function AILearningLoopTab() {
     const fetchAIFeedback = async () => {
       try {
         const snap = await getDocs(collection(db, "aiFeedback"));
-        const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        const data: any[] = snap.docs.map(d => ({id: d.id, ...d.data()}));
         setFeedbacks(data.reverse()); // most recent first
         
         let rejectCount = 0;

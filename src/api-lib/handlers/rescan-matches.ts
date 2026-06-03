@@ -37,7 +37,16 @@ export default async function handler(req: any, res: any) {
     }
 
     // Fetch all candidates
-    const activeCandidates = await adminDb.collection("candidatePool").get();
+    let activeCandidates;
+    const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || orgId === "ORG-GLOBAL-HQ" || orgId === "ADMIN";
+    if (isAdmin) {
+      activeCandidates = await adminDb.collection("candidatePool").get();
+    } else if (role?.includes("vendor") || role?.includes("recruiter")) {
+      activeCandidates = await adminDb.collection("candidatePool").where("vendorId", "==", orgId).get();
+    } else {
+      activeCandidates = await adminDb.collection("candidatePool").where("clientId", "==", orgId).get();
+    }
+    
     const candidates = activeCandidates.docs.map((d: any) => ({
       id: d.id,
       ...d.data(),

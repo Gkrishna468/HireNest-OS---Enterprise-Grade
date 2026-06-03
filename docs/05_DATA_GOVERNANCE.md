@@ -17,3 +17,6 @@
 ## Record Lifecycle
 - Candidates are archived, never hard-deleted to preserve history and deduplication hashes.
 - `eventLedger` events are perpetually retained for auditing.
+
+## Recommendation Isolation
+All recommendation engines, matching engines, strategic routing modules, AI scoring modules, and requirement intelligence panels MUST operate ONLY on the authorized candidate universe for the current tenant. No module may directly scan the global `candidatePool` without tenant scoping (`where("vendorId", "==", orgId)` or `where("clientId", "==", orgId)`), except for legitimate operations performed under Admin constraints (`role === "admin" | "super_admin" | "ops_admin"`).

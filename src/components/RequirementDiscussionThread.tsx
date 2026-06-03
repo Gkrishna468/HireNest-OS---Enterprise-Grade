@@ -48,7 +48,7 @@ export function RequirementDiscussionThread({ requirementId, requirementTitle }:
          const mentions = newComment.match(/@\w+/g);
          if (mentions) {
              mentions.forEach(m => publishEvent({
-                 type: 'communication',
+                 type: 'info',
                  title: 'You were mentioned',
                  message: `You were mentioned in Requirement ${requirementTitle}`,
                  recipients: [m.substring(1).toUpperCase()]

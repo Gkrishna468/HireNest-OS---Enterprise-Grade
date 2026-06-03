@@ -2,6 +2,10 @@ import { adminDb } from "../../lib/firebase-admin.ts";
 
 export default async function handler(req: any, res: any) {
   try {
+      const { role } = req.query;
+      if (role !== 'admin' && role !== 'super_admin' && role !== 'ops_admin') {
+         return res.status(403).send("Forbidden. Requires admin privileges to view cross-tenant audit data.");
+      }
       const result: string[] = [];
       const push = (s: string) => result.push(s);
 

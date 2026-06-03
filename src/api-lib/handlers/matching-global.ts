@@ -161,8 +161,26 @@ export default async function matchingGlobalHandler(req: any, res: any) {
     
     if (adminDb) {
         try {
-            const allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).get();
-            const allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).get();
+            const isAdmin =
+              role === "admin" ||
+              role === "super_admin" ||
+              role === "ops_admin" ||
+              orgId === "ORG-GLOBAL-HQ" ||
+              orgId === "ADMIN";
+
+            let allCandidatesSnap;
+            let allSubsSnap;
+
+            if (isAdmin) {
+                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).get();
+                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).get();
+            } else if (role?.includes("vendor") || role?.includes("recruiter")) {
+                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).where("vendorId", "==", orgId).get();
+                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).where("vendorId", "==", orgId).get();
+            } else {
+                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).where("clientId", "==", orgId).get();
+                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).where("clientId", "==", orgId).get();
+            }
             
             const uniqueMap = new Map();
             
