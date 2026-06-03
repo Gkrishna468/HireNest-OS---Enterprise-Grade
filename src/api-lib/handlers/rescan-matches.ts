@@ -1,5 +1,6 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { GoogleGenAI } from "@google/genai";
+import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
 
@@ -37,15 +38,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Fetch all candidates
-    let activeCandidates;
-    const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || orgId === "ORG-GLOBAL-HQ" || orgId === "ADMIN";
-    if (isAdmin) {
-      activeCandidates = await adminDb.collection("candidatePool").get();
-    } else if (role?.includes("vendor") || role?.includes("recruiter")) {
-      activeCandidates = await adminDb.collection("candidatePool").where("vendorId", "==", orgId).get();
-    } else {
-      activeCandidates = await adminDb.collection("candidatePool").where("clientId", "==", orgId).get();
-    }
+    const activeCandidates = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).get();
     
     const candidates = activeCandidates.docs.map((d: any) => ({
       id: d.id,

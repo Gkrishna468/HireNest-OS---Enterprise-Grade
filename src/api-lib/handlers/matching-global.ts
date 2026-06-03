@@ -1,5 +1,6 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { runComprehensiveMatch } from "../ai/matchingEngine.js";
+import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 const dispatchWorkflowEvent = async (db: any, payload: any) => {
     console.log(`[EVENT MATCHING MOCK] Dispatched: ${payload.type}`);
@@ -62,15 +63,7 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
         const docsToEvaluate: any[] = [];
 
-        let poolSnapshot;
-        if (isAdmin) {
-          poolSnapshot = await adminDb.collection("candidatePool").get();
-        } else if (role?.includes("vendor") || role?.includes("recruiter")) {
-          poolSnapshot = await adminDb.collection("candidatePool").where("vendorId", "==", orgId).get();
-        } else {
-          // Client only sees submissions typically, but if hitting global match, they should only see theirs or what admin decided. In most cases, clients shouldn't run unrestricted semantic scans of the global pool.
-          poolSnapshot = await adminDb.collection("candidatePool").where("clientId", "==", orgId).get();
-        }
+        const poolSnapshot = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).get();
         
         poolSnapshot.docs.forEach((d: any) =>
           docsToEvaluate.push({ id: d.id, ...d.data() }),
@@ -171,16 +164,8 @@ export default async function matchingGlobalHandler(req: any, res: any) {
             let allCandidatesSnap;
             let allSubsSnap;
 
-            if (isAdmin) {
-                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).get();
-                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).get();
-            } else if (role?.includes("vendor") || role?.includes("recruiter")) {
-                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).where("vendorId", "==", orgId).get();
-                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).where("vendorId", "==", orgId).get();
-            } else {
-                allCandidatesSnap = await adminDb.collection("candidatePool").where("mappedJobId", "==", targetReqId).where("clientId", "==", orgId).get();
-                allSubsSnap = await adminDb.collection("submissions").where("requirementId", "==", targetReqId).where("clientId", "==", orgId).get();
-            }
+            allCandidatesSnap = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).where("mappedJobId", "==", targetReqId).get();
+            allSubsSnap = await getScopedCandidateUniverse(adminDb, "submissions", role, orgId).where("requirementId", "==", targetReqId).get();
             
             const uniqueMap = new Map();
             
