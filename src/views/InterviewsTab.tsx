@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Clock, Video, Users, UserCheck, XCircle, CheckCircle, Navigation, Monitor, ArrowRight, Save } from 'lucide-react';
+import { Calendar, Clock, Video, Users, UserCheck, XCircle, CheckCircle, Navigation, Monitor, ArrowRight, Save, RefreshCw } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { Badge } from '../lib/Badge';
@@ -17,8 +17,15 @@ export default function InterviewsTab() {
    const [showRejectForm, setShowRejectForm] = useState(false);
    const [rejectReason, setRejectReason] = useState("");
    const [feedbackNotes, setFeedbackNotes] = useState("");
+   
+   const [accessToken, setAccessToken] = useState<string | null>(null);
+   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+   const [calLoading, setCalLoading] = useState(false);
 
    useEffect(() => {
+      const token = localStorage.getItem("google_access_token");
+      if (token) setAccessToken(token);
+
       if (auth.currentUser) {
          getDoc(doc(db, "users", auth.currentUser.uid)).then(snap => {
             if (snap.exists()) {
@@ -35,6 +42,75 @@ export default function InterviewsTab() {
       });
       return () => unsub();
    }, []);
+
+   const fetchCalendarEvents = async () => {
+      if (!accessToken) return;
+      setCalLoading(true);
+      try {
+         const timeMin = new Date().toISOString();
+         const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/gopal@hirenestworkforce.com/events?timeMin=${timeMin}&maxResults=10&singleEvents=true&orderBy=startTime`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+         });
+         if (!res.ok) throw new Error("Failed to fetch calendar");
+         const data = await res.json();
+         setCalendarEvents(data.items || []);
+      } catch (err: any) {
+         console.warn("Calendar fetch error:", err);
+         if (err.message.includes('401') || err.message.includes('expired')) {
+            localStorage.removeItem("google_access_token");
+            setAccessToken(null);
+         }
+      } finally {
+         setCalLoading(false);
+      }
+   };
+
+   useEffect(() => {
+      if (accessToken) {
+         fetchCalendarEvents();
+      }
+   }, [accessToken]);
+
+   const pushToGoogleCalendar = async (inv: any) => {
+      if (!accessToken) return;
+      const confirmed = window.confirm("Are you sure you want to schedule this interview on your Google Calendar?");
+      if (!confirmed) return;
+      
+      try {
+         // Create event body
+         const event = {
+            summary: `Interview: ${inv.round}`,
+            description: `Interview Details:\n${inv.notes}\nLink: ${inv.meetingLink || ''}`,
+            start: {
+               dateTime: new Date(`${inv.date}T${inv.time || '09:00'}:00`).toISOString(),
+               timeZone: inv.timezone || 'UTC'
+            },
+            end: {
+               dateTime: new Date(new Date(`${inv.date}T${inv.time || '09:00'}:00`).getTime() + 60 * 60 * 1000).toISOString(), // +1 hour
+               timeZone: inv.timezone || 'UTC'
+            }
+         };
+         
+         const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/gopal@hirenestworkforce.com/events', {
+            method: 'POST',
+            headers: {
+               'Authorization': `Bearer ${accessToken}`,
+               'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(event)
+         });
+         
+         if (res.ok) {
+            alert('Successfully added to Google Calendar!');
+            fetchCalendarEvents();
+         } else {
+            alert('Failed to add to calendar.');
+         }
+      } catch (err) {
+         console.error(err);
+         alert('Error adding to calendar.');
+      }
+   };
 
    const handleOutcome = async (outcome: string) => {
       if (!selectedInterview) return;
@@ -151,6 +227,31 @@ export default function InterviewsTab() {
                      </div>
                   ))
                )}
+
+               {accessToken && (
+                  <div className="mt-8 border-t border-slate-200 pt-4 px-2">
+                     <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-xs uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                           <Calendar size={14} className="text-emerald-600"/> <span className="hidden lg:inline">gopal@hirenestworkforce.com</span><span className="lg:hidden">Calendar</span>
+                        </h3>
+                        {calLoading && <RefreshCw size={12} className="animate-spin text-slate-400" />}
+                     </div>
+                     {calendarEvents.length === 0 ? (
+                        <div className="text-center p-4 border border-dashed border-slate-200 rounded-lg">
+                           <span className="text-xs text-slate-500">No upcoming events found.</span>
+                        </div>
+                     ) : (
+                        calendarEvents.map(ev => (
+                           <div key={ev.id} className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm mb-2">
+                              <div className="text-[11px] font-bold text-slate-800 truncate">{ev.summary || 'Event'}</div>
+                              <div className="text-[10px] text-slate-500 mt-1">
+                                 {new Date(ev.start?.dateTime || ev.start?.date).toLocaleDateString()}
+                              </div>
+                           </div>
+                        ))
+                     )}
+                  </div>
+               )}
             </div>
          </section>
          
@@ -194,6 +295,18 @@ export default function InterviewsTab() {
                         <div className="font-semibold text-slate-800 text-sm">{selectedInterview.mode || selectedInterview.calendarProvider || 'TBD'}</div>
                      </div>
                   </div>
+                  
+                  {accessToken && selectedInterview.status === 'SCHEDULED' && (
+                     <div className="flex justify-end">
+                        <Button 
+                           onClick={() => pushToGoogleCalendar(selectedInterview)}
+                           variant="outline" 
+                           className="bg-white border flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                        >
+                           <Calendar size={14} /> Add to Google Calendar
+                        </Button>
+                     </div>
+                  )}
                   
                   {selectedInterview.meetingLink && (
                      <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 flex items-center justify-between">

@@ -165,12 +165,7 @@ export default function JobsTab() {
             if (hqAuth) {
               qFallback = query(collection(db, "candidatePool"), limit(50));
             } else if (isClient) {
-              qFallback = query(
-                collection(db, "candidatePool"),
-                where("mappedJobId", "==", selectedJob?.id || "NONE"),
-                where("clientId", "==", orgId),
-                limit(50),
-              );
+              qFallback = null; // Clients do not query candidate pool directly
             } else {
               qFallback = query(
                 collection(db, "candidatePool"),
@@ -179,15 +174,19 @@ export default function JobsTab() {
               );
             }
 
-            const candidatesSnap = await getDocs(qFallback);
-            candidateList = candidatesSnap.docs.map(
-              (doc) =>
-                ({
-                  id: doc.id,
-                  candidateId: doc.id,
-                  ...(doc.data() as any),
-                }) as any,
-            );
+            if (qFallback) {
+                const candidatesSnap = await getDocs(qFallback);
+                candidateList = candidatesSnap.docs.map(
+                  (doc) =>
+                    ({
+                      id: doc.id,
+                      candidateId: doc.id,
+                      ...(doc.data() as any),
+                    }) as any,
+                );
+            } else {
+                candidateList = [];
+            }
           } catch (directQueryErr: any) {
             console.warn(
               "[AUTO_SCANNER] Direct candidates query failed:",
@@ -634,19 +633,28 @@ export default function JobsTab() {
           where("requirementId", "==", selectedJob.id),
           where("vendorId", "==", orgId)
         );
-      }
-
-      let qCand = query(
-        collection(db, "candidatePool"),
-        where("mappedJobId", "==", selectedJob.id)
-      );
-      if (isVendor) {
-        qCand = query(
-          collection(db, "candidatePool"),
-          where("mappedJobId", "==", selectedJob.id),
-          where("vendorId", "==", orgId)
+      } else if (isClient) {
+        qSub = query(
+          collection(db, "submissions"),
+          where("requirementId", "==", selectedJob.id),
+          where("clientId", "==", orgId)
         );
       }
+
+      let qCand: any = null;
+      if (isAdmin) {
+          qCand = query(
+            collection(db, "candidatePool"),
+            where("mappedJobId", "==", selectedJob.id)
+          );
+      } else if (isVendor) {
+          qCand = query(
+            collection(db, "candidatePool"),
+            where("mappedJobId", "==", selectedJob.id),
+            where("vendorId", "==", orgId)
+          );
+      }
+      // Clients do NOT query candidatePool directly as per Golden Governance Rule
 
       let currentMappedCands: any[] = [];
       let currentSubs: any[] = [];

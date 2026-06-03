@@ -773,10 +773,21 @@ The resume text for ${tempName} could not be fully extracted. Please review the 
         try {
           const { getDocs, query, collection, where } =
             await import("firebase/firestore");
-          const existingUserQ = query(
-            collection(db, "candidatePool"),
-            where("resumeHash", "==", resumeHash),
-          );
+          
+          let existingUserQ;
+          if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
+            existingUserQ = query(
+              collection(db, "candidatePool"),
+              where("resumeHash", "==", resumeHash),
+            );
+          } else {
+            existingUserQ = query(
+              collection(db, "candidatePool"),
+              where("resumeHash", "==", resumeHash),
+              where("vendorId", "==", orgId),
+            );
+          }
+          
           const existingDocs = await getDocs(existingUserQ);
           if (!existingDocs.empty) {
             console.warn(
@@ -784,7 +795,9 @@ The resume text for ${tempName} could not be fully extracted. Please review the 
             );
             continue; // Skip this duplicate fully
           }
-        } catch (e) {}
+        } catch (e) {
+            console.warn("Duplicate check failed:", e);
+        }
         // ----------------------------------------
 
         if (combinedExtractedText)
@@ -914,10 +927,19 @@ ${extText}`;
                    // Skip legacy merge so we don't pollute the actual owner's candidate pool record
                 } else {
                    // Legacy Identity resolution for UI consolidation
-                   const q = query(
-                     collection(db, "candidatePool"),
-                     where("email", "==", result.email),
-                   );
+                   let q;
+                   if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
+                     q = query(
+                       collection(db, "candidatePool"),
+                       where("email", "==", result.email),
+                     );
+                   } else {
+                     q = query(
+                       collection(db, "candidatePool"),
+                       where("email", "==", result.email),
+                       where("vendorId", "==", orgId),
+                     );
+                   }
                    const snap = await getDocs(q);
                    const duplicates = snap.docs.filter((d) => d.id !== candId);
        

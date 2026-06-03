@@ -135,7 +135,17 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     setError("");
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+      provider.addScope('https://www.googleapis.com/auth/gmail.send');
+      provider.addScope('https://www.googleapis.com/auth/calendar.events');
+      provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+      const result = await signInWithPopup(auth, provider);
+      // Wait to handle cache if credential available
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        // Option to cache token later for the new APIs
+        localStorage.setItem("google_access_token", credential.accessToken);
+      }
     } catch (err: any) {
       console.warn("Google Auth Warning:", err.message);
       setError(err.message || "Failed to finalize authentication handshake.");

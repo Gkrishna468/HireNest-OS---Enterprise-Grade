@@ -80,6 +80,12 @@ export default async function handler(req: any, res: any) {
              status = s.data().status || "SUBMITTED";
          });
 
+         // ENFORCING GOVERNANCE RULE: Clients ONLY see candidates submitted to their requirements.
+         if (!subExists) {
+             continue;
+         }
+         submissionFiltered++;
+
          matches.push({
              id: doc.id,
              candidateId: candId,

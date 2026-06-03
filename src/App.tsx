@@ -52,6 +52,7 @@ import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import InterviewsTab from "./views/InterviewsTab";
+import InboxTab from "./views/InboxTab";
 import { ClientCandidatePipeline } from "./views/workspaces/ClientCandidatePipeline";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
@@ -453,6 +454,13 @@ const AppContent = () => {
                 active={location.pathname === "/financials"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <SidebarItem
+                to="/emails"
+                icon={MessageSquare}
+                label="Work Email"
+                active={location.pathname === "/emails"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
             </>
           )}
 
@@ -498,6 +506,13 @@ const AppContent = () => {
                 icon={Video}
                 label="Interviews"
                 active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/emails"
+                icon={MessageSquare}
+                label="Work Email"
+                active={location.pathname === "/emails"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -635,6 +650,13 @@ const AppContent = () => {
                 icon={Video}
                 label="Interviews"
                 active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/emails"
+                icon={Activity}
+                label="Work Email"
+                active={location.pathname === "/emails"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
 
@@ -920,6 +942,7 @@ const AppContent = () => {
             )}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
             <Route path="/interviews" element={<InterviewsTab />} />
+            <Route path="/emails" element={<InboxTab />} />
             {isAdmin && (
               <Route
                 path="/operations"
