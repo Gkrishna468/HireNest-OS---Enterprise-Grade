@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-import { Users, Briefcase, DollarSign, Activity, Shield, ChevronRight, Sparkles } from "lucide-react";
+import { Users, Briefcase, DollarSign, Activity, Shield, ChevronRight, Sparkles, TrendingUp } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
@@ -135,6 +135,39 @@ export default function AdminOverview() {
              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{stat.desc}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-8">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onClick={() => navigate('/governance')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
+            <div className="bg-indigo-50 text-indigo-600 p-3 rounded-lg group-hover:bg-indigo-100 transition-colors">
+              <Shield size={20} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900 text-sm">View Audit Logs</h4>
+              <p className="text-xs text-slate-500">Monitor system governance</p>
+            </div>
+          </button>
+          <button onClick={() => navigate('/hq')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
+            <div className="bg-amber-50 text-amber-600 p-3 rounded-lg group-hover:bg-amber-100 transition-colors">
+              <Activity size={20} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900 text-sm">Review Delete Requests</h4>
+              <p className="text-xs text-slate-500">Manage data erasure</p>
+            </div>
+          </button>
+          <button onClick={() => navigate('/health')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
+            <div className="bg-emerald-50 text-emerald-600 p-3 rounded-lg group-hover:bg-emerald-100 transition-colors">
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900 text-sm">Operational Intelligence</h4>
+              <p className="text-xs text-slate-500">Executive dashboard & platform funnel</p>
+            </div>
+          </button>
+        </div>
       </div>
       
       <div className="flex flex-col gap-2 mt-2">

@@ -35,6 +35,7 @@ import {
   Receipt,
   BookOpen,
   Search,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -76,6 +77,12 @@ import { NotificationCenter } from "./components/NotificationCenter";
 import { auth, db } from "./lib/firebase";
 import { signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+
+import SettingsTab from "./views/SettingsTab";
+
+import BenchmarkDashboard from "./views/BenchmarkDashboard";
+import CustomerSuccessDashboard from "./views/CustomerSuccessDashboard";
+import AILearningLoopTab from "./views/AILearningLoopTab";
 
 const SidebarItem = ({
   to,
@@ -646,12 +653,37 @@ const AppContent = () => {
               />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Enterprise Validation
+              </div>
+              <SidebarItem
+                to="/benchmarks"
+                icon={Activity}
+                label="Benchmarks"
+                active={location.pathname === "/benchmarks"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/adoption"
+                icon={TrendingUp}
+                label="Customer Success"
+                active={location.pathname === "/adoption"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/ai-learning"
+                icon={Cpu}
+                label="AI Learning Loop"
+                active={location.pathname === "/ai-learning"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Administration
               </div>
               <SidebarItem
                 to="/health"
-                icon={Activity}
-                label="Prod Health"
+                icon={TrendingUp}
+                label="Operational Intelligence"
                 active={location.pathname === "/health"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
@@ -804,6 +836,9 @@ const AppContent = () => {
             {(isAdmin || isRecruiter) && (
               <Route path="/network" element={<NetworkDirectoryTab />} />
             )}
+            {isAdmin && <Route path="/benchmarks" element={<BenchmarkDashboard />} />}
+            {isAdmin && <Route path="/adoption" element={<CustomerSuccessDashboard />} />}
+            {isAdmin && <Route path="/ai-learning" element={<AILearningLoopTab />} />}
             {isAdmin && (
               <Route
                 path="/health"
@@ -888,7 +923,7 @@ const AppContent = () => {
                 <Onboarding onComplete={() => window.location.reload()} />
               }
             />
-            <Route path="/settings" element={<AdminSecurityDashboard />} />
+            <Route path="/settings" element={user && !loading ? <SettingsTab /> : <Navigate to="/dashboard" />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

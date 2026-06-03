@@ -656,8 +656,10 @@ export default function DealRoomsTab() {
               <div className="p-4 mt-8">
                 <EmptyState
                   icon={MessageSquare}
-                  title="No active submissions"
-                  description="There are currently no active submissions. Submissions appear here when candidates are shortlisted for requirements."
+                  title="No active deal rooms"
+                  description="A deal room is automatically created when a candidate enters the interview stage."
+                  actionLabel="View Pipeline"
+                  onAction={() => window.location.hash = '#/pipeline'}
                 />
               </div>
             ) : (

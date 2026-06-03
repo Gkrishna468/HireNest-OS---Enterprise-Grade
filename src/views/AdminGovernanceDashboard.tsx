@@ -38,7 +38,29 @@ export default function AdminGovernanceDashboard() {
       let failCount = 0;
       let totalIssues = 0;
 
-      // 1. Cross-Workspace Parity (Requirement Ledger vs Submissions)
+      // 1. Core Governance Audits
+      const { runReleaseGateAudit } = await import("../lib/governance/releaseGateEngine");
+      const rga = await runReleaseGateAudit();
+      
+      const pushSuite = (result: { pass: boolean; log: string }, name: string) => {
+        if (!result.pass) failCount++;
+        generatedSuites.push({
+          name: name,
+          status: result.pass ? "PASS" : "FAIL",
+          detail: result.log,
+          isError: !result.pass,
+          severity: "CRITICAL",
+          environment: "Production",
+          dateFound: new Date().toISOString().split("T")[0],
+        });
+      };
+
+      pushSuite(rga.architecture, "Architecture Schema Validation");
+      pushSuite(rga.data, "Data Governance Validation");
+      pushSuite(rga.ai, "AI Governance Validation");
+      pushSuite(rga.product, "Product Governance Validation");
+
+      // 2. Cross-Workspace Parity (Requirement Ledger vs Submissions)
       const submissionsSnap = await getDocs(collection(db, "submissions"));
       const reqSnap = await getDocs(collection(db, "requirementLedger"));
       
@@ -405,15 +427,15 @@ export default function AdminGovernanceDashboard() {
         </div>
       </div>
 
-      {/* QA Validation Center */}
+      {/* Release Gate Engine */}
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-xl overflow-hidden mb-8">
          <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950">
             <div>
                <h2 className="text-lg font-black tracking-widest text-slate-100 uppercase flex items-center gap-2">
                  <TerminalSquare size={20} className="text-indigo-400" />
-                 End-to-End (E2E) QA Validation Center
+                 Release Gate Engine
                </h2>
-               <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Automated Headless Workflow Execution & State Synchronization Validation</p>
+               <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Automated Governance Audits for Production Releases</p>
             </div>
             <button 
                onClick={runValidation}
@@ -424,9 +446,9 @@ export default function AdminGovernanceDashboard() {
                )}
             >
                {isValidating ? (
-                  <><RefreshCcw size={14} className="animate-spin" /> Running Suites...</>
+                  <><RefreshCcw size={14} className="animate-spin" /> Running Audits...</>
                ) : (
-                  <><PlayCircle size={14} /> Execute Workflow Suites</>
+                  <><PlayCircle size={14} /> Run Governance Audit</>
                )}
             </button>
          </div>
@@ -434,7 +456,7 @@ export default function AdminGovernanceDashboard() {
          {isValidating && (
              <div className="p-12 flex flex-col items-center justify-center space-y-4 text-slate-400">
                 <RefreshCcw size={48} className="animate-spin text-indigo-500 mb-2" />
-                <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Running Candidate Lifecycle Tests...</p>
+                <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Running Pre-Release Audits...</p>
                 <div className="w-64 bg-slate-800 h-1.5 rounded-full overflow-hidden">
                    <div className="bg-indigo-500 h-full animate-[progress_2.5s_ease-in-out_forwards]" style={{ width: '100%' }}></div>
                 </div>
