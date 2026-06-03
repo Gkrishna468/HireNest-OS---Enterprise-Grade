@@ -4,9 +4,7 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
-  limit,
 } from "firebase/firestore";
 import {
   Clock,
@@ -22,17 +20,26 @@ export function ActivityFeed({ recipients }: { recipients: string[] }) {
   useEffect(() => {
     if (recipients.length === 0) return;
 
+    let queryRecipients = recipients;
+    if (queryRecipients.length > 10) {
+      queryRecipients = queryRecipients.slice(0, 10);
+    }
+
     const q = query(
       collection(db, "event_ledger"),
-      where("recipients", "array-contains-any", recipients),
-      orderBy("createdAt", "desc"),
-      limit(20),
+      where("recipients", "array-contains-any", queryRecipients)
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const evts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        let evts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        evts.sort((a, b) => {
+          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return bTime - aTime;
+        });
+        evts = evts.slice(0, 20);
         setEvents(evts);
       },
       (err) => {

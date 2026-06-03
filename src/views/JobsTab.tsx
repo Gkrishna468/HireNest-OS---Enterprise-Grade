@@ -1824,17 +1824,19 @@ export default function JobsTab() {
                     };
 
                     uniqueCandidates.forEach((c) => {
-                      const stage = c.pipelineStage || c.status || "Matched";
-                      if (stage === "Matched") counts.matches++;
-                      else if (stage === "Added") counts.floated++;
+                      const stage = c.status || c.pipelineStage || "Matched";
+                      const upperStage = stage.toUpperCase();
+                      if (upperStage === "MATCHED" || upperStage === "MATCH") counts.matches++;
+                      else if (upperStage === "ADDED" || upperStage === "QUEUED") counts.floated++;
                       else if (
-                        stage === "Submitted" ||
-                        stage === "Deal Room Active" ||
-                        stage.includes("SUBMITTED")
+                        upperStage === "SUBMITTED" ||
+                        upperStage === "DEAL ROOM ACTIVE" ||
+                        upperStage === "DEAL ROOM" ||
+                        upperStage.includes("SUBMITTED")
                       )
                         counts.submitted++;
-                      else if (stage === "Interviewing") counts.interviewing++;
-                      else if (stage === "Offer") counts.offers++;
+                      else if (upperStage === "INTERVIEWING" || upperStage === "INTERVIEW") counts.interviewing++;
+                      else if (upperStage === "OFFER") counts.offers++;
                       else if (stage === "Placed" || stage === "hired")
                         counts.placed++;
                       else if (stage === "Rejected") counts.rejected++;
@@ -2343,6 +2345,7 @@ export default function JobsTab() {
                                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
                                 {STAGES.map((s, idx) => {
                                   const currentStage =
+                                    selectedSubmission?.status ||
                                     selectedSubmission?.pipelineStage ||
                                     "Matched";
                                   const isCurrent = currentStage === s;
@@ -2359,24 +2362,29 @@ export default function JobsTab() {
                                           );
                                         } else {
                                           try {
-                                            await updateDoc(
-                                              doc(
-                                                db,
-                                                "candidatePool",
-                                                selectedSubmission.id ||
-                                                  selectedSubmission.candidateId,
-                                              ),
-                                              {
-                                                pipelineStage: s,
-                                                updatedAt: serverTimestamp(),
-                                              },
-                                            );
-                                            // Update deeply in state or local
-                                            selectedSubmission.pipelineStage =
-                                              s;
+                                            if (selectedSubmission._isSubmission || !selectedSubmission.email) {
+                                               await updateDoc(doc(db, "submissions", selectedSubmission.id), {
+                                                  status: s,
+                                                  updatedAt: serverTimestamp()
+                                               });
+                                            } else {
+                                              await updateDoc(
+                                                doc(
+                                                  db,
+                                                  "candidatePool",
+                                                  selectedSubmission.id || selectedSubmission.candidateId,
+                                                ),
+                                                {
+                                                  pipelineStage: s,
+                                                  updatedAt: serverTimestamp(),
+                                                },
+                                              );
+                                            }
+                                            selectedSubmission.status = s;
+                                            selectedSubmission.pipelineStage = s;
                                           } catch (err) {
                                             console.error(
-                                              "Could not update pipelineStage",
+                                              "Could not update status",
                                               err,
                                             );
                                           }

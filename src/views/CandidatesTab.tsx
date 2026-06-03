@@ -72,6 +72,7 @@ const STAGES = [
   "Matched",
   "Submitted",
   "Interviewing",
+  "Offer",
   "Placed",
 ];
 
@@ -82,6 +83,7 @@ export default function CandidatesTab() {
     [],
   );
   const [candidateSubmissions, setCandidateSubmissions] = useState<any[]>([]);
+  const [globalSubmissions, setGlobalSubmissions] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [formData, setFormData] = useState({
@@ -317,6 +319,21 @@ export default function CandidatesTab() {
             );
           }
 
+          let qSub = null;
+          if (isAdminUser) {
+             qSub = query(collection(db, "submissions"), limit(500));
+          } else if (isClientUser) {
+             qSub = query(collection(db, "submissions"), where("clientId", "==", orgId), limit(500));
+          } else {
+             qSub = query(collection(db, "submissions"), where("vendorOrgId", "==", orgId), limit(500));
+          }
+
+          if (qSub) {
+             onSnapshot(qSub, snap => {
+                setGlobalSubmissions(snap.docs.map(d => ({id: d.id, ...d.data()})));
+             });
+          }
+
           try {
             const usersSnap = await getDocs(collection(db, "users"));
             const vMap: Record<string, string> = {};
@@ -351,7 +368,7 @@ export default function CandidatesTab() {
     const unsubs: any[] = [];
     const loadSubmissions = async () => {
       try {
-        const id = selectedCandidate.id || selectedCandidate.candidateId;
+        const id = selectedCandidate.originalId || selectedCandidate.id || selectedCandidate.candidateId;
         let qId = query(
           collection(db, "submissions"),
           where("candidateId", "==", id),
@@ -969,9 +986,10 @@ export default function CandidatesTab() {
         setMappingResult(data);
 
         // 1. Create submission document (Single Source of Truth)
+        const dbId = selectedCandidate.originalId || selectedCandidate.id;
         await addDoc(collection(db, "submissions"), {
            canonicalRequirementId: jobId,
-           candidateId: selectedCandidate.id,
+           candidateId: dbId,
            requirementId: jobId,
            clientId: job.clientId || "HQ",
            vendorOrgId: userOrgId || "HQ",
@@ -990,7 +1008,7 @@ export default function CandidatesTab() {
         });
 
         // 2. Update Candidate Pool
-        await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
+        await updateDoc(doc(db, "candidatePool", dbId), {
           pipelineStage: "Matched",
           canonicalRequirementId: jobId,
           mappedJobId: jobId,
@@ -1014,11 +1032,13 @@ export default function CandidatesTab() {
     if (!job) return;
 
     const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
+    const candidateDbId = selectedCandidate.originalId || selectedCandidate.id;
+
     try {
       const dealPayload = {
         id: roomId,
         requirementId: selectedJobId,
-        candidateId: selectedCandidate.id,
+        candidateId: candidateDbId,
         vendorId: userOrgId,
         clientId: job.clientId,
         candidateName: selectedCandidate.name,
@@ -1033,7 +1053,7 @@ export default function CandidatesTab() {
 
       await setDoc(doc(db, "dealRooms", roomId), dealPayload);
 
-      await updateDoc(doc(db, "candidatePool", selectedCandidate.id), {
+      await updateDoc(doc(db, "candidatePool", candidateDbId), {
         pipelineStage: "Submitted",
         activeDealId: roomId,
         updatedAt: serverTimestamp(),
@@ -1041,7 +1061,7 @@ export default function CandidatesTab() {
       
       // Update submissions ledger so client and HQ boards are in sync
       const { query, collection, where, getDocs, updateDoc: fireUpdate } = await import("firebase/firestore");
-      const subq = query(collection(db, "submissions"), where("candidateId", "==", selectedCandidate.id), where("requirementId", "==", selectedJobId));
+      const subq = query(collection(db, "submissions"), where("candidateId", "==", candidateDbId), where("requirementId", "==", selectedJobId));
       const subsnap = await getDocs(subq);
       
       if (!subsnap.empty) {
@@ -1052,7 +1072,7 @@ export default function CandidatesTab() {
       } else {
         await addDoc(collection(db, "submissions"), {
            canonicalRequirementId: selectedJobId,
-           candidateId: selectedCandidate.id,
+           candidateId: candidateDbId,
            requirementId: selectedJobId,
            clientId: job.clientId || "HQ",
            vendorOrgId: userOrgId || "HQ",
@@ -1096,11 +1116,19 @@ export default function CandidatesTab() {
     }
   };
 
-  const filteredCandidates = candidates
-    .map((c) => {
-      let stage = c.pipelineStage || "Added";
-      const n = c.name || "";
-      if (
+  const pseudoCandidates: any[] = [];
+  const subsByCandId: Record<string, any[]> = {};
+  globalSubmissions.forEach(sub => {
+     if (!subsByCandId[sub.candidateId]) subsByCandId[sub.candidateId] = [];
+     subsByCandId[sub.candidateId].push(sub);
+  });
+
+  candidates.forEach(c => {
+     const subs = subsByCandId[c.id || c.candidateId];
+     
+     let isProcessing = false;
+     const n = c.name || "";
+     if (
         n.toUpperCase().startsWith("CANDIDATE ") ||
         n === "Pending Distillation" ||
         n === "Unnamed Candidate" ||
@@ -1112,16 +1140,55 @@ export default function CandidatesTab() {
         n.includes("Parsing Pending") ||
         c.distillationStatus === "PROCESSING" ||
         c.distillationStatus === "PENDING" ||
-        !c.email ||
-        c.email === "" ||
-        c.email.includes("pending@") ||
-        !c.skills ||
-        c.skills.length === 0
+        !c.email || c.email === "" || c.email.includes("pending@") ||
+        !c.skills || c.skills.length === 0
       ) {
-        stage = "Processing";
-      }
-      return { ...c, pipelineStage: stage };
-    })
+         isProcessing = true;
+     }
+
+     if (!subs || subs.length === 0) {
+        pseudoCandidates.push({...c, pipelineStage: isProcessing ? "Processing" : "Added"});
+     } else {
+        subs.forEach(sub => {
+           let stage = sub.status || "Matched";
+           stage = stage.toUpperCase();
+           if (stage === "QUEUED" || stage === "ADDED") stage = "Added";
+           else if (stage === "MATCHED" || stage === "MATCH") stage = "Matched";
+           else if (stage === "SUBMITTED" || stage === "DEAL ROOM") stage = "Submitted";
+           else if (stage === "INTERVIEWING" || stage === "INTERVIEW") stage = "Interviewing";
+           else if (stage === "OFFER") stage = "Offer";
+           else if (stage === "PLACED" || stage === "HIRED") stage = "Placed";
+           else stage = "Matched";
+
+           if (isProcessing) stage = "Processing";
+
+           console.log({
+             candidateId: c.id,
+             requirementId: sub.requirementId,
+             candidatePoolStage: c.pipelineStage || "Added",
+             submissionStatus: sub.status,
+             isDrifting: (c.pipelineStage || "Added").toUpperCase() !== (sub.status || "").toUpperCase()
+           });
+
+           if ((c.pipelineStage || "Added").toUpperCase() !== (sub.status || "MATCHED").toUpperCase()) {
+             console.warn(`[DRIFT REPORT] Candidate ${c.id} has drift! Pool: ${c.pipelineStage} vs Sub: ${sub.status}`);
+           }
+
+           pseudoCandidates.push({
+               ...c,
+               pipelineStage: stage,
+               id: c.id + "_" + sub.id,
+               originalId: c.id,
+               _submissionId: sub.id,
+               _submissionReqTitle: sub.reqTitle || sub.requirementId,
+               _submissionStatus: sub.status,
+               _submissionRef: sub
+           });
+        });
+     }
+  });
+
+  const filteredCandidates = pseudoCandidates
     .filter((c) => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -1129,7 +1196,8 @@ export default function CandidatesTab() {
         c.name?.toLowerCase().includes(q) ||
         c.email?.toLowerCase().includes(q) ||
         c.skills?.join(",").toLowerCase().includes(q) ||
-        c.canonicalRequirementId?.toLowerCase().includes(q)
+        c.canonicalRequirementId?.toLowerCase().includes(q) ||
+        c._submissionReqTitle?.toLowerCase().includes(q)
       );
     });
 
@@ -2113,16 +2181,25 @@ export default function CandidatesTab() {
                               }
                               await finalizeDeal();
                             } else {
-                              await updateDoc(
-                                doc(db, "candidatePool", selectedCandidate.id),
-                                {
-                                  pipelineStage: s,
-                                  updatedAt: serverTimestamp(),
-                                },
-                              );
+                              if (selectedCandidate._submissionId) {
+                                 await updateDoc(doc(db, "submissions", selectedCandidate._submissionId), {
+                                    status: s,
+                                    updatedAt: serverTimestamp()
+                                 });
+                              } else {
+                                // Fallback: just update candidatePool for generic stage (e.g., Added)
+                                await updateDoc(
+                                  doc(db, "candidatePool", selectedCandidate.originalId || selectedCandidate.id),
+                                  {
+                                    pipelineStage: s,
+                                    updatedAt: serverTimestamp(),
+                                  },
+                                );
+                              }
                               setSelectedCandidate({
                                 ...selectedCandidate,
                                 pipelineStage: s,
+                                _submissionStatus: s
                               });
                             }
                           } catch (err: any) {

@@ -728,7 +728,9 @@ service cloud.firestore {
     }
 
     match /event_ledger/{eventId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        resource.data.recipients.hasAny([request.auth.uid, 'GLOBAL_ADMIN', 'GLOBAL_CLIENT', 'GLOBAL_VENDOR'])
+      );
       allow create: if isVerified();
       allow update, delete: if false; // Immutable event ledger
     }

@@ -34,21 +34,24 @@ export default function DashboardTab() {
       const openReqs = requirements.filter(r => r.status && ["ACTIVE", "PUBLISHED", "PENDING"].includes(r.status.toUpperCase())).length;
 
       // Candidates & Submissions
-      const candSnap = await getDocs(collection(db, "candidatePool"));
-      const candidates = candSnap.docs.map(d => d.data());
-
+      const subSnap = await getDocs(collection(db, "submissions"));
+      const allSubs = subSnap.docs.map(d => d.data());
+      
       let submissions = 0;
       let interviews = 0;
       let offers = 0;
       let placements = 0;
 
-      candidates.forEach(c => {
-         const stage = c.pipelineStage || c.status || "";
-         if (stage === "Submitted" || stage === "Deal Room") submissions++;
-         if (stage === "Interviewing") interviews++;
-         if (stage === "Offer") offers++;
-         if (stage === "Placed" || stage === "hired") placements++;
+      allSubs.forEach(s => {
+         const stage = (s.status || "").toUpperCase();
+         if (stage === "SUBMITTED" || stage === "DEAL ROOM" || stage === "MATCHED" || stage === "MATCH") submissions++;
+         if (stage === "INTERVIEWING" || stage === "INTERVIEW") interviews++;
+         if (stage === "OFFER") offers++;
+         if (stage === "PLACED" || stage === "HIRED") placements++;
       });
+      
+      const candSnap = await getDocs(collection(db, "candidatePool"));
+      const candidates = candSnap.docs.map(d => d.data());
 
       // DealRooms (Backup placements count, etc.)
       const drSnap = await getDocs(collection(db, "dealRooms"));
