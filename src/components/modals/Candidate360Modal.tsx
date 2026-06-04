@@ -75,7 +75,7 @@ export default function Candidate360Modal({
   }, [candidate]);
 
   const candidateIdStr = candidate.candidateId || candidate.id || "HN-CAN-PENDING";
-  const nameStr = candidate.fullName || candidate.name || "Unknown Candidate";
+  const nameStr = candidate.parsedName || candidate.fullName || candidate.name || (candidate.fileName?.toLowerCase().includes('resume') ? "Pending Verification" : candidate.fileName) || "Pending Verification";
   const vendorStr = vendorMap?.[candidate.vendorId] || candidate.vendorName || (candidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : candidate.vendorId) || "Direct/Unknown";
   
   const getSkillsArray = (skills: any): string[] => {
@@ -86,20 +86,24 @@ export default function Candidate360Modal({
 
   const skillsArr = getSkillsArray(candidate.skills);
 
-  const TABS: { id: TabType, label: string, icon: any }[] = [
-    { id: 'OVERVIEW', label: 'Overview', icon: User },
+  let TABS: { id: TabType, label: string, icon: any }[] = [
+    { id: 'OVERVIEW', label: 'Summary', icon: User },
     { id: 'RESUME', label: 'Resume', icon: FileText },
     { id: 'AI_ANALYSIS', label: 'AI Analysis', icon: Bot },
     { id: 'REQUIREMENTS', label: 'Requirements', icon: Briefcase },
     { id: 'INTERVIEWS', label: 'Interviews', icon: Calendar },
     { id: 'TIMELINE', label: 'Timeline', icon: Activity },
-    { id: 'COLLABORATION', label: 'Collaboration', icon: MessageSquare },
+    { id: 'COLLABORATION', label: 'Feedback', icon: MessageSquare },
     { id: 'GOVERNANCE', label: 'Governance', icon: ShieldAlert },
   ];
 
+  if (isClientReviewMode) {
+     TABS = TABS.filter(t => !['GOVERNANCE', 'REQUIREMENTS', 'INTERVIEWS', 'AI_ANALYSIS'].includes(t.id));
+  }
+
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
-       <div className="bg-slate-50 w-full max-w-7xl h-full sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+       <div className="bg-slate-50 w-full max-w-7xl h-full sm:h-[85vh] rounded-[24px] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
           
           {/* Header */}
           <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
@@ -164,7 +168,7 @@ export default function Candidate360Modal({
                             <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{candidate.email || candidate.primaryEmail || 'N/A'}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{candidate.phone || candidate.phoneHash || 'N/A'}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Vendor:</span> <span className="text-slate-900">{vendorStr}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || 'Not Stated'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || (candidate.totalExperience ? `${candidate.totalExperience} Years` : (candidate.experienceTracker?.computedYears ? `${candidate.experienceTracker.computedYears} Years` : 'Experience Under Review'))}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{candidate.pipelineStage || 'Added'}</Badge></div>
                          </div>
                       </div>

@@ -89,10 +89,10 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
              id: 'raw-' + cand.id,
              isRaw: true,
              candidateId: cand.candidateId || cand.id,
-             name: cand.name || cand.fullName,
+             name: cand.fullName || cand.name || cand.parsedName || (cand.fileName?.toLowerCase().includes('resume') ? "Pending Verification" : cand.fileName) || "Pending Verification",
              vendorId: cand.vendorId || "",
-             vendorName: cand.vendorName || cand.vendorId, // Fallback
-             experience: cand.experience,
+             vendorName: vendorMap[cand.vendorId] || cand.vendorName || (cand.vendorId === 'ORG-GLOBAL-HQ' ? 'WorkNexa Infotech' : cand.vendorId) || "Direct",
+             experience: cand.totalExperience ? `${cand.totalExperience} Years` : (cand.experienceTracker?.computedYears ? `${cand.experienceTracker.computedYears} Years` : 'Experience Under Review'),
              skills: cand.skills,
              matchScore: cand.matchScore,
              reqTitle: cand.matchData?.jobTitle || cand.mappedJobId || '',
@@ -119,10 +119,10 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
         id: sub.id,
         isRaw: false,
         candidateId: sub.candidateId || sub.id,
-        name: sub.candidateName || cData?.fullName || cData?.name || "Anonymous",
+        name: cData?.fullName || cData?.name || cData?.parsedName || (sub.candidateName?.includes('.') || sub.candidateName?.toLowerCase().includes('resume') ? "Pending Verification" : sub.candidateName) || "Pending Verification",
         vendorId: sub.vendorId || cData?.vendorId || "",
-        vendorName: sub.vendorName || cData?.vendorName || sub.vendorId,
-        experience: sub.experience || cData?.experience,
+        vendorName: vendorMap[sub.vendorId || cData?.vendorId] || sub.vendorName || cData?.vendorName || (sub.vendorId === 'ORG-GLOBAL-HQ' ? 'WorkNexa Infotech' : sub.vendorId),
+        experience: sub.experience || (cData?.totalExperience ? `${cData.totalExperience} Years` : (cData?.experienceTracker?.computedYears ? `${cData.experienceTracker.computedYears} Years` : 'Experience Under Review')),
         skills: cData?.skills || [],
         matchScore: sub.matchScore || sub.aiMatchScore || null,
         aiAnalysis: sub.aiAnalysis || cData?.aiAnalysis || null,
@@ -261,6 +261,10 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                             <div className="flex justify-between">
                                <span className="text-slate-500">Experience:</span>
                                <span className="font-medium text-slate-700 truncate">{c.experience || "Not specified"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                               <span className="text-slate-500">Submitted:</span>
+                               <span className="font-medium text-slate-700 truncate">{c.data?.submittedAt ? new Date(c.data?.submittedAt?.seconds ? c.data.submittedAt.seconds * 1000 : c.data.submittedAt).toLocaleDateString() : (c.createdAt ? new Date(c.createdAt?.seconds ? c.createdAt.seconds * 1000 : c.createdAt).toLocaleDateString() : "Just now")}</span>
                             </div>
                             
                             {c.reqTitle && (
