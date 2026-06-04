@@ -135,10 +135,6 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     setError("");
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-      provider.addScope('https://www.googleapis.com/auth/gmail.send');
-      provider.addScope('https://www.googleapis.com/auth/calendar.events');
-      provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
       const result = await signInWithPopup(auth, provider);
       // Wait to handle cache if credential available
       const credential = GoogleAuthProvider.credentialFromResult(result);
