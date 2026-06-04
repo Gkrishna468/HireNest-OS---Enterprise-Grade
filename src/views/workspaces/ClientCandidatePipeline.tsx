@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, serve
 import { db } from '../../lib/firebase';
 import { Users, Filter } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
-import { CandidateReviewModal } from '../../components/modals/CandidateReviewModal';
+import Candidate360Modal from '../../components/modals/Candidate360Modal';
 import { InterviewSchedulerModal } from '../../components/modals/InterviewSchedulerModal';
 
 export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: { orgId: string, userRole: string | null, onCandidateClick?: (c: any) => void }) {
@@ -167,10 +167,36 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
     try {
       const cardData = JSON.parse(e.dataTransfer.getData("application/json"));
       if (cardData && !cardData.isRaw && cardData.id) {
-         await updateDoc(doc(db, "submissions", cardData.id), {
-            status: newStage,
-            updatedAt: serverTimestamp()
-         });
+         
+         if (newStage === "INTERVIEW" && !cardData.data.dealRoomId) {
+            const { addDoc, collection } = await import("firebase/firestore");
+            const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
+            await addDoc(collection(db, "dealRooms"), {
+               id: roomId,
+               requirementId: cardData.reqId || cardData.data.requirementId,
+               candidateId: cardData.candidateId,
+               vendorId: cardData.vendorId,
+               clientId: cardData.reqForReview?.clientId || "ORG-LOCAL",
+               clientName: cardData.reqForReview?.clientName || 'Client',
+               vendorName: cardData.vendorName || vendorMap[cardData.vendorId] || 'Vendor',
+               candidateName: cardData.name || 'Anonymous',
+               jobTitle: cardData.reqTitle || "Strategic Role",
+               status: "ACTIVE",
+               currentStage: newStage,
+               createdAt: serverTimestamp(),
+               matchData: { matchScore: cardData.matchScore || 0 }
+            });
+            await updateDoc(doc(db, "submissions", cardData.id), {
+               status: newStage,
+               dealRoomId: roomId,
+               updatedAt: serverTimestamp()
+            });
+         } else {
+            await updateDoc(doc(db, "submissions", cardData.id), {
+               status: newStage,
+               updatedAt: serverTimestamp()
+            });
+         }
       }
     } catch (err) {
        console.error("Drop error", err);
@@ -230,7 +256,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
                          <div className="space-y-1.5 text-xs">
                             <div className="flex justify-between">
                                <span className="text-slate-500">Vendor:</span>
-                               <span className="font-medium text-slate-700 truncate max-w-[120px]" title={vendorMap[c.vendorId] || c.vendorName || "Unknown"}>{vendorMap[c.vendorId] || c.vendorName || "Unknown"}</span>
+                               <span className="font-medium text-slate-700 truncate max-w-[120px]" title={vendorMap[c.vendorId] || c.vendorName || (c.vendorId === 'ORG-GLOBAL-HQ' ? 'WorkNexa Infotech' : c.vendorId) || "Unknown"}>{vendorMap[c.vendorId] || c.vendorName || (c.vendorId === 'ORG-GLOBAL-HQ' ? 'WorkNexa Infotech' : c.vendorId) || "Unknown"}</span>
                             </div>
                             <div className="flex justify-between">
                                <span className="text-slate-500">Experience:</span>
@@ -274,13 +300,69 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
       </div>
       
       {reviewData && (
-        <CandidateReviewModal 
-          submission={reviewData.sub} 
-          requirement={reviewData.req} 
-          onClose={() => setReviewData(null)} 
+        <Candidate360Modal 
+          candidate={{
+             ...candidates.find(cand => cand.id === reviewData.sub.candidateId || cand.candidateId === reviewData.sub.candidateId),
+             ...reviewData.sub,
+             pipelineStage: reviewData.sub.status,
+             reqTitle: reviewData.req?.title
+          }}
+          isAdmin={isAdmin}
+          userOrgId={orgId}
+          userRole={userRole || "guest"}
+          onClose={() => setReviewData(null)}
+          vendorMap={vendorMap}
+          isClientReviewMode={true}
+          onShortlist={async () => {
+             try {
+                await updateDoc(doc(db, "submissions", reviewData.sub.id), { status: "SHORTLISTED" });
+                alert("Candidate shortlisted successfully.");
+                setReviewData(null);
+             } catch (e) { alert("Error shortlisting candidate."); }
+          }}
+          onReject={async () => {
+             const reason = prompt("Please provide a rejection reason (e.g. Missing Skills, Over Budget):");
+             if (reason === null) return;
+             try {
+                await updateDoc(doc(db, "submissions", reviewData.sub.id), { status: "REJECTED", rejectReason: reason });
+                alert("Candidate rejected.");
+                setReviewData(null);
+             } catch (e) { alert("Error rejecting candidate."); }
+          }}
           onSchedule={() => {
+             const data = reviewData;
              setReviewData(null);
-             setScheduleData(reviewData);
+             setScheduleData(data);
+          }}
+          onRequestClarification={async () => {
+             const sub = reviewData.sub;
+             const req = reviewData.req;
+             try {
+                if (sub.dealRoomId) {
+                   window.location.href = "/deal-rooms";
+                   return;
+                }
+                const { addDoc, collection } = await import("firebase/firestore");
+                const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
+                await addDoc(collection(db, "dealRooms"), {
+                  id: roomId,
+                  requirementId: req.id,
+                  candidateId: sub.candidateId,
+                  vendorId: sub.vendorId,
+                  clientId: req.clientId,
+                  clientName: req.clientName || 'Client',
+                  vendorName: sub.vendorName || vendorMap[sub.vendorId] || 'Vendor',
+                  candidateName: sub.candidateName || 'Anonymous',
+                  jobTitle: req.title || "Strategic Role",
+                  status: "ACTIVE",
+                  currentStage: "shortlisted",
+                  createdAt: serverTimestamp(),
+                  matchData: { matchScore: sub.matchScore || 0 }
+                });
+                await updateDoc(doc(db, "submissions", sub.id), { dealRoomId: roomId });
+                alert("Clarification thread (Deal Room) created successfully.");
+                setReviewData(null);
+             } catch (e) { alert("Error creating Deal Room."); }
           }}
         />
       )}

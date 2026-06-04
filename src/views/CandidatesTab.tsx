@@ -1213,7 +1213,7 @@ ${extText}`;
                        </Badge>
                        {(candidate.vendorId || candidate.vendorName) && (
                           <span className="text-[10px] text-slate-400 font-medium truncate max-w-[100px]">
-                            {vendorMap[candidate.vendorId] || candidate.vendorName || candidate.vendorId || "Direct"}
+                            {vendorMap[candidate.vendorId] || candidate.vendorName || (candidate.vendorId === 'ORG-GLOBAL-HQ' ? 'WorkNexa Infotech' : candidate.vendorId) || "Direct"}
                           </span>
                        )}
                     </div>

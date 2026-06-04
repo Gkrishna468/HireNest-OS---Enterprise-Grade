@@ -21,7 +21,12 @@ export default function Candidate360Modal({
   userOrgId, 
   userRole,
   jobs = [],
-  vendorMap = {}
+  vendorMap = {},
+  isClientReviewMode = false,
+  onShortlist,
+  onReject,
+  onSchedule,
+  onRequestClarification
 }: { 
   candidate: any, 
   onClose: () => void, 
@@ -29,7 +34,12 @@ export default function Candidate360Modal({
   userOrgId: string,
   userRole: string,
   jobs?: any[],
-  vendorMap?: Record<string, string>
+  vendorMap?: Record<string, string>,
+  isClientReviewMode?: boolean;
+  onShortlist?: () => void;
+  onReject?: () => void;
+  onSchedule?: () => void;
+  onRequestClarification?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('OVERVIEW');
   const [events, setEvents] = useState<any[]>([]);
@@ -66,7 +76,7 @@ export default function Candidate360Modal({
 
   const candidateIdStr = candidate.candidateId || candidate.id || "HN-CAN-PENDING";
   const nameStr = candidate.fullName || candidate.name || "Unknown Candidate";
-  const vendorStr = vendorMap[candidate.vendorId] || candidate.vendorName || candidate.vendorId || "Direct/Unknown";
+  const vendorStr = vendorMap?.[candidate.vendorId] || candidate.vendorName || (candidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : candidate.vendorId) || "Direct/Unknown";
   
   const getSkillsArray = (skills: any): string[] => {
     if (Array.isArray(skills)) return skills;
@@ -441,12 +451,19 @@ export default function Candidate360Modal({
                       const mentions = input.value.match(/@\w+/g);
                       if (mentions) {
                          import('../../lib/eventEngine').then(({ publishEvent }) => {
-                            mentions.forEach(m => publishEvent({
-                               type: 'info',
-                               title: 'You were mentioned',
-                               message: `You were mentioned in Candidate ${nameStr} thread.`,
-                               recipients: [m.substring(1).toUpperCase()]
-                            }));
+                            mentions.forEach(m => {
+                               let targetId = m.substring(1).toUpperCase();
+                               // Identity Resolution for @vendor
+                               if (m.toLowerCase() === '@vendor' && candidate.vendorId) {
+                                  targetId = candidate.vendorId;
+                               }
+                               publishEvent({
+                                  type: 'info',
+                                  title: 'You were mentioned',
+                                  message: `You were mentioned in Candidate ${nameStr} thread.`,
+                                  recipients: [targetId]
+                               });
+                            });
                          });
                       }
                       
@@ -504,8 +521,28 @@ export default function Candidate360Modal({
                    </div>
                 </div>
              )}
-
           </div>
+          
+          {isClientReviewMode && (
+             <div className="p-6 bg-white border-t border-slate-200 shrink-0 space-y-3 z-10 w-full shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+                <div className="grid grid-cols-2 gap-3">
+                   <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
+                     <CheckCircle size={18} className="mr-2"/> Shortlist
+                   </Button>
+                   <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                     <X size={18} className="mr-2"/> Reject
+                   </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                   <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
+                     <Calendar size={18} className="mr-2"/> Schedule Interview
+                   </Button>
+                   <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
+                     <MessageSquare size={18} className="mr-2"/> Request Clarification
+                   </Button>
+                </div>
+             </div>
+          )}
        </div>
     </div>
   )
