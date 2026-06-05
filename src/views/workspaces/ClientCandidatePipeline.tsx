@@ -319,7 +319,13 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
           isClientReviewMode={true}
           onShortlist={async () => {
              try {
-                await updateDoc(doc(db, "submissions", reviewData.sub.id), { status: "SHORTLISTED" });
+                const { getAuth } = await import('firebase/auth');
+                const user = getAuth().currentUser;
+                await updateDoc(doc(db, "submissions", reviewData.sub.id), { 
+                   status: "SHORTLISTED", 
+                   statusUpdatedAt: serverTimestamp(),
+                   statusUpdatedBy: user?.displayName || user?.email || "Reviewer"
+                });
                 alert("Candidate shortlisted successfully.");
                 setReviewData(null);
              } catch (e) { alert("Error shortlisting candidate."); }
@@ -328,7 +334,14 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
              const reason = prompt("Please provide a rejection reason (e.g. Missing Skills, Over Budget):");
              if (reason === null) return;
              try {
-                await updateDoc(doc(db, "submissions", reviewData.sub.id), { status: "REJECTED", rejectReason: reason });
+                const { getAuth } = await import('firebase/auth');
+                const user = getAuth().currentUser;
+                await updateDoc(doc(db, "submissions", reviewData.sub.id), { 
+                   status: "REJECTED", 
+                   rejectReason: reason, 
+                   statusUpdatedAt: serverTimestamp(),
+                   statusUpdatedBy: user?.displayName || user?.email || "Reviewer"
+                });
                 alert("Candidate rejected.");
                 setReviewData(null);
              } catch (e) { alert("Error rejecting candidate."); }
@@ -374,6 +387,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
         <InterviewSchedulerModal 
           submission={scheduleData.sub} 
           requirement={scheduleData.req} 
+          isClientAction={isClient}
           onClose={() => setScheduleData(null)} 
         />
       )}

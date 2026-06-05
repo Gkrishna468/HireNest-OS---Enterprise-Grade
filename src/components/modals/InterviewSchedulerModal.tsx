@@ -4,11 +4,11 @@ import { Button } from '../../lib/Button';
 import { db } from '../../lib/firebase';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
-export function InterviewSchedulerModal({ submission, requirement, onClose }: any) {
+export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
    const [formData, setFormData] = useState({
-    round: 'INTERVIEW_SCHEDULED',
-    date: '',
+    round: 'INTERVIEW_ROUND_1',
+    date: '', // used as preferred date or exact date
     time: '',
     endTime: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -23,8 +23,8 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
   };
 
   const handleSave = async () => {
-    if (!formData.date || !formData.time || !formData.interviewer) {
-      alert("Please fill date, time, and interviewer.");
+    if (!formData.date || !formData.interviewer) {
+      alert("Please fill date and interviewer.");
       return;
     }
     
@@ -53,22 +53,25 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
          });
       }
 
+      const targetStatus = isClientAction ? 'INTERVIEW_REQUESTED' : 'INTERVIEW_SCHEDULED';
+
       // 2. Update Submission Status
       await updateDoc(doc(db, "submissions", submission.id), {
         dealRoomId: roomId,
-        status: formData.round
+        status: targetStatus
       });
 
       // 3. Create Interview Record linked to submission
       await addDoc(collection(db, "interviews"), {
         submissionId: submission.id,
         candidateId: submission.candidateId,
+        candidateName: submission.candidateName || 'Anonymous',
         requirementId: requirement.id,
         dealRoomId: roomId,
         round: formData.round,
         date: formData.date,
-        time: formData.time,
-        startTime: `${formData.date}T${formData.time}`,
+        time: formData.time || '',
+        startTime: formData.time ? `${formData.date}T${formData.time}` : null,
         endTime: formData.endTime ? `${formData.date}T${formData.endTime}` : null,
         timezone: formData.timezone,
         calendarProvider: formData.mode,
@@ -76,7 +79,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         interviewer: formData.interviewer,
         mode: formData.mode,
         notes: formData.notes,
-        status: "SCHEDULED",
+        status: isClientAction ? "REQUESTED" : "SCHEDULED",
         createdAt: serverTimestamp()
       });
 
@@ -85,14 +88,16 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
          senderRole: "System",
          senderId: "system",
          type: "system",
-         text: `📅 INTERVIEW SCHEDULED: ${formData.round} on ${formData.date} at ${formData.time} ${formData.timezone}. Mode: ${formData.mode}. Interviewer: ${formData.interviewer}.`,
+         text: isClientAction 
+            ? `📅 INTERVIEW REQUESTED: ${formData.round} preferred on ${formData.date}. Panel: ${formData.interviewer}. Waiting for vendor availability.`
+            : `📅 INTERVIEW SCHEDULED: ${formData.round} on ${formData.date} at ${formData.time} ${formData.timezone}. Mode: ${formData.mode}. Interviewer: ${formData.interviewer}.`,
          timestamp: serverTimestamp()
       });
 
       // 5. Send notifications
       const notifBase = {
-        title: "Interview Scheduled",
-        message: `${formData.round} for ${submission.candidateName} on ${formData.date} at ${formData.time}`,
+        title: isClientAction ? "Interview Requested" : "Interview Scheduled",
+        message: `${formData.round} for ${submission.candidateName} on ${formData.date}`,
         type: "INTERVIEW",
         createdAt: serverTimestamp(),
         read: false
@@ -111,24 +116,24 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
          });
       }
 
-      alert("Interview Scheduled successfully!");
+      alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Error scheduling interview.");
+      alert("Error processing interview.");
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col my-8">
         
         {/* Header */}
         <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-xl font-black flex items-center gap-2"><Calendar size={20}/> Schedule Interview</h2>
+            <h2 className="text-xl font-black flex items-center gap-2"><Calendar size={20}/> {isClientAction ? 'Request Interview' : 'Schedule Interview'}</h2>
             <p className="text-slate-400 text-xs font-medium mt-1">for {submission.candidateName || 'Candidate'}</p>
           </div>
           <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
@@ -140,31 +145,37 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
            
            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pipeline Stage / Round</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Round / Type</label>
               <select name="round" value={formData.round} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                 <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
-                 <option value="INTERVIEW_ROUND_1">Interview Round 1</option>
-                 <option value="INTERVIEW_ROUND_2">Interview Round 2</option>
+                 <option value="INTERVIEW_ROUND_1">Technical Round 1</option>
+                 <option value="INTERVIEW_ROUND_2">Technical Round 2</option>
+                 <option value="CULTURAL_ROUND">Cultural / HR Round</option>
                  <option value="FINAL_INTERVIEW">Final Interview</option>
-                 <option value="OFFER_RELEASED">Offer Released</option>
               </select>
            </div>
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={12}/> Date</label>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={12}/> {isClientAction ? 'Preferred Date' : 'Date'}</label>
                  <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Start Time</label>
-                    <input type="time" name="time" value={formData.time} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+              {!isClientAction ? (
+                 <div className="grid grid-cols-2 gap-2">
+                    <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Start Time</label>
+                       <input type="time" name="time" value={formData.time} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> End Time</label>
+                       <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
                  </div>
+              ) : (
                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> End Time</label>
-                    <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Preferred Time</label>
+                    <input type="text" name="time" placeholder="e.g. Any time after 2 PM EST" value={formData.time} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                  </div>
-              </div>
+              )}
            </div>
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -173,7 +184,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
                  <input type="text" name="timezone" placeholder="e.g. America/New_York" value={formData.timezone} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Users size={12}/> Interviewer(s)</label>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Users size={12}/> {isClientAction ? 'Panel Members' : 'Interviewer(s)'}</label>
                  <input type="text" name="interviewer" placeholder="e.g. Jane Doe" value={formData.interviewer} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
            </div>
@@ -189,14 +200,16 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
                     <option>In-Person</option>
                  </select>
               </div>
-              <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Link size={12}/> Meeting Link</label>
-                 <input type="url" name="meetingLink" placeholder="https://..." value={formData.meetingLink} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
+              {!isClientAction && (
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Link size={12}/> Meeting Link</label>
+                    <input type="url" name="meetingLink" placeholder="https://..." value={formData.meetingLink} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                 </div>
+              )}
            </div>
 
            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><AlignLeft size={12}/> Preparation Notes</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><AlignLeft size={12}/> {isClientAction ? 'Notes for Vendor' : 'Preparation Notes'}</label>
               <textarea name="notes" placeholder="Any specific instructions..." value={formData.notes} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows={3}></textarea>
            </div>
         </div>
@@ -205,7 +218,7 @@ export function InterviewSchedulerModal({ submission, requirement, onClose }: an
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
           <Button onClick={onClose} disabled={isProcessing} variant="outline" className="text-slate-600 bg-white">Cancel</Button>
           <Button onClick={handleSave} disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6">
-            {isProcessing ? 'Saving...' : 'Book & Notify'}
+            {isProcessing ? 'Processing...' : (isClientAction ? 'Request Interview' : 'Book & Notify')}
           </Button>
         </div>
 

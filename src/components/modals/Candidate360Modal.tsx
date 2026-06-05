@@ -173,11 +173,49 @@ export default function Candidate360Modal({
                          </div>
                       </div>
                       
-                      <div className="bg-indigo-900 p-5 rounded-xl border border-indigo-800 shadow-sm text-white flex flex-col justify-center items-center text-center">
-                         <h3 className="font-bold uppercase tracking-widest text-[10px] text-indigo-300 mb-2">Platform Score</h3>
-                         <div className="text-5xl font-black text-indigo-100 mb-2">{(candidate.matchScore || mappingResult?.matchScore) || '--'}<span className="text-2xl text-indigo-400">%</span></div>
-                         <p className="text-xs text-indigo-300 font-medium">{mappingResult ? 'Matched to Requirement' : 'Pending AI Match'}</p>
-                      </div>
+                      {isClientReviewMode ? (
+                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-200 pb-2">Why This Candidate Matches</h3>
+                            <div className="space-y-4">
+                               {(mappingResult?.matchedSkills?.length > 0 || skillsArr.length > 0) ? (
+                                  <div>
+                                    <div className="space-y-2">
+                                      {(mappingResult?.matchedSkills || skillsArr.slice(0, 5)).map((ms: any, i: number) => (
+                                        <div key={i} className="flex items-center text-sm font-medium text-slate-700">
+                                          <CheckCircle className="w-4 h-4 text-emerald-500 mr-2 shrink-0"/>
+                                          <span className="truncate">{typeof ms === 'string' ? ms : (ms.skill || JSON.stringify(ms))}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                               ) : null}
+                               
+                               {mappingResult?.missingSkills?.length > 0 && (
+                                 <div>
+                                    <div className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2 mt-4">Missing</div>
+                                    <div className="space-y-2">
+                                      {mappingResult.missingSkills.map((ms: any, i: number) => (
+                                        <div key={i} className="flex items-center text-sm font-medium text-slate-500">
+                                          <X className="w-4 h-4 text-red-400 mr-2 shrink-0"/>
+                                          <span className="truncate">{ms}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                 </div>
+                               )}
+                               
+                               {!mappingResult?.matchedSkills && !mappingResult?.missingSkills && skillsArr.length === 0 && (
+                                  <div className="text-sm text-slate-500 italic">No detailed match analysis available yet.</div>
+                               )}
+                            </div>
+                         </div>
+                      ) : (
+                         <div className="bg-indigo-900 p-5 rounded-xl border border-indigo-800 shadow-sm text-white flex flex-col justify-center items-center text-center">
+                            <h3 className="font-bold uppercase tracking-widest text-[10px] text-indigo-300 mb-2">Platform Score</h3>
+                            <div className="text-5xl font-black text-indigo-100 mb-2">{(candidate.matchScore || mappingResult?.matchScore) || '--'}<span className="text-2xl text-indigo-400">%</span></div>
+                            <p className="text-xs text-indigo-300 font-medium">{mappingResult ? 'Matched to Requirement' : 'Pending AI Match'}</p>
+                         </div>
+                      )}
                    </div>
 
                    {skillsArr.length > 0 && (
@@ -529,22 +567,36 @@ export default function Candidate360Modal({
           
           {isClientReviewMode && (
              <div className="p-6 bg-white border-t border-slate-200 shrink-0 space-y-3 z-10 w-full shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-                <div className="grid grid-cols-2 gap-3">
-                   <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
-                     <CheckCircle size={18} className="mr-2"/> Shortlist
-                   </Button>
-                   <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
-                     <X size={18} className="mr-2"/> Reject
-                   </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                   <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
-                     <Calendar size={18} className="mr-2"/> Schedule Interview
-                   </Button>
-                   <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
-                     <MessageSquare size={18} className="mr-2"/> Request Clarification
-                   </Button>
-                </div>
+                 {candidate.pipelineStage === 'SHORTLISTED' || candidate.status === 'SHORTLISTED' ? (
+                    <div className="bg-emerald-50 border border-emerald-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-emerald-800 font-bold">
+                       <div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500" /> Shortlisted for Review</div>
+                       <span className="text-[11px] font-medium text-emerald-600/80 uppercase tracking-widest">{candidate.statusUpdatedBy ? `by ${candidate.statusUpdatedBy} ` : ''}{candidate.statusUpdatedAt ? 'on ' + new Date(candidate.statusUpdatedAt.seconds ? candidate.statusUpdatedAt.seconds * 1000 : candidate.statusUpdatedAt).toLocaleDateString() : ''}</span>
+                    </div>
+                 ) : candidate.pipelineStage === 'REJECTED' || candidate.status === 'REJECTED' ? (
+                    <div className="bg-rose-50 border border-rose-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-rose-800 font-bold">
+                       <div className="flex items-center gap-2"><X size={18} className="text-rose-500" /> Rejected {candidate.rejectReason ? `- ${candidate.rejectReason}` : ''}</div>
+                       <span className="text-[11px] font-medium text-rose-600/80 uppercase tracking-widest">{candidate.statusUpdatedBy ? `by ${candidate.statusUpdatedBy} ` : ''}{candidate.statusUpdatedAt ? 'on ' + new Date(candidate.statusUpdatedAt.seconds ? candidate.statusUpdatedAt.seconds * 1000 : candidate.statusUpdatedAt).toLocaleDateString() : ''}</span>
+                    </div>
+                 ) : (
+                    <>
+                       <div className="grid grid-cols-2 gap-3">
+                          <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
+                            <CheckCircle size={18} className="mr-2"/> Shortlist
+                          </Button>
+                          <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                            <X size={18} className="mr-2"/> Reject
+                          </Button>
+                       </div>
+                       <div className="grid grid-cols-2 gap-3">
+                          <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
+                            <Calendar size={18} className="mr-2"/> Request Interview
+                          </Button>
+                          <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
+                            <MessageSquare size={18} className="mr-2"/> Request Clarification
+                          </Button>
+                       </div>
+                    </>
+                 )}
              </div>
           )}
        </div>
