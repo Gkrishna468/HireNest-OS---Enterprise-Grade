@@ -26,7 +26,8 @@ export default function Candidate360Modal({
   onShortlist,
   onReject,
   onSchedule,
-  onRequestClarification
+  onRequestClarification,
+  onOffer
 }: { 
   candidate: any, 
   onClose: () => void, 
@@ -40,6 +41,7 @@ export default function Candidate360Modal({
   onReject?: () => void;
   onSchedule?: () => void;
   onRequestClarification?: () => void;
+  onOffer?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('OVERVIEW');
   const [events, setEvents] = useState<any[]>([]);
@@ -579,7 +581,7 @@ export default function Candidate360Modal({
                     </div>
                  ) : (
                     <>
-                       <div className="grid grid-cols-2 gap-3">
+                       <div className="grid grid-cols-2 gap-3 mb-3">
                           <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
                             <CheckCircle size={18} className="mr-2"/> Shortlist
                           </Button>
@@ -587,12 +589,15 @@ export default function Candidate360Modal({
                             <X size={18} className="mr-2"/> Reject
                           </Button>
                        </div>
-                       <div className="grid grid-cols-2 gap-3">
+                       <div className="grid grid-cols-3 gap-3">
                           <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
                             <Calendar size={18} className="mr-2"/> Request Interview
                           </Button>
                           <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
                             <MessageSquare size={18} className="mr-2"/> Request Clarification
+                          </Button>
+                          <Button onClick={onOffer} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all focus:ring-2 focus:ring-indigo-500">
+                            <Target size={18} className="mr-2"/> Release Offer
                           </Button>
                        </div>
                     </>

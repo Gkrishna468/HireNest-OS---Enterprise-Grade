@@ -52,6 +52,7 @@ import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import InterviewsTab from "./views/InterviewsTab";
+import { PlacementsTab } from "./views/PlacementsTab";
 import InboxTab from "./views/InboxTab";
 import { ClientCandidatePipeline } from "./views/workspaces/ClientCandidatePipeline";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
@@ -138,6 +139,7 @@ const AppContent = () => {
 
   React.useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (u) => {
+      console.log("AUTH UID", u?.uid);
       setUser(u);
       if (u) {
         try {
@@ -570,10 +572,10 @@ const AppContent = () => {
               />
               <SidebarItem
                 id="tour-submissions"
-                to="/deal-rooms?view=offers"
+                to="/placements"
                 icon={Target}
                 label="Placements"
-                active={location.pathname === "/deal-rooms?view=offers"}
+                active={location.pathname === "/placements"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
@@ -947,6 +949,7 @@ const AppContent = () => {
               />
             )}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
+            <Route path="/placements" element={<PlacementsTab />} />
             <Route path="/interviews" element={<InterviewsTab />} />
             <Route path="/emails" element={<InboxTab />} />
             {isAdmin && (

@@ -109,6 +109,8 @@ export class SubmissionOrchestrator {
             resumeText: candidateData.resumeText || "",
             fingerprint: fingerprint,
             SystemSource: "ORCHESTRATOR",
+            vendorId: vendorId,
+            clientId: clientId,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });

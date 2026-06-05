@@ -1060,6 +1060,30 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // WORKFLOW ENTITIES (INTERVIEWS, PLACEMENTS, DEAL ROOMS)
+    // =====================================================
+
+    match /dealRooms/{roomId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    match /dealRooms/{roomId}/messages/{messageId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    match /interviews/{interviewId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    match /placements/{placementId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    // =====================================================
     // GLOBAL HQ OVERRIDE
     // =====================================================
 

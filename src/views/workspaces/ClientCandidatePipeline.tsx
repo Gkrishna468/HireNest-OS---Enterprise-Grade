@@ -5,6 +5,7 @@ import { Users, Filter } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import Candidate360Modal from '../../components/modals/Candidate360Modal';
 import { InterviewSchedulerModal } from '../../components/modals/InterviewSchedulerModal';
+import { OfferCreatorModal } from '../../components/modals/OfferCreatorModal';
 
 export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: { orgId: string, userRole: string | null, onCandidateClick?: (c: any) => void }) {
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -12,6 +13,7 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
   const [requirements, setRequirements] = useState<any[]>([]);
   const [reviewData, setReviewData] = useState<{sub: any, req: any} | null>(null);
   const [scheduleData, setScheduleData] = useState<{sub: any, req: any} | null>(null);
+  const [offerData, setOfferData] = useState<{sub: any, req: any} | null>(null);
   const [vendorMap, setVendorMap] = useState<Record<string, string>>({});
 
   const isAdmin = userRole === "admin" || userRole === "hq" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin";
@@ -351,6 +353,11 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
              setReviewData(null);
              setScheduleData(data);
           }}
+          onOffer={() => {
+             const data = reviewData;
+             setReviewData(null);
+             setOfferData(data);
+          }}
           onRequestClarification={async () => {
              const sub = reviewData.sub;
              const req = reviewData.req;
@@ -389,6 +396,13 @@ export function ClientCandidatePipeline({ orgId, userRole, onCandidateClick }: {
           requirement={scheduleData.req} 
           isClientAction={isClient}
           onClose={() => setScheduleData(null)} 
+        />
+      )}
+      {offerData && (
+        <OfferCreatorModal 
+          submission={offerData.sub} 
+          requirement={offerData.req} 
+          onClose={() => setOfferData(null)} 
         />
       )}
     </div>

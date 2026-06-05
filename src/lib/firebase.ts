@@ -15,6 +15,8 @@ const config = {
 
 const app = initializeApp(config);
 console.log("[Firebase Init] Initializing for Project:", config.projectId);
+console.log("PROJECT", config.projectId);
+console.log("STORAGE", config.storageBucket);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
