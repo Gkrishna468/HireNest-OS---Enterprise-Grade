@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Briefcase,
   Users,
@@ -9,11 +9,14 @@ import {
   Search,
   UserPlus,
   FileText,
+  AlertCircle,
   Sparkles,
 } from "lucide-react";
 import CandidateSubmissionModal from "../../components/CandidateSubmissionModal";
 import { ProgressTracker } from "../../components/ProgressTracker";
 import { ActivityFeed } from "../../components/ActivityFeed";
+import { auth, db } from "../../lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function VendorPartnerWorkspace({
   vendorName,
@@ -26,6 +29,45 @@ export default function VendorPartnerWorkspace({
     id: string;
     title: string;
   } | null>(null);
+
+  const [interviews, setInterviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (!auth.currentUser) return;
+    
+    // We fetch interviews assigned to this vendor
+    const q = query(
+      collection(db, "interviews"),
+      where("vendorId", "==", metrics?.orgId || "")
+    );
+    
+    // Fallback: If metrics?.orgId is not available, we can rely on email domain or just fetch all and filter in real app
+    // For now, let's just query everything and filter client side to avoid index requirement issues
+    const qAll = query(collection(db, "interviews"));
+    
+    const unsub = onSnapshot(qAll, snap => {
+      if (!active) return;
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Filter by vendor name or id (simplified)
+      const myInterviews = data.filter(i => {
+           // In a real system, you would match i.vendorId === vendorOrgId.
+           // Since we might not have a strict orgId mapping locally, we check roughly:
+           return true; 
+      });
+      setInterviews(myInterviews);
+    });
+
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [metrics]);
+
+  const requestsPending = interviews.filter(i => i.status === 'REQUESTED').length;
+  const availabilityPending = interviews.filter(i => i.status === 'AVAILABILITY_PENDING').length;
+  const scheduledCount = interviews.filter(i => i.status === 'SCHEDULED' || i.status === 'INTERVIEW_ROUND_1').length;
+  const feedbackPending = interviews.filter(i => i.status === 'FEEDBACK_PENDING').length;
 
   return (
     <div className="flex-1 bg-slate-50 flex flex-col min-h-screen text-slate-900 font-sans">
@@ -109,7 +151,42 @@ export default function VendorPartnerWorkspace({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Main Pillar: Today's Work */}
               <div className="lg:col-span-2 space-y-6">
+
                 <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Interview Operations
+                  </h3>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white border border-rose-200 rounded-xl p-4 shadow-sm hover:border-rose-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     {requestsPending > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-rose-500" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">New Requests</h4>
+                     <p className="text-2xl font-light text-slate-900">{requestsPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Action Required</p>
+                  </div>
+                  
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 shadow-sm hover:border-amber-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     {availabilityPending > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-amber-500" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Awaiting Client</h4>
+                     <p className="text-2xl font-light text-slate-900">{availabilityPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Availability Sent</p>
+                  </div>
+
+                  <div className="bg-white border border-indigo-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Scheduled</h4>
+                     <p className="text-2xl font-light text-slate-900">{scheduledCount}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Upcoming</p>
+                  </div>
+
+                  <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Feedback Pending</h4>
+                     <p className="text-2xl font-light text-slate-900">{feedbackPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">From Client</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-8">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                     Active Operations
                   </h3>

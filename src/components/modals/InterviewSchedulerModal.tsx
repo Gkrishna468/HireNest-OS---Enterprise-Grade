@@ -68,6 +68,8 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
         candidateName: submission.candidateName || 'Anonymous',
         requirementId: requirement.id,
         dealRoomId: roomId,
+        vendorId: submission.vendorId || '',
+        clientId: requirement.clientId || '',
         round: formData.round,
         date: formData.date,
         time: formData.time || '',

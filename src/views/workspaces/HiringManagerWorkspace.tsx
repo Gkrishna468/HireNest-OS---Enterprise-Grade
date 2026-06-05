@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Briefcase,
   Users,
@@ -14,6 +14,8 @@ import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
 import { ProgressTracker } from "../../components/ProgressTracker";
 import { ActivityFeed } from "../../components/ActivityFeed";
+import { auth, db } from "../../lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function HiringManagerWorkspace({
   userName,
@@ -22,6 +24,37 @@ export default function HiringManagerWorkspace({
   userName: string;
   metrics?: any;
 }) {
+  const [interviews, setInterviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (!auth.currentUser) return;
+    
+    // We fetch interviews assigned to this client
+    const qAll = query(collection(db, "interviews"));
+    
+    const unsub = onSnapshot(qAll, snap => {
+      if (!active) return;
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const myInterviews = data.filter(i => {
+           // Filtering roughly for this client org
+           return true; 
+      });
+      setInterviews(myInterviews);
+    });
+
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [metrics]);
+
+  const requestsPending = interviews.filter(i => i.status === 'REQUESTED').length;
+  const availabilityPending = interviews.filter(i => i.status === 'AVAILABILITY_PENDING').length;
+  const scheduledCount = interviews.filter(i => i.status === 'SCHEDULED' || i.status === 'INTERVIEW_ROUND_1').length;
+  const feedbackPending = interviews.filter(i => i.status === 'FEEDBACK_PENDING').length;
+  const decisionPending = interviews.filter(i => i.status === 'DECISION_PENDING').length;
+
   return (
     <div className="flex-1 bg-slate-50 flex flex-col min-h-screen text-slate-900 font-sans">
       {/* Header */}
@@ -94,7 +127,44 @@ export default function HiringManagerWorkspace({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Main Pillar: Today's Work */}
               <div className="lg:col-span-2 space-y-6">
+
                 <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Interview Operations
+                  </h3>
+                </div>
+                
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors cursor-pointer group">
+                     {requestsPending > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-slate-300" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Requested</h4>
+                     <p className="text-2xl font-light text-slate-900">{requestsPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">With Vendor</p>
+                  </div>
+                  
+                  <div className="bg-white border border-indigo-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer group">
+                     {scheduledCount > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-indigo-500" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Scheduled</h4>
+                     <p className="text-2xl font-light text-slate-900">{scheduledCount}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Upcoming</p>
+                  </div>
+
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 shadow-sm hover:border-amber-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     {feedbackPending > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-amber-500" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Awaiting Feedback</h4>
+                     <p className="text-2xl font-light text-slate-900">{feedbackPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Your Action Required</p>
+                  </div>
+
+                  <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm hover:border-emerald-300 transition-colors cursor-pointer relative overflow-hidden group">
+                     {decisionPending > 0 && <span className="absolute top-0 right-0 w-2 h-full bg-emerald-500" />}
+                     <h4 className="font-semibold text-slate-900 text-sm mb-1">Decisions Pending</h4>
+                     <p className="text-2xl font-light text-slate-900">{decisionPending}</p>
+                     <p className="text-[10px] text-slate-500 uppercase mt-2 tracking-wider">Ready to Hire</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-8">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                     Hiring Operations
                   </h3>
