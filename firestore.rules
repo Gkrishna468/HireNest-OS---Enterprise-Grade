@@ -488,7 +488,8 @@ service cloud.firestore {
              "name",
              "updatedAt",
              "status",
-             "isNameManuallyEdited"
+             "isNameManuallyEdited",
+             "candidateId"
          ])
       );
 
@@ -501,6 +502,13 @@ service cloud.firestore {
     // =====================================================
     // OWNERSHIP VAULT & IDENTITY RESOLUTION
     // =====================================================
+
+    match /ownershipVault/{claimId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
 
     match /ownership_claims/{claimId} {
       allow read: if isVerified();
