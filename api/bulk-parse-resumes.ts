@@ -159,6 +159,16 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
           );
 
           profile = JSON.parse(rawResponse || "{}");
+          
+          if (profile.name === "Local Mock Generated" || profile.name === "Sarah Jenkins" || profile.name === "Mock Data") {
+             profile.name = "Parsing Pending";
+          }
+          if (profile.email === "mock@example.com" || profile.email === "sarah.jenkins@example.com") {
+             profile.email = "pending@hirenest.os";
+          }
+          if (profile.name === "Parsing Pending") {
+             profile.status = "PARSING_PENDING";
+          }
 
           // Save to Cache
           if (

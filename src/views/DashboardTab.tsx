@@ -114,6 +114,19 @@ export default function DashboardTab() {
       }
       try {
           const { collection, getDocs, deleteDoc, doc } = await import("firebase/firestore");
+          const cacheSnap = await getDocs(collection(db, "resume_cache"));
+          for(const d of cacheSnap.docs) {
+             const data = d.data();
+             if (
+                data.name === "Local Mock Generated" ||
+                data.email === "mock@example.com" ||
+                data.email === "pending@hirenest.os" ||
+                data.name === "Parsing Pending" ||
+                data.name === "Pending Distillation"
+             ) {
+                await deleteDoc(doc(db, "resume_cache", d.id));
+             }
+          }
           const snap = await getDocs(collection(db, "candidatePool"));
           let count = 0;
           for (const d of snap.docs) {
