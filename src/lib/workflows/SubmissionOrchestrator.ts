@@ -101,6 +101,22 @@ export class SubmissionOrchestrator {
       // 3. Create or Update Candidate
       if (!candidateId) {
         // Create new candidate in candidatePool (Source of truth for identity)
+        const { auth } = await import("../../lib/firebase");
+        let currentUserUid = auth.currentUser?.uid;
+        let currentOrganizationId = "UNKNOWN";
+        if (currentUserUid) {
+          const { getDoc } = await import("firebase/firestore");
+          const userDoc = await getDoc(doc(db, "users", currentUserUid));
+          if (userDoc.exists()) {
+             currentOrganizationId = userDoc.data().organizationId;
+          }
+        }
+        console.log("CANDIDATE CREATE PAYLOAD", {
+            vendorId,
+            clientId,
+            currentUserUid,
+            currentOrganizationId
+        });
         const newCandRef = await addDoc(collection(db, "candidatePool"), {
             name: candidateData.name,
             email: candidateData.email || "",

@@ -164,6 +164,21 @@ export default function CandidateSubmissionModal({
         }
       }
 
+      const { auth } = await import("../lib/firebase");
+      let submitterUid = auth.currentUser?.uid || "local_user";
+      let orgId = "local";
+      if (submitterUid !== "local_user") {
+        try {
+          const { getDoc, doc } = await import("firebase/firestore");
+          const userProfile = await getDoc(doc(db, "users", submitterUid));
+          if (userProfile.exists()) {
+            orgId = userProfile.data().organizationId || "local";
+          }
+        } catch(e) {
+          console.error("Error fetching user profile", e);
+        }
+      }
+
       const response = await SubmissionOrchestrator.submitCandidate({
         candidateData: {
           name,
@@ -174,8 +189,8 @@ export default function CandidateSubmissionModal({
         },
         requirementId: reqId,
         clientId: targetClientId,
-        vendorId: "local",
-        submitterId: "local_user",
+        vendorId: orgId,
+        submitterId: submitterUid,
         initialStatus: "PENDING_REVIEW",
         matchScore: aiAnalysis?.fitScore || 0,
         aiAnalysis: aiAnalysis || null,
