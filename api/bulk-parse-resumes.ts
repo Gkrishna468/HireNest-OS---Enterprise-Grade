@@ -237,10 +237,11 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
 
           // Return a structured graceful fallback using Regex Layer 1 and Header Layer 2
           console.log(
-            "[BULK_PARSE] Falling back to Layer 1 Regex and Header extraction.",
+            "[BULK_PARSE] Extraction model failed. Returning PARSING_PENDING.",
           );
           profile = {
-            name: "Candidate (Requires Human Review)",
+            name: "Parsing Pending",
+            fullName: "Parsing Pending",
             email: "pending@hirenest.os",
             phone: "N/A",
             skills: ["Unparsed"],
@@ -249,7 +250,8 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
             summary: "Extraction model failed. Attempted fallback heuristics.",
             riskScore: 0,
             isRisky: false,
-            status: "PARSING_PENDING",
+            status: "PARSE_FAILED",
+            pipelineStage: "Candidate Added"
           };
 
           // Simple email regex
@@ -263,6 +265,12 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
             /(\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/,
           );
           if (phoneMatch) profile.phone = phoneMatch[0];
+          
+          // Experience Regex
+          const expMatch = text.match(/([\d\.]+)\+?\s*years?\s+of\s+experience/i) || text.match(/([\d\.]+)\s*years\+/i);
+          if (expMatch && expMatch[1]) {
+             profile.experience = expMatch[1] + "+ Years";
+          }
 
           // Header detection for name
           const lines = text
@@ -271,10 +279,12 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
             .filter((l) => l.length > 0);
           for (let ln of lines.slice(0, 10)) {
             if (
-              ln.length > 3 &&
-              ln.length < 30 &&
+              ln.length > 2 &&
+              ln.length < 40 &&
               !ln.includes("@") &&
-              !/\d{5}/.test(ln)
+              !/\d{4,}/.test(ln) &&
+              !ln.toLowerCase().includes("experience") &&
+              !ln.toLowerCase().includes("summary")
             ) {
               // likely a name
               profile.name = ln;

@@ -67,7 +67,7 @@ const getSkillsArray = (skills: any): string[] => {
   return [];
 };
 
-import { ClientCandidatePipeline } from "./workspaces/ClientCandidatePipeline";
+
 
 const STAGES = [
   "Processing",
@@ -90,6 +90,26 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
     "Placement"
   ];
   
+  const handleDrop = async (e: React.DragEvent, newStage: string) => {
+    e.preventDefault();
+    try {
+      const cardData = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (cardData && cardData.id) {
+         const { updateDoc, doc } = await import("firebase/firestore");
+         await updateDoc(doc(db, "candidatePool", cardData.id), {
+            pipelineStage: newStage,
+            updatedAt: new Date().toISOString()
+         });
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   const mappedStages = PIPELINE_STAGES.map(stage => {
       return {
           title: stage,
@@ -97,7 +117,7 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
                const st = (c.pipelineStage || c.status || "Candidate Added").toUpperCase();
                if(stage === "Candidate Added") return st.includes("ADDED") || st === "UPLOADED" || st === "QUEUED";
                if(stage === "Matched") return st.includes("MATCH");
-               if(stage === "Submitted") return st.includes("SUBMIT");
+               if(stage === "Submitted") return st.includes("SUBMIT") || st.includes("PENDING_REVIEW");
                if(stage === "Shortlisted") return st.includes("SHORTLIST");
                if(stage === "Interview") return st.includes("INTERVIEW");
                if(stage === "Offer") return st.includes("OFFER");
@@ -110,7 +130,10 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
   return (
     <div className="flex overflow-x-auto gap-6 pb-8 h-full min-h-[600px] items-start snap-x">
       {mappedStages.map((stage) => (
-        <div key={stage.title} className="flex-shrink-0 w-80 bg-slate-100 rounded-xl p-4 flex flex-col snap-start border border-slate-200/60 max-h-full">
+        <div key={stage.title} className="flex-shrink-0 w-80 bg-slate-100 rounded-xl p-4 flex flex-col snap-start border border-slate-200/60 max-h-full"
+           onDragOver={handleDragOver}
+           onDrop={(e) => handleDrop(e, stage.title)}
+        >
           <div className="flex justify-between items-center mb-4 px-1">
             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{stage.title}</h3>
             <span className="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
@@ -121,8 +144,10 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
              {stage.items.map((candidate) => (
                 <div
                   key={candidate.id}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData("application/json", JSON.stringify(candidate))}
                   onClick={() => onCandidateClick(candidate)}
-                  className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+                  className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 cursor-grab hover:border-indigo-300 hover:shadow-md transition-all group"
                 >
                   <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
                       {candidate.fullName || candidate.name || "Unknown"}
@@ -379,7 +404,11 @@ export default function CandidatesTab() {
           const q = isAdminUser
             ? query(collection(db, "candidatePool"), limit(100))
             : isClientUser
-              ? null
+              ? query(
+                  collection(db, "candidatePool"),
+                  where("clientId", "==", orgId),
+                  limit(100),
+                )
               : query(
                   collection(db, "candidatePool"),
                   where("vendorId", "==", orgId),
@@ -1277,20 +1306,15 @@ ${extText}`;
           )}
         </div>
 
-        {isClient ? (
-          <ClientCandidatePipeline
-            orgId={userOrgId || ""} 
-            userRole={userRole}
-            onCandidateClick={setSelectedCandidate}
-          />
-        ) : viewMode === "PIPELINE" ? (
+        {viewMode === "PIPELINE" ? (
           <VendorCandidatePipeline 
             candidates={candidates.filter(
                 (c) =>
-                  !searchQuery ||
+                  (!searchQuery ||
                   c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))
+                  (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))) &&
+                  (!isClient || (c.pipelineStage && c.pipelineStage !== "Candidate Added" && c.pipelineStage !== "Matched"))
               )} 
             onCandidateClick={setSelectedCandidate} 
           />

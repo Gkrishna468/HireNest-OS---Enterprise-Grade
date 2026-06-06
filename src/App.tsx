@@ -54,7 +54,7 @@ import DealRoomsTab from "./views/DealRoomsTab";
 import InterviewsTab from "./views/InterviewsTab";
 import { PlacementsTab } from "./views/PlacementsTab";
 import InboxTab from "./views/InboxTab";
-import { ClientCandidatePipeline } from "./views/workspaces/ClientCandidatePipeline";
+
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
 import FinancialsTab from "./views/FinancialsTab";
@@ -882,28 +882,11 @@ const AppContent = () => {
                 }
               />
             )}
-            {isClient && !isAdmin ? (
-              <Route
-                path="/candidates"
-                element={
-                  <ClientCandidatePipeline
-                    orgId={userData?.organizationId || ""}
-                    userRole={role || ""}
-                  />
-                }
-              />
-            ) : isAdmin || isVendor || isRecruiter ? (
-              <Route path="/candidates" element={<CandidatesTab />} />
-            ) : null}
+            <Route path="/candidates" element={<CandidatesTab />} />
             <Route path="/jobs" element={<JobsTab />} />
             <Route 
               path="/pipeline" 
-              element={
-                <ClientCandidatePipeline
-                  orgId={userData?.organizationId || ""}
-                  userRole={role || ""}
-                />
-              } 
+              element={<CandidatesTab />} 
             />
             {(isAdmin || isRecruiter) && (
               <Route path="/network" element={<NetworkDirectoryTab />} />
