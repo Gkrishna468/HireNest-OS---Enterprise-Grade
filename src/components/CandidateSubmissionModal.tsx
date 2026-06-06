@@ -119,6 +119,21 @@ export default function CandidateSubmissionModal({
     if (!name || !email) return;
     setIsSubmitting(true);
     try {
+      const { auth } = await import("../lib/firebase");
+      let submitterUid = auth.currentUser?.uid || "local_user";
+      let orgId = "local";
+      if (submitterUid !== "local_user") {
+        try {
+          const { getDoc, doc } = await import("firebase/firestore");
+          const userProfile = await getDoc(doc(db, "users", submitterUid));
+          if (userProfile.exists()) {
+            orgId = userProfile.data().organizationId || "local";
+          }
+        } catch(e) {
+          console.error("Error fetching user profile", e);
+        }
+      }
+
       if (reqId === "GENERAL") {
          const candId = "HN-CAN-" + Math.random().toString(36).substr(2, 9);
          await setDoc(doc(db, "candidatePool", candId), {
@@ -130,9 +145,9 @@ export default function CandidateSubmissionModal({
             experience: experience,
             location: currentLocation,
             candidateId: candId,
-            vendorId: "local",
-            sourceOrganizations: ["local"],
-            pipelineStage: "Added",
+            vendorId: orgId,
+            sourceOrganizations: [orgId],
+            pipelineStage: "Candidate Added",
             source: "Manual Add",
             resumeText: aiAnalysis?.analysis || "",
             skills: keySkills.split(",").map((s) => s.trim()).filter(Boolean),
@@ -161,21 +176,6 @@ export default function CandidateSubmissionModal({
           }
         } catch (err) {
           console.log("Could not fetch requirement for clientId", err);
-        }
-      }
-
-      const { auth } = await import("../lib/firebase");
-      let submitterUid = auth.currentUser?.uid || "local_user";
-      let orgId = "local";
-      if (submitterUid !== "local_user") {
-        try {
-          const { getDoc, doc } = await import("firebase/firestore");
-          const userProfile = await getDoc(doc(db, "users", submitterUid));
-          if (userProfile.exists()) {
-            orgId = userProfile.data().organizationId || "local";
-          }
-        } catch(e) {
-          console.error("Error fetching user profile", e);
         }
       }
 

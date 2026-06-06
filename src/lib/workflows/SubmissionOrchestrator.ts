@@ -171,8 +171,7 @@ export class SubmissionOrchestrator {
             requirementId,
             canonicalRequirementId: requirementId,
             clientId,
-            vendorOrgId: vendorId,
-            vendorId: vendorId,   // fallback for UI compat
+            vendorId, // authoritative
             status: initialStatus,
             submittedBy: submitterId,
             matchScore,

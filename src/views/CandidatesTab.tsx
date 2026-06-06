@@ -347,7 +347,7 @@ export default function CandidatesTab() {
           } else if (isClientUser) {
              qSub = query(collection(db, "submissions"), where("clientId", "==", orgId), limit(500));
           } else {
-             qSub = query(collection(db, "submissions"), where("vendorOrgId", "==", orgId), limit(500));
+             qSub = query(collection(db, "submissions"), where("vendorId", "==", orgId), limit(500));
           }
 
           if (qSub) {
@@ -357,21 +357,28 @@ export default function CandidatesTab() {
           }
 
           try {
-            const orgsSnap = await getDocs(collection(db, "organizations"));
             const vMap: Record<string, string> = {};
-            orgsSnap.docs.forEach((d) => {
-              const data = d.data();
-              if (data.name) {
-                vMap[d.id] = data.name;
-              }
-            });
-            const usersSnap = await getDocs(collection(db, "users"));
-            usersSnap.docs.forEach((d) => {
-              const data = d.data();
-              if (data.organizationId && data.name && !vMap[data.organizationId]) {
-                vMap[data.organizationId] = data.name;
-              }
-            });
+            if (isAdminUser) {
+              const orgsSnap = await getDocs(collection(db, "organizations"));
+              orgsSnap.docs.forEach((d) => {
+                const data = d.data();
+                if (data.name) {
+                  vMap[d.id] = data.name;
+                }
+              });
+              const usersSnap = await getDocs(collection(db, "users"));
+              usersSnap.docs.forEach((d) => {
+                const data = d.data();
+                if (data.organizationId && data.name && !vMap[data.organizationId]) {
+                  vMap[data.organizationId] = data.name;
+                }
+              });
+            } else if (orgId) {
+               const orgDoc = await getDoc(doc(db, "organizations", orgId));
+               if(orgDoc.exists()) {
+                 vMap[orgDoc.id] = orgDoc.data()?.name;
+               }
+            }
             setVendorMap(vMap);
           } catch (e) {
             console.warn("Failed to fetch organizations for vendor map");
@@ -432,18 +439,31 @@ export default function CandidatesTab() {
         unsubs.push(unsub);
         
         // Listen to operational events associated with this candidate for timeline
-        let qEvents = query(
-          collection(db, "operationalEvents"),
-          where("entityId", "==", id),
-          orderBy("timestamp", "desc")
-        );
-        const unsubEvents = onSnapshot(qEvents, (snap) => {
-           setCandidateEvents(snap.docs.map(d => ({id: d.id, ...d.data()})));
-        }, (err) => {
-           // Gracefully ignore index/permission errors for now during dev
-           console.warn("Event timeline error:", err.message);
-        });
-        unsubs.push(unsubEvents);
+        let qEvents = null;
+        if (isAdmin) {
+            qEvents = query(
+              collection(db, "operationalEvents"),
+              where("entityId", "==", id),
+              orderBy("timestamp", "desc")
+            );
+        } else if (userOrgId) {
+            qEvents = query(
+              collection(db, "operationalEvents"),
+              where("entityId", "==", id),
+              where("metadata.vendorId", "==", userOrgId),
+              orderBy("timestamp", "desc")
+            );
+        }
+        
+        if (qEvents) {
+          const unsubEvents = onSnapshot(qEvents, (snap) => {
+             setCandidateEvents(snap.docs.map(d => ({id: d.id, ...d.data()})));
+          }, (err) => {
+             // Gracefully ignore index/permission errors for now during dev
+             console.warn("Event timeline error:", err.message);
+          });
+          unsubs.push(unsubEvents);
+        }
         
       } catch (err) {
         console.warn("Error subscribing to candidate submissions", err);
@@ -554,7 +574,7 @@ export default function CandidatesTab() {
         dupCand.id || dupCand.candidateId,
       );
       await updateDoc(candRef, {
-        pipelineStage: "Added",
+        pipelineStage: "Candidate Added",
         isDuplicate: false,
         duplicateOf: "",
         duplicateOfName: "",
@@ -635,7 +655,7 @@ export default function CandidatesTab() {
            skills: getSkillsArray(formData.skills),
            candidateId: finalCandId,
            vendorId: userOrgId,
-           pipelineStage: "Added",
+           pipelineStage: "Candidate Added",
            isDuplicate: false,
            createdAt: serverTimestamp(),
            updatedAt: serverTimestamp(),
@@ -690,7 +710,7 @@ export default function CandidatesTab() {
           email: `pending@${candId}.local`,
           candidateId: candId,
           vendorId: userOrgId,
-          pipelineStage: "Added",
+          pipelineStage: "Candidate Added",
           distillationStatus: "PROCESSING",
           source: "Bulk Text Paste",
           resumeText: text,
@@ -799,6 +819,17 @@ The resume text for ${tempName} could not be fully extracted. Please review the 
             console.warn("Duplicate check failed:", e);
         }
         // ----------------------------------------
+        
+        let storagePath = "";
+        try {
+            const { ref, uploadBytes } = await import("firebase/storage");
+            const { storage } = await import("../lib/firebase");
+            const fileRef = ref(storage, `resumes/${userOrgId}/${candId}/${file.name}`);
+            await uploadBytes(fileRef, file);
+            storagePath = fileRef.fullPath;
+        } catch (storageErr) {
+            console.warn("Storage upload failed, continuing without storage:", storageErr);
+        }
 
         if (combinedExtractedText)
           combinedExtractedText += `
@@ -822,6 +853,8 @@ ${extText}`;
           resumeText: extText,
           resumeHash: resumeHash,
           fileName: file.name,
+          storagePath: storagePath,
+          uploadedBy: auth.currentUser?.uid || "SYSTEM",
           status: "QUEUED",
           distillationStatus: "PROCESSING",
           createdAt: serverTimestamp(),
@@ -1307,7 +1340,7 @@ ${extText}`;
                           candidateId: candId,
                           vendorId: userOrgId || "HQ",
                           sourceOrganizations: [userOrgId || "HQ"],
-                          pipelineStage: "Added",
+                          pipelineStage: "Candidate Added",
                           source: "Bulk Upload",
                           resumeText: c.extractedText,
                           fileName: c.fileName,
