@@ -152,6 +152,12 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
                   <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
                       {candidate.fullName || candidate.name || "Unknown"}
                   </p>
+                  {candidate.distillationStatus === "FAILED" && (
+                    <div className="mt-1 flex items-center gap-1 text-amber-600 text-[10px] font-bold uppercase tracking-wider">
+                       <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                       AI Enrichment Failed
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                       <p className="text-xs text-slate-500 mt-1 line-clamp-1 flex-1">{candidate.primaryEmail || candidate.email}</p>
                       {candidate.matchScore > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">{candidate.matchScore}%</span>}
@@ -1010,11 +1016,25 @@ ${extText}`;
           name: result.name, // Legacy
           primaryEmail: result.email, // Map to new schema
           phoneHash: result.phone, // Map to new schema
-          distillationStatus: "COMPLETED",
+          distillationStatus: result.status === "PARSE_FAILED" ? "FAILED" : "COMPLETED",
           updatedAt: serverTimestamp(),
         };
-        // Do not override user original data if it exists (for manual form updates)
-        if (result.name === "Unnamed Candidate") {
+        // Do not override email if it's the pending mock
+        if (result.email === "pending@hirenest.os" || result.email === "mock@example.com") {
+          delete updatePayload.email;
+          delete updatePayload.primaryEmail;
+        }
+        
+        // Do not override phone if it's unparsed
+        if (result.phone === "N/A" || result.phone === "Unparsed") {
+          delete updatePayload.phone;
+          delete updatePayload.phoneHash;
+        }
+        if (
+          result.name === "Unnamed Candidate" ||
+          result.name === "Parsing Pending" ||
+          result.name === "Candidate (Requires Human Review)"
+        ) {
           delete updatePayload.name;
           delete updatePayload.fullName;
         }
@@ -1355,6 +1375,12 @@ ${extText}`;
                        {candidate.fullName || candidate.name || "Unknown"}
                        {candidate.email && <CheckCircle className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
                     </span>
+                    {candidate.distillationStatus === "FAILED" && (
+                       <span className="flex items-center gap-1 text-amber-600 text-[10px] font-bold uppercase tracking-wider mt-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          AI Enrichment Failed
+                       </span>
+                    )}
                     <span className="text-xs font-mono text-slate-400 font-normal">
                        {candidate.candidateId || candidate.id || "HN-CAN-PENDING"}
                     </span>

@@ -79,12 +79,14 @@ export default function CandidateSubmissionModal({
             const intelData = await intelRes.json();
             if (intelData && intelData.length > 0) {
               const profile = intelData[0];
-              setName(profile.name || "");
+              if (profile.name && profile.name !== "Parsing Pending" && profile.name !== "Unknown") {
+                setName(profile.name);
+              }
               setEmail(
                 profile.email?.includes("pending@") ? "" : profile.email || "",
               );
-              setPhone(profile.phone || "");
-              setExperience(profile.experience || "");
+              setPhone(profile.phone === "N/A" ? "" : profile.phone || "");
+              setExperience(profile.experience === "Unparsed" ? "" : profile.experience || "");
               setKeySkills(
                 Array.isArray(profile.skills)
                   ? profile.skills.join(", ")
@@ -139,6 +141,7 @@ export default function CandidateSubmissionModal({
          await setDoc(doc(db, "candidatePool", candId), {
             fullName: name,
             name: name,
+            manualName: name,
             primaryEmail: email,
             email: email,
             phone: phone,
