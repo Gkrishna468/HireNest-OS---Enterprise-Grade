@@ -79,6 +79,67 @@ const STAGES = [
   "Placed",
 ];
 
+const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates: any[], onCandidateClick: (c: any) => void }) => {
+  const PIPELINE_STAGES = [
+    "Candidate Added",
+    "Matched",
+    "Submitted",
+    "Shortlisted",
+    "Interview",
+    "Offer",
+    "Placement"
+  ];
+  
+  const mappedStages = PIPELINE_STAGES.map(stage => {
+      return {
+          title: stage,
+          items: candidates.filter(c => {
+               const st = (c.pipelineStage || c.status || "Candidate Added").toUpperCase();
+               if(stage === "Candidate Added") return st.includes("ADDED") || st === "UPLOADED" || st === "QUEUED";
+               if(stage === "Matched") return st.includes("MATCH");
+               if(stage === "Submitted") return st.includes("SUBMIT");
+               if(stage === "Shortlisted") return st.includes("SHORTLIST");
+               if(stage === "Interview") return st.includes("INTERVIEW");
+               if(stage === "Offer") return st.includes("OFFER");
+               if(stage === "Placement") return st.includes("PLACE");
+               return false;
+          })
+      };
+  });
+
+  return (
+    <div className="flex overflow-x-auto gap-6 pb-8 h-full min-h-[600px] items-start snap-x">
+      {mappedStages.map((stage) => (
+        <div key={stage.title} className="flex-shrink-0 w-80 bg-slate-100 rounded-xl p-4 flex flex-col snap-start border border-slate-200/60 max-h-full">
+          <div className="flex justify-between items-center mb-4 px-1">
+            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{stage.title}</h3>
+            <span className="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
+              {stage.items.length}
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
+             {stage.items.map((candidate) => (
+                <div
+                  key={candidate.id}
+                  onClick={() => onCandidateClick(candidate)}
+                  className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+                >
+                  <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      {candidate.fullName || candidate.name || "Unknown"}
+                  </p>
+                  <div className="flex justify-between items-center">
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-1 flex-1">{candidate.primaryEmail || candidate.email}</p>
+                      {candidate.matchScore > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">{candidate.matchScore}%</span>}
+                  </div>
+                </div>
+             ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1216,11 +1277,22 @@ ${extText}`;
           )}
         </div>
 
-        {isClient || viewMode === "PIPELINE" ? (
+        {isClient ? (
           <ClientCandidatePipeline
             orgId={userOrgId || ""} 
             userRole={userRole}
             onCandidateClick={setSelectedCandidate}
+          />
+        ) : viewMode === "PIPELINE" ? (
+          <VendorCandidatePipeline 
+            candidates={candidates.filter(
+                (c) =>
+                  !searchQuery ||
+                  c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))
+              )} 
+            onCandidateClick={setSelectedCandidate} 
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

@@ -1,10 +1,4 @@
-import { adminDb } from "../src/lib/firebase-admin.js";
-
-function getSkillsArray(skills: any) {
-  if (Array.isArray(skills)) return skills;
-  if (typeof skills === "string") return skills.split(",").map((s) => s.trim());
-  return [];
-}
+import { adminDb } from "../src/lib/firebase-admin.ts";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -12,14 +6,31 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    if (!adminDb) {
+      return res.status(500).json({ error: "adminDb not initialized" });
+    }
     const candidatesRef = adminDb.collection('candidatePool');
     const qSnap = await candidatesRef.get();
     
     let repaired = 0;
     
-    // We fetch logic here, could just re-parse locally or use the text already embedded.
-    // If the candidate lacks name, maybe we should just mark them for re-extraction if needed.
-    // But since this is a repair job, maybe the simplest is to match the requirements to the correct names or delete the "Local Mock Generated" ones if they don't have real text?
+    for (const doc of qSnap.docs) {
+      const data = doc.data();
+      if (
+        data.name === "Local Mock Generated" ||
+        data.email === "mock@example.com" ||
+        data.email === "pending@hirenest.os" ||
+        data.name === "Pending Distillation" ||
+        data.name === "Parsing Pending" ||
+        data.name === "Sarah Jenkins" ||
+        data.name === "Unnamed Candidate" ||
+        data.name === "Unknown Candidate"
+      ) {
+        await doc.ref.delete();
+        repaired++;
+      }
+    }
+    
     res.status(200).json({ message: "Repairs executing...", repaired });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

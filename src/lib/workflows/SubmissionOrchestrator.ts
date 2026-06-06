@@ -263,6 +263,12 @@ export class SubmissionOrchestrator {
               status: initialStatus,
               updatedAt: serverTimestamp(),
             });
+            await updateDoc(doc(db, "candidatePool", candidateId), {
+                pipelineStage: "Matched",
+                matchedRequirementId: requirementId,
+                submissionId: submissionId,
+                updatedAt: serverTimestamp()
+            });
             console.log("STEP 4B SUCCESS");
           } catch (e) {
             console.error("STEP 4B FAILED", e);
@@ -300,6 +306,15 @@ export class SubmissionOrchestrator {
             ],
           });
           submissionId = newSubRef.id;
+          
+          console.log("STEP 5B: update cand pipelineStage");
+          await updateDoc(doc(db, "candidatePool", candidateId), {
+              pipelineStage: "Matched",
+              matchedRequirementId: requirementId,
+              submissionId: submissionId,
+              updatedAt: serverTimestamp()
+          });
+
           console.log("STEP 5 SUCCESS", submissionId);
         } catch (e) {
           console.error("STEP 5 FAILED", e);
@@ -334,11 +349,19 @@ export class SubmissionOrchestrator {
 
       // 7. Event Ledger
       try {
-        console.log("STEP 7: emitEvent SubmissionCreated");
+        console.log("STEP 7: emitEvents");
         await emitEvent(
           "SubmissionCreated",
           "SUBMISSION",
           submissionId,
+          request.submitterId || "SYSTEM",
+          "vendor",
+          { candidateId, requirementId, vendorId, matchScore },
+        );
+        await emitEvent(
+          "CandidateMatched",
+          "CANDIDATE",
+          candidateId,
           request.submitterId || "SYSTEM",
           "vendor",
           { candidateId, requirementId, vendorId, matchScore },
