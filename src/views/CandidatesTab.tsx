@@ -342,7 +342,7 @@ export default function CandidatesTab() {
           }
 
           let qSub = null;
-          if (isAdminUser) {
+          if (isAdmin) {
              qSub = query(collection(db, "submissions"), limit(500));
           } else if (isClientUser) {
              qSub = query(collection(db, "submissions"), where("clientId", "==", orgId), limit(500));
@@ -358,7 +358,7 @@ export default function CandidatesTab() {
 
           try {
             const vMap: Record<string, string> = {};
-            if (isAdminUser) {
+            if (isAdmin) {
               const orgsSnap = await getDocs(collection(db, "organizations"));
               orgsSnap.docs.forEach((d) => {
                 const data = d.data();
@@ -938,7 +938,9 @@ ${extText}`;
             result.email &&
             result.email !== "No Email Provided" &&
             result.email !== "" &&
-            !result.email.includes("pending@")
+            !result.email.includes("pending@") &&
+            !result.email.includes("mock@") &&
+            !result.email.includes("example.com")
           ) {
             const { query, collection, where, getDocs, deleteDoc, getDoc } =
               await import("firebase/firestore");

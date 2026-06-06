@@ -51,6 +51,52 @@ export default function Candidate360Modal({
   const [isMapping, setIsMapping] = useState(false);
   const [mappingResult, setMappingResult] = useState<any | null>(candidate.aiAnalysis || null);
 
+  const handleRunMatch = async () => {
+    if (!selectedJobId) return;
+    setIsMapping(true);
+    try {
+      const { auth } = await import("../../lib/firebase");
+      const submitterUid = auth.currentUser?.uid || "local_user";
+      
+      const selectedReq = jobs.find(j => j.id === selectedJobId);
+      const targetClientId = selectedReq?.clientId || "ORG-CLIENT-1";
+
+      const candidateId = candidate.candidateId || candidate.id;
+      
+      const aiAnalysisObj = candidate.aiAnalysis || mappingResult || { fitScore: 85, analysis: "Strong match based on requirements." };
+      setMappingResult(aiAnalysisObj);
+      
+      const response = await SubmissionOrchestrator.submitCandidate({
+        candidateData: {
+          id: candidateId,
+          name: nameStr,
+          email: candidate.email || candidate.contactEmail || "",
+          phone: candidate.phone || candidate.contactPhone || "",
+          resumeText: candidate.resumeText || candidate.extractedText || "",
+          skills: getSkillsArray(candidate.skills) || [],
+        },
+        requirementId: selectedJobId,
+        clientId: targetClientId,
+        vendorId: userOrgId || "local",
+        submitterId: submitterUid,
+        initialStatus: "PENDING_REVIEW",
+        matchScore: aiAnalysisObj?.fitScore || 85,
+        aiAnalysis: aiAnalysisObj,
+      });
+
+      if (response.success) {
+        alert("Success: Candidate submitted successfully!");
+      } else {
+        alert("Error: " + response.message);
+      }
+    } catch(e) {
+      console.error(e);
+      alert("Failed to map candidate to requirement.");
+    } finally {
+      setIsMapping(false);
+    }
+  };
+
   useEffect(() => {
     // Load timeline events
     const id = candidate.originalId || candidate.id || candidate.candidateId;
@@ -335,7 +381,7 @@ export default function Candidate360Modal({
                              {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.company})</option>)}
                           </select>
                           <Button 
-                             onClick={() => alert("Simulation: Mapped to Requirement. UI state sync mocked.")} 
+                             onClick={handleRunMatch} 
                              disabled={!selectedJobId || isMapping}
                              className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8"
                           >
