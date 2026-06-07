@@ -1014,6 +1014,10 @@ ${extText}`;
         parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
       if (result && result.name && result.name !== "Pending Distillation") {
+        delete result.pipelineStage;
+        delete result.candidateId;
+        delete result.id;
+        
         let updatePayload: any = {
           ...result,
           fullName: result.name, // Map to new schema

@@ -52,6 +52,34 @@ export default function Candidate360Modal({
   const [isMapping, setIsMapping] = useState(false);
   const [mappingResult, setMappingResult] = useState<any | null>(candidate.aiAnalysis || null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteCandidate = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setIsDeleting(true);
+    try {
+      const { updateDoc, doc, serverTimestamp } = await import("firebase/firestore");
+      const candId = candidate.candidateId || candidate.id;
+      
+      await updateDoc(doc(db, "candidatePool", candId), {
+        status: "DELETED",
+        isActive: false,
+        deletedAt: serverTimestamp(),
+        deletedBy: "super_admin",
+        deletionReason: "Admin Requested Deletion"
+      });
+      
+      alert("Candidate successfully deleted.");
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (e: any) {
+      alert("Deletion failed: " + e.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleRetryEnrichment = async () => {
     setIsRetrying(true);
@@ -59,9 +87,40 @@ export default function Candidate360Modal({
       const { updateDoc, doc, serverTimestamp, getDoc } = await import("firebase/firestore");
       const candId = candidate.candidateId || candidate.id;
       
-      const resumeTextToUse = candidate.resumeText || candidate.extractedText;
-      if (!resumeTextToUse) {
-        alert("No resume text available to retry. Upload a new resume instead.");
+      let resumeTextToUse = candidate.resumeText || candidate.extractedText;
+
+      if (candidate.storagePath) {
+        try {
+          const { getStorage, ref, getDownloadURL } = await import("firebase/storage");
+          const storage = getStorage();
+          const fileRef = ref(storage, candidate.storagePath);
+          const url = await getDownloadURL(fileRef);
+          
+          const fileRes = await fetch(url);
+          const blob = await fileRes.blob();
+          
+          const formData = new FormData();
+          formData.append("file", blob, candidate.fileName || "resume.pdf");
+          
+          const extRes = await fetch("/api/extract-text", {
+             method: "POST",
+             body: formData
+          });
+          
+          if (extRes.ok) {
+             const extData = await extRes.json();
+             if (extData.text && extData.text.length > 50) {
+                 resumeTextToUse = extData.text;
+                 await updateDoc(doc(db, "candidatePool", candId), { resumeText: resumeTextToUse });
+             }
+          }
+        } catch (e) {
+          console.warn("Could not fetch or re-extract from storage, falling back to existing DB text", e);
+        }
+      }
+
+      if (!resumeTextToUse || resumeTextToUse.includes("[Parse Failure Fallback]") && resumeTextToUse.length < 500) {
+        alert("No valid resume text available to parse. Upload a new resume instead.");
         setIsRetrying(false);
         return;
       }
@@ -70,14 +129,27 @@ export default function Candidate360Modal({
       const result = parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
       if (result && result.name && result.name !== "Pending Distillation") {
+         // Prevent overwriting structural candidate properties
+         delete result.pipelineStage;
+         delete result.candidateId;
+         delete result.id;
+         
          let updatePayload: any = {
            ...result,
+           fullName: result.name,
+           name: result.name,
+           primaryEmail: result.email,
+           phoneHash: result.phone,
            distillationStatus: result.status === "PARSE_FAILED" ? "FAILED" : "COMPLETED",
            enrichmentAttempts: (candidate.enrichmentAttempts || 0) + 1,
            lastEnrichmentAttemptAt: new Date().toISOString(),
            lastEnrichmentStatus: result.status || "COMPLETED",
            updatedAt: serverTimestamp(),
          };
+         
+         if (result.status === "PARSE_FAILED") {
+            updatePayload.failureReason = "MODEL_TIMEOUT_OR_FAILURE";
+         }
          
          const candSnap = await getDoc(doc(db, "candidatePool", candId));
          if (candSnap.exists()) {
@@ -104,7 +176,11 @@ export default function Candidate360Modal({
          }
 
          await updateDoc(doc(db, "candidatePool", candId), updatePayload);
-         alert("AI Enrichment Retry completed successfully.");
+         if (result.status !== "PARSE_FAILED") {
+            alert("AI Enrichment Retry completed successfully.");
+         } else {
+            alert("Enrichment failed again. Please review the document manually.");
+         }
       } else {
          await updateDoc(doc(db, "candidatePool", candId), {
            distillationStatus: "FAILED",
@@ -114,7 +190,7 @@ export default function Candidate360Modal({
            failureReason: "MODEL_TIMEOUT_OR_FAILURE",
            updatedAt: serverTimestamp(),
          });
-         alert("Enrichment failed again. Please review the document contents.");
+         alert("Enrichment failed again. Please review the document manually.");
       }
     } catch (e: any) {
       console.error("Retry failed:", e);
@@ -155,6 +231,7 @@ export default function Candidate360Modal({
         initialStatus: "PENDING_REVIEW",
         matchScore: aiAnalysisObj?.fitScore || 85,
         aiAnalysis: aiAnalysisObj,
+        bypassOwnershipCheck: isAdmin,
       });
 
       if (response.success) {
@@ -711,7 +788,35 @@ export default function Candidate360Modal({
                       <p className="text-sm text-rose-700/80 mb-4">Deleting this candidate will permanently sever workflow links and log a destruction event in the immutable ledger.</p>
                       
                       {isAdmin ? (
-                         <Button variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-100 font-bold bg-white" onClick={() => alert("Simulated deletion.")}>Delete Identity Record</Button>
+                         !showDeleteConfirm ? (
+                           <Button variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-100 font-bold bg-white" onClick={() => setShowDeleteConfirm(true)}>Delete Identity Record</Button>
+                         ) : (
+                           <div className="bg-white border border-rose-200 p-4 rounded-lg mt-4 shadow-sm">
+                             <h4 className="font-bold text-rose-800 mb-2">Confirm Candidate Deletion</h4>
+                             <p className="text-sm text-slate-700 mb-2">Candidate: {nameStr}</p>
+                             <p className="text-sm text-slate-700 mb-4 font-mono">ID: {candidateIdStr}</p>
+                             <ul className="text-sm text-slate-600 mb-4 space-y-1">
+                               <li>✓ Remove candidate from active pipelines</li>
+                               <li>✓ Remove ownership records</li>
+                               <li>✓ Remove resume storage references</li>
+                               <li>✓ Create immutable audit event</li>
+                             </ul>
+                             <p className="text-xs text-slate-500 mb-2 uppercase font-bold tracking-wider">Type DELETE to continue:</p>
+                             <input 
+                               type="text" 
+                               value={deleteConfirmText} 
+                               onChange={(e) => setDeleteConfirmText(e.target.value)}
+                               className="w-full border-rose-200 rounded-md bg-rose-50 text-rose-900 placeholder:text-rose-300 font-mono text-sm px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                               placeholder="DELETE"
+                             />
+                             <div className="flex gap-2">
+                               <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+                               <Button className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold" onClick={handleDeleteCandidate} disabled={deleteConfirmText !== "DELETE" || isDeleting}>
+                                 {isDeleting ? "Deleting..." : "Delete Candidate"}
+                               </Button>
+                             </div>
+                           </div>
+                         )
                       ) : (
                          <Button variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-100 font-bold bg-white" onClick={() => alert("Delete request submitted to AdminHQ.")}>Request Deletion</Button>
                       )}

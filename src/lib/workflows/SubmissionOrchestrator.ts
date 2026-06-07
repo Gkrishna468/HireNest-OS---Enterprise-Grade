@@ -31,6 +31,7 @@ export interface SubmissionRequest {
   initialStatus?: string;
   matchScore?: number;
   aiAnalysis?: any;
+  bypassOwnershipCheck?: boolean;
 }
 
 export interface SubmissionResponse {
@@ -147,7 +148,8 @@ export class SubmissionOrchestrator {
               if (
                 claim.vendorId !== vendorId &&
                 claim.vendorId !== "HQ" &&
-                vendorId !== "HQ"
+                vendorId !== "HQ" &&
+                !request.bypassOwnershipCheck
               ) {
                 // HQ can submit anyone
                 return {
