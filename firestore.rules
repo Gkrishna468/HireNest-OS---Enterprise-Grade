@@ -126,7 +126,7 @@ service cloud.firestore {
     }
 
     function currentOrgId() {
-      return getUserData() != null ? getUserData().organizationId : authOrgId();
+      return getUserData() != null ? getUserData().get('organizationId', getUserData().get('orgId', authOrgId())) : authOrgId();
     }
 
     function isOwner(userId) {
@@ -1091,6 +1091,11 @@ service cloud.firestore {
     }
 
     match /invoices/{invoiceId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    match /resume_parses/{parseId} {
       allow read: if isVerified();
       allow write: if isVerified();
     }

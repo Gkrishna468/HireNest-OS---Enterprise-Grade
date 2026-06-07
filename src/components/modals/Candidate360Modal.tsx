@@ -283,7 +283,7 @@ export default function Candidate360Modal({
     // Load timeline events
     const id = candidate.candidateId || candidate.originalId || candidate.id;
 
-    // Fetch full candidate from pool to get resumeText, skills, etc. (Skip for clients to prevent permission errors)
+    // Fetch full candidate from pool to get resumeText, skills, etc.
     let unsubProfile = () => {};
     if (!userRole.includes("client")) {
        import("firebase/firestore").then(({ doc, onSnapshot: os, getDoc }) => {
@@ -303,6 +303,14 @@ export default function Candidate360Modal({
             }
          }, err => console.warn(err));
        });
+    } else {
+       fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`)
+         .then(res => res.json())
+         .then(data => {
+            if (data.candidate) setFullCandidateData(data.candidate);
+            if (data.aiAnalysis) setMappingResult(data.aiAnalysis);
+         })
+         .catch(err => console.warn("Failed to fetch client candidate data via API", err));
     }
     
     // Load interviews
@@ -333,24 +341,27 @@ export default function Candidate360Modal({
     });
 
     const reqIdTarget = candidate.requirementId || selectedJobId;
-    const qMatches = query(collection(db, "candidatePool", id, "ai_matches"));
-    const unsubMatches = onSnapshot(qMatches, snap => {
-       const matches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       if (matches.length > 0) {
-         if (reqIdTarget) {
-            const specificMatch = matches.find((m: any) => m.id === reqIdTarget || m.requirementId === reqIdTarget);
-            if (specificMatch) {
-               setMappingResult(specificMatch);
-               return;
-            }
-         }
-         // get the highest scoring match
-         matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
-         setMappingResult(matches[0]);
-       }
-    }, err => {
-       console.warn("AI Matches query error:", err);
-    });
+    let unsubMatches = () => {};
+    if (!userRole.includes("client")) {
+        const qMatches = query(collection(db, "candidatePool", id, "ai_matches"));
+        unsubMatches = onSnapshot(qMatches, snap => {
+           const matches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+           if (matches.length > 0) {
+             if (reqIdTarget) {
+                const specificMatch = matches.find((m: any) => m.id === reqIdTarget || m.requirementId === reqIdTarget);
+                if (specificMatch) {
+                   setMappingResult(specificMatch);
+                   return;
+                }
+             }
+             // get the highest scoring match
+             matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
+             setMappingResult(matches[0]);
+           }
+        }, err => {
+           console.warn("AI Matches query error:", err);
+        });
+    }
 
     return () => {
        unsubProfile();
