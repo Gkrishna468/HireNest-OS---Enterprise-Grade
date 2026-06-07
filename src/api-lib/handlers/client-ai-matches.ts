@@ -51,7 +51,7 @@ export default async function handler(req: any, res: any) {
          if (!candRef.exists) continue;
          const cand = candRef.data();
 
-         if (cand.active === false || cand.archived === true || cand.deleted === true || cand.blacklisted === true) {
+         if (cand.active === false || cand.isActive === false || cand.status === "DELETED" || cand.archived === true || cand.deleted === true || cand.blacklisted === true) {
              continue;
          }
          activeFiltered++;
@@ -66,8 +66,10 @@ export default async function handler(req: any, res: any) {
          let subExists = false;
          
          subSnap.docs.forEach((s) => {
+             const data = s.data();
+             if (data.status === "DELETED" || data.isActive === false) return;
              subExists = true;
-             status = s.data().status || "SUBMITTED";
+             status = data.status || "SUBMITTED";
          });
          
          const subSnap2 = await adminDb.collection("submissions")
@@ -76,8 +78,10 @@ export default async function handler(req: any, res: any) {
                .get();
          
          subSnap2.docs.forEach((s) => {
+             const data = s.data();
+             if (data.status === "DELETED" || data.isActive === false) return;
              subExists = true;
-             status = s.data().status || "SUBMITTED";
+             status = data.status || "SUBMITTED";
          });
 
          // ENFORCING GOVERNANCE RULE: Clients ONLY see candidates submitted to their requirements.

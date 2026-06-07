@@ -428,7 +428,7 @@ export default function CandidatesTab() {
               q,
               (snap) => {
                 setCandidates(
-                  snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                  snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c: any) => c.status !== "DELETED" && c.isActive !== false),
                 );
               },
               (error: any) => {
@@ -529,7 +529,7 @@ export default function CandidatesTab() {
         // Listen to submissions via candidateId
         const unsub = onSnapshot(qId, (snap) => {
           setCandidateSubmissions(
-            snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+            snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s:any) => s.status !== "DELETED" && s.isActive !== false),
           );
         });
         unsubs.push(unsub);
@@ -1026,6 +1026,9 @@ ${extText}`;
           phoneHash: result.phone, // Map to new schema
           distillationStatus: result.status === "PARSE_FAILED" ? "FAILED" : "COMPLETED",
           updatedAt: serverTimestamp(),
+          resumeLastParsedAt: new Date().toISOString(),
+          resumeParserVersion: "v1_gemini_pro",
+          resumeSource: "initial_parse"
         };
         // Do not override email if it's the pending mock
         if (result.email === "pending@hirenest.os" || result.email === "mock@example.com") {

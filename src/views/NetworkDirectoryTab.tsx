@@ -59,7 +59,12 @@ export default function NetworkDirectoryTab() {
         
         if (q) {
           const snap = await getDocs(q);
-          setData(snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })));
+          const results = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+          if (activeFilter === 'candidates') {
+             setData(results.filter((c:any) => c.status !== "DELETED" && c.isActive !== false));
+          } else {
+             setData(results);
+          }
         }
       } catch (err) {
         console.error("Failed to load network data", err);

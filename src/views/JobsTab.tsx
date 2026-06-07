@@ -685,7 +685,7 @@ export default function JobsTab() {
                   createdAt: data.updatedAt || data.createdAt,
                   ...data,
                 };
-              });
+              }).filter((c: any) => c.status !== "DELETED" && c.isActive !== false);
               updateMergedSubmissions();
             },
             (error) => {
@@ -697,7 +697,7 @@ export default function JobsTab() {
       const unsubSub = onSnapshot(
         qSub,
         (snap) => {
-          currentSubs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          currentSubs = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s: any) => s.status !== "DELETED" && s.isActive !== false);
           updateMergedSubmissions();
         },
         (error) => {
@@ -1825,7 +1825,7 @@ export default function JobsTab() {
                           ...fallbackMatches,
                         ].map((c) => [c.candidateId || c.id || c.email, c]),
                       ).values(),
-                    );
+                    ).filter((c: any) => c.status !== "DELETED" && c.isActive !== false);
 
                     counts = {
                       matches: 0,

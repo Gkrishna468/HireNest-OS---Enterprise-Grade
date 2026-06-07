@@ -60,16 +60,38 @@ export default function Candidate360Modal({
     if (deleteConfirmText !== "DELETE") return;
     setIsDeleting(true);
     try {
-      const { updateDoc, doc, serverTimestamp } = await import("firebase/firestore");
+      const { updateDoc, doc, collection, query, where, getDocs, serverTimestamp } = await import("firebase/firestore");
       const candId = candidate.candidateId || candidate.id;
       
-      await updateDoc(doc(db, "candidatePool", candId), {
+      const updateData = {
         status: "DELETED",
         isActive: false,
         deletedAt: serverTimestamp(),
         deletedBy: "super_admin",
         deletionReason: "Admin Requested Deletion"
-      });
+      };
+
+      await updateDoc(doc(db, "candidatePool", candId), updateData);
+      
+      const ownershipQ = query(collection(db, "ownershipVault"), where("candidateId", "==", candId));
+      const ownershipSnap = await getDocs(ownershipQ);
+      for (const d of ownershipSnap.docs) {
+         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+      }
+
+      const submissionsQ = query(collection(db, "submissions"), where("candidateId", "==", candId));
+      const submissionsSnap = await getDocs(submissionsQ);
+      for (const d of submissionsSnap.docs) {
+         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+      }
+      
+      const dealRoomsQ = query(collection(db, "dealRooms"), where("candidateId", "==", candId));
+      const dealRoomsSnap = await getDocs(dealRoomsQ);
+      for (const d of dealRoomsSnap.docs) {
+         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+      }
+      
+      publishEvent("CANDIDATE_DELETED", { candidateId: candId });
       
       alert("Candidate successfully deleted.");
       setShowDeleteConfirm(false);
@@ -145,6 +167,10 @@ export default function Candidate360Modal({
            lastEnrichmentAttemptAt: new Date().toISOString(),
            lastEnrichmentStatus: result.status || "COMPLETED",
            updatedAt: serverTimestamp(),
+           resumeStoragePath: candidate.storagePath || "",
+           resumeLastParsedAt: new Date().toISOString(),
+           resumeParserVersion: "v1_gemini_pro",
+           resumeSource: candidate.storagePath ? "firebase_storage_retry" : "db_text_fallback_retry"
          };
          
          if (result.status === "PARSE_FAILED") {

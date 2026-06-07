@@ -65,9 +65,11 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
         const poolSnapshot = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).get();
         
-        poolSnapshot.docs.forEach((d: any) =>
-          docsToEvaluate.push({ id: d.id, ...d.data() }),
-        );
+        poolSnapshot.docs.forEach((d: any) => {
+          const cand = d.data();
+          if (cand.status === "DELETED" || cand.isActive === false || cand.active === false) return;
+          docsToEvaluate.push({ id: d.id, ...cand });
+        });
 
         for (const cand of docsToEvaluate) {
           // PIPELINE ISOLATION:
@@ -173,12 +175,14 @@ export default async function matchingGlobalHandler(req: any, res: any) {
             
             allCandidatesSnap.docs.forEach((d:any) => {
                const candData = d.data();
+               if (candData.status === "DELETED" || candData.isActive === false || candData.active === false) return;
                const existing = uniqueMap.get(d.id);
                uniqueMap.set(d.id, { ...candData, id: d.id, sysSource: 'VENDOR_FLOATED', matchScore: candData.matchScore || candData.aiMatchScore || existing?.matchScore || null });
             });
             
             allSubsSnap.docs.forEach((d:any) => {
                const subData = d.data();
+               if (subData.status === "DELETED" || subData.isActive === false) return;
                const candId = subData.candidateId || d.id;
                const existing = uniqueMap.get(candId);
                uniqueMap.set(candId, { ...existing, ...subData, id: candId, sysSource: 'SUBMISSION', submissionId: d.id });

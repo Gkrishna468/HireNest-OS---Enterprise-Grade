@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
     for (const cand of candidates) {
       // 3. Auto-remove/exclude archived, deleted, or blacklisted candidates
       const isArchived = cand.status === 'archived' || cand.isArchived;
-      const isDeleted = cand.status === 'deleted' || cand.isDeleted;
+      const isDeleted = cand.status === 'deleted' || cand.status === "DELETED" || cand.isDeleted || cand.isActive === false || cand.active === false;
       const isBlacklisted = cand.status === 'blacklisted' || cand.isBlacklisted;
       
       if (isArchived || isDeleted || isBlacklisted) {

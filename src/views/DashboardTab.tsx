@@ -35,7 +35,7 @@ export default function DashboardTab() {
 
       // Candidates & Submissions
       const subSnap = await getDocs(collection(db, "submissions"));
-      const allSubs = subSnap.docs.map(d => d.data());
+      const allSubs = subSnap.docs.map(d => d.data()).filter((s:any) => s.status !== "DELETED" && s.isActive !== false);
       
       let submissions = 0;
       let interviews = 0;
@@ -51,7 +51,7 @@ export default function DashboardTab() {
       });
       
       const candSnap = await getDocs(collection(db, "candidatePool"));
-      const candidates = candSnap.docs.map(d => d.data());
+      const candidates = candSnap.docs.map(d => d.data()).filter((c:any) => c.status !== "DELETED" && c.isActive !== false);
 
       // DealRooms (Backup placements count, etc.)
       const drSnap = await getDocs(collection(db, "dealRooms"));

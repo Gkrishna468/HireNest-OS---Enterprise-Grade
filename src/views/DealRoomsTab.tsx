@@ -160,7 +160,7 @@ export default function DealRoomsTab() {
         const unsubscribe = onSnapshot(
           q,
           (snap) => {
-            const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const data = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
             setDealRooms(data);
           },
           (error) => {
