@@ -19,9 +19,11 @@ import { ActivityFeed } from "../../components/ActivityFeed";
 
 export default function RecruiterWorkspace({
   userName,
+  orgId,
   metrics,
 }: {
   userName: string;
+  orgId?: string;
   metrics?: any;
 }) {
   return (

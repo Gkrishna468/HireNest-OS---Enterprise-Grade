@@ -67,7 +67,7 @@ export default async function matchingGlobalHandler(req: any, res: any) {
         
         poolSnapshot.docs.forEach((d: any) => {
           const cand = d.data();
-          if (cand.status === "DELETED" || cand.isActive === false || cand.active === false) return;
+          if (cand.status === "DELETED" || cand.isActive === false || cand.active === false || cand.distillationStatus === "FAILED") return;
           docsToEvaluate.push({ id: d.id, ...cand });
         });
 

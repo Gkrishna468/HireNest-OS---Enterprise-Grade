@@ -212,6 +212,7 @@ async function createServer() {
         case 'workflows':
           return await workflowsHandler(req, res);
           
+        case 'analytics':
         case 'analytics/client':
         case 'analytics/vendor':
         case 'analytics/recruiter':

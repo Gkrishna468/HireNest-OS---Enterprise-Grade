@@ -1,7 +1,9 @@
 import { adminDb } from "../src/lib/firebase-admin.js";
 
 export default async function analyticsHandler(req: any, res: any) {
-  const apiPath = req.path.replace(/^\/api\/analytics\//, '').split('?')[0];
+  const apiPathMatch = req.path.match(/analytics\/(.*)/);
+  const typeParam = req.query.type;
+  const apiPath = apiPathMatch && apiPathMatch[1] ? apiPathMatch[1].split('?')[0] : (typeParam || req.path.replace(/^\/?analytics\//, '').split('?')[0]);
 
   try {
     if (!adminDb) {

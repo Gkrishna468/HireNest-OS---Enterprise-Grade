@@ -19,7 +19,7 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
 
     const fetchAllData = async () => {
       try {
-        const res = await fetch(`/api/analytics/hq-production-health?orgId=${orgId}&userId=${userId}&role=${userRole}`);
+        const res = await fetch(`/api/analytics?type=hq-production-health&orgId=${orgId}&userId=${userId}&role=${userRole}`);
         const data = await res.json();
         setHealthData(data);
 

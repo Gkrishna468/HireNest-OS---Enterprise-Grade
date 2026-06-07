@@ -20,9 +20,11 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function VendorPartnerWorkspace({
   vendorName,
+  orgId,
   metrics,
 }: {
   vendorName: string;
+  orgId?: string;
   metrics?: any;
 }) {
   const [submittingReq, setSubmittingReq] = useState<{
@@ -34,28 +36,18 @@ export default function VendorPartnerWorkspace({
 
   useEffect(() => {
     let active = true;
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || !orgId) return;
     
     // We fetch interviews assigned to this vendor
-    const q = query(
+    const qAll = query(
       collection(db, "interviews"),
-      where("vendorId", "==", metrics?.orgId || "")
+      where("vendorId", "==", orgId)
     );
-    
-    // Fallback: If metrics?.orgId is not available, we can rely on email domain or just fetch all and filter in real app
-    // For now, let's just query everything and filter client side to avoid index requirement issues
-    const qAll = query(collection(db, "interviews"));
     
     const unsub = onSnapshot(qAll, snap => {
       if (!active) return;
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Filter by vendor name or id (simplified)
-      const myInterviews = data.filter(i => {
-           // In a real system, you would match i.vendorId === vendorOrgId.
-           // Since we might not have a strict orgId mapping locally, we check roughly:
-           return true; 
-      });
-      setInterviews(myInterviews);
+      setInterviews(data);
     });
 
     return () => {

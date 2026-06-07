@@ -244,7 +244,7 @@ export default function DashboardTab() {
       else if (isIndependent) queryType = "vendor"; // Use vendor for independent
 
       auth.currentUser?.getIdToken().then(token => {
-        fetch(`/api/analytics/${queryType}?orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`, {
+        fetch(`/api/analytics?type=${queryType}&orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -285,15 +285,15 @@ export default function DashboardTab() {
   if (!metrics) return <div className="p-4 flex items-center justify-center text-slate-400 text-xs font-mono animate-pulse">Initializing Governance Layer...</div>;
 
   if (isVendor) {
-    return <VendorPartnerWorkspace vendorName={session?.user?.name || "Vendor Partner"} metrics={metrics} />;
+    return <VendorPartnerWorkspace vendorName={session?.user?.name || "Vendor Partner"} orgId={session?.user?.organizationId} metrics={metrics} />;
   }
 
   if (isClient) {
-    return <HiringManagerWorkspace userName={session?.user?.name || "Hiring Manager"} metrics={metrics} />;
+    return <HiringManagerWorkspace userName={session?.user?.name || "Hiring Manager"} orgId={session?.user?.organizationId} metrics={metrics} />;
   }
 
   if (isRecruiter) {
-    return <RecruiterWorkspace userName={session?.user?.name || "Recruiter"} metrics={metrics} />;
+    return <RecruiterWorkspace userName={session?.user?.name || "Recruiter"} orgId={session?.user?.organizationId} metrics={metrics} />;
   }
 
   return (

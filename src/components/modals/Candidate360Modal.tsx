@@ -91,7 +91,12 @@ export default function Candidate360Modal({
          await updateDoc(d.ref, { isActive: false, status: "DELETED" });
       }
       
-      publishEvent("CANDIDATE_DELETED", { candidateId: candId });
+      await publishEvent({
+        type: "info",
+        title: "Candidate Deleted",
+        message: `Candidate ${candId} was soft-deleted by user.`,
+        recipients: ["GLOBAL_ADMIN"]
+      });
       
       alert("Candidate successfully deleted.");
       setShowDeleteConfirm(false);

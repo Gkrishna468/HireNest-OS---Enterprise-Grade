@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Calendar, Clock, Video, Users, Navigation, Monitor, Plus, CheckCircle, MessageSquare } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, where } from 'firebase/firestore';
 import { Badge } from '../lib/Badge';
 import { publishEvent } from '../lib/eventEngine';
 import { Button } from '../lib/Button';
@@ -29,23 +29,38 @@ export default function InterviewsTab() {
 
    useEffect(() => {
       let active = true;
+      let unsubscribeData = () => {};
+
       if (auth.currentUser) {
          getDoc(doc(db, "users", auth.currentUser.uid)).then(snap => {
             if (snap.exists() && active) {
-               setUserRole(snap.data().role);
-               setUserOrgId(snap.data().organizationId || 'HQ');
+               const role = snap.data().role;
+               const orgId = snap.data().organizationId || 'HQ';
+               setUserRole(role);
+               setUserOrgId(orgId);
+
+               let q;
+               if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
+                 q = query(collection(db, "interviews"), orderBy("createdAt", "desc"));
+               } else if (role.startsWith("vendor")) {
+                 q = query(collection(db, "interviews"), where("vendorId", "==", orgId), orderBy("createdAt", "desc"));
+               } else if (role.startsWith("client") || role === "hiring_manager") {
+                 q = query(collection(db, "interviews"), where("clientId", "==", orgId), orderBy("createdAt", "desc"));
+               } else {
+                 q = query(collection(db, "interviews"), orderBy("createdAt", "desc"));
+               }
+
+               unsubscribeData = onSnapshot(q, querySnap => {
+                  const data = querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                  setInterviews(data);
+               });
             }
          }).catch(err => console.warn(err));
       }
 
-      const q = query(collection(db, "interviews"), orderBy("createdAt", "desc"));
-      const unsub = onSnapshot(q, snap => {
-         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-         setInterviews(data);
-      });
       return () => {
          active = false;
-         unsub();
+         unsubscribeData();
       };
    }, []);
 

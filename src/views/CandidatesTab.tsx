@@ -1101,21 +1101,29 @@ ${extText}`;
                    // Skip legacy merge so we don't pollute the actual owner's candidate pool record
                 } else {
                    // Legacy Identity resolution for UI consolidation
-                   let q;
-                   if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq_admin") {
-                     q = query(
-                       collection(db, "candidatePool"),
-                       where("email", "==", result.email),
-                     );
-                   } else {
-                     q = query(
-                       collection(db, "candidatePool"),
-                       where("email", "==", result.email),
-                       where("vendorId", "==", userOrgId),
-                     );
-                   }
+                   let q = query(
+                     collection(db, "candidatePool"),
+                     where("email", "==", result.email)
+                   );
                    const snap = await getDocs(q);
-                   const duplicates = snap.docs.filter((d) => d.id !== candId);
+                   
+                   const incomingPhone = result.phone ? result.phone.replace(/\D/g, "") : "";
+                   
+                   const duplicates = snap.docs.filter((d) => {
+                     if (d.id === candId) return false;
+                     const targetData = d.data();
+                     // Require exact vendor match
+                     if (targetData.vendorId !== submissionVendorId && targetData.ownerVendorId !== submissionVendorId) return false;
+                     
+                     // Condition 1: Hash Match
+                     if (updatePayload.resumeHash && updatePayload.resumeHash === targetData.resumeHash) return true;
+                     
+                     // Condition 2: Email & Phone match
+                     const existingPhone = targetData.phone ? targetData.phone.replace(/\D/g, "") : "";
+                     if (existingPhone && incomingPhone && existingPhone === incomingPhone) return true;
+                     
+                     return false;
+                   });
        
                    if (duplicates.length > 0) {
                      const primary = duplicates[0];

@@ -38,7 +38,15 @@ export function PlacementsTab() {
   useEffect(() => {
     if (!userRole) return;
     let qAll = query(collection(db, "placements"));
-    // Filtering client side for simplicity
+    
+    if (['admin', 'hq_admin', 'super_admin'].includes(userRole)) {
+       qAll = query(collection(db, "placements"));
+    } else if (userRole.includes('vendor')) {
+       qAll = query(collection(db, "placements"), where("vendorId", "==", userOrgId));
+    } else if (userRole.includes('client')) {
+       qAll = query(collection(db, "placements"), where("clientId", "==", userOrgId));
+    }
+
     const unsub = onSnapshot(qAll, snap => {
       const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
       const myPlacements = data.filter((p: any) => {

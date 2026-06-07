@@ -19,28 +19,29 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function HiringManagerWorkspace({
   userName,
+  orgId,
   metrics,
 }: {
   userName: string;
+  orgId?: string;
   metrics?: any;
 }) {
   const [interviews, setInterviews] = useState<any[]>([]);
 
   useEffect(() => {
     let active = true;
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || !orgId) return;
     
     // We fetch interviews assigned to this client
-    const qAll = query(collection(db, "interviews"));
+    const qAll = query(
+      collection(db, "interviews"),
+      where("clientId", "==", orgId)
+    );
     
     const unsub = onSnapshot(qAll, snap => {
       if (!active) return;
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const myInterviews = data.filter(i => {
-           // Filtering roughly for this client org
-           return true; 
-      });
-      setInterviews(myInterviews);
+      setInterviews(data);
     });
 
     return () => {

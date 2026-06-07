@@ -1237,6 +1237,20 @@ export default function JobsTab() {
     );
   });
 
+  const validMatchedCandidates = Array.from(
+    new Map(
+      [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
+        c.candidateId || c.id || c.email,
+        c,
+      ]),
+    ).values(),
+  ).filter((c: any) => {
+    if (c.status === "DELETED" || c.isActive === false) return false;
+    if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED" || !c.resumeText) return false;
+    if (userRole.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
+    return true;
+  });
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       <div className="flex-1 flex overflow-hidden">
@@ -1834,6 +1848,7 @@ export default function JobsTab() {
                       ).values(),
                     ).filter((c: any) => {
                       if (c.status === "DELETED" || c.isActive === false) return false;
+                      if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED" || !c.resumeText) return false;
                       if (userRole.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
                       return true;
                     });
@@ -1997,31 +2012,17 @@ export default function JobsTab() {
                     <div className="flex flex-col items-end">
                       <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
                         {
-                          Array.from(
-                            new Map(
-                              [...submissions, ...globalMatches].map((c) => [
-                                c.candidateId || c.id || c.email,
-                                c,
-                              ]),
-                            ).values(),
-                          ).filter((s) => (s.matchScore || 0) >= 85).length
+                          (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : validMatchedCandidates).filter((s) => (s.matchScore || s.aiMatchScore || 0) >= 85).length
                         }{" "}
                         High Confidence
                       </Badge>
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         +{" "}
                         {
-                          Array.from(
-                            new Map(
-                              [...submissions, ...globalMatches].map((c) => [
-                                c.candidateId || c.id || c.email,
-                                c,
-                              ]),
-                            ).values(),
-                          ).filter(
+                          (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : validMatchedCandidates).filter(
                             (s) =>
-                              (s.matchScore || 0) >= 70 &&
-                              (s.matchScore || 0) < 85,
+                              (s.matchScore || s.aiMatchScore || 0) >= 70 &&
+                              (s.matchScore || s.aiMatchScore || 0) < 85,
                           ).length
                         }{" "}
                         Strong Potential
@@ -2034,14 +2035,7 @@ export default function JobsTab() {
                   !localMatchCompleted[selectedJob.id] &&
                   (ledgerCandidates && ledgerCandidates.length > 0
                     ? ledgerCandidates
-                    : Array.from(
-                        new Map(
-                          [...submissions, ...globalMatches].map((c) => [
-                            c.candidateId || c.id || c.email,
-                            c,
-                          ]),
-                        ).values(),
-                      )
+                    : validMatchedCandidates
                   ).length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
@@ -2076,14 +2070,7 @@ export default function JobsTab() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {(ledgerCandidates && ledgerCandidates.length > 0
                         ? ledgerCandidates
-                        : Array.from(
-                            new Map(
-                              [...submissions, ...globalMatches].map((cand) => [
-                                cand.candidateId || cand.id || cand.email,
-                                cand,
-                              ]),
-                            ).values(),
-                          )
+                        : validMatchedCandidates
                       )
                         .filter(
                           (sub) =>
@@ -2195,14 +2182,7 @@ export default function JobsTab() {
                             </div>
                           </div>
                         ))}
-                      {Array.from(
-                        new Map(
-                          [...submissions, ...globalMatches].map((c) => [
-                            c.candidateId || c.id || c.email,
-                            c,
-                          ]),
-                        ).values(),
-                      ).filter(
+                      {validMatchedCandidates.filter(
                         (sub) =>
                           (sub.matchScore || 0) >= 70 || sub.isGlobalMatch,
                       ).length === 0 && (
