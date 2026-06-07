@@ -55,6 +55,10 @@ export default function Candidate360Modal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [fullCandidateData, setFullCandidateData] = useState<any>(null);
+
+  // Merge full data so that we have resume, skills, etc.
+  const displayCandidate = fullCandidateData ? { ...candidate, ...fullCandidateData } : candidate;
 
   const handleDeleteCandidate = async () => {
     if (deleteConfirmText !== "DELETE") return;
@@ -280,7 +284,19 @@ export default function Candidate360Modal({
 
   useEffect(() => {
     // Load timeline events
-    const id = candidate.originalId || candidate.id || candidate.candidateId;
+    const id = candidate.candidateId || candidate.originalId || candidate.id;
+
+    // Fetch full candidate from pool to get resumeText, skills, etc. (Skip for clients to prevent permission errors)
+    let unsubProfile = () => {};
+    if (!userRole.includes("client")) {
+       import("firebase/firestore").then(({ doc, onSnapshot: os }) => {
+         unsubProfile = os(doc(db, "candidatePool", id), snap => {
+            if (snap.exists()) {
+                setFullCandidateData(snap.data());
+            }
+         }, err => console.warn(err));
+       });
+    }
     
     // Load interviews
     const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
@@ -316,26 +332,37 @@ export default function Candidate360Modal({
        console.warn("Event timeline error:", err.message);
     });
 
+    const reqIdTarget = candidate.requirementId || selectedJobId;
     const qMatches = query(collection(db, "candidatePool", id, "ai_matches"));
     const unsubMatches = onSnapshot(qMatches, snap => {
        const matches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
        if (matches.length > 0) {
+         if (reqIdTarget) {
+            const specificMatch = matches.find((m: any) => m.id === reqIdTarget || m.requirementId === reqIdTarget);
+            if (specificMatch) {
+               setMappingResult(specificMatch);
+               return;
+            }
+         }
          // get the highest scoring match
          matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
          setMappingResult(matches[0]);
        }
+    }, err => {
+       console.warn("AI Matches query error:", err);
     });
-    
+
     return () => {
+       unsubProfile();
        unsubEvents();
        unsubInterviews();
        unsubMatches();
     };
   }, [candidate]);
 
-  const candidateIdStr = candidate.candidateId || candidate.id || "HN-CAN-PENDING";
-  const nameStr = candidate.parsedName || candidate.fullName || candidate.name || (candidate.fileName?.toLowerCase().includes('resume') ? "Pending Verification" : candidate.fileName) || "Pending Verification";
-  const vendorStr = vendorMap?.[candidate.vendorId] || candidate.vendorName || (candidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : candidate.vendorId) || "Direct/Unknown";
+  const candidateIdStr = displayCandidate.candidateId || displayCandidate.id || "HN-CAN-PENDING";
+  const nameStr = displayCandidate.parsedName || displayCandidate.fullName || displayCandidate.name || (displayCandidate.fileName?.toLowerCase().includes('resume') ? "Pending Verification" : displayCandidate.fileName) || "Pending Verification";
+  const vendorStr = vendorMap?.[displayCandidate.vendorId] || displayCandidate.vendorName || (displayCandidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : displayCandidate.vendorId) || "Direct/Unknown";
   
   const getSkillsArray = (skills: any): string[] => {
     if (Array.isArray(skills)) return skills;
@@ -343,7 +370,7 @@ export default function Candidate360Modal({
     return [];
   };
 
-  const skillsArr = getSkillsArray(candidate.skills);
+  const skillsArr = getSkillsArray(displayCandidate.skills);
 
   let TABS: { id: TabType, label: string, icon: any }[] = [
     { id: 'OVERVIEW', label: 'Summary', icon: User },
@@ -499,7 +526,7 @@ export default function Candidate360Modal({
                       ) : (
                          <div className="bg-indigo-900 p-5 rounded-xl border border-indigo-800 shadow-sm text-white flex flex-col justify-center items-center text-center">
                             <h3 className="font-bold uppercase tracking-widest text-[10px] text-indigo-300 mb-2">Platform Score</h3>
-                            <div className="text-5xl font-black text-indigo-100 mb-2">{(candidate.matchScore || mappingResult?.matchScore) || '--'}<span className="text-2xl text-indigo-400">%</span></div>
+                            <div className="text-5xl font-black text-indigo-100 mb-2">{(displayCandidate.matchScore || mappingResult?.matchScore) || '--'}<span className="text-2xl text-indigo-400">%</span></div>
                             <p className="text-xs text-indigo-300 font-medium">{mappingResult ? 'Matched to Requirement' : 'Pending AI Match'}</p>
                          </div>
                       )}
@@ -526,7 +553,7 @@ export default function Candidate360Modal({
                       <Button variant="outline" size="sm" className="h-8 text-xs font-bold"><UploadCloud size={14} className="mr-2" /> Download Original</Button>
                    </div>
                    <div className="flex-1 bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-y-auto font-mono text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
-                      {candidate.resumeText || "No parsed resume text available."}
+                      {displayCandidate.resumeText || "No parsed resume text available."}
                    </div>
                 </div>
              )}
@@ -534,7 +561,7 @@ export default function Candidate360Modal({
              {/* AI ANALYSIS TAB */}
              {activeTab === 'AI_ANALYSIS' && (
                 <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-                    {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") ? (
+                    {(displayCandidate.distillationStatus === "FAILED" || displayCandidate.status === "PARSE_FAILED") ? (
                        <div className="bg-white p-12 rounded-xl border-2 border-dashed border-rose-200 flex flex-col items-center justify-center text-center">
                           <ShieldAlert size={40} className="text-rose-400 mb-4" />
                           <h3 className="text-lg font-bold text-slate-800 mb-2">Resume intelligence unavailable</h3>
@@ -643,7 +670,7 @@ export default function Candidate360Modal({
                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
                        <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-200 pb-2">Active Submissions</h3>
                        
-                       {candidate.pipelineStage === 'ADDED' || !candidate.pipelineStage ? (
+                       {displayCandidate.pipelineStage === 'ADDED' || !displayCandidate.pipelineStage ? (
                           <div className="text-center p-8 bg-white rounded-lg border border-slate-200 border-dashed">
                              <Briefcase size={32} className="text-slate-300 mx-auto mb-3" />
                              <p className="text-sm font-semibold text-slate-600">No active pipelines.</p>
@@ -652,13 +679,13 @@ export default function Candidate360Modal({
                        ) : (
                           <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center justify-between shadow-sm">
                              <div>
-                                <div className="text-sm font-bold text-slate-900">{candidate.reqTitle || "General Submission"}</div>
+                                <div className="text-sm font-bold text-slate-900">{displayCandidate.reqTitle || "General Submission"}</div>
                                 <div className="text-xs text-slate-500 mt-0.5">Submitted via Workflow Orchestrator</div>
                              </div>
                              <div className="flex items-center gap-4">
                                 <div className="text-right">
                                    <div className="text-[10px] font-bold uppercase text-slate-400">Match</div>
-                                   <div className="font-mono font-bold text-indigo-600">{candidate.matchScore || mappingResult?.matchScore || '--'}%</div>
+                                   <div className="font-mono font-bold text-indigo-600">{displayCandidate.matchScore || mappingResult?.matchScore || '--'}%</div>
                                 </div>
                                 <div className="text-right">
                                    <div className="text-[10px] font-bold uppercase text-slate-400">Stage</div>

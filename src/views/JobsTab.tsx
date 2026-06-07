@@ -2295,9 +2295,9 @@ export default function JobsTab() {
         <Candidate360Modal
           candidate={selectedSubmission}
           onClose={() => setSelectedSubmission(null)}
-          isAdmin={session.user?.role === "admin" || session.user?.role === "super_admin" || session.user?.role === "ops_admin" || session.user?.organizationId === "ORG-GLOBAL-HQ"}
-          userOrgId={session.user?.organizationId}
-          userRole={session.user?.role}
+          isAdmin={userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || orgId === "ORG-GLOBAL-HQ"}
+          userOrgId={orgId || ""}
+          userRole={userRole}
         />
       )}
 

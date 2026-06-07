@@ -179,6 +179,8 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
   );
 };
 
+import ClientCandidateWorkspace from "./workspaces/ClientCandidateWorkspace";
+
 export default function CandidatesTab() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1406,6 +1408,12 @@ ${extText}`;
       alert("Error processing submission: " + e.message);
     }
   };
+
+  const isClientUser = userRole.includes("client") || userRole === "client_hiring_manager";
+
+  if (isClientUser) {
+    return <ClientCandidateWorkspace userOrgId={userOrgId || ""} userRole={userRole} />;
+  }
 
   return (
     <div className="flex bg-slate-50 relative min-h-screen">

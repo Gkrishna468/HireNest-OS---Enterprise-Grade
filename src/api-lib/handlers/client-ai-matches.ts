@@ -84,13 +84,14 @@ export default async function handler(req: any, res: any) {
              status = data.status || "SUBMITTED";
          });
 
-         // ENFORCING GOVERNANCE RULE: Clients ONLY see candidates submitted to their requirements.
-         if (!subExists) {
-             continue;
+         // The PM mandated a Client Candidate Workspace that shows matched candidates pre-submission.
+         // We do not skip if subExists is false.
+         if (subExists) {
+             submissionFiltered++;
          }
-         submissionFiltered++;
 
          matches.push({
+             ...cand,
              id: doc.id,
              candidateId: candId,
              candidateName: cand.fullName || "Anonymous Candidate",
