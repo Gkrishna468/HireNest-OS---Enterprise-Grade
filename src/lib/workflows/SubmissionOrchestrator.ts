@@ -96,6 +96,7 @@ export class SubmissionOrchestrator {
       let candidateId = candidateData.id;
 
       if (!candidateId) {
+        // Condition 1: Same Resume fingerprint (hash)
         if (candidateData.resumeHash) {
           try {
             console.log("STEP 1A: Query candidatePool by resumeHash");
@@ -104,24 +105,37 @@ export class SubmissionOrchestrator {
               where("resumeHash", "==", candidateData.resumeHash),
             );
             const hashSnap = await getDocs(hashQ);
-            if (!hashSnap.empty) candidateId = hashSnap.docs[0].id;
-            console.log("STEP 1A SUCCESS");
+            if (!hashSnap.empty) {
+               candidateId = hashSnap.docs[0].id; // Exact fingerprint match merges identity universally or should it be vendor scoped? "OR Resume fingerprint match > 95%"
+               console.log("STEP 1A SUCCESS: Fingerprint Match");
+            }
           } catch (e) {
             console.error("STEP 1A FAILED", e);
             throw e;
           }
         }
 
-        if (!candidateId && candidateData.email) {
+        // Condition 2: Same vendor AND Same email AND Same phone
+        if (!candidateId && candidateData.email && candidateData.phone) {
           try {
-            console.log("STEP 1B: Query candidatePool by email");
+            console.log("STEP 1B: Query candidatePool by email, phone, and vendor");
             const emailQ = query(
               collection(db, "candidatePool"),
               where("email", "==", candidateData.email.toLowerCase().trim()),
+              where("vendorId", "==", vendorId)
             );
             const emailSnap = await getDocs(emailQ);
-            if (!emailSnap.empty) candidateId = emailSnap.docs[0].id;
-            console.log("STEP 1B SUCCESS");
+            if (!emailSnap.empty) {
+              const incomingPhone = candidateData.phone.replace(/\D/g, "");
+              for (const doc of emailSnap.docs) {
+                 const docPhone = (doc.data().phone || "").replace(/\D/g, "");
+                 if (docPhone === incomingPhone && incomingPhone !== "") {
+                    candidateId = doc.id;
+                    console.log("STEP 1B SUCCESS: Vendor + Email + Phone Match");
+                    break;
+                 }
+              }
+            }
           } catch (e) {
             console.error("STEP 1B FAILED", e);
             throw e;

@@ -153,10 +153,17 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
                       {candidate.fullName || candidate.name || "Unknown"}
                   </p>
                   {candidate.distillationStatus === "FAILED" && (
-                    <div className="mt-1 flex items-center gap-1 text-amber-600 text-[10px] font-bold uppercase tracking-wider">
-                       <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                       AI Enrichment Failed
-                    </div>
+                    (candidate.resumeText || candidate.resumeLastParsedAt) ? (
+                      <div className="mt-1 flex items-center gap-1 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                         <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                         Resume Parsed ✓ <span className="opacity-70 mx-0.5">|</span> AI Analysis Pending
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-center gap-1 text-amber-600 text-[10px] font-bold uppercase tracking-wider">
+                         <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                         AI Enrichment Failed
+                      </div>
+                    )
                   )}
                   <div className="flex justify-between items-center">
                       <p className="text-xs text-slate-500 mt-1 line-clamp-1 flex-1">{candidate.primaryEmail || candidate.email}</p>

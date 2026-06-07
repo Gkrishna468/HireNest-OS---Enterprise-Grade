@@ -122,8 +122,15 @@ export default function JobsTab() {
     }
 
     const runAutomatedScanner = async () => {
-      if (userRole.startsWith("client")) {
-        console.log("[AUTO_SCANNER] Client node bypassed.");
+      const hqAuth =
+        userRole === "admin" ||
+        userRole === "super_admin" ||
+        userRole === "ops_admin" ||
+        userRole === "hq_admin" ||
+        orgId === "ORG-GLOBAL-HQ";
+
+      if (!hqAuth) {
+        console.log("[AUTO_SCANNER] Client/Vendor node bypassed. Auto scanner runs on HQ nodes.");
         return;
       }
       console.log(

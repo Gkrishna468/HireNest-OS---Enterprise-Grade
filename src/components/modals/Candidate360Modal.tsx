@@ -325,8 +325,8 @@ export default function Candidate360Modal({
   let TABS: { id: TabType, label: string, icon: any }[] = [
     { id: 'OVERVIEW', label: 'Summary', icon: User },
     { id: 'RESUME', label: 'Resume', icon: FileText },
-    { id: 'AI_ANALYSIS', label: 'AI Analysis', icon: Bot },
-    { id: 'REQUIREMENTS', label: 'Requirements', icon: Briefcase },
+    { id: 'AI_ANALYSIS', label: 'Candidate Intelligence', icon: Bot },
+    { id: 'REQUIREMENTS', label: 'JD Match Analysis', icon: Briefcase },
     { id: 'INTERVIEWS', label: 'Interviews', icon: Calendar },
     { id: 'TIMELINE', label: 'Timeline', icon: Activity },
     { id: 'COLLABORATION', label: 'Feedback', icon: MessageSquare },
@@ -410,14 +410,29 @@ export default function Candidate360Modal({
                          
                          {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") && (
                            <div className="mt-6 bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm text-sm">
-                             <div className="flex items-center gap-2 font-bold text-rose-700 mb-1">
-                               <ShieldAlert className="w-4 h-4" /> 
-                               AI Enrichment Failed
-                             </div>
-                             <p className="text-rose-600 mb-4 opacity-90">Resume extraction could not be completed successfully.</p>
-                             <Button size="sm" variant="outline" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
-                               {isRetrying ? "Retrying..." : "Retry Parsing"}
-                             </Button>
+                             {(candidate.resumeText || candidate.resumeLastParsedAt) ? (
+                               <>
+                                 <div className="flex items-center gap-2 font-bold text-amber-600 mb-1">
+                                   <ShieldAlert className="w-4 h-4" /> 
+                                   Resume Parsed <span className="text-emerald-500">✓</span> <span className="opacity-70 mx-1">|</span> AI Analysis Pending
+                                 </div>
+                                 <p className="text-amber-700 mb-4 opacity-90">Resume extraction was successful, but AI enrichment could not be completed.</p>
+                                 <Button size="sm" variant="outline" className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
+                                   {isRetrying ? "Retrying..." : "Retry AI Analysis"}
+                                 </Button>
+                               </>
+                             ) : (
+                               <>
+                                 <div className="flex items-center gap-2 font-bold text-rose-700 mb-1">
+                                   <ShieldAlert className="w-4 h-4" /> 
+                                   Parsing Failed
+                                 </div>
+                                 <p className="text-rose-600 mb-4 opacity-90">Resume extraction could not be completed successfully.</p>
+                                 <Button size="sm" variant="outline" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
+                                   {isRetrying ? "Retrying..." : "Retry Parsing"}
+                                 </Button>
+                               </>
+                             )}
                            </div>
                          )}
                       </div>

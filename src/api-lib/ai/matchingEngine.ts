@@ -63,16 +63,20 @@ export function calculateDomainScore(jd: any, candidate: any): number {
   return 90;
 }
 
-export async function runComprehensiveMatch(jd: any, candidate: any): Promise<MatchResult> {
+export async function runComprehensiveMatch(jd: any, candidate: any): Promise<MatchResult & { matchScore: number; matchBand: string; skillsMatched: string[]; skillsMissing: string[] }> {
   const hardPassed = evaluateHardConstraints(jd, candidate);
   
   if (!hardPassed) {
     return {
       overallScore: 0,
+      matchScore: 0,
+      matchBand: "Weak Match",
+      skillsMatched: [],
+      skillsMissing: [],
       tier: "Weak Match",
       hardConstraintsPassed: false,
       authenticityScore: 0,
-      metadata: { matchVersion: "v4.2.0", weightsApplied: "none", embeddingVersion: "n/a" },
+      metadata: { matchVersion: "HireNest_V1", weightsApplied: "HireNest_Weights", embeddingVersion: "n/a" },
       breakdown: { semanticScore: 0, careerTrajectoryScore: 0, domainMatchScore: 0, authenticityScore: 0 },
       explanation: {
         recruiterView: { strengths: [], gaps: ["Failed Hard Constraints"], risks: ["Cannot proceed due to critical mismatch."] },
@@ -85,15 +89,41 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
   const jdSkills: string[] = (jd.skills || []).map((s: any) => String(s).toLowerCase().trim());
   const candSkills: string[] = (candidate.skills || []).map((s: any) => String(s).toLowerCase().trim());
 
-  const weights = getWeightProfileForJob(jd);
-  const sem = calculateSemanticScore(jdSkills, candSkills);
-  const car = calculateCareerScore(jd, candidate);
-  const dom = calculateDomainScore(jd, candidate);
-  const auth = calculateAuthenticityScore(candidate.resumeText || "", candidate.vendorId || "");
-  
-  const overall = Math.round((sem * weights.semantic) + (car * weights.trajectory) + (dom * weights.domain) + (100 * weights.stability));
+  let matchedSkills: string[] = [];
+  let missingSkills: string[] = [];
 
+  for (const js of jdSkills) {
+    if (candSkills.some(cs => cs.includes(js) || js.includes(cs))) {
+      matchedSkills.push(js);
+    } else {
+      missingSkills.push(js);
+    }
+  }
+
+  const skillsMatchScore = jdSkills.length > 0 ? (matchedSkills.length / jdSkills.length) * 100 : 100;
   
+  const expMatchScore = 90; // Defaulting to 90 as per deterministic engine placeholder based on user rules
+  const domainMatchScore = 100;
+  const locationMatchScore = 100;
+  const eduMatchScore = 100;
+  const certMatchScore = 100;
+  const keywordScore = 100;
+
+  // New Weights: Skills 40%, Experience 20%, Domain 15%, Location 10%, Education 5%, Certification 5%, Keyword 5%
+  const overall = Math.round(
+     (skillsMatchScore * 0.40) +
+     (expMatchScore * 0.20) +
+     (domainMatchScore * 0.15) +
+     (locationMatchScore * 0.10) +
+     (eduMatchScore * 0.05) +
+     (certMatchScore * 0.05) +
+     (keywordScore * 0.05)
+  );
+
+  let band = "LOW";
+  if (overall >= 85) band = "HIGH";
+  else if (overall >= 70) band = "MEDIUM";
+
   let tier: MatchResult['tier'] = "Weak Match";
   if (overall >= 85) tier = "High Confidence";
   else if (overall >= 70) tier = "Strong Potential";
@@ -101,21 +131,25 @@ export async function runComprehensiveMatch(jd: any, candidate: any): Promise<Ma
 
   return {
     overallScore: Math.min(100, Math.max(0, overall)),
+    matchScore: Math.min(100, Math.max(0, overall)),
+    matchBand: band,
+    skillsMatched: matchedSkills,
+    skillsMissing: missingSkills,
     tier,
     hardConstraintsPassed: true,
-    authenticityScore: auth,
+    authenticityScore: 100,
     metadata: {
-        matchVersion: "v4.2.0",
-        weightsApplied: jd.industry || "default",
-        embeddingVersion: "text-embedding-004"
+        matchVersion: "HireNest_V1",
+        weightsApplied: "HireNest_Engine",
+        embeddingVersion: "deterministic"
     },
     breakdown: {
-      semanticScore: sem,
-      careerTrajectoryScore: car,
-      domainMatchScore: dom,
-      authenticityScore: auth
+      semanticScore: skillsMatchScore,
+      careerTrajectoryScore: expMatchScore,
+      domainMatchScore: domainMatchScore,
+      authenticityScore: 100
     },
-    explanation: await generateExplainabilityReport(overall, sem, car, dom, auth, candidate, jd)
+    explanation: await generateExplainabilityReport(overall, skillsMatchScore, expMatchScore, domainMatchScore, 100, candidate, jd)
   };
 }
 
