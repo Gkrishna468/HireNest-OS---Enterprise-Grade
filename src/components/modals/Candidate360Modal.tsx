@@ -50,7 +50,7 @@ export default function Candidate360Modal({
   const [comments, setComments] = useState<any[]>(candidate.comments || []);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [isMapping, setIsMapping] = useState(false);
-  const [mappingResult, setMappingResult] = useState<any | null>(candidate.aiAnalysis || null);
+  const [mappingResult, setMappingResult] = useState<any | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -247,9 +247,6 @@ export default function Candidate360Modal({
 
       const candidateId = candidate.candidateId || candidate.id;
       
-      const aiAnalysisObj = candidate.aiAnalysis || mappingResult || { fitScore: 85, analysis: "Strong match based on requirements." };
-      setMappingResult(aiAnalysisObj);
-      
       const response = await SubmissionOrchestrator.submitCandidate({
         candidateData: {
           id: candidateId,
@@ -264,8 +261,8 @@ export default function Candidate360Modal({
         vendorId: userOrgId || "local",
         submitterId: submitterUid,
         initialStatus: "PENDING_REVIEW",
-        matchScore: aiAnalysisObj?.fitScore || 85,
-        aiAnalysis: aiAnalysisObj,
+        matchScore: mappingResult?.matchScore || mappingResult?.fitScore || 0,
+        aiAnalysis: mappingResult || null,
         bypassOwnershipCheck: isAdmin,
       });
 
@@ -289,10 +286,20 @@ export default function Candidate360Modal({
     // Fetch full candidate from pool to get resumeText, skills, etc. (Skip for clients to prevent permission errors)
     let unsubProfile = () => {};
     if (!userRole.includes("client")) {
-       import("firebase/firestore").then(({ doc, onSnapshot: os }) => {
-         unsubProfile = os(doc(db, "candidatePool", id), snap => {
+       import("firebase/firestore").then(({ doc, onSnapshot: os, getDoc }) => {
+         unsubProfile = os(doc(db, "candidatePool", id), async snap => {
             if (snap.exists()) {
-                setFullCandidateData(snap.data());
+                const data = snap.data();
+                if (!data.resumeText && !data.parsedResumeText && !data.extractedText) {
+                  // Fallback to resume_parses
+                  try {
+                    const parseDoc = await getDoc(doc(db, "resume_parses", id));
+                    if (parseDoc.exists()) {
+                      data.parsedResumeText = parseDoc.data().text || parseDoc.data().extractedText || "";
+                    }
+                  } catch(e) {}
+                }
+                setFullCandidateData(data);
             }
          }, err => console.warn(err));
        });
@@ -572,6 +579,17 @@ export default function Candidate360Modal({
                        </div>
                     ) : (
                        <>
+                          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+                             <div>
+                                <h3 className="text-xl font-bold text-slate-800">JD Match Analysis</h3>
+                                <p className="text-sm text-slate-500 font-medium">Matched to: <span className="text-indigo-600">{candidate.reqTitle || mappingResult.reqTitle || mappingResult.requirementId || "Target Requirement"}</span></p>
+                             </div>
+                             <div className="text-right">
+                                <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Overall Match</div>
+                                <div className="text-4xl font-black text-indigo-600">{displayCandidate.matchScore || mappingResult.matchScore || '--'}%</div>
+                             </div>
+                          </div>
+
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Skills Match</div>

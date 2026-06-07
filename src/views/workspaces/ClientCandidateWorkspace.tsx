@@ -13,6 +13,8 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const [reqs, setReqs] = useState<Record<string, string>>({});
+
   useEffect(() => {
     if (!userOrgId) return;
 
@@ -23,6 +25,14 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
       .then(res => res.json())
       .then(data => setAiMatches(data.matches || []))
       .catch(console.error);
+
+    // Requirements Mapping
+    const qReq = query(collection(db, "requirements_public"), where("clientId", "==", userOrgId));
+    const unsubReq = onSnapshot(qReq, snap => {
+      const map: Record<string, string> = {};
+      snap.forEach(d => { map[d.id] = d.data().title || d.data().jobTitle || "Open Requirement"; });
+      setReqs(map);
+    });
 
     // Submissions List
     const qSub = query(collection(db, "submissions"), where("clientId", "==", userOrgId));
@@ -39,6 +49,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
     setLoading(false);
 
     return () => {
+      unsubReq();
       unsubSub();
       unsubInt();
     };
@@ -113,12 +124,25 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
               submissions.map(sub => (
                 <div
                   key={sub.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm"
+                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
                   onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true })}
                 >
-                   <h3 className="font-semibold text-lg text-slate-900">{sub.candidateName || "Submitted Candidate"}</h3>
-                   <div className="text-xs text-slate-500 mt-1 mb-2 font-mono">{sub.id}</div>
-                   <Badge variant="success" className="mt-2 w-max">{sub.status}</Badge>
+                   <div className="p-4 border-b border-slate-100 bg-slate-50">
+                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                     <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
+                   </div>
+                   <div className="p-5 flex-1 space-y-3">
+                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Submitted Candidate"}</h3>
+                     <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
+                        <Badge variant="success">{sub.status || "PENDING_REVIEW"}</Badge>
+                     </div>
+                   </div>
+                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                     <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                     <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
+                   </div>
                 </div>
               ))
             }
@@ -131,11 +155,24 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
               interviews.map(int => (
                 <div
                   key={int.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm"
+                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
                 >
-                   <h3 className="font-semibold text-lg text-slate-900">{int.candidateName || "Interviewing Candidate"}</h3>
-                   <div className="text-xs text-slate-500 mt-1 mb-2">Round: {int.roundNumber || 1}</div>
-                   <Badge variant="outline" className="mt-2 w-max text-orange-600 border-orange-200 bg-orange-50">{int.status}</Badge>
+                   <div className="p-4 border-b border-slate-100 bg-slate-50">
+                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[int.requirementId] || int.reqTitle || "Requirement Context"}</div>
+                     <div className="text-[10px] font-mono text-slate-400 mt-0.5">{int.requirementId || "ID Unknown"}</div>
+                   </div>
+                   <div className="p-5 flex-1 space-y-3">
+                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{int.candidateName || "Interviewing Candidate"}</h3>
+                     <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Round {int.roundNumber || 1}</Badge>
+                        <Badge variant="success">{int.status || "SCHEDULED"}</Badge>
+                     </div>
+                   </div>
+                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                     <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {int.vendorId || "Unknown"}</div>
+                     <div className="text-xs font-bold text-indigo-600">Enter Deal Room &rarr;</div>
+                   </div>
                 </div>
               ))
             }
