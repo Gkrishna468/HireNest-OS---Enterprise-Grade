@@ -7,7 +7,7 @@ import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/fi
 export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
    const [formData, setFormData] = useState({
-    round: 'INTERVIEW_ROUND_1',
+    round: 'Technical Round 1',
     date: '', // used as preferred date or exact date
     time: '',
     endTime: '',
@@ -148,12 +148,14 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
            
            <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Round / Type</label>
-              <select name="round" value={formData.round} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                 <option value="INTERVIEW_ROUND_1">Technical Round 1</option>
-                 <option value="INTERVIEW_ROUND_2">Technical Round 2</option>
-                 <option value="CULTURAL_ROUND">Cultural / HR Round</option>
-                 <option value="FINAL_INTERVIEW">Final Interview</option>
-              </select>
+              <input type="text" list="round-options" name="round" value={formData.round} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Technical Round 1" />
+              <datalist id="round-options">
+                 <option value="Technical Round 1" />
+                 <option value="Technical Round 2" />
+                 <option value="Technical Round 3" />
+                 <option value="Cultural / HR Round" />
+                 <option value="Final Interview" />
+              </datalist>
            </div>
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

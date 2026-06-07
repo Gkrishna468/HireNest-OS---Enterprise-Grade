@@ -333,6 +333,17 @@ export class SubmissionOrchestrator {
               updatedAt: serverTimestamp()
           });
 
+          await addDoc(collection(db, "operationalEvents"), {
+            entityId: candidateId,
+            type: "Candidate Submitted",
+            actorRole: "Vendor/System",
+            metadata: {
+              source: "Workflow Orchestrator",
+              message: `Candidate submitted to requirement ${requirementId}`
+            },
+            timestamp: serverTimestamp()
+          });
+
           console.log("STEP 5 SUCCESS", submissionId);
         } catch (e) {
           console.error("STEP 5 FAILED", e);

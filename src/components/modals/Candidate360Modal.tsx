@@ -372,7 +372,7 @@ export default function Candidate360Modal({
   }, [candidate]);
 
   const candidateIdStr = displayCandidate.candidateId || displayCandidate.id || "HN-CAN-PENDING";
-  const nameStr = displayCandidate.parsedName || displayCandidate.fullName || displayCandidate.name || (displayCandidate.fileName?.toLowerCase().includes('resume') ? "Pending Verification" : displayCandidate.fileName) || "Pending Verification";
+  const nameStr = displayCandidate.displayName || displayCandidate.fullName || displayCandidate.name || displayCandidate.parsedName || displayCandidate.parsedResume?.name || displayCandidate.resumeData?.name || "Unknown Candidate";
   const vendorStr = vendorMap?.[displayCandidate.vendorId] || displayCandidate.vendorName || (displayCandidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : displayCandidate.vendorId) || "Direct/Unknown";
   
   const getSkillsArray = (skills: any): string[] => {
@@ -395,7 +395,7 @@ export default function Candidate360Modal({
   ];
 
   if (isClientReviewMode) {
-     TABS = TABS.filter(t => !['GOVERNANCE', 'REQUIREMENTS', 'INTERVIEWS', 'AI_ANALYSIS'].includes(t.id));
+     TABS = TABS.filter(t => !['GOVERNANCE'].includes(t.id));
   }
 
   return (
@@ -459,81 +459,25 @@ export default function Candidate360Modal({
              {activeTab === 'OVERVIEW' && (
                 <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm col-span-2">
+                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm col-span-2 md:col-span-3 lg:col-span-2">
                          <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-100 pb-2">Candidate Summary</h3>
                          <div className="space-y-4 text-sm font-medium">
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{candidate.email || candidate.primaryEmail || 'N/A'}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{candidate.phone || candidate.phoneHash || 'N/A'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{displayCandidate.email || displayCandidate.primaryEmail || 'N/A'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{displayCandidate.phone || displayCandidate.phoneHash || 'N/A'}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Vendor:</span> <span className="text-slate-900">{vendorStr}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || (candidate.totalExperience ? `${candidate.totalExperience} Years` : (candidate.experienceTracker?.computedYears ? `${candidate.experienceTracker.computedYears} Years` : 'Experience Under Review'))}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{candidate.pipelineStage || 'Added'}</Badge></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{displayCandidate.experience || (displayCandidate.totalExperience ? `${displayCandidate.totalExperience} Years` : (displayCandidate.experienceTracker?.computedYears ? `${displayCandidate.experienceTracker.computedYears} Years` : 'Experience Under Review'))}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{displayCandidate.pipelineStage || 'Added'}</Badge></div>
                          </div>
-                         
-                         {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") && (
-                           <div className="mt-6 bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm text-sm">
-                             {(candidate.resumeText || candidate.resumeLastParsedAt) ? (
-                               <>
-                                 <div className="flex items-center gap-2 font-bold text-amber-600 mb-1">
-                                   <ShieldAlert className="w-4 h-4" /> 
-                                   Resume Parsed <span className="text-emerald-500">✓</span> <span className="opacity-70 mx-1">|</span> AI Analysis Pending
-                                 </div>
-                                 <p className="text-amber-700 mb-4 opacity-90">Resume extraction was successful, but AI enrichment could not be completed.</p>
-                                 <Button size="sm" variant="outline" className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
-                                   {isRetrying ? "Retrying..." : "Retry AI Analysis"}
-                                 </Button>
-                               </>
-                             ) : (
-                               <>
-                                 <div className="flex items-center gap-2 font-bold text-rose-700 mb-1">
-                                   <ShieldAlert className="w-4 h-4" /> 
-                                   Parsing Failed
-                                 </div>
-                                 <p className="text-rose-600 mb-4 opacity-90">Resume extraction could not be completed successfully.</p>
-                                 <Button size="sm" variant="outline" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
-                                   {isRetrying ? "Retrying..." : "Retry Parsing"}
-                                 </Button>
-                               </>
-                             )}
-                           </div>
-                         )}
                       </div>
                       
                       {isClientReviewMode ? (
-                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-200 pb-2">Why This Candidate Matches</h3>
-                            <div className="space-y-4">
-                               {(mappingResult?.matchedSkills?.length > 0 || skillsArr.length > 0) ? (
-                                  <div>
-                                    <div className="space-y-2">
-                                      {(mappingResult?.matchedSkills || skillsArr.slice(0, 5)).map((ms: any, i: number) => (
-                                        <div key={i} className="flex items-center text-sm font-medium text-slate-700">
-                                          <CheckCircle className="w-4 h-4 text-emerald-500 mr-2 shrink-0"/>
-                                          <span className="truncate">{typeof ms === 'string' ? ms : (ms.skill || JSON.stringify(ms))}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                               ) : null}
-                               
-                               {mappingResult?.missingSkills?.length > 0 && (
-                                 <div>
-                                    <div className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2 mt-4">Missing</div>
-                                    <div className="space-y-2">
-                                      {mappingResult.missingSkills.map((ms: any, i: number) => (
-                                        <div key={i} className="flex items-center text-sm font-medium text-slate-500">
-                                          <X className="w-4 h-4 text-red-400 mr-2 shrink-0"/>
-                                          <span className="truncate">{ms}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                 </div>
-                               )}
-                               
-                               {!mappingResult?.matchedSkills && !mappingResult?.missingSkills && skillsArr.length === 0 && (
-                                  <div className="text-sm text-slate-500 italic">No detailed match analysis available yet.</div>
-                               )}
-                            </div>
-                         </div>
+                          <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 shadow-sm col-span-1 border-dashed flex flex-col justify-center">
+                             <div className="text-center">
+                                <h3 className="font-bold text-indigo-800 uppercase tracking-widest text-[10px] mb-2 mt-2">Active Consideration</h3>
+                                <p className="text-xs text-indigo-600 mb-4 font-medium px-4">This candidate was submitted for your review. To see the detailed match breakdown, select the Match Analysis tab below.</p>
+                                <Button className="w-full text-xs font-bold" onClick={() => setActiveTab('REQUIREMENTS')} variant="outline">View Match Analysis</Button>
+                             </div>
+                          </div>
                       ) : (
                          <div className="bg-indigo-900 p-5 rounded-xl border border-indigo-800 shadow-sm text-white flex flex-col justify-center items-center text-center">
                             <h3 className="font-bold uppercase tracking-widest text-[10px] text-indigo-300 mb-2">Platform Score</h3>
@@ -561,7 +505,7 @@ export default function Candidate360Modal({
                 <div className="h-full flex flex-col max-w-5xl mx-auto space-y-4 animate-in fade-in duration-300">
                    <div className="flex justify-between items-center">
                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-slate-400">Parsed Resume Text</h3>
-                      <Button variant="outline" size="sm" className="h-8 text-xs font-bold"><UploadCloud size={14} className="mr-2" /> Download Original</Button>
+                      <Button variant="outline" size="sm" className="h-8 text-xs font-bold" onClick={() => { const url = displayCandidate.resumeUrl || displayCandidate.originalResumeUrl || displayCandidate.resumeFileUrl; if (url) { window.open(url, '_blank') } else { alert('Original resume file not found.') } }}><UploadCloud size={14} className="mr-2" /> Download Original</Button>
                    </div>
                    <div className="flex-1 bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-y-auto font-mono text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
                       {displayCandidate.parsedResumeText || displayCandidate.resumeText || displayCandidate.extractedText || "No parsed resume text available."}
@@ -569,162 +513,174 @@ export default function Candidate360Modal({
                 </div>
              )}
 
-             {/* AI ANALYSIS TAB */}
+             {/* AI ANALYSIS TAB (Candidate Intelligence) */}
              {activeTab === 'AI_ANALYSIS' && (
                 <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-                    {(displayCandidate.distillationStatus === "FAILED" || displayCandidate.status === "PARSE_FAILED") ? (
-                       <div className="bg-white p-12 rounded-xl border-2 border-dashed border-rose-200 flex flex-col items-center justify-center text-center">
-                          <ShieldAlert size={40} className="text-rose-400 mb-4" />
-                          <h3 className="text-lg font-bold text-slate-800 mb-2">Resume intelligence unavailable</h3>
-                          <p className="text-sm text-slate-500 mb-6">The AI extraction could not be completed, so intelligence mapping is disabled.</p>
-                          <Button variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={handleRetryEnrichment} disabled={isRetrying}>
-                            {isRetrying ? "Retrying..." : "Retry AI Enrichment"}
-                          </Button>
-                       </div>
-                    ) : !mappingResult ? (
-                       <div className="bg-white p-12 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
-                          <Bot size={40} className="text-slate-300 mb-4" />
-                          <h3 className="text-lg font-bold text-slate-800 mb-2">No AI Match Data Yet</h3>
-                          <p className="text-sm text-slate-500 mb-6">Map this candidate to a requirement to generate a detailed intelligence brief.</p>
-                          <Button onClick={() => setActiveTab('REQUIREMENTS')} className="bg-indigo-600 hover:bg-indigo-700">Map to Requirement</Button>
-                       </div>
-                    ) : (
-                       <>
-                          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
-                             <div>
-                                <h3 className="text-xl font-bold text-slate-800">JD Match Analysis</h3>
-                                <p className="text-sm text-slate-500 font-medium">Matched to: <span className="text-indigo-600">{candidate.reqTitle || mappingResult.reqTitle || mappingResult.requirementId || "Target Requirement"}</span></p>
-                             </div>
-                             <div className="text-right">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Overall Match</div>
-                                <div className="text-4xl font-black text-indigo-600">{displayCandidate.matchScore || mappingResult.matchScore || '--'}%</div>
-                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Skills Match</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.skillsScore || mappingResult.matchScore || 0}%</div>
-                             </div>
-                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Experience</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.experienceScore || Math.max(0, (mappingResult.matchScore || 0) - 5)}%</div>
-                             </div>
-                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Domain Fit</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.domainScore || mappingResult.matchScore || 0}%</div>
-                             </div>
-                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Location / Meta</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.locationScore || 100}%</div>
-                             </div>
-                          </div>
-                          
-                          <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-xl shadow-sm">
-                             <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-3 block border-b border-indigo-100 pb-2">AI Summary & Reasoning</h3>
-                             <p className="text-sm text-indigo-900 leading-relaxed font-medium">
-                                {mappingResult.summary || mappingResult.overallMatchReason || "The model identified strong overlap in core competencies."}
-                             </p>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm">
-                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3">Identified Strengths</h3>
-                                <ul className="space-y-2">
-                                   {(mappingResult.strengths || ["Meets core experience requirements"]).map((s: string, idx: number) => (
-                                     <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
-                                        <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" /> <span>{s}</span>
-                                     </li>
-                                   ))}
-                                </ul>
-                             </div>
-                             
-                             <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
-                                <div>
-                                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3">Missing Skills & Risks</h3>
-                                   <div className="flex flex-wrap gap-2 mb-3">
-                                      {(mappingResult.missingSkills || []).map((s: string, idx: number) => (
-                                         <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{s}</Badge>
-                                      ))}
+                    <div className="bg-indigo-50/50 p-8 rounded-xl border border-indigo-100/50 shadow-sm">
+                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-6 text-indigo-500 border-b border-indigo-100 pb-2 flex items-center gap-2"><Activity size={14} /> HireNest Intelligence Engine</h3>
+                       
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                           <div className="space-y-6">
+                               <div>
+                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Extracted Skills & Competencies</p>
+                                   <div className="flex flex-wrap gap-2">
+                                       {skillsArr.length > 0 ? skillsArr.map((s: string, idx: number) => (
+                                           <Badge key={idx} variant="outline" className="bg-white border-slate-200 text-slate-700 shadow-sm">{s}</Badge>
+                                       )) : <span className="text-sm text-slate-400 italic">No skills extracted yet.</span>}
                                    </div>
-                                   <ul className="space-y-2 mt-3 pt-3 border-t border-rose-50">
-                                      {(mappingResult.risks || ["No significant risks identified."]).map((s: string, idx: number) => (
-                                        <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
-                                           <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
-                                        </li>
-                                      ))}
-                                   </ul>
-                                </div>
-                                {(mappingResult.recommendation || mappingResult.recruiterAssessment) && (
-                                   <div className="mt-4 pt-4 border-t border-slate-100">
-                                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recommendation</div>
-                                      <div className="text-sm font-semibold text-indigo-700">{mappingResult.recommendation || mappingResult.recruiterAssessment}</div>
+                               </div>
+                               
+                               <div className="pt-4 border-t border-indigo-100/50">
+                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Detected Experience</p>
+                                   <div className="text-2xl font-black text-slate-800">
+                                       {displayCandidate.experience || (displayCandidate.totalExperience ? `${displayCandidate.totalExperience} Years` : (displayCandidate.experienceTracker?.computedYears ? `${displayCandidate.experienceTracker.computedYears} Years` : 'Unknown'))}
                                    </div>
-                                )}
-                             </div>
-                          </div>
-                       </>
+                               </div>
+                           </div>
+
+                           <div className="space-y-6">
+                               {displayCandidate.education && (
+                                   <div>
+                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Education Background</p>
+                                       <div className="text-sm font-semibold text-slate-700">{displayCandidate.education}</div>
+                                   </div>
+                               )}
+                               
+                               <div className={displayCandidate.education ? "pt-4 border-t border-indigo-100/50" : ""}>
+                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Core Profile Domain</p>
+                                   <div className="text-sm font-semibold text-slate-700">{displayCandidate.domain || displayCandidate.inferredDomain || displayCandidate.role || 'Unspecified Domain'}</div>
+                               </div>
+                               
+                               <div className="pt-4 border-t border-indigo-100/50">
+                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location Details</p>
+                                   <div className="text-sm font-semibold text-slate-700">{displayCandidate.location || 'Remote/Unknown'}</div>
+                               </div>
+                           </div>
+                       </div>
+                    </div>
+                    
+                    {displayCandidate.distillationSummary && (
+                       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
+                           <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-emerald-500 border-b border-slate-100 pb-2 flex items-center gap-2"><Bot size={14}/> Optional LLM Enhancement (Summary)</h3>
+                           <p className="text-sm text-slate-600 leading-relaxed font-medium">{displayCandidate.distillationSummary}</p>
+                       </div>
                     )}
                 </div>
              )}
 
-             {/* REQUIREMENTS TAB */}
+             {/* REQUIREMENTS TAB (JD Match Analysis) */}
              {activeTab === 'REQUIREMENTS' && (
                 <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
                     
-                    {/* Header Mapping Section */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm shadow-indigo-100/50 relative overflow-hidden">
-                       <div className="absolute top-0 right-0 p-8 opacity-5">
-                          <Target size={150} />
-                       </div>
-                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs mb-2">Map candidate to a requirement</h3>
-                       <p className="text-sm text-slate-500 mb-6 max-w-xl relative">Select an open requirement to trigger the AI Match Engine and initiate the formal submission workflow.</p>
-                       
-                       <div className="flex flex-col sm:flex-row gap-3 relative z-10">
-                          <select className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)}>
-                             <option value="">Select an open requirement...</option>
-                             {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.company})</option>)}
-                          </select>
-                          <Button 
-                             onClick={handleRunMatch} 
-                             disabled={!selectedJobId || isMapping}
-                             className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8"
-                          >
-                             {isMapping ? "Analyzing Fit..." : "Run AI Match"}
-                          </Button>
-                       </div>
-                    </div>
+                    {/* Header Mapping Section (Visible to Vendor/Admin only) */}
+                    {!isClientReviewMode && (
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm shadow-indigo-100/50 relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-8 opacity-5">
+                              <Target size={150} />
+                           </div>
+                           <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs mb-2">Map candidate to a requirement</h3>
+                           <p className="text-sm text-slate-500 mb-6 max-w-xl relative">Select an open requirement to trigger the AI Match Engine and initiate the formal submission workflow.</p>
+                           
+                           <div className="flex flex-col sm:flex-row gap-3 relative z-10">
+                              <select className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)}>
+                                 <option value="">Select an open requirement...</option>
+                                 {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.company})</option>)}
+                              </select>
+                              <Button 
+                                 onClick={handleRunMatch} 
+                                 disabled={!selectedJobId || isMapping}
+                                 className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8"
+                              >
+                                 {isMapping ? "Analyzing Fit..." : "Run AI Match"}
+                              </Button>
+                           </div>
+                        </div>
+                    )}
 
-                    
-                    {/* Currently Mapped Or Existing Reqs */}
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-slate-400 border-b border-slate-200 pb-2">Active Submissions</h3>
-                       
-                       {displayCandidate.pipelineStage === 'ADDED' || !displayCandidate.pipelineStage ? (
-                          <div className="text-center p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                             <Briefcase size={32} className="text-slate-300 mx-auto mb-3" />
-                             <p className="text-sm font-semibold text-slate-600">No active pipelines.</p>
-                             <p className="text-xs text-slate-400 mt-1">Map to a requirement above to submit.</p>
-                          </div>
-                       ) : (
-                          <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center justify-between shadow-sm">
-                             <div>
-                                <div className="text-sm font-bold text-slate-900">{displayCandidate.reqTitle || "General Submission"}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">Submitted via Workflow Orchestrator</div>
-                             </div>
-                             <div className="flex items-center gap-4">
-                                <div className="text-right">
-                                   <div className="text-[10px] font-bold uppercase text-slate-400">Match</div>
-                                   <div className="font-mono font-bold text-indigo-600">{displayCandidate.matchScore || mappingResult?.matchScore || '--'}%</div>
-                                </div>
-                                <div className="text-right">
-                                   <div className="text-[10px] font-bold uppercase text-slate-400">Stage</div>
-                                   <Badge className="bg-indigo-50 text-indigo-700">{candidate.pipelineStage}</Badge>
-                                </div>
-                             </div>
-                          </div>
-                       )}
-                    </div>
+                    {/* Mapped Match Output */}
+                    {mappingResult ? (
+                       <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm">
+                           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+                              <div>
+                                 <h3 className="text-xl font-bold text-slate-800">JD Match Analysis</h3>
+                                 <p className="text-sm text-slate-500 font-medium">Matched to: <span className="text-indigo-600">{candidate.reqTitle || mappingResult.reqTitle || mappingResult.requirementId || "Target Requirement"}</span></p>
+                              </div>
+                              <div className="text-right">
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Match Engine Score</div>
+                                 <div className="text-4xl font-black text-indigo-600">{displayCandidate.matchScore || mappingResult.matchScore || '--'}%</div>
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Skills Match</div>
+                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.skillsScore || mappingResult.matchScore || 0}%</div>
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Experience</div>
+                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.experienceScore || Math.max(0, (mappingResult.matchScore || 0) - 5)}%</div>
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Domain Fit</div>
+                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.domainScore || mappingResult.matchScore || 0}%</div>
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Location</div>
+                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.locationScore || 100}%</div>
+                              </div>
+                           </div>
+                           
+                           <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-xl shadow-sm mb-6">
+                              <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-3 block border-b border-indigo-100 pb-2">AI Summary & Reasoning</h3>
+                              <p className="text-sm text-indigo-900 leading-relaxed font-medium">
+                                 {mappingResult.summary || mappingResult.overallMatchReason || "The HireNest match engine identified strong overlap in core competencies."}
+                              </p>
+                           </div>
+
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm">
+                                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3 block border-b border-emerald-100 pb-2">Identified Strengths</h3>
+                                 <ul className="space-y-3 mt-3">
+                                    {(mappingResult.strengths || ["Meets core experience requirements"]).map((s: string, idx: number) => (
+                                      <li key={idx} className="text-sm font-medium text-slate-700 flex items-start gap-2">
+                                         <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" /> <span>{s}</span>
+                                      </li>
+                                    ))}
+                                 </ul>
+                              </div>
+                              
+                              <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
+                                 <div>
+                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3 block border-b border-rose-100 pb-2">Missing Skills & Risks</h3>
+                                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
+                                       {(mappingResult.missingSkills || []).map((s: string, idx: number) => (
+                                          <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{s}</Badge>
+                                       ))}
+                                    </div>
+                                    <ul className="space-y-3 mt-3">
+                                       {(mappingResult.risks || []).map((s: string, idx: number) => (
+                                         <li key={idx} className="text-sm font-medium text-slate-700 flex items-start gap-2">
+                                            <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
+                                         </li>
+                                       ))}
+                                    </ul>
+                                 </div>
+                                 {(mappingResult.recommendation || mappingResult.recruiterAssessment) && (
+                                    <div className="mt-6 pt-4 border-t border-slate-100">
+                                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recommendation</div>
+                                       <div className="text-sm font-semibold text-indigo-700 leading-relaxed">{mappingResult.recommendation || mappingResult.recruiterAssessment}</div>
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
+                       </div>
+                    ) : (
+                       <div className="bg-slate-50 p-10 rounded-xl border border-slate-200 text-center shadow-sm">
+                          <Target size={40} className="text-slate-300 mx-auto mb-4" />
+                          <p className="text-base font-bold text-slate-800">No Match Data Available</p>
+                          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">This candidate has not been formally evaluated against a specific Job Description.</p>
+                       </div>
+                    )}
                 </div>
              )}
 
