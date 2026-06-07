@@ -1,11 +1,4 @@
 import { useEffect, useState } from "react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-} from "firebase/firestore";
 import {
   Clock,
   CheckCircle,
@@ -13,38 +6,24 @@ import {
   Info,
   PlayCircle,
 } from "lucide-react";
+import { subscribeToEvents } from "../services/eventBus";
 
 export function ActivityFeed({ recipients }: { recipients: string[] }) {
   const [events, setEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    if (recipients.length === 0) return;
+    let orgId = undefined;
+    let role = "vendor";
+    if (recipients.includes("GLOBAL_CLIENT")) role = "client";
+    if (recipients.includes("GLOBAL_ADMIN")) role = "admin";
 
-    let queryRecipients = recipients;
-    if (queryRecipients.length > 10) {
-      queryRecipients = queryRecipients.slice(0, 10);
-    }
-
-    const q = query(
-      collection(db, "event_ledger"),
-      where("recipients", "array-contains-any", queryRecipients)
-    );
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        let evts: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        evts.sort((a, b) => {
-          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-          return bTime - aTime;
-        });
-        evts = evts.slice(0, 20);
-        setEvents(evts);
+    const unsub = subscribeToEvents(
+      (evts) => {
+        setEvents(evts.slice(0, 20));
       },
-      (err) => {
-        handleFirestoreError(err, OperationType.GET, "event_ledger");
-      },
+      20,
+      orgId, 
+      role 
     );
 
     return () => unsub();
@@ -97,40 +76,46 @@ export function ActivityFeed({ recipients }: { recipients: string[] }) {
             </p>
           </div>
         ) : (
-          events.map((evt, idx) => (
-            <div key={evt.id} className="relative pl-6">
-              {idx !== events.length - 1 && (
-                <div className="absolute left-[11px] top-6 bottom-[-20px] w-px bg-slate-100" />
-              )}
-              <div className="absolute left-0 top-1">
-                <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center ${getTypeColor(evt.type)} border-2 border-white`}
-                >
-                  {getIcon(evt.type)}
+          events.map((evt, idx) => {
+            const mappedType = evt.type === "CandidateEnriched" || evt.type === "CandidateMatched" ? "success" : "info";
+            const title = evt.title || (String(evt.type).replace(/([A-Z])/g, ' $1').trim());
+            const desc = evt.message || `Action by ${evt.actorRole || 'System'} on ${evt.entityType}`;
+
+            return (
+              <div key={evt.id} className="relative pl-6">
+                {idx !== events.length - 1 && (
+                  <div className="absolute left-[11px] top-6 bottom-[-20px] w-px bg-slate-100" />
+                )}
+                <div className="absolute left-0 top-1">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center ${getTypeColor(mappedType)} border-2 border-white`}
+                  >
+                    {getIcon(mappedType)}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <h4 className="text-sm font-bold text-slate-700 leading-tight">
+                      {title}
+                    </h4>
+                    <time className="text-[10px] font-bold tracking-widest uppercase text-slate-400 whitespace-nowrap pt-0.5">
+                      {evt.timestamp?.seconds
+                        ? new Date(
+                            evt.timestamp.seconds * 1000,
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Just now"}
+                    </time>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    {desc}
+                  </p>
                 </div>
               </div>
-              <div>
-                <div className="flex items-start justify-between gap-4">
-                  <h4 className="text-sm font-bold text-slate-700 leading-tight">
-                    {evt.title}
-                  </h4>
-                  <time className="text-[10px] font-bold tracking-widest uppercase text-slate-400 whitespace-nowrap pt-0.5">
-                    {evt.createdAt
-                      ? new Date(
-                          evt.createdAt.seconds * 1000,
-                        ).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Just now"}
-                  </time>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  {evt.message}
-                </p>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

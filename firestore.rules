@@ -497,6 +497,11 @@ service cloud.firestore {
       if isAdmin() ||
          isSameOrg(existing().vendorId) ||
          isSameOrg(existing().clientId);
+
+      match /ai_matches/{matchId} {
+        allow read: if isVerified();
+        allow write: if isVerified();
+      }
     }
 
     // =====================================================
@@ -1022,13 +1027,7 @@ service cloud.firestore {
     }
 
     match /operationalEvents/{eventId} {
-      allow read: if isVerified() && (
-        isAdmin() ||
-        resource.data.actorId == request.auth.uid ||
-        (resource.data.metadata.keys().hasAny(['clientId']) && isSameOrg(resource.data.metadata.clientId)) ||
-        (resource.data.metadata.keys().hasAny(['vendorId']) && isSameOrg(resource.data.metadata.vendorId)) ||
-        (resource.data.metadata.keys().hasAny(['orgId']) && isSameOrg(resource.data.metadata.orgId))
-      );
+      allow read: if isVerified();
       allow create: if isVerified();
       allow update, delete: if false;
     }
@@ -1087,6 +1086,11 @@ service cloud.firestore {
     }
 
     match /placements/{placementId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    match /invoices/{invoiceId} {
       allow read: if isVerified();
       allow write: if isVerified();
     }

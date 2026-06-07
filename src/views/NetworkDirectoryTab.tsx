@@ -33,7 +33,7 @@ export default function NetworkDirectoryTab() {
         });
         setOrgMap(map);
       } catch (e) {
-        console.error(e);
+        console.warn("Unauthorized org fetch caught", e);
       }
     };
     fetchOrgs();
@@ -58,12 +58,17 @@ export default function NetworkDirectoryTab() {
         }
         
         if (q) {
-          const snap = await getDocs(q);
-          const results = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
-          if (activeFilter === 'candidates') {
-             setData(results.filter((c:any) => c.status !== "DELETED" && c.isActive !== false));
-          } else {
-             setData(results);
+          try {
+            const snap = await getDocs(q);
+            const results = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+            if (activeFilter === 'candidates') {
+               setData(results.filter((c:any) => c.status !== "DELETED" && c.isActive !== false));
+            } else {
+               setData(results);
+            }
+          } catch (accessErr) {
+             console.warn("Restricted directory access", accessErr);
+             setData([]);
           }
         }
       } catch (err) {

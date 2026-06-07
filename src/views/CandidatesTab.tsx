@@ -51,6 +51,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 import { publishEvent } from "../lib/eventEngine";
+import { emitEvent } from "../services/eventBus";
 
 import CandidateSubmissionModal from "../components/CandidateSubmissionModal";
 import { EmptyState } from "../components/EmptyState";
@@ -769,6 +770,19 @@ export default function CandidatesTab() {
          };
          await setDoc(doc(db, "candidatePool", finalCandId), initialCandidate);
          
+         await emitEvent(
+           "CandidateUploaded",
+           "CANDIDATE",
+           finalCandId,
+           auth.currentUser?.uid || "system",
+           userRole || "vendor",
+           {
+             name: formData.name,
+             source: "Manual Form",
+             vendorId: userOrgId,
+           }
+         );
+
          if (candHash) {
            await checkAndClaimOwnership(candHash, userOrgId, formData.name, "Manual Form Onboarding", formData.email, formData.phone);
          }
@@ -824,6 +838,19 @@ export default function CandidatesTab() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+
+        await emitEvent(
+          "CandidateUploaded",
+          "CANDIDATE",
+          candId,
+          auth.currentUser?.uid || "system",
+          userRole || "vendor",
+          {
+            name: "Pending Distillation",
+            source: "Bulk Upload",
+            vendorId: userOrgId,
+          }
+        );
 
         // Process inline using the AI proxy
         enrichCandidate(candId, text);
@@ -968,6 +995,20 @@ ${extText}`;
           updatedAt: serverTimestamp(),
         });
 
+        await emitEvent(
+          "CandidateUploaded",
+          "CANDIDATE",
+          candId,
+          auth.currentUser?.uid || "system",
+          userRole || "vendor",
+          {
+            name: tempName,
+            source: "File Upload",
+            fileName: file.name,
+            vendorId: userOrgId,
+          }
+        );
+
         // Process inline using the AI proxy
         enrichCandidate(candId, extText);
 
@@ -1020,7 +1061,7 @@ ${extText}`;
       const result =
         parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
 
-      if (result && result.name && result.name !== "Pending Distillation") {
+      if (result && result.name && result.name !== "Pending Distillation" && result.name !== "Parsing Pending") {
         delete result.pipelineStage;
         delete result.candidateId;
         delete result.id;
@@ -1161,6 +1202,19 @@ ${extText}`;
             message: `Intelligence extraction complete for ${result.name}`,
             recipients: ["GLOBAL_ADMIN", "GLOBAL_CLIENT", "GLOBAL_VENDOR"],
           });
+
+          await emitEvent(
+            "CandidateEnriched",
+            "CANDIDATE",
+            resolvedCandId,
+            auth.currentUser?.uid || "system",
+            userRole || "system",
+            {
+              name: result.name,
+              score: result.overallFitScore || 0,
+              vendorId: updatePayload.vendorId || "unknown",
+            }
+          );
         }
 
         // Update stats
@@ -1196,6 +1250,14 @@ ${extText}`;
         await updateDoc(doc(db, "candidatePool", candId), {
           distillationStatus: "FAILED",
         });
+        await emitEvent(
+          "CandidateEnriched",
+          "CANDIDATE",
+          candId,
+          "system",
+          "system",
+          { error: "Distillation Failed" }
+        );
       }
     } catch (err: any) {
       console.error("Failed to queue enrichment:", err);
@@ -1203,6 +1265,14 @@ ${extText}`;
       await updateDoc(doc(db, "candidatePool", candId), {
         distillationStatus: "FAILED",
       });
+      await emitEvent(
+        "CandidateEnriched",
+        "CANDIDATE",
+        candId,
+        "system",
+        "system",
+        { error: err.message || "Extraction crashed" }
+      );
     }
   };
 

@@ -15,6 +15,8 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
   useEffect(() => {
     // We fetch all deal rooms
     const fetchAll = async () => {
+      if (!isAdmin) return;
+      
       try {
         const [dealsSnap, jobsSnap, eventsSnap] = await Promise.all([
            getDocs(query(collection(db, "dealRooms"), orderBy("createdAt", "desc"))),
@@ -23,9 +25,8 @@ export default function PredictiveIntelligenceTab({ userRole, orgId }: { userRol
         ]);
         
         const allDeals = dealsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        const filteredDeals = isAdmin ? allDeals : allDeals.filter(d => d.clientId === orgId || d.vendorId === orgId);
         
-        setDeals(filteredDeals);
+        setDeals(allDeals);
         setJobs(jobsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setEvents(eventsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {

@@ -296,7 +296,14 @@ export default function Candidate360Modal({
        console.warn("Interview timeline error:", err.message);
     });
 
-    const qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
+    let qEvents;
+    if (isAdmin) {
+       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
+    } else if (userRole.includes("client")) {
+       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), where("metadata.clientId", "==", userOrgId));
+    } else {
+       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), where("metadata.vendorId", "==", userOrgId));
+    }
     const unsubEvents = onSnapshot(qEvents, snap => {
        const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
        evs.sort((a: any, b: any) => {
@@ -308,10 +315,21 @@ export default function Candidate360Modal({
     }, err => {
        console.warn("Event timeline error:", err.message);
     });
+
+    const qMatches = query(collection(db, "candidatePool", id, "ai_matches"));
+    const unsubMatches = onSnapshot(qMatches, snap => {
+       const matches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       if (matches.length > 0) {
+         // get the highest scoring match
+         matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
+         setMappingResult(matches[0]);
+       }
+    });
     
     return () => {
        unsubEvents();
        unsubInterviews();
+       unsubMatches();
     };
   }, [candidate]);
 
@@ -716,14 +734,30 @@ export default function Candidate360Modal({
                             </div>
                          )}
 
-                         {events.map((evt, idx) => (
-                            <div key={evt.id} className="relative pl-6 border-l-2 border-indigo-100 pb-4 last:pb-0">
-                               <div className="absolute w-3 h-3 bg-indigo-500 rounded-full -left-[7px] top-1 ring-4 ring-white" />
-                               <div className="text-sm font-bold text-slate-900 capitalize">{evt.type?.replace(/_/g, " ")}</div>
-                               <div className="text-xs text-slate-600 mt-1">{evt.metadata?.message || evt.metadata?.reason || ""}</div>
-                               <div className="text-[10px] font-mono text-slate-400 mt-1.5 tracking-wider">{evt.timestamp?.toDate ? evt.timestamp.toDate().toLocaleString() : "Recently"}</div>
-                            </div>
-                         ))}
+                         {events.map((evt, idx) => {
+                            const details = [];
+                            if (evt.metadata?.source) details.push(`Source: ${evt.metadata.source}`);
+                            if (evt.metadata?.fileName) details.push(`File: ${evt.metadata.fileName}`);
+                            if (evt.metadata?.score !== undefined) details.push(`Score: ${evt.metadata.score}%`);
+                            if (evt.metadata?.error) details.push(`Error: ${evt.metadata.error}`);
+                            if (evt.metadata?.message) details.push(evt.metadata.message);
+
+                            const detailStr = details.length > 0 ? details.join(" | ") : "";
+                            const title = evt.type ? String(evt.type).replace(/([A-Z])/g, ' $1').trim() : "Event";
+
+                            return (
+                               <div key={evt.id} className="relative pl-6 border-l-[3px] border-indigo-100 pb-6 last:pb-0 group mt-2">
+                                  <div className="absolute w-4 h-4 bg-white border-4 border-indigo-500 rounded-full -left-[10px] top-1 group-hover:scale-125 transition-transform" />
+                                  <div className="text-sm font-black text-slate-800 uppercase tracking-wide">{title}</div>
+                                  <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{evt.actorRole ? `By ${evt.actorRole}` : "By System"}</div>
+                                  {detailStr && <div className="text-sm text-slate-600 mt-2 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">{detailStr}</div>}
+                                  <div className="text-[10px] font-mono text-slate-400 mt-3 tracking-wider flex items-center gap-1.5 opacity-60">
+                                      <Activity size={10} />
+                                      {evt.timestamp?.toDate ? evt.timestamp.toDate().toLocaleString() : "Recently"}
+                                  </div>
+                               </div>
+                            );
+                         })}
                       </div>
                    </div>
                 </div>

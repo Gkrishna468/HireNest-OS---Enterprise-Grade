@@ -54,6 +54,7 @@ import { HybridMatchResult } from "../types";
 import { EmptyState } from "../components/EmptyState";
 import { publishEvent } from "../lib/eventEngine";
 import { RequirementDiscussionThread } from "../components/RequirementDiscussionThread";
+import Candidate360Modal from "../components/modals/Candidate360Modal";
 
 import { useNavigate } from "react-router-dom";
 import { emitEvent } from "../services/eventBus";
@@ -541,15 +542,19 @@ export default function JobsTab() {
           setOrgId(userOrgId);
 
           try {
-            const usersSnap = await getDocs(collection(db, "users"));
-            const vMap: Record<string, string> = {};
-            usersSnap.docs.forEach((d) => {
-              const data = d.data();
-              if (data.organizationId && data.name) {
-                vMap[data.organizationId] = data.name;
-              }
-            });
-            setVendorMap(vMap);
+            if (role === "admin" || role === "super_admin" || role === "ops_admin") {
+              const usersSnap = await getDocs(collection(db, "users"));
+              const vMap: Record<string, string> = {};
+              usersSnap.docs.forEach((d) => {
+                const data = d.data();
+                if (data.organizationId && (data.name || data.companyName)) {
+                  vMap[data.organizationId] = data.companyName || data.name;
+                }
+              });
+              setVendorMap(vMap);
+            } else {
+              setVendorMap({});
+            }
           } catch (ve) {
             console.warn("Failed to fetch users for vendor map", ve);
           }
@@ -2085,7 +2090,7 @@ export default function JobsTab() {
                           <div
                             key={sub.id}
                             className={`group relative border-2 rounded-[32px] p-8 transition-all cursor-pointer overflow-hidden ${selectedSubmission?.id === sub.id ? "border-indigo-600 bg-indigo-50/40 shadow-[0_20px_50px_rgba(79,70,229,0.1)]" : "border-slate-50 hover:border-indigo-200 hover:shadow-2xl hover:shadow-slate-100 bg-white"}`}
-                            onClick={() => handleRunAiMatch(sub)}
+                            onClick={() => setSelectedSubmission(sub)}
                           >
                             <div className="flex justify-between items-start mb-8">
                               <div className="flex items-center gap-5">
@@ -2210,7 +2215,7 @@ export default function JobsTab() {
                                   <div
                                     key={sub.id}
                                     className="bg-white border hover:border-slate-300 rounded-[24px] p-5 cursor-pointer shadow-sm relative overflow-hidden"
-                                    onClick={() => handleRunAiMatch(sub)}
+                                    onClick={() => setSelectedSubmission(sub)}
                                   >
                                     <div className="flex items-center justify-between mb-4">
                                       <div className="flex items-center gap-3">
@@ -2281,229 +2286,20 @@ export default function JobsTab() {
                 </div>
               </div>
             </div>
-
-            {/* AI Analysis Side Panel (Layered) */}
-            {selectedSubmission && (
-              <div className="absolute right-0 top-14 bottom-0 w-96 bg-slate-50 text-slate-800 shadow-2xl z-20 flex flex-col border-l border-slate-200 animate-in slide-in-from-right">
-                <div className="p-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
-                  <div className="flex items-center gap-2">
-                    <Bot size={16} className="text-indigo-600" />
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-800">
-                      Recruiter Match OS V2
-                    </h3>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSelectedSubmission(null)}
-                    className="h-6 w-6 text-slate-400 hover:text-slate-800"
-                  >
-                    <X size={14} />
-                  </Button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                  {isAnalyzing ? (
-                    <div className="h-full flex flex-col items-center justify-center space-y-4 py-20">
-                      <Activity
-                        size={32}
-                        className="text-indigo-500 animate-spin"
-                      />
-                      <p className="text-[10px] font-bold uppercase text-indigo-500 animate-pulse tracking-widest">
-                        Processing High-Density Match Logic...
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {aiAnalysis && (
-                        <div className="space-y-6">
-                          <AIMatching
-                            result={aiAnalysis as any}
-                            candidateName={
-                              selectedSubmission?.candidateName ||
-                              selectedSubmission?.name ||
-                              "Candidate"
-                            }
-                            onRequestUpdate={() =>
-                              handleRequestUpdate(selectedSubmission)
-                            }
-                          />
-
-                          <div className="grid grid-cols-2 gap-2 mt-4">
-                            <Button
-                              onClick={() => {
-                                const profileText =
-                                  selectedSubmission.resumeText ||
-                                  JSON.stringify(selectedSubmission, null, 2);
-                                const blob = new Blob([profileText], {
-                                  type: "text/plain",
-                                });
-                                const url = window.URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = `${selectedSubmission.candidateName || "Candidate"}_Profile.txt`;
-                                a.click();
-                                window.URL.revokeObjectURL(url);
-                              }}
-                              variant="outline"
-                              className="w-full bg-white border-slate-200 text-indigo-600 hover:text-indigo-700 h-10 text-[10px] uppercase font-bold rounded-xl shadow-sm flex items-center justify-center gap-2"
-                            >
-                              <CheckCircle size={14} /> Download Profile
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                handleRunAiMatch(selectedSubmission)
-                              }
-                              variant="outline"
-                              className="w-full bg-slate-900 border-slate-800 text-white hover:bg-slate-800 h-10 text-[10px] uppercase font-bold rounded-xl shadow-sm flex items-center justify-center gap-2"
-                            >
-                              <Activity size={14} /> Rescan Match
-                            </Button>
-                          </div>
-
-                          <div className="space-y-3">
-                            <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">
-                              <Activity size={12} className="text-indigo-500" />{" "}
-                              Pipeline Pulse Flow
-                            </h4>
-                            <div className="bg-white border text-center border-slate-200 rounded-xl p-4 relative overflow-hidden">
-                              <div className="relative flex justify-between">
-                                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
-                                {STAGES.map((s, idx) => {
-                                  const currentStage =
-                                    selectedSubmission?.status ||
-                                    selectedSubmission?.pipelineStage ||
-                                    "Matched";
-                                  const isCurrent = currentStage === s;
-                                  const isPast =
-                                    STAGES.indexOf(currentStage) >= idx;
-                                  return (
-                                    <div
-                                      key={s}
-                                      className="relative z-10 flex flex-col items-center group cursor-pointer"
-                                      onClick={async () => {
-                                        if (s === "Submitted") {
-                                          await handleCreateDealRoom(
-                                            selectedSubmission,
-                                          );
-                                        } else {
-                                          try {
-                                            if (selectedSubmission._isSubmission || !selectedSubmission.email) {
-                                               await updateDoc(doc(db, "submissions", selectedSubmission.id), {
-                                                  status: s,
-                                                  updatedAt: serverTimestamp()
-                                               });
-                                            } else {
-                                              await updateDoc(
-                                                doc(
-                                                  db,
-                                                  "candidatePool",
-                                                  selectedSubmission.id || selectedSubmission.candidateId,
-                                                ),
-                                                {
-                                                  updatedAt: serverTimestamp(),
-                                                },
-                                              );
-                                            }
-                                            selectedSubmission.status = s;
-                                          } catch (err) {
-                                            console.error(
-                                              "Could not update status",
-                                              err,
-                                            );
-                                          }
-                                        }
-                                      }}
-                                    >
-                                      <div
-                                        className={`h-6 w-6 rounded-full border-[3px] flex items-center justify-center transition-all duration-500 ${isCurrent ? "bg-indigo-600 border-indigo-100 shadow-md shadow-indigo-100" : isPast ? "bg-emerald-500 border-emerald-100" : "bg-white border-slate-100"}`}
-                                      >
-                                        {isPast && !isCurrent ? (
-                                          <CheckCircle
-                                            size={10}
-                                            className="text-white"
-                                          />
-                                        ) : (
-                                          <div
-                                            className={`h-1 w-1 rounded-full ${isCurrent ? "bg-white animate-pulse" : "bg-slate-300"}`}
-                                          />
-                                        )}
-                                      </div>
-                                      <div className="text-[6px] font-black uppercase text-slate-400 mt-2 tracking-wider text-center w-12 leading-tight">
-                                        {s}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
-                              Engagement Protocol
-                            </h4>
-                            <div className="grid grid-cols-1 gap-2">
-                              <Button
-                                onClick={() =>
-                                  handleCreateDealRoom(selectedSubmission)
-                                }
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-12 uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-indigo-100"
-                              >
-                                {(aiAnalysis as any).recommendation ===
-                                "STRONG_FIT"
-                                  ? "Fast-Track Immediate Deal"
-                                  : "Draft Submission"}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                className="w-full border-slate-200 text-slate-400 h-10 text-[9px] uppercase font-bold rounded-xl"
-                              >
-                                Archive for Future Req
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-2">
-                              <MessageSquare size={12} /> Outreach Drafts
-                              (AI-V2)
-                            </h4>
-                            <div className="space-y-2">
-                              {[
-                                "Founder",
-                                "Professional",
-                                "Executive",
-                                "Warm",
-                              ].map((tone) => (
-                                <div
-                                  key={tone}
-                                  className="bg-white rounded p-3 border border-slate-200 shadow-sm"
-                                >
-                                  <div className="text-[8px] font-bold uppercase mb-1 text-indigo-600">
-                                    {tone} Tone
-                                  </div>
-                                  <p className="text-[10px] text-slate-600 leading-relaxed italic">
-                                    {
-                                      (aiAnalysis as any)?.outreachDrafts?.[
-                                        tone.toLowerCase()
-                                      ]
-                                    }
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* Candidate360 Modal */}
+      {selectedSubmission && (
+        <Candidate360Modal
+          candidate={selectedSubmission}
+          onClose={() => setSelectedSubmission(null)}
+          isAdmin={session.user?.role === "admin" || session.user?.role === "super_admin" || session.user?.role === "ops_admin" || session.user?.organizationId === "ORG-GLOBAL-HQ"}
+          userOrgId={session.user?.organizationId}
+          userRole={session.user?.role}
+        />
+      )}
 
       {/* Approval Modal (Margin Governance) */}
       {showApprovalModal && (
