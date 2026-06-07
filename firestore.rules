@@ -460,8 +460,13 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // CANDIDATES
+    // CANDIDATES & OWNERSHIP
     // =====================================================
+
+    match /candidateOwnership/{ownershipId} {
+      allow read: if isAuth(); // Used for conflict checking
+      allow write: if isAuth(); 
+    }
 
     match /candidatePool/{candidateId} {
       allow read:

@@ -88,8 +88,18 @@ export class PlacementOrchestrator {
     });
 
     if (placementSnap.exists() && placementSnap.data().submissionId) {
+       // Map placement status to SubmissionState enum equivalents where applicable
+       let subStatus = newStatus as string;
+       if (newStatus === 'INVOICED' || newStatus === 'INVOICE_PENDING') {
+           subStatus = 'INVOICE_GENERATED';
+       } else if (newStatus === 'PAID') {
+           subStatus = 'PAYMENT_RECEIVED';
+       } else if (newStatus === 'OFFER_DECLINED' || newStatus === 'DROPPED_OUT') {
+           subStatus = 'OFFER_DECLINED';
+       }
+
        await updateDoc(doc(db, "submissions", placementSnap.data().submissionId), {
-         status: newStatus === 'JOINED' || newStatus === 'GUARANTEE_PERIOD' || newStatus === 'INVOICE_PENDING' || newStatus === 'INVOICED' || newStatus === 'PAID' ? 'ONBOARDED' : newStatus,
+         status: subStatus,
          updatedAt: serverTimestamp()
        });
     }

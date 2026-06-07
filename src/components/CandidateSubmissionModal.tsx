@@ -159,9 +159,13 @@ export default function CandidateSubmissionModal({
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
          });
+         
+         const { CandidateOwnershipEngine } = await import("../lib/workflows/CandidateOwnershipEngine");
+         await CandidateOwnershipEngine.establishOwnership(candId, orgId, "VENDOR", 180);
+
          onClose();
          if (typeof alert !== "undefined") {
-            alert("Candidate added to pool securely.");
+            alert("Candidate added to pool securely with ownership locked.");
          }
          setIsSubmitting(false);
          return;

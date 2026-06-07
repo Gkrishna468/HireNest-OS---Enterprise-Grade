@@ -146,33 +146,16 @@ export class SubmissionOrchestrator {
       // 2. Determine Ownership
       if (candidateId) {
         try {
-          console.log("STEP 2: Query ownershipVault");
-          const ownershipQ = query(
-            collection(db, "ownershipVault"),
-            where("candidateId", "==", candidateId),
-            where("active", "==", true),
-          );
-          const ownershipSnap = await getDocs(ownershipQ);
-          if (!ownershipSnap.empty) {
-            const claim = ownershipSnap.docs[0].data();
-            const expiresAt = claim.expiresAt?.toDate
-              ? claim.expiresAt.toDate()
-              : new Date(claim.expiresAt);
-            if (expiresAt > new Date()) {
-              if (
-                claim.vendorId !== vendorId &&
-                claim.vendorId !== "HQ" &&
-                vendorId !== "HQ" &&
-                !request.bypassOwnershipCheck
-              ) {
-                // HQ can submit anyone
-                return {
-                  success: false,
-                  message: `Candidate is owned by another vendor.`,
-                  ownershipDetails: { owner: claim.vendorId, expiresAt },
-                };
-              }
-            }
+          console.log("STEP 2: Query candidateOwnership");
+          const { CandidateOwnershipEngine } = await import("./CandidateOwnershipEngine");
+          const ownershipCheck = await CandidateOwnershipEngine.verifyOwnershipAndCheckConflicts(candidateId, vendorId);
+          
+          if (!ownershipCheck.canProceed && !request.bypassOwnershipCheck && vendorId !== "HQ") {
+              return {
+                success: false,
+                message: `Candidate is owned by another vendor.`,
+                ownershipDetails: { owner: ownershipCheck.lockedBy, expiresAt: ownershipCheck.lockUntil },
+              };
           }
           console.log("STEP 2 SUCCESS");
         } catch (e) {
@@ -353,27 +336,15 @@ export class SubmissionOrchestrator {
 
       // 6. Establish/Update Ownership
       try {
-        console.log("STEP 6: setDoc ownershipVault");
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 180);
-
-        const claimDocId = `${candidateId}_ownership`;
-        await setDoc(
-          doc(db, "ownershipVault", claimDocId),
-          {
-            candidateId,
-            vendorId,
-            claimedAt: serverTimestamp(),
-            expiresAt: expiryDate,
-            active: true,
-            sourceSubmissionId: submissionId,
-          },
-          { merge: true },
-        );
+        console.log("STEP 6: establishOwnership");
+        if (vendorId !== "HQ") {
+            const { CandidateOwnershipEngine } = await import("./CandidateOwnershipEngine");
+            await CandidateOwnershipEngine.establishOwnership(candidateId, vendorId, "VENDOR", 180);
+        }
         console.log("STEP 6 SUCCESS");
       } catch (e) {
         console.error("STEP 6 FAILED", e);
-        throw e;
+        // don't throw, let submission continue even if ownership recording fails
       }
 
       // 7. Event Ledger
