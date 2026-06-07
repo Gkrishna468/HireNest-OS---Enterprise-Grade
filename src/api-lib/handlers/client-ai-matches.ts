@@ -16,6 +16,7 @@ export default async function handler(req: any, res: any) {
 
     const reqSnapshot = await adminDb.collection("requirements_public").where("clientId", "==", orgId).get();
     const reqIds = new Set(reqSnapshot.docs.map(d => d.id));
+    const reqDataMap = new Map(reqSnapshot.docs.map(d => [d.id, d.data()]));
     console.log("Requirements found:", reqIds.size);
 
     if (reqIds.size === 0) return res.status(200).json({ matches: [] });
@@ -90,6 +91,8 @@ export default async function handler(req: any, res: any) {
              submissionFiltered++;
          }
 
+         const reqData = reqDataMap.get(matchReqId) as any;
+
          matches.push({
              ...cand,
              id: doc.id,
@@ -97,6 +100,7 @@ export default async function handler(req: any, res: any) {
              candidateName: cand.fullName || "Anonymous Candidate",
              requirementId: matchReqId,
              reqId: matchReqId,
+             reqTitle: reqData?.title || reqData?.jobTitle || "Requirement Match",
              matchScore: matchData.matchScore || 0,
              status: status,
              sysSource: subExists ? 'SUBMISSION' : 'AI_MATCH',

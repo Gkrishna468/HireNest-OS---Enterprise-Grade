@@ -85,12 +85,22 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
               aiMatches.map(match => (
                 <div
                   key={match.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm"
+                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
                   onClick={() => setSelectedCandidate(match)}
                 >
-                   <h3 className="font-semibold text-lg text-slate-900">{match.name || match.candidateName || "Candidate"}</h3>
-                   <Badge variant="outline" className="mt-2 w-max text-indigo-600 border-indigo-200 bg-indigo-50">Score: {match.matchScore || match.score || "--"}%</Badge>
-                   <p className="text-sm text-slate-500 mt-3 line-clamp-3 leading-relaxed">{match.summary || match.aiAnalysis || "Match discovered by Strategic Engine."}</p>
+                   <div className="p-4 border-b border-slate-100 bg-slate-50">
+                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{match.reqTitle || "Requirement Match"}</div>
+                   </div>
+                   <div className="p-5 flex-1">
+                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max">{match.name || match.candidateName || "Candidate"}</h3>
+                     <Badge variant="outline" className="mt-2 w-max text-indigo-600 border-indigo-200 bg-indigo-50">Match Score: {match.matchScore || match.score || "--"}%</Badge>
+                     <p className="text-sm text-slate-500 mt-3 line-clamp-2 leading-relaxed">{match.summary || match.aiAnalysis || "Match discovered by Strategic Engine."}</p>
+                   </div>
+                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                     <div className="text-[10px] font-bold text-slate-400">{match.vendorName || "Active Vendor"}</div>
+                     <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
+                   </div>
                 </div>
               ))
             }

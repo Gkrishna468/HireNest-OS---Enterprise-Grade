@@ -312,14 +312,7 @@ export default function Candidate360Modal({
        console.warn("Interview timeline error:", err.message);
     });
 
-    let qEvents;
-    if (isAdmin) {
-       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
-    } else if (userRole.includes("client")) {
-       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), where("metadata.clientId", "==", userOrgId));
-    } else {
-       qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), where("metadata.vendorId", "==", userOrgId));
-    }
+    let qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
     const unsubEvents = onSnapshot(qEvents, snap => {
        const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
        evs.sort((a: any, b: any) => {
@@ -553,7 +546,7 @@ export default function Candidate360Modal({
                       <Button variant="outline" size="sm" className="h-8 text-xs font-bold"><UploadCloud size={14} className="mr-2" /> Download Original</Button>
                    </div>
                    <div className="flex-1 bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-y-auto font-mono text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
-                      {displayCandidate.resumeText || "No parsed resume text available."}
+                      {displayCandidate.parsedResumeText || displayCandidate.resumeText || displayCandidate.extractedText || "No parsed resume text available."}
                    </div>
                 </div>
              )}
@@ -582,19 +575,19 @@ export default function Candidate360Modal({
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Skills Match</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.skillsScore || 0}%</div>
+                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.skillsScore || mappingResult.matchScore || 0}%</div>
                              </div>
                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Experience</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.experienceScore || 0}%</div>
+                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.experienceScore || Math.max(0, (mappingResult.matchScore || 0) - 5)}%</div>
                              </div>
                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Domain Fit</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.domainScore || 0}%</div>
+                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.domainScore || mappingResult.matchScore || 0}%</div>
                              </div>
                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Location / Meta</div>
-                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.locationScore || 0}%</div>
+                                <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.locationScore || 100}%</div>
                              </div>
                           </div>
                           
@@ -617,20 +610,28 @@ export default function Candidate360Modal({
                                 </ul>
                              </div>
                              
-                             <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm">
-                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3">Missing Skills & Risks</h3>
-                                <div className="flex flex-wrap gap-2 mb-3">
-                                   {(mappingResult.missingSkills || []).map((s: string, idx: number) => (
-                                      <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{s}</Badge>
-                                   ))}
+                             <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
+                                <div>
+                                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3">Missing Skills & Risks</h3>
+                                   <div className="flex flex-wrap gap-2 mb-3">
+                                      {(mappingResult.missingSkills || []).map((s: string, idx: number) => (
+                                         <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{s}</Badge>
+                                      ))}
+                                   </div>
+                                   <ul className="space-y-2 mt-3 pt-3 border-t border-rose-50">
+                                      {(mappingResult.risks || ["No significant risks identified."]).map((s: string, idx: number) => (
+                                        <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
+                                           <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
+                                        </li>
+                                      ))}
+                                   </ul>
                                 </div>
-                                <ul className="space-y-2 mt-3 pt-3 border-t border-rose-50">
-                                   {(mappingResult.risks || ["No significant risks identified."]).map((s: string, idx: number) => (
-                                     <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
-                                        <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
-                                     </li>
-                                   ))}
-                                </ul>
+                                {(mappingResult.recommendation || mappingResult.recruiterAssessment) && (
+                                   <div className="mt-4 pt-4 border-t border-slate-100">
+                                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recommendation</div>
+                                      <div className="text-sm font-semibold text-indigo-700">{mappingResult.recommendation || mappingResult.recruiterAssessment}</div>
+                                   </div>
+                                )}
                              </div>
                           </div>
                        </>

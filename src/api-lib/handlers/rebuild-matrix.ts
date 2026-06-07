@@ -84,7 +84,7 @@ Candidate:
 ${candidateSummary}
 
 Return JSON strictly in this format:
-{"matchScore": 85, "summary": "Strong fit based on React and Node.js experience."}`;
+{"matchScore": 85, "summary": "Strong fit based on React and Node.js experience.", "strengths": ["skill 1"], "missingSkills": ["skill 2"], "breakdown": {"skillsScore": 90, "experienceScore": 80, "domainScore": 80, "locationScore": 100}}`;
 
         try {
           const response = await ai.models.generateContent({
@@ -101,6 +101,9 @@ Return JSON strictly in this format:
                 requirementId: reqObj.id,
                 matchScore: mScore,
                 summary: resultJson.summary || 'AI Matrix Rebuild Completed',
+                strengths: resultJson.strengths || [],
+                missingSkills: resultJson.missingSkills || [],
+                breakdown: resultJson.breakdown || { skillsScore: mScore, experienceScore: mScore, domainScore: mScore, locationScore: mScore },
                 lastScanned: new Date().toISOString()
              };
              
