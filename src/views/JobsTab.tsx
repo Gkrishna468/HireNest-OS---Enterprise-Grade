@@ -1832,7 +1832,11 @@ export default function JobsTab() {
                           ...fallbackMatches,
                         ].map((c) => [c.candidateId || c.id || c.email, c]),
                       ).values(),
-                    ).filter((c: any) => c.status !== "DELETED" && c.isActive !== false);
+                    ).filter((c: any) => {
+                      if (c.status === "DELETED" || c.isActive === false) return false;
+                      if (userRole.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
+                      return true;
+                    });
 
                     counts = {
                       matches: 0,
@@ -2142,6 +2146,20 @@ export default function JobsTab() {
                                       </span>
                                     )}
                                   </div>
+                                  
+                                  {sub.breakdown && Object.keys(sub.breakdown).length > 0 && (
+                                    <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-slate-100">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Skills Map: <span className="text-indigo-600 font-black">{sub.breakdown.semanticScore}%</span></div>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Experience: <span className="text-indigo-600 font-black">{sub.breakdown.careerTrajectoryScore}%</span></div>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Domain: <span className="text-indigo-600 font-black">{sub.breakdown.domainMatchScore}%</span></div>
+                                    </div>
+                                  )}
+                                  {sub.skillsMissing && sub.skillsMissing.length > 0 && (
+                                    <div className="text-[10px] uppercase tracking-widest font-bold text-rose-500 mt-2">
+                                      Missing: {sub.skillsMissing.slice(0, 5).join(', ')}{sub.skillsMissing.length > 5 ? '...' : ''}
+                                    </div>
+                                  )}
+
                                 </div>
                               </div>
                               <div
@@ -2153,7 +2171,8 @@ export default function JobsTab() {
                                       : "bg-amber-100 text-amber-800 border-amber-200"
                                 }`}
                               >
-                                {sub.matchScore ? `${sub.matchScore}%` : "SYNC"}
+                                <div className="text-[8px] uppercase tracking-widest opacity-50 text-center mb-0.5 leading-none">HireNest Score</div>
+                                <div className="leading-none text-center">{sub.matchScore ? `${sub.matchScore}%` : "SYNC"}</div>
                               </div>
                             </div>
 

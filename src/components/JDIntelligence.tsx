@@ -117,7 +117,7 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
               </div>
               <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Internal Matches</div>
-                 <div className="text-xl font-black text-indigo-600 mt-1">{job.insights?.internalMatches || "8"} Candidates</div>
+                 <div className="text-xl font-black text-indigo-600 mt-1">{job.insights?.internalMatches ?? job.internalMatches ?? "0"} Candidates</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-rose-50 shadow-sm text-center flex flex-col justify-center items-center">
                  <div className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Identified Risk</div>

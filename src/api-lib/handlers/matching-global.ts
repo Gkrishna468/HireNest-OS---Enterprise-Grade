@@ -122,6 +122,8 @@ export default async function matchingGlobalHandler(req: any, res: any) {
             visibilityStatus: cand.visibility || "federated",
             isGlobalMatch: true,
             breakdown: matchResult.breakdown,
+            skillsMatched: (matchResult as any).skillsMatched || [],
+            skillsMissing: (matchResult as any).skillsMissing || [],
             strengths: matchResult.explanation?.recruiterView?.strengths || [],
             gaps: matchResult.explanation?.recruiterView?.gaps || [],
             suitabilitySummary:

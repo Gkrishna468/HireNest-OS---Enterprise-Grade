@@ -96,8 +96,45 @@ export default async function analyticsHandler(req: any, res: any) {
        let interviews = 0;
        let placements = 0;
        
+       let activeSubs = 0;
        subsSnap.docs.forEach((d: any) => {
           const data = d.data();
+          if (data.status === "DELETED" || data.isActive === false) return;
+          activeSubs++;
+          const status = (data.status || '').toUpperCase();
+          if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+          if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
+             placements++;
+             revenue += Number(data.vendorPayout || data.financials?.vendorPayout) || 0;
+          }
+       });
+       
+       let activeCands = 0;
+       candsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.status !== "DELETED" && data.isActive !== false) {
+             activeCands++;
+          }
+       });
+
+       // Also check ownerVendorId if different
+       const ownerCandsSnap = await adminDb.collection("candidatePool")
+          .where("ownerVendorId", "==", verifiedOrgId || "UNKNOWN")
+          .get();
+       ownerCandsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.status !== "DELETED" && data.isActive !== false && data.vendorId !== verifiedOrgId) {
+             activeCands++;
+          }
+       });
+       
+       const ownerSubsSnap = await adminDb.collection("submissions")
+          .where("ownerVendorId", "==", verifiedOrgId || "UNKNOWN")
+          .get();
+       ownerSubsSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          if (data.status === "DELETED" || data.isActive === false || data.vendorId === verifiedOrgId) return;
+          activeSubs++;
           const status = (data.status || '').toUpperCase();
           if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
           if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
@@ -117,9 +154,9 @@ export default async function analyticsHandler(req: any, res: any) {
        return res.status(200).json({
           revenue: revenue,
           totalJobs: allocatedReqs, // Represents "Allocated Requirements" on Vendor Dash
-          totalCandidates: candsSnap.size, // Represents "Bench Candidates" on Vendor Dash
+          totalCandidates: activeCands, // Represents "Bench Candidates" on Vendor Dash
           interviewsToday: interviews, // Represents "Interviews Scheduled"
-          activeDeals: subsSnap.size,
+          activeDeals: activeSubs,
           placements: placements, // Represents "Active Placements"
        });
     }
