@@ -38,3 +38,13 @@ This workspace implements Google Agent Skills from `github.com/google/skills`. T
 4. **Performance & Cost Optimization (`google-cloud-waf-performance-optimization`, `google-cloud-waf-cost-optimization`)**: Minimize large payload transfers. Limit Firestore fetch operations, utilize indexes heavily for global candidate pool matching, and constrain vector search spaces.
 5. **Firebase Skills Implementation (`firebase-basics`)**: For Firebase features, rely firmly on standard client/admin setups.
 6. **AI Safety & Governance**: Use Gemini Models responsibly to augment recruitment intelligence, never to leak PII. Ensure AI outputs are sanitized and grounded.
+
+## Current Sprint Directive: Production Readiness Certification (PRC)
+Effective immediately, the primary focus of development is the **Production Readiness Certification**. 
+We are temporarily pausing net-new AI capability development (no autonomous recruiting, no AI interviewing, no AI deal room routing) to prioritize:
+1. **Data Integrity** Validation
+2. **Ownership Integrity** Validation 
+3. **Lifecycle Integrity** Validation (Matched -> Submitted -> Shortlisted -> Interview -> Offer -> Joined -> Placement -> Invoice -> Payment)
+4. **Multi-Tenant Protection** Validation (Vendor vs Client vs HQ)
+
+Every architectural or code change MUST be strictly validated against the 6-Stage Gate (Product Manager, Software Architect, Firestore Auditor, Governance Auditor, Security Auditor, AI Matching Auditor) as documented in `docs/20_PRODUCTION_READINESS_CERTIFICATION.md`. AI Matching is restricted to Layer 1 (Deterministic), Layer 2 (Semantic Inference), and Layer 3 (Recruiter Override). Recruiter insights ALWAYS win over AI predictions.
