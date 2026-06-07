@@ -1390,10 +1390,10 @@ ${extText}`;
                        {candidate.fullName || candidate.name || "Unknown"}
                        {candidate.email && <CheckCircle className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
                     </span>
-                    {candidate.distillationStatus === "FAILED" && (
-                       <span className="flex items-center gap-1 text-amber-600 text-[10px] font-bold uppercase tracking-wider mt-1">
-                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                          AI Enrichment Failed
+                    {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") && (
+                       <span className="flex items-center gap-1 text-rose-600 text-[10px] font-bold uppercase tracking-wider mt-1 border border-rose-200 bg-rose-50 px-2 py-0.5 rounded w-max">
+                          <ShieldAlert className="w-3 h-3 text-rose-500" />
+                          Parse Failed
                        </span>
                     )}
                     <span className="text-xs font-mono text-slate-400 font-normal">

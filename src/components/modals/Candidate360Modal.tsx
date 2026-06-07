@@ -11,6 +11,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
 import { publishEvent } from '../../lib/eventEngine';
 import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
+import { parseBulkResumes } from "../../services/aiService";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
 
@@ -50,6 +51,78 @@ export default function Candidate360Modal({
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [isMapping, setIsMapping] = useState(false);
   const [mappingResult, setMappingResult] = useState<any | null>(candidate.aiAnalysis || null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetryEnrichment = async () => {
+    setIsRetrying(true);
+    try {
+      const { updateDoc, doc, serverTimestamp, getDoc } = await import("firebase/firestore");
+      const candId = candidate.candidateId || candidate.id;
+      
+      const resumeTextToUse = candidate.resumeText || candidate.extractedText;
+      if (!resumeTextToUse) {
+        alert("No resume text available to retry. Upload a new resume instead.");
+        setIsRetrying(false);
+        return;
+      }
+
+      const parsedResults = await parseBulkResumes([resumeTextToUse]);
+      const result = parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
+
+      if (result && result.name && result.name !== "Pending Distillation") {
+         let updatePayload: any = {
+           ...result,
+           distillationStatus: result.status === "PARSE_FAILED" ? "FAILED" : "COMPLETED",
+           enrichmentAttempts: (candidate.enrichmentAttempts || 0) + 1,
+           lastEnrichmentAttemptAt: new Date().toISOString(),
+           lastEnrichmentStatus: result.status || "COMPLETED",
+           updatedAt: serverTimestamp(),
+         };
+         
+         const candSnap = await getDoc(doc(db, "candidatePool", candId));
+         if (candSnap.exists()) {
+             const candData = candSnap.data();
+             if (candData.manualName || candData.isNameManuallyEdited || candData.source === "Manual Add") {
+                 delete updatePayload.name;
+                 delete updatePayload.fullName;
+             }
+         }
+         
+         if (result.email === "pending@hirenest.os" || result.email === "mock@example.com") {
+             delete updatePayload.email;
+             delete updatePayload.primaryEmail;
+         }
+         
+         if (result.phone === "N/A" || result.phone === "Unparsed") {
+             delete updatePayload.phone;
+             delete updatePayload.phoneHash;
+         }
+         
+         if (result.name === "Unnamed Candidate" || result.name === "Parsing Pending" || result.name === "Candidate (Requires Human Review)") {
+             delete updatePayload.name;
+             delete updatePayload.fullName;
+         }
+
+         await updateDoc(doc(db, "candidatePool", candId), updatePayload);
+         alert("AI Enrichment Retry completed successfully.");
+      } else {
+         await updateDoc(doc(db, "candidatePool", candId), {
+           distillationStatus: "FAILED",
+           enrichmentAttempts: (candidate.enrichmentAttempts || 0) + 1,
+           lastEnrichmentAttemptAt: new Date().toISOString(),
+           lastEnrichmentStatus: "PARSE_FAILED",
+           failureReason: "MODEL_TIMEOUT_OR_FAILURE",
+           updatedAt: serverTimestamp(),
+         });
+         alert("Enrichment failed again. Please review the document contents.");
+      }
+    } catch (e: any) {
+      console.error("Retry failed:", e);
+      alert("Retry failed: " + e.message);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const handleRunMatch = async () => {
     if (!selectedJobId) return;
@@ -231,6 +304,19 @@ export default function Candidate360Modal({
                             <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{candidate.experience || (candidate.totalExperience ? `${candidate.totalExperience} Years` : (candidate.experienceTracker?.computedYears ? `${candidate.experienceTracker.computedYears} Years` : 'Experience Under Review'))}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{candidate.pipelineStage || 'Added'}</Badge></div>
                          </div>
+                         
+                         {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") && (
+                           <div className="mt-6 bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm text-sm">
+                             <div className="flex items-center gap-2 font-bold text-rose-700 mb-1">
+                               <ShieldAlert className="w-4 h-4" /> 
+                               AI Enrichment Failed
+                             </div>
+                             <p className="text-rose-600 mb-4 opacity-90">Resume extraction could not be completed successfully.</p>
+                             <Button size="sm" variant="outline" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-100" onClick={handleRetryEnrichment} disabled={isRetrying}>
+                               {isRetrying ? "Retrying..." : "Retry Parsing"}
+                             </Button>
+                           </div>
+                         )}
                       </div>
                       
                       {isClientReviewMode ? (
@@ -307,7 +393,16 @@ export default function Candidate360Modal({
              {/* AI ANALYSIS TAB */}
              {activeTab === 'AI_ANALYSIS' && (
                 <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-                    {!mappingResult ? (
+                    {(candidate.distillationStatus === "FAILED" || candidate.status === "PARSE_FAILED") ? (
+                       <div className="bg-white p-12 rounded-xl border-2 border-dashed border-rose-200 flex flex-col items-center justify-center text-center">
+                          <ShieldAlert size={40} className="text-rose-400 mb-4" />
+                          <h3 className="text-lg font-bold text-slate-800 mb-2">Resume intelligence unavailable</h3>
+                          <p className="text-sm text-slate-500 mb-6">The AI extraction could not be completed, so intelligence mapping is disabled.</p>
+                          <Button variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={handleRetryEnrichment} disabled={isRetrying}>
+                            {isRetrying ? "Retrying..." : "Retry AI Enrichment"}
+                          </Button>
+                       </div>
+                    ) : !mappingResult ? (
                        <div className="bg-white p-12 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
                           <Bot size={40} className="text-slate-300 mb-4" />
                           <h3 className="text-lg font-bold text-slate-800 mb-2">No AI Match Data Yet</h3>
