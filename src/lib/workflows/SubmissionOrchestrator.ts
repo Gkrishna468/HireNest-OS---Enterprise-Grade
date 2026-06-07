@@ -196,6 +196,8 @@ export class SubmissionOrchestrator {
           console.log("STEP 3B: addDoc candidatePool");
           newCandRef = await addDoc(collection(db, "candidatePool"), {
             name: candidateData.name,
+            fullName: candidateData.name,
+            manualName: candidateData.name,
             email: candidateData.email || "",
             phone: candidateData.phone || "",
             resumeHash: candidateData.resumeHash || "",

@@ -102,16 +102,28 @@ export default function Candidate360Modal({
     const id = candidate.originalId || candidate.id || candidate.candidateId;
     
     // Load interviews
-    const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id), orderBy("createdAt", "desc"));
+    const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
     const unsubInterviews = onSnapshot(qInterviews, snap => {
-       setInterviews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+       const ivs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       ivs.sort((a: any, b: any) => {
+         const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+         const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+         return tb - ta;
+       });
+       setInterviews(ivs);
     }, err => {
        console.warn("Interview timeline error:", err.message);
     });
 
-    const qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id), orderBy("timestamp", "desc"));
+    const qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
     const unsubEvents = onSnapshot(qEvents, snap => {
-       setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+       const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       evs.sort((a: any, b: any) => {
+         const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
+         const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
+         return tb - ta;
+       });
+       setEvents(evs);
     }, err => {
        console.warn("Event timeline error:", err.message);
     });

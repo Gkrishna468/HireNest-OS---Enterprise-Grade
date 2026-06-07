@@ -539,21 +539,25 @@ export default function CandidatesTab() {
         if (isAdmin) {
             qEvents = query(
               collection(db, "operationalEvents"),
-              where("entityId", "==", id),
-              orderBy("timestamp", "desc")
+              where("entityId", "==", id)
             );
         } else if (userOrgId) {
             qEvents = query(
               collection(db, "operationalEvents"),
               where("entityId", "==", id),
-              where("metadata.vendorId", "==", userOrgId),
-              orderBy("timestamp", "desc")
+              where("metadata.vendorId", "==", userOrgId)
             );
         }
         
         if (qEvents) {
           const unsubEvents = onSnapshot(qEvents, (snap) => {
-             setCandidateEvents(snap.docs.map(d => ({id: d.id, ...d.data()})));
+             const evs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+             evs.sort((a: any, b: any) => {
+               const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
+               const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
+               return tb - ta;
+             });
+             setCandidateEvents(evs);
           }, (err) => {
              // Gracefully ignore index/permission errors for now during dev
              console.warn("Event timeline error:", err.message);
@@ -1030,6 +1034,17 @@ ${extText}`;
           delete updatePayload.phone;
           delete updatePayload.phoneHash;
         }
+        
+        // Read current candidate
+        const candSnap = await getDoc(doc(db, "candidatePool", candId));
+        if (candSnap.exists()) {
+           const candData = candSnap.data();
+           if (candData.manualName || candData.isNameManuallyEdited || candData.source === "Manual Add") {
+              delete updatePayload.name;
+              delete updatePayload.fullName;
+           }
+        }
+
         if (
           result.name === "Unnamed Candidate" ||
           result.name === "Parsing Pending" ||
