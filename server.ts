@@ -53,7 +53,8 @@ async function createServer() {
     frameguard: false,
   }));
   
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // --- Rate Limiting ---
   const standardLimiter = rateLimit({
@@ -229,10 +230,13 @@ async function createServer() {
       }
       
       console.warn(`[API_404] No static handler explicitly configured for: ${apiPath}.`);
-      res.status(404).json({ error: `API Route /api/${apiPath} not implemented` });
+      return res.status(404).json({ success: false, error: `API Route /api/${apiPath} not implemented` });
     } catch (err: any) {
       console.error(`[API_ERR] Execution failed [${apiPath}]:`, err);
-      return res.status(500).json({ error: 'Internal Server Error', details: err.message, file: apiPath });
+      // Ensure we DO NOT use res.send or text
+      if (!res.headersSent) {
+         return res.status(500).json({ success: false, error: 'Internal Server Error', details: err?.message || String(err), file: apiPath });
+      }
     }
   });
 
@@ -265,6 +269,18 @@ async function createServer() {
   }
 
   const port = 3000;
+  
+  // Global Error Handler to guarantee JSON for API errors
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("[Global Error Handler]", err);
+    if (!res.headersSent) {
+      if (req.path.startsWith('/api/')) {
+         return res.status(err.status || 500).json({ success: false, error: err.message || "A server error occurred" });
+      }
+      next(err);
+    }
+  });
+
   app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
   });

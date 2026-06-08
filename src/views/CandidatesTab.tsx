@@ -1463,15 +1463,20 @@ ${extText}`;
         {viewMode === "PIPELINE" ? (
           <VendorCandidatePipeline 
             candidates={[
-              ...candidates.filter(c => !globalSubmissions.some(s => s.candidateId === c.id)),
-              ...globalSubmissions.map(s => ({
-                 ...s,
-                 id: s.candidateId,
-                 name: s.candidateName || s.name || "Unknown",
-                 fullName: s.candidateName || s.name || "Unknown",
-                 isSubmission: true,
-                 submissionId: s.id
-              }))
+              ...candidates.filter(c => !globalSubmissions.some(s => s.candidateId === (c.originalId || c.id))),
+              ...globalSubmissions.reduce((acc: any[], s) => {
+                 if (!acc.some(existing => existing.candidateId === s.candidateId && existing.requirementId === s.requirementId)) {
+                     acc.push({
+                         ...s,
+                         id: s.candidateId,
+                         name: s.candidateName || s.name || "Unknown",
+                         fullName: s.candidateName || s.name || "Unknown",
+                         isSubmission: true,
+                         submissionId: s.id
+                     });
+                 }
+                 return acc;
+              }, [])
             ].filter(
                 (c) =>
                   (!searchQuery ||

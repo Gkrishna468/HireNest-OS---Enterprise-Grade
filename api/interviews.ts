@@ -127,10 +127,11 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, interviewId: interviewRef.id });
 
     } catch (e: any) {
-      console.error(e);
-      return res.status(500).json({ error: e.message || "Internal server error" });
+      console.error("[Interviews API Error]", e);
+      return res.status(500).json({ success: false, error: e.message || "Internal server error" });
     }
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  // Ensure default return is JSON 
+  return res.status(405).json({ success: false, error: "Method not allowed" });
 }
