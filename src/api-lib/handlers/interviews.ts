@@ -42,17 +42,17 @@ export default async function handler(req: any, res: any) {
          roomId = "DR-" + Math.random().toString(36).substr(2, 9);
          await adminDb.collection("dealRooms").doc(roomId).set({
            id: roomId,
-           requirementId: requirement.id,
-           candidateId: submission.candidateId,
-           vendorId: submission.vendorId,
-           clientId: requirement.clientId,
+           requirementId: requirement.id || "",
+           candidateId: submission.candidateId || "",
+           vendorId: submission.vendorId || "Unknown",
+           clientId: requirement.clientId || submission.clientId || "",
            clientName: requirement.clientName || 'Client',
            vendorName: submission.vendorName || 'Vendor',
            candidateName: submission.candidateName || 'Anonymous',
            jobTitle: requirement.title || "Strategic Role",
            experience: requirement.experience || "Not Specified",
            status: "ACTIVE",
-           currentStage: formData.round,
+           currentStage: formData.round || "interview",
            identitiesRevealed: false,
            createdAt: new Date(),
            matchData: { matchScore: submission.matchScore || 0 }
@@ -61,6 +61,10 @@ export default async function handler(req: any, res: any) {
 
       const targetStatus = isClientAction ? 'INTERVIEW_REQUESTED' : 'INTERVIEW_SCHEDULED';
       const subId = submission.submissionId || submission.id;
+
+      if (!subId) {
+        throw new Error("Missing submission ID");
+      }
 
       // 2. Update Submission Status
       await adminDb.collection("submissions").doc(subId).update({
@@ -72,12 +76,12 @@ export default async function handler(req: any, res: any) {
       // 3. Create Interview Record linked to submission
       const interviewRef = await adminDb.collection("interviews").add({
         submissionId: subId,
-        candidateId: submission.candidateId,
+        candidateId: submission.candidateId || "",
         candidateName: submission.candidateName || 'Anonymous',
-        requirementId: requirement.id,
-        dealRoomId: roomId,
+        requirementId: requirement.id || "",
+        dealRoomId: roomId || "",
         vendorId: submission.vendorId || '',
-        clientId: requirement.clientId || '',
+        clientId: requirement.clientId || submission.clientId || '',
         round: formData.round || null,
         date: formData.date || null,
         time: formData.time || '',

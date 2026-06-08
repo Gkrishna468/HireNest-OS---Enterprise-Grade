@@ -38,8 +38,8 @@ export default async function handler(req: any, res: any) {
   if (path === 'analytics')         return await analyticsHandler(req, res);
   if (path === 'user')              return await userHandler(req, res);
   if (path === 'workflows')         return await workflowsHandler(req, res);
-  if (path === 'oauth')             return await oauthHandler(req, res);
-  if (path === 'google')            return await googleProxyHandler(req, res);
+  if (path === 'oauth')             return await oauthHandler(req, res, () => {});
+  if (path === 'google')            return await googleProxyHandler(req, res, () => {});
 
   // Provide fallback based on \`action\` parameter if \`path\` is not exactly one of the above.
   switch (action) {
