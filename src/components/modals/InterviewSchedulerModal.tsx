@@ -32,30 +32,44 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
     try {
       import('../../lib/firebase').then(({ auth }) => {
         auth.currentUser?.getIdToken().then(async token => {
-          const res = await fetch('/api/interviews', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              submission,
-              requirement,
-              isClientAction,
-              formData
-            })
-          });
+          try {
+            const res = await fetch('/api/interviews', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                submission,
+                requirement,
+                isClientAction,
+                formData
+              })
+            });
 
-          if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.error || "Failed");
+            if (!res.ok) {
+              const text = await res.text();
+              console.error("INTERVIEW RESPONSE ERROR", text);
+              let errorMsg = "Failed to schedule interview";
+              try {
+                const parsed = JSON.parse(text);
+                errorMsg = parsed.error || errorMsg;
+              } catch(e) {
+                errorMsg = text;
+              }
+              throw new Error(errorMsg);
+            }
+
+            alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
+            onClose();
+          } catch (e: any) {
+            console.error("Interview API error:", e);
+            alert("Error processing interview: " + e.message);
+            setIsProcessing(false);
           }
-
-          alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
-          onClose();
         }).catch(e => {
           console.error(e);
-          alert("Error processing interview: " + e.message);
+          alert("Error getting auth token: " + e.message);
           setIsProcessing(false);
         });
       });

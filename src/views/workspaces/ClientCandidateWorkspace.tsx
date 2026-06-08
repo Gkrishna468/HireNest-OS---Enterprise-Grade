@@ -112,6 +112,8 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
       const map: Record<string, string> = {};
       snap.forEach(d => { map[d.id] = d.data().title || d.data().jobTitle || "Open Requirement"; });
       setReqs(map);
+    }, err => {
+      console.warn("Client requirements listener:", err.message);
     });
 
     // Submissions List
@@ -123,6 +125,8 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
          return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'MATCHED', 'ADDED'].includes(st);
       });
       setSubmissions(allowedSubs);
+    }, err => {
+      console.warn("Client submissions listener:", err.message);
     });
 
     // Interviews List

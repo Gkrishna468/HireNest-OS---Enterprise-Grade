@@ -468,11 +468,11 @@ export default function CandidatesTab() {
 
           let qSub = null;
           if (isAdmin) {
-             qSub = query(collection(db, "submissions"), limit(500));
+             qSub = query(collection(db, "submissions"));
           } else if (isClientUser) {
-             qSub = query(collection(db, "submissions"), where("clientId", "==", orgId), limit(500));
+             qSub = query(collection(db, "submissions"), where("clientId", "==", orgId));
           } else {
-             qSub = query(collection(db, "submissions"), where("vendorId", "==", orgId), limit(500));
+             qSub = query(collection(db, "submissions"), where("vendorId", "==", orgId));
           }
 
           if (qSub) {

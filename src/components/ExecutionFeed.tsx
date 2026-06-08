@@ -32,7 +32,9 @@ export function ExecutionFeed({ requirementId, dealId, className }: ExecutionFee
       setEvents(data);
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "execution_events");
+      console.warn("ExecutionFeed permission denied (expected for clients):", error.message);
+      setEvents([]);
+      setLoading(false);
     });
   }, [requirementId, dealId]);
 

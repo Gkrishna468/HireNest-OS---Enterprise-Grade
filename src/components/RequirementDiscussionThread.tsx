@@ -29,6 +29,8 @@ export function RequirementDiscussionThread({ requirementId, requirementTitle }:
       );
       const unsub = onSnapshot(q, snap => {
          setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, err => {
+         console.warn("RequirementDiscussionThread permissions", err.message);
       });
       return () => unsub();
    }, [requirementId]);

@@ -18,9 +18,9 @@ export function LiveToaster({
     const recipients = [auth.currentUser.uid];
     if (orgId) recipients.push(orgId);
     if (userRole) {
-      if (userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq" || userRole === "hq_admin") recipients.push("GLOBAL_ADMIN");
-      if (userRole.includes("client")) recipients.push("GLOBAL_CLIENT");
-      if (userRole.includes("vendor")) recipients.push("GLOBAL_VENDOR");
+      const isAdmin = userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq" || userRole === "hq_admin";
+      if (!isAdmin) return; // Only Admin can query notifications globally for now
+      recipients.push("GLOBAL_ADMIN");
     }
 
     // Since we don't have a complex index, we query limit the timeframe client-side
