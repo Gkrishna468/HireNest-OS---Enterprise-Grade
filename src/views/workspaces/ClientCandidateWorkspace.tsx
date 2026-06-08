@@ -116,25 +116,18 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
       console.warn("Client requirements listener:", err.message);
     });
 
-    // Submissions List (Fetch once via backend API to avoid permission rules limitations with snapshot arrays)
-    import("../../lib/firebase").then(({ auth }) => {
-       auth.currentUser?.getIdToken().then(token => {
-          fetch(`/api/client-submissions?clientId=${userOrgId}`, {
-             headers: { 'Authorization': `Bearer ${token}` }
-           })
-           .then(res => res.json())
-           .then(data => {
-             if (data.submissions) {
-                 const allowedSubs = data.submissions.filter((s: any) => {
-                    const st = s.status || "PENDING_REVIEW";
-                    return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'ADDED'].includes(st);
-                 });
-                 setSubmissions(allowedSubs);
-             }
-           })
-           .catch(err => console.warn("Failed to fetch submissions:", err));
+    // Submissions List (Realtime Firestore Query)
+    const qSub = query(collection(db, "submissions"), where("clientId", "==", userOrgId));
+    const unsubSub = onSnapshot(qSub, snap => {
+       const subsRaw = snap.docs.map(d => {
+           const data = d.data();
+           return { id: d.id, ...data, status: (data.status || 'MATCHED').toUpperCase() };
        });
-    });
+       const allowedSubs = subsRaw.filter((s: any) => {
+          return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'ADDED', 'UPLOADED'].includes(s.status);
+       });
+       setSubmissions(allowedSubs);
+    }, err => console.warn("Client submissions listener:", err.message));
 
     // Interviews List
     fetch(`/api/interviews?clientId=${userOrgId}`)
@@ -150,6 +143,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
 
     return () => {
       unsubReq();
+      if (unsubSub) unsubSub();
     };
   }, [userOrgId]);
 
@@ -169,21 +163,21 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
             onClick={() => setActiveTab("MATCHED")}
             className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "MATCHED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
-            <span className="flex items-center gap-2"><Sparkles size={16} /> Matched {submissions.filter(s => s.status === 'MATCHED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'MATCHED').length}</span>}</span>
+            <span className="flex items-center gap-2"><Sparkles size={16} /> Matched {submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH')).length}</span>}</span>
             {activeTab === "MATCHED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
           <button
             onClick={() => setActiveTab("SUBMITTED")}
             className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SUBMITTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
-            <span className="flex items-center gap-2"><Presentation size={16} /> Submitted {submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED').length}</span>}</span>
+            <span className="flex items-center gap-2"><Presentation size={16} /> Submitted {submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM')).length}</span>}</span>
             {activeTab === "SUBMITTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
           <button
             onClick={() => setActiveTab("SHORTLISTED")}
             className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SHORTLISTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
-            <span className="flex items-center gap-2"><CheckCircle size={16} /> Shortlisted {submissions.filter(s => s.status === 'SHORTLISTED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'SHORTLISTED').length}</span>}</span>
+            <span className="flex items-center gap-2"><CheckCircle size={16} /> Shortlisted {submissions.filter(s => s.status.includes('SHORTLIST')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status.includes('SHORTLIST')).length}</span>}</span>
             {activeTab === "SHORTLISTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
           <button
@@ -210,7 +204,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
         </div>
 
         {activeTab === "MATCHED" && (() => {
-           const list = submissions.filter(s => s.status === 'MATCHED');
+           const list = submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                {list.length === 0 ? <p className="text-slate-500 col-span-full">No matched candidates found.</p> : 
@@ -244,7 +238,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
         })()}
 
         {activeTab === "SUBMITTED" && (() => {
-           const list = submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED');
+           const list = submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                {list.length === 0 ? <p className="text-slate-500 col-span-full">No submitted candidates found.</p> : 
@@ -278,7 +272,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
         })()}
 
         {activeTab === "SHORTLISTED" && (() => {
-           const list = submissions.filter(s => s.status === 'SHORTLISTED');
+           const list = submissions.filter(s => s.status.includes('SHORTLIST'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                {list.length === 0 ? <p className="text-slate-500 col-span-full">No shortlisted candidates found.</p> : 

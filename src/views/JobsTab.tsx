@@ -1252,7 +1252,7 @@ export default function JobsTab() {
     ).values(),
   ).filter((c: any) => {
     if (c.status === "DELETED" || c.isActive === false) return false;
-    if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED" || !c.resumeText) return false;
+    if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED") return false;
     if (userRole?.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
     return true;
   });
