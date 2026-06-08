@@ -33,6 +33,7 @@ import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts'
 import auditHandler from './src/api-lib/handlers/audit.ts';
 import oauthHandler from './src/api-lib/handlers/oauth.ts';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
+import clientCandidateHandler from './api/client-candidate.ts';
 
 import analyticsHandler from './api/analytics.ts';
 
@@ -163,6 +164,8 @@ async function createServer() {
         case 'audit':
           return await auditHandler(req, res);
 
+        case 'client-candidate':
+          return await clientCandidateHandler(req, res);
 
         case 'user-candidates':
         case 'user/candidates':

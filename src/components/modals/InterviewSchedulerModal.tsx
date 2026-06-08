@@ -56,14 +56,15 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
       const targetStatus = isClientAction ? 'INTERVIEW_REQUESTED' : 'INTERVIEW_SCHEDULED';
 
       // 2. Update Submission Status
-      await updateDoc(doc(db, "submissions", submission.id), {
+      const subId = submission.submissionId || submission.id;
+      await updateDoc(doc(db, "submissions", subId), {
         dealRoomId: roomId,
         status: targetStatus
       });
 
       // 3. Create Interview Record linked to submission
       await addDoc(collection(db, "interviews"), {
-        submissionId: submission.id,
+        submissionId: subId,
         candidateId: submission.candidateId,
         candidateName: submission.candidateName || 'Anonymous',
         requirementId: requirement.id,
