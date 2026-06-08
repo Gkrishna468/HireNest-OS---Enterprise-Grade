@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { Badge } from "../../lib/Badge";
-import { CheckCircle, Bot, User, Presentation, Activity } from "lucide-react";
+import { CheckCircle, Target, User, Presentation, Activity } from "lucide-react";
 import Candidate360Modal from "../../components/modals/Candidate360Modal";
 import { InterviewSchedulerModal } from "../../components/modals/InterviewSchedulerModal";
 
 export default function ClientCandidateWorkspace({ userOrgId, userRole }: { userOrgId: string; userRole: string }) {
-  const [activeTab, setActiveTab] = useState<"MATCHED" | "SUBMITTED" | "INTERVIEWS">("MATCHED");
-  const [aiMatches, setAiMatches] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"SUBMITTED" | "SHORTLISTED" | "INTERVIEWS" | "OFFERS" | "PLACED">("SUBMITTED");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
@@ -107,12 +106,6 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
 
     setLoading(true);
 
-    // Fetch AI Matches via API (cross-collection)
-    fetch(`/api/client-ai-matches?orgId=${userOrgId}`)
-      .then(res => res.json())
-      .then(data => setAiMatches(data.matches || []))
-      .catch(console.error);
-
     // Requirements Mapping
     const qReq = query(collection(db, "requirements_public"), where("clientId", "==", userOrgId));
     const unsubReq = onSnapshot(qReq, snap => {
@@ -124,21 +117,29 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
     // Submissions List
     const qSub = query(collection(db, "submissions"), where("clientId", "==", userOrgId));
     const unsubSub = onSnapshot(qSub, snap => {
-      setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const allSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allowedSubs = allSubs.filter(s => {
+         const st = s.status || "PENDING_REVIEW";
+         return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'MATCHED', 'ADDED'].includes(st);
+      });
+      setSubmissions(allowedSubs);
     });
 
     // Interviews List
-    const qInt = query(collection(db, "interviews"), where("clientId", "==", userOrgId));
-    const unsubInt = onSnapshot(qInt, snap => {
-      setInterviews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    fetch(`/api/interviews?clientId=${userOrgId}`)
+       .then(res => res.json())
+       .then(data => {
+          if (data.interviews) {
+             setInterviews(data.interviews);
+          }
+       })
+       .catch(err => console.warn("Failed to fetch interviews", err));
 
     setLoading(false);
 
     return () => {
       unsubReq();
       unsubSub();
-      unsubInt();
     };
   }, [userOrgId]);
 
@@ -153,88 +154,109 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
         </div>
 
         {/* Workspace Tabs */}
-        <div className="flex space-x-6 border-b border-slate-200 mb-8">
-          <button
-            onClick={() => setActiveTab("MATCHED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative ${activeTab === "MATCHED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
-          >
-            <span className="flex items-center gap-2"><Bot size={16} /> Matched {aiMatches.length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{aiMatches.length}</span>}</span>
-            {activeTab === "MATCHED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
-          </button>
+        <div className="flex space-x-6 border-b border-slate-200 mb-8 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setActiveTab("SUBMITTED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative ${activeTab === "SUBMITTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SUBMITTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
-            <span className="flex items-center gap-2"><Presentation size={16} /> Submitted {submissions.length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.length}</span>}</span>
+            <span className="flex items-center gap-2"><Presentation size={16} /> Submitted {submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED').length}</span>}</span>
             {activeTab === "SUBMITTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
           <button
-            onClick={() => setActiveTab("INTERVIEWS")}
-            className={`pb-3 font-semibold text-sm transition-colors relative ${activeTab === "INTERVIEWS" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            onClick={() => setActiveTab("SHORTLISTED")}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SHORTLISTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
-            <span className="flex items-center gap-2"><Activity size={16} /> Interviews {interviews.length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{interviews.length}</span>}</span>
+            <span className="flex items-center gap-2"><CheckCircle size={16} /> Shortlisted {submissions.filter(s => s.status === 'SHORTLISTED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'SHORTLISTED').length}</span>}</span>
+            {activeTab === "SHORTLISTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+          </button>
+          <button
+            onClick={() => setActiveTab("INTERVIEWS")}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "INTERVIEWS" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            <span className="flex items-center gap-2"><Activity size={16} /> Interviews {submissions.filter(s => s.status?.includes('INTERVIEW')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status?.includes('INTERVIEW')).length}</span>}</span>
             {activeTab === "INTERVIEWS" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+          </button>
+          <button
+            onClick={() => setActiveTab("OFFERS")}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "OFFERS" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            <span className="flex items-center gap-2"><Target size={16} /> Offers {submissions.filter(s => s.status?.includes('OFFER')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status?.includes('OFFER')).length}</span>}</span>
+            {activeTab === "OFFERS" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+          </button>
+          <button
+            onClick={() => setActiveTab("PLACED")}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "PLACED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            <span className="flex items-center gap-2"><CheckCircle size={16} /> Placed {submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED').length}</span>}</span>
+            {activeTab === "PLACED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
         </div>
 
-        {activeTab === "MATCHED" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {aiMatches.length === 0 ? <p className="text-slate-500 col-span-full">No AI matched candidates found.</p> : 
-              aiMatches.map(match => (
-                <div
-                  key={match.id}
-                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                  onClick={() => setSelectedCandidate(match)}
-                >
-                   <div className="p-4 border-b border-slate-100 bg-slate-50">
-                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{match.reqTitle || "Requirement Match"}</div>
+        {activeTab === "SUBMITTED" && (() => {
+           const list = submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED');
+           return (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {list.length === 0 ? <p className="text-slate-500 col-span-full">No submitted candidates found.</p> : 
+                 list.map(sub => (
+                   <div
+                     key={sub.id}
+                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                   >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
+                      </div>
+                      <div className="p-5 flex-1 space-y-3">
+                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Submitted Candidate"}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
+                           <Badge variant="success">{sub.status || "PENDING_REVIEW"}</Badge>
+                        </div>
+                      </div>
+                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                        <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
+                      </div>
                    </div>
-                   <div className="p-5 flex-1">
-                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max">{match.name || match.candidateName || "Candidate"}</h3>
-                     <Badge variant="outline" className="mt-2 w-max text-indigo-600 border-indigo-200 bg-indigo-50">Match Score: {match.matchScore || match.score || "--"}%</Badge>
-                     <p className="text-sm text-slate-500 mt-3 line-clamp-2 leading-relaxed">{match.summary || match.aiAnalysis || "Match discovered by Strategic Engine."}</p>
-                   </div>
-                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                     <div className="text-[10px] font-bold text-slate-400">{match.vendorName || "Active Vendor"}</div>
-                     <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
-                   </div>
-                </div>
-              ))
-            }
-          </div>
-        )}
+                 ))
+               }
+             </div>
+           );
+        })()}
 
-        {activeTab === "SUBMITTED" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {submissions.length === 0 ? <p className="text-slate-500 col-span-full">No submitted candidates found.</p> : 
-              submissions.map(sub => (
-                <div
-                  key={sub.id}
-                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                  onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                >
-                   <div className="p-4 border-b border-slate-100 bg-slate-50">
-                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                     <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
+        {activeTab === "SHORTLISTED" && (() => {
+           const list = submissions.filter(s => s.status === 'SHORTLISTED');
+           return (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {list.length === 0 ? <p className="text-slate-500 col-span-full">No shortlisted candidates found.</p> : 
+                 list.map(sub => (
+                   <div
+                     key={sub.id}
+                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-emerald-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                   >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                      </div>
+                      <div className="p-5 flex-1 space-y-3">
+                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-emerald-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Shortlisted Candidate"}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">Shortlisted</Badge>
+                        </div>
+                      </div>
+                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                        <div className="text-xs font-bold text-emerald-600">Request Interview &rarr;</div>
+                      </div>
                    </div>
-                   <div className="p-5 flex-1 space-y-3">
-                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Submitted Candidate"}</h3>
-                     <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
-                        <Badge variant="success">{sub.status || "PENDING_REVIEW"}</Badge>
-                     </div>
-                   </div>
-                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                     <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                     <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
-                   </div>
-                </div>
-              ))
-            }
-          </div>
-        )}
+                 ))
+               }
+             </div>
+           );
+        })()}
 
         {activeTab === "INTERVIEWS" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -243,11 +265,18 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
                 <div
                   key={int.id}
                   className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                  onClick={() => {
+                     const sub = submissions.find(s => s.id === int.submissionId);
+                     if (sub) {
+                        setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id });
+                     } else {
+                        setSelectedCandidate({ ...int, id: int.candidateId, isSubmission: true, submissionId: int.submissionId });
+                     }
+                  }}
                 >
                    <div className="p-4 border-b border-slate-100 bg-slate-50">
                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
                      <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[int.requirementId] || int.reqTitle || "Requirement Context"}</div>
-                     <div className="text-[10px] font-mono text-slate-400 mt-0.5">{int.requirementId || "ID Unknown"}</div>
                    </div>
                    <div className="p-5 flex-1 space-y-3">
                      <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{int.candidateName || "Interviewing Candidate"}</h3>
@@ -258,13 +287,75 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
                    </div>
                    <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
                      <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {int.vendorId || "Unknown"}</div>
-                     <div className="text-xs font-bold text-indigo-600">Enter Deal Room &rarr;</div>
+                     <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
                    </div>
                 </div>
               ))
             }
           </div>
         )}
+
+        {activeTab === "OFFERS" && (() => {
+           const list = submissions.filter(s => s.status?.includes('OFFER'));
+           return (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {list.length === 0 ? <p className="text-slate-500 col-span-full">No candidates in offer stage.</p> : 
+                 list.map(sub => (
+                   <div
+                     key={sub.id}
+                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                   >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                      </div>
+                      <div className="p-5 flex-1 space-y-3">
+                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Badge variant="success">{sub.status || "OFFER"}</Badge>
+                        </div>
+                      </div>
+                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                        <div className="text-xs font-bold text-indigo-600">Review Details &rarr;</div>
+                      </div>
+                   </div>
+                 ))
+               }
+             </div>
+           );
+        })()}
+
+        {activeTab === "PLACED" && (() => {
+           const list = submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED');
+           return (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {list.length === 0 ? <p className="text-slate-500 col-span-full">No placed candidates.</p> : 
+                 list.map(sub => (
+                   <div
+                     key={sub.id}
+                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                   >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                      </div>
+                      <div className="p-5 flex-1 space-y-3">
+                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Badge variant="success">{sub.status || "PLACED"}</Badge>
+                        </div>
+                      </div>
+                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                        <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
+                      </div>
+                   </div>
+                 ))
+               }
+             </div>
+           );
+        })()}
 
       </div>
       

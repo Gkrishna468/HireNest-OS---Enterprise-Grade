@@ -30,101 +30,38 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
     
     setIsProcessing(true);
     try {
-      // 1. Create Deal Room if one doesn't exist
-      let roomId = submission.dealRoomId;
-      if (!roomId) {
-         roomId = "DR-" + Math.random().toString(36).substr(2, 9);
-         await addDoc(collection(db, "dealRooms"), {
-           id: roomId,
-           requirementId: requirement.id,
-           candidateId: submission.candidateId,
-           vendorId: submission.vendorId,
-           clientId: requirement.clientId,
-           clientName: requirement.clientName || 'Client',
-           vendorName: submission.vendorName || 'Vendor',
-           candidateName: submission.candidateName || 'Anonymous',
-           jobTitle: requirement.title || "Strategic Role",
-           experience: requirement.experience || "Not Specified",
-           status: "ACTIVE",
-           currentStage: formData.round,
-           identitiesRevealed: false,
-           createdAt: serverTimestamp(),
-           matchData: { matchScore: submission.matchScore || 0 }
-         });
-      }
+      import('../../lib/firebase').then(({ auth }) => {
+        auth.currentUser?.getIdToken().then(async token => {
+          const res = await fetch('/api/interviews', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              submission,
+              requirement,
+              isClientAction,
+              formData
+            })
+          });
 
-      const targetStatus = isClientAction ? 'INTERVIEW_REQUESTED' : 'INTERVIEW_SCHEDULED';
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || "Failed");
+          }
 
-      // 2. Update Submission Status
-      const subId = submission.submissionId || submission.id;
-      await updateDoc(doc(db, "submissions", subId), {
-        dealRoomId: roomId,
-        status: targetStatus
+          alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
+          onClose();
+        }).catch(e => {
+          console.error(e);
+          alert("Error processing interview: " + e.message);
+          setIsProcessing(false);
+        });
       });
-
-      // 3. Create Interview Record linked to submission
-      await addDoc(collection(db, "interviews"), {
-        submissionId: subId,
-        candidateId: submission.candidateId,
-        candidateName: submission.candidateName || 'Anonymous',
-        requirementId: requirement.id,
-        dealRoomId: roomId,
-        vendorId: submission.vendorId || '',
-        clientId: requirement.clientId || '',
-        round: formData.round,
-        date: formData.date,
-        time: formData.time || '',
-        startTime: formData.time ? `${formData.date}T${formData.time}` : null,
-        endTime: formData.endTime ? `${formData.date}T${formData.endTime}` : null,
-        timezone: formData.timezone,
-        calendarProvider: formData.mode,
-        meetingLink: formData.meetingLink,
-        interviewer: formData.interviewer,
-        mode: formData.mode,
-        notes: formData.notes,
-        status: isClientAction ? "REQUESTED" : "SCHEDULED",
-        createdAt: serverTimestamp()
-      });
-
-      // 4. Add system message to Deal Room
-      await addDoc(collection(db, "dealRooms", roomId, "messages"), {
-         senderRole: "System",
-         senderId: "system",
-         type: "system",
-         text: isClientAction 
-            ? `📅 INTERVIEW REQUESTED: ${formData.round} preferred on ${formData.date}. Panel: ${formData.interviewer}. Waiting for vendor availability.`
-            : `📅 INTERVIEW SCHEDULED: ${formData.round} on ${formData.date} at ${formData.time} ${formData.timezone}. Mode: ${formData.mode}. Interviewer: ${formData.interviewer}.`,
-         timestamp: serverTimestamp()
-      });
-
-      // 5. Send notifications
-      const notifBase = {
-        title: isClientAction ? "Interview Requested" : "Interview Scheduled",
-        message: `${formData.round} for ${submission.candidateName} on ${formData.date}`,
-        type: "INTERVIEW",
-        createdAt: serverTimestamp(),
-        read: false
-      };
-      
-      // Client Notification
-      if (requirement.clientId) {
-         await addDoc(collection(db, "notifications"), {
-           ...notifBase, recipientId: requirement.clientId, actionUrl: `/deal-rooms?view=interviews`
-         });
-      }
-      // Vendor Notification
-      if (submission.vendorId || submission.vendorOrgId) {
-         await addDoc(collection(db, "notifications"), {
-           ...notifBase, recipientId: submission.vendorId || submission.vendorOrgId, actionUrl: `/deal-rooms?view=interviews`
-         });
-      }
-
-      alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
-      onClose();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Error processing interview.");
-    } finally {
+      alert("Error processing interview: " + e.message);
       setIsProcessing(false);
     }
   };

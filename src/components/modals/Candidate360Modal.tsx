@@ -353,18 +353,21 @@ export default function Candidate360Modal({
        });
     }
 
-    let qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
-    const unsubEvents = onSnapshot(qEvents, snap => {
-       const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       evs.sort((a: any, b: any) => {
-         const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
-         const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
-         return tb - ta;
+    let unsubEvents = () => {};
+    if (!userRole.includes("client")) {
+       let qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
+       unsubEvents = onSnapshot(qEvents, snap => {
+          const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          evs.sort((a: any, b: any) => {
+            const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
+            const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
+            return tb - ta;
+          });
+          setEvents(evs);
+       }, err => {
+          console.warn("Event timeline error:", err.message);
        });
-       setEvents(evs);
-    }, err => {
-       console.warn("Event timeline error:", err.message);
-    });
+    }
 
     const reqIdTarget = candidate.requirementId || selectedJobId;
     let unsubMatches = () => {};
