@@ -34,6 +34,7 @@ import auditHandler from './src/api-lib/handlers/audit.ts';
 import oauthHandler from './src/api-lib/handlers/oauth.ts';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
 import clientCandidateHandler from './api/client-candidate.ts';
+import clientSubmissionsHandler from './api/client-submissions.ts';
 import interviewsHandler from './api/interviews.ts';
 
 import analyticsHandler from './api/analytics.ts';
@@ -168,6 +169,9 @@ async function createServer() {
 
         case 'client-candidate':
           return await clientCandidateHandler(req, res);
+
+        case 'client-submissions':
+          return await clientSubmissionsHandler(req, res);
 
         case 'interviews':
           return await interviewsHandler(req, res);

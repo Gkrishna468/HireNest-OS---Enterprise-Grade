@@ -90,8 +90,11 @@ export default async function handler(req: any, res: any) {
       interviews: interviews
     });
 
-  } catch (error) {
-    console.error("Error fetching client candidate:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+  } catch (err: any) {
+    console.error("CLIENT_CANDIDATE_ERROR", err);
+    return res.status(500).json({ 
+       success: false,
+       error: String(err)
+    });
   }
 }

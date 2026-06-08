@@ -78,17 +78,17 @@ export default async function handler(req: any, res: any) {
         dealRoomId: roomId,
         vendorId: submission.vendorId || '',
         clientId: requirement.clientId || '',
-        round: formData.round,
-        date: formData.date,
+        round: formData.round || null,
+        date: formData.date || null,
         time: formData.time || '',
         startTime: formData.time ? `${formData.date}T${formData.time}` : null,
         endTime: formData.endTime ? `${formData.date}T${formData.endTime}` : null,
-        timezone: formData.timezone,
-        calendarProvider: formData.mode,
-        meetingLink: formData.meetingLink,
-        interviewer: formData.interviewer,
-        mode: formData.mode,
-        notes: formData.notes,
+        timezone: formData.timezone || null,
+        calendarProvider: formData.mode || null,
+        meetingLink: formData.meetingLink || null,
+        interviewer: formData.interviewer || null,
+        mode: formData.mode || null,
+        notes: formData.notes || null,
         status: isClientAction ? "REQUESTED" : "SCHEDULED",
         createdAt: new Date()
       });
@@ -126,9 +126,12 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({ success: true, interviewId: interviewRef.id });
 
-    } catch (e: any) {
-      console.error("[Interviews API Error]", e);
-      return res.status(500).json({ success: false, error: e.message || "Internal server error" });
+    } catch (err: any) {
+      console.error("INTERVIEW_CREATE_ERROR", err);
+      return res.status(500).json({
+         success: false,
+         error: String(err)
+      });
     }
   }
 

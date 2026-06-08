@@ -116,17 +116,24 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
       console.warn("Client requirements listener:", err.message);
     });
 
-    // Submissions List
-    const qSub = query(collection(db, "submissions"), where("clientId", "==", userOrgId));
-    const unsubSub = onSnapshot(qSub, snap => {
-      const allSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const allowedSubs = allSubs.filter(s => {
-         const st = s.status || "PENDING_REVIEW";
-         return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'MATCHED', 'ADDED'].includes(st);
-      });
-      setSubmissions(allowedSubs);
-    }, err => {
-      console.warn("Client submissions listener:", err.message);
+    // Submissions List (Fetch once via backend API to avoid permission rules limitations with snapshot arrays)
+    import("../../lib/firebase").then(({ auth }) => {
+       auth.currentUser?.getIdToken().then(token => {
+          fetch(`/api/client-submissions?clientId=${userOrgId}`, {
+             headers: { 'Authorization': `Bearer ${token}` }
+           })
+           .then(res => res.json())
+           .then(data => {
+             if (data.submissions) {
+                 const allowedSubs = data.submissions.filter((s: any) => {
+                    const st = s.status || "PENDING_REVIEW";
+                    return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'MATCHED', 'ADDED'].includes(st);
+                 });
+                 setSubmissions(allowedSubs);
+             }
+           })
+           .catch(err => console.warn("Failed to fetch submissions:", err));
+       });
     });
 
     // Interviews List
@@ -143,7 +150,6 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
 
     return () => {
       unsubReq();
-      unsubSub();
     };
   }, [userOrgId]);
 

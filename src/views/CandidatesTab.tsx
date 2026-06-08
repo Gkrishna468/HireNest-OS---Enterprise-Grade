@@ -1464,19 +1464,15 @@ ${extText}`;
           <VendorCandidatePipeline 
             candidates={[
               ...candidates.filter(c => !globalSubmissions.some(s => s.candidateId === (c.originalId || c.id))),
-              ...globalSubmissions.reduce((acc: any[], s) => {
-                 if (!acc.some(existing => existing.candidateId === s.candidateId && existing.requirementId === s.requirementId)) {
-                     acc.push({
-                         ...s,
-                         id: s.candidateId,
-                         name: s.candidateName || s.name || "Unknown",
-                         fullName: s.candidateName || s.name || "Unknown",
-                         isSubmission: true,
-                         submissionId: s.id
-                     });
-                 }
-                 return acc;
-              }, [])
+              ...globalSubmissions.map(s => ({
+                  ...s,
+                  id: s.id,
+                  originalCandidateId: s.candidateId,
+                  name: s.candidateName || s.name || "Unknown",
+                  fullName: s.candidateName || s.name || "Unknown",
+                  isSubmission: true,
+                  submissionId: s.id
+              }))
             ].filter(
                 (c) =>
                   (!searchQuery ||
