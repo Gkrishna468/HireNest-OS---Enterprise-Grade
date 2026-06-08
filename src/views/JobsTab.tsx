@@ -1245,7 +1245,7 @@ export default function JobsTab() {
 
   const validMatchedCandidates = Array.from(
     new Map(
-      [...submissions, ...globalMatches, ...fallbackMatches].map((c) => [
+      [...submissions].map((c) => [
         c.candidateId || c.id || c.email,
         c,
       ]),
@@ -1253,7 +1253,7 @@ export default function JobsTab() {
   ).filter((c: any) => {
     if (c.status === "DELETED" || c.isActive === false) return false;
     if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED" || !c.resumeText) return false;
-    if (userRole.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
+    if (userRole?.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
     return true;
   });
 
@@ -1856,52 +1856,29 @@ export default function JobsTab() {
 
                 {/* Requirement Candidate Ledger Validation */}
                 {(() => {
-                  let counts = ledgerCounts;
-                  if (!counts) {
-                    const uniqueCandidates = Array.from(
-                      new Map(
-                        [
-                          ...submissions,
-                          ...globalMatches,
-                          ...fallbackMatches,
-                        ].map((c) => [c.candidateId || c.id || c.email, c]),
-                      ).values(),
-                    ).filter((c: any) => {
-                      if (c.status === "DELETED" || c.isActive === false) return false;
-                      if (c.status === "PARSE_FAILED" || c.status === "UNPARSED" || c.distillationStatus === "FAILED" || !c.resumeText) return false;
-                      if (userRole.startsWith("vendor") && c.ownerVendorId !== orgId && c.vendorId !== orgId) return false;
-                      return true;
-                    });
+                  let counts = {
+                    matches: 0,
+                    floated: 0,
+                    submitted: 0,
+                    interviewing: 0,
+                    offers: 0,
+                    placed: 0,
+                    rejected: 0,
+                  };
 
-                    counts = {
-                      matches: 0,
-                      floated: 0,
-                      submitted: 0,
-                      interviewing: 0,
-                      offers: 0,
-                      placed: 0,
-                      rejected: 0,
-                    };
+                  const reqSubmissions = submissions || [];
 
-                    uniqueCandidates.forEach((c) => {
-                      const stage = c.status || c.pipelineStage || "Matched";
-                      const upperStage = stage.toUpperCase();
-                      if (upperStage === "MATCHED" || upperStage === "MATCH") counts.matches++;
-                      else if (upperStage === "ADDED" || upperStage === "QUEUED") counts.floated++;
-                      else if (
-                        upperStage === "SUBMITTED" ||
-                        upperStage === "DEAL ROOM ACTIVE" ||
-                        upperStage === "DEAL ROOM" ||
-                        upperStage.includes("SUBMITTED")
-                      )
-                        counts.submitted++;
-                      else if (upperStage === "INTERVIEWING" || upperStage === "INTERVIEW") counts.interviewing++;
-                      else if (upperStage === "OFFER") counts.offers++;
-                      else if (stage === "Placed" || stage === "hired")
-                        counts.placed++;
-                      else if (stage === "Rejected") counts.rejected++;
-                    });
-                  }
+                  reqSubmissions.forEach((s: any) => {
+                    const status = (s.status || s.pipelineStage || "MATCHED").toUpperCase();
+                    if (status === "MATCHED" || status === "AI_MATCH") counts.matches++;
+                    else if (status === "ADDED" || status === "VENDOR_FLOATED" || status === "QUEUED") counts.floated++;
+                    else if (status.includes("SUBMITTED") || status === "PENDING_REVIEW" || status.includes("DEAL ROOM")) counts.submitted++;
+                    else if (status.includes("INTERVIEW") || status === "SHORTLISTED" || status === "REQUESTED" || status === "SCHEDULED") counts.interviewing++;
+                    else if (status.includes("OFFER")) counts.offers++;
+                    else if (status === "PLACED" || status === "HIRED") counts.placed++;
+                    else if (status === "REJECTED" || status === "REJECT") counts.rejected++;
+                  });
+
 
                   return (
                     <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden group mb-8 mt-8">
@@ -2032,14 +2009,14 @@ export default function JobsTab() {
                     <div className="flex flex-col items-end">
                       <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[12px] font-black px-5 py-2.5 rounded-2xl mb-2">
                         {
-                          (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : validMatchedCandidates).filter((s) => (s.matchScore || s.aiMatchScore || 0) >= 85).length
+                          validMatchedCandidates.filter((s) => (s.matchScore || s.aiMatchScore || 0) >= 85).length
                         }{" "}
                         High Confidence
                       </Badge>
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         +{" "}
                         {
-                          (ledgerCandidates && ledgerCandidates.length > 0 ? ledgerCandidates : validMatchedCandidates).filter(
+                          validMatchedCandidates.filter(
                             (s) =>
                               (s.matchScore || s.aiMatchScore || 0) >= 70 &&
                               (s.matchScore || s.aiMatchScore || 0) < 85,
@@ -2053,10 +2030,7 @@ export default function JobsTab() {
                   {(selectedJob.matchProcessingStatus === "pending" ||
                     selectedJob.matchProcessingStatus === "processing") &&
                   !localMatchCompleted[selectedJob.id] &&
-                  (ledgerCandidates && ledgerCandidates.length > 0
-                    ? ledgerCandidates
-                    : validMatchedCandidates
-                  ).length === 0 ? (
+                  validMatchedCandidates.length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-indigo-100 rounded-[40px] bg-indigo-50/20 px-6 text-center">
                       <div className="relative mb-8">
                         <Bot
@@ -2088,10 +2062,7 @@ export default function JobsTab() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {(ledgerCandidates && ledgerCandidates.length > 0
-                        ? ledgerCandidates
-                        : validMatchedCandidates
-                      )
+                      {validMatchedCandidates
                         .filter(
                           (sub) =>
                             (sub.matchScore || 0) >= 0 || sub.isGlobalMatch,
