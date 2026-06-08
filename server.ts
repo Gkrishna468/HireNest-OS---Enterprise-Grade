@@ -30,7 +30,6 @@ import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
 import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
 import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
 import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts';
-import auditHandler from './src/api-lib/handlers/audit.ts';
 import oauthHandler from './src/api-lib/handlers/oauth.ts';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
 import clientCandidateHandler from './src/api-lib/handlers/client-candidate.ts';
@@ -163,9 +162,6 @@ async function createServer() {
 
         case 'client-matches':
           return await clientAiMatchesHandler(req, res);
-
-        case 'audit':
-          return await auditHandler(req, res);
 
         case 'client-candidate':
           return await clientCandidateHandler(req, res);
