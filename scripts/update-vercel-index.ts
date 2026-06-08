@@ -1,0 +1,44 @@
+import fs from 'fs';
+import path from 'path';
+
+const vercelFile = path.join(process.cwd(), 'vercel.json');
+let vercelJson = JSON.parse(fs.readFileSync(vercelFile, 'utf8'));
+
+// We only want a few rewrites to forward to /api/index?path=...
+vercelJson.rewrites = [
+  { source: "/api/user/:path*", destination: "/api/index?path=user&action=:path" },
+  { source: "/api/admin/:path*", destination: "/api/index?path=admin&action=:path" },
+  { source: "/api/jobs/update-status", destination: "/api/index?path=admin&action=update-status" },
+  { source: "/api/strategy/analyze", destination: "/api/index?path=admin&action=strategy-analyze" },
+  { source: "/api/matching/global", destination: "/api/index?path=admin&action=matching-global" },
+
+  { source: "/api/create-user", destination: "/api/index?path=user&action=create" },
+  { source: "/api/delete-user", destination: "/api/index?path=user&action=delete" },
+  { source: "/api/assign-role", destination: "/api/index?path=user&action=assign" },
+  { source: "/api/user-context", destination: "/api/index?path=user&action=context" },
+  
+  { source: "/api/candidates", destination: "/api/index?path=admin&action=candidates" },
+  { source: "/api/user-candidates", destination: "/api/index?path=admin&action=candidates" },
+  
+  { source: "/api/metrics", destination: "/api/index?path=admin&action=metrics" },
+  { source: "/api/diagnostics", destination: "/api/index?path=admin&action=diagnostics" },
+  { source: "/api/governance-data", destination: "/api/index?path=admin&action=governance-data" },
+  { source: "/api/pre-flight", destination: "/api/index?path=admin&action=pre-flight" },
+  { source: "/api/approve-request", destination: "/api/index?path=admin&action=approve-request" },
+  { source: "/api/onboard-request", destination: "/api/index?path=admin&action=onboard-request" },
+  { source: "/api/governance", destination: "/api/index?path=admin&action=governance" },
+  
+  { source: "/api/deal-intelligence", destination: "/api/index?path=intel" },
+  
+  { source: "/api/rescan-matches", destination: "/api/index?path=admin&action=rescan-matches" },
+  { source: "/api/rebuild-matrix", destination: "/api/index?path=admin&action=rebuild-matrix" },
+  { source: "/api/cleanup-matches", destination: "/api/index?path=admin&action=cleanup-matches" },
+  { source: "/api/match-health", destination: "/api/index?path=admin&action=match-health" },
+  { source: "/api/client-matches", destination: "/api/index?path=admin&action=client-ai-matches" },
+  
+  { source: "/api/:path*", destination: "/api/index?path=:path*" },
+  { source: "/:path*", destination: "/index.html" }
+];
+
+fs.writeFileSync(vercelFile, JSON.stringify(vercelJson, null, 2), 'utf8');
+console.log('Updated vercel.json rewrites for single proxy.');
