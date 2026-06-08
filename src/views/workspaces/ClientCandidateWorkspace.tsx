@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { Badge } from "../../lib/Badge";
-import { CheckCircle, Target, User, Presentation, Activity } from "lucide-react";
+import { CheckCircle, Target, User, Presentation, Activity, Sparkles } from "lucide-react";
 import Candidate360Modal from "../../components/modals/Candidate360Modal";
 import { InterviewSchedulerModal } from "../../components/modals/InterviewSchedulerModal";
 
 export default function ClientCandidateWorkspace({ userOrgId, userRole }: { userOrgId: string; userRole: string }) {
-  const [activeTab, setActiveTab] = useState<"SUBMITTED" | "SHORTLISTED" | "INTERVIEWS" | "OFFERS" | "PLACED">("SUBMITTED");
+  const [activeTab, setActiveTab] = useState<"MATCHED" | "SUBMITTED" | "SHORTLISTED" | "INTERVIEWS" | "OFFERS" | "PLACED">("SUBMITTED");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
@@ -127,7 +127,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
              if (data.submissions) {
                  const allowedSubs = data.submissions.filter((s: any) => {
                     const st = s.status || "PENDING_REVIEW";
-                    return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'MATCHED', 'ADDED'].includes(st);
+                    return !['DELETED', 'ARCHIVED', 'PARSING', 'DRAFT', 'ADDED'].includes(st);
                  });
                  setSubmissions(allowedSubs);
              }
@@ -166,6 +166,13 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
         {/* Workspace Tabs */}
         <div className="flex space-x-6 border-b border-slate-200 mb-8 overflow-x-auto custom-scrollbar">
           <button
+            onClick={() => setActiveTab("MATCHED")}
+            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "MATCHED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            <span className="flex items-center gap-2"><Sparkles size={16} /> Matched {submissions.filter(s => s.status === 'MATCHED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'MATCHED').length}</span>}</span>
+            {activeTab === "MATCHED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+          </button>
+          <button
             onClick={() => setActiveTab("SUBMITTED")}
             className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SUBMITTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
@@ -201,6 +208,40 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
             {activeTab === "PLACED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
           </button>
         </div>
+
+        {activeTab === "MATCHED" && (() => {
+           const list = submissions.filter(s => s.status === 'MATCHED');
+           return (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {list.length === 0 ? <p className="text-slate-500 col-span-full">No matched candidates found.</p> : 
+                 list.map(sub => (
+                   <div
+                     key={sub.id}
+                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                   >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
+                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
+                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
+                      </div>
+                      <div className="p-5 flex-1 space-y-3">
+                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Matched Candidate"}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
+                           <Badge variant="secondary">{sub.status}</Badge>
+                        </div>
+                      </div>
+                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
+                        <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
+                      </div>
+                   </div>
+                 ))
+               }
+             </div>
+           );
+        })()}
 
         {activeTab === "SUBMITTED" && (() => {
            const list = submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'SUBMITTED');

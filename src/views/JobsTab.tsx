@@ -86,6 +86,7 @@ export default function JobsTab() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [globalMatches, setGlobalMatches] = useState<any[]>([]);
   const [fallbackMatches, setFallbackMatches] = useState<any[]>([]);
+  const [targetClientOrg, setTargetClientOrg] = useState<string>("");
   const [ledgerCounts, setLedgerCounts] = useState<any>(null);
   const [ledgerCandidates, setLedgerCandidates] = useState<any[]>([]);
   const [localMatchCompleted, setLocalMatchCompleted] = useState<
@@ -834,7 +835,7 @@ export default function JobsTab() {
       const newReq = {
         canonicalRequirementId: reqId,
         requirementId: reqId,
-        clientId: orgId || "default-client-org",
+        clientId: targetClientOrg || orgId || "default-client-org",
         title: manualTitle || parsed.title || fallbackTitle,
         experience:
           minExp && maxExp
@@ -1427,7 +1428,7 @@ export default function JobsTab() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">
                       Mandatory Tech Skills
@@ -1440,6 +1441,20 @@ export default function JobsTab() {
                       className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
                     />
                   </div>
+                  {isAdmin && (
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">
+                        Target Client Org (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ORG-XXXXXX or Leave Blank for HQ"
+                        value={targetClientOrg}
+                        onChange={(e) => setTargetClientOrg(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
