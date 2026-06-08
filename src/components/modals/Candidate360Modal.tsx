@@ -304,28 +304,54 @@ export default function Candidate360Modal({
          }, err => console.warn(err));
        });
     } else {
-       fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`)
-         .then(res => res.json())
-         .then(data => {
-            if (data.candidate) setFullCandidateData(data.candidate);
-            if (data.aiAnalysis) setMappingResult(data.aiAnalysis);
-         })
-         .catch(err => console.warn("Failed to fetch client candidate data via API", err));
+       import("../../lib/firebase").then(({ auth }) => {
+          auth.currentUser?.getIdToken().then(token => {
+             fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+             })
+             .then(async res => {
+                const text = await res.text();
+                try {
+                   return JSON.parse(text);
+                } catch {
+                   console.error("Failed to parse client-candidate response", text);
+                   return null;
+                }
+             })
+             .then(data => {
+                if (data?.candidate) setFullCandidateData(data.candidate);
+                if (data?.aiAnalysis) setMappingResult(data.aiAnalysis);
+                if (data?.interviews) {
+                    const ivs = data.interviews;
+                    ivs.sort((a: any, b: any) => {
+                      const ta = new Date(a.createdAt || 0).getTime();
+                      const tb = new Date(b.createdAt || 0).getTime();
+                      return tb - ta;
+                    });
+                    setInterviews(ivs);
+                }
+             })
+             .catch(err => console.warn("Failed to fetch client candidate data via API", err));
+          });
+       });
     }
     
-    // Load interviews
-    const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
-    const unsubInterviews = onSnapshot(qInterviews, snap => {
-       const ivs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       ivs.sort((a: any, b: any) => {
-         const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
-         const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
-         return tb - ta;
+    // Load interviews via Firebase ONLY if not restricted client
+    let unsubInterviews = () => {};
+    if (!userRole.includes("client")) {
+       const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
+       unsubInterviews = onSnapshot(qInterviews, snap => {
+          const ivs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          ivs.sort((a: any, b: any) => {
+            const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+            return tb - ta;
+          });
+          setInterviews(ivs);
+       }, err => {
+          console.warn("Interview timeline error:", err.message);
        });
-       setInterviews(ivs);
-    }, err => {
-       console.warn("Interview timeline error:", err.message);
-    });
+    }
 
     let qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
     const unsubEvents = onSnapshot(qEvents, snap => {
@@ -372,7 +398,7 @@ export default function Candidate360Modal({
   }, [candidate]);
 
   const candidateIdStr = displayCandidate.candidateId || displayCandidate.id || "HN-CAN-PENDING";
-  const nameStr = displayCandidate.displayName || displayCandidate.fullName || displayCandidate.name || displayCandidate.parsedName || displayCandidate.parsedResume?.name || displayCandidate.resumeData?.name || "Unknown Candidate";
+  const nameStr = displayCandidate.candidateName || displayCandidate.displayName || displayCandidate.fullName || displayCandidate.name || displayCandidate.parsedName || displayCandidate.parsedResume?.name || displayCandidate.resumeData?.name || "Unknown Candidate";
   const vendorStr = vendorMap?.[displayCandidate.vendorId] || displayCandidate.vendorName || (displayCandidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : displayCandidate.vendorId) || "Direct/Unknown";
   
   const getSkillsArray = (skills: any): string[] => {
@@ -920,39 +946,78 @@ export default function Candidate360Modal({
           
           {isClientReviewMode && (
              <div className="p-6 bg-white border-t border-slate-200 shrink-0 space-y-3 z-10 w-full shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-                 {candidate.pipelineStage === 'SHORTLISTED' || candidate.status === 'SHORTLISTED' ? (
-                    <div className="bg-emerald-50 border border-emerald-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-emerald-800 font-bold">
-                       <div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500" /> Shortlisted for Review</div>
-                       <span className="text-[11px] font-medium text-emerald-600/80 uppercase tracking-widest">{candidate.statusUpdatedBy ? `by ${candidate.statusUpdatedBy} ` : ''}{candidate.statusUpdatedAt ? 'on ' + new Date(candidate.statusUpdatedAt.seconds ? candidate.statusUpdatedAt.seconds * 1000 : candidate.statusUpdatedAt).toLocaleDateString() : ''}</span>
-                    </div>
-                 ) : candidate.pipelineStage === 'REJECTED' || candidate.status === 'REJECTED' ? (
-                    <div className="bg-rose-50 border border-rose-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-rose-800 font-bold">
-                       <div className="flex items-center gap-2"><X size={18} className="text-rose-500" /> Rejected {candidate.rejectReason ? `- ${candidate.rejectReason}` : ''}</div>
-                       <span className="text-[11px] font-medium text-rose-600/80 uppercase tracking-widest">{candidate.statusUpdatedBy ? `by ${candidate.statusUpdatedBy} ` : ''}{candidate.statusUpdatedAt ? 'on ' + new Date(candidate.statusUpdatedAt.seconds ? candidate.statusUpdatedAt.seconds * 1000 : candidate.statusUpdatedAt).toLocaleDateString() : ''}</span>
-                    </div>
-                 ) : (
-                    <>
-                       <div className="grid grid-cols-2 gap-3 mb-3">
-                          <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
-                            <CheckCircle size={18} className="mr-2"/> Shortlist
-                          </Button>
-                          <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
-                            <X size={18} className="mr-2"/> Reject
-                          </Button>
-                       </div>
-                       <div className="grid grid-cols-3 gap-3">
-                          <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
-                            <Calendar size={18} className="mr-2"/> Request Interview
-                          </Button>
-                          <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
-                            <MessageSquare size={18} className="mr-2"/> Request Clarification
-                          </Button>
-                          <Button onClick={onOffer} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all focus:ring-2 focus:ring-indigo-500">
-                            <Target size={18} className="mr-2"/> Release Offer
-                          </Button>
-                       </div>
-                    </>
-                 )}
+                 {(() => {
+                    const status = candidate.status || candidate.pipelineStage || 'PENDING_REVIEW';
+                    if (status === 'REJECTED') {
+                       return (
+                           <div className="bg-rose-50 border border-rose-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-rose-800 font-bold">
+                              <div className="flex items-center gap-2"><X size={18} className="text-rose-500" /> Rejected {candidate.rejectReason ? `- ${candidate.rejectReason}` : ''}</div>
+                           </div>
+                       )
+                    }
+
+                    if (status === 'PENDING_REVIEW' || status === 'SUBMITTED' || status === 'MATCHED') {
+                       return (
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                             <Button onClick={onShortlist} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all hover:-translate-y-0.5">
+                               <CheckCircle size={18} className="mr-2"/> Shortlist
+                             </Button>
+                             <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                               <X size={18} className="mr-2"/> Reject
+                             </Button>
+                          </div>
+                       )
+                    }
+
+                    if (status === 'SHORTLISTED') {
+                       return (
+                          <div className="grid grid-cols-3 gap-3">
+                             <Button onClick={onSchedule} className="bg-slate-900 hover:bg-black text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
+                               <Calendar size={18} className="mr-2"/> Request Interview
+                             </Button>
+                             <Button onClick={onRequestClarification} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-bold h-12 w-full rounded-xl transition-all">
+                               <MessageSquare size={18} className="mr-2"/> Request Clarification
+                             </Button>
+                             <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                               <X size={18} className="mr-2"/> Reject
+                             </Button>
+                          </div>
+                       )
+                    }
+
+                    if (status === 'INTERVIEW_REQUESTED' || status === 'INTERVIEW_SCHEDULED' || status === 'INTERVIEW_IN_PROGRESS' || status.includes('INTERVIEW')) {
+                       return (
+                          <div className="flex flex-col gap-3">
+                             <div className="bg-indigo-50 border border-indigo-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-indigo-800 font-bold">
+                               <div className="flex items-center gap-2"><Calendar size={18} className="text-indigo-500" /> Interview Stage</div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-3">
+                               <Button onClick={onOffer} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 w-full rounded-xl shadow-sm transition-all">
+                                 <Target size={18} className="mr-2"/> Release Offer
+                               </Button>
+                               <Button onClick={onReject} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold h-12 w-full rounded-xl transition-all">
+                                 <X size={18} className="mr-2"/> Pass / Reject
+                               </Button>
+                             </div>
+                          </div>
+                       )
+                    }
+
+                    if (status === 'OFFER_DRAFTED' || status === 'OFFER_RELEASED' || status === 'OFFER_ACCEPTED') {
+                        return (
+                           <div className="bg-emerald-50 border border-emerald-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-emerald-800 font-bold">
+                              <div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500" /> Offer Stage Proceeding</div>
+                           </div>
+                        )
+                    }
+
+                    return (
+                        <div className="bg-slate-50 border border-slate-100 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-1 text-sm text-slate-800 font-bold">
+                           <div className="flex items-center gap-2"><Activity size={18} className="text-slate-500" /> {status}</div>
+                        </div>
+                    );
+
+                 })()}
              </div>
           )}
        </div>

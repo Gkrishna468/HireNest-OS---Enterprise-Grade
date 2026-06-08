@@ -81,7 +81,7 @@ const STAGES = [
 ];
 
 const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates: any[], onCandidateClick: (c: any) => void }) => {
-  const PIPELINE_STAGES = [
+const PIPELINE_STAGES = [
     "Candidate Added",
     "Matched",
     "Submitted",
@@ -97,10 +97,27 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
       const cardData = JSON.parse(e.dataTransfer.getData("application/json"));
       if (cardData && cardData.id) {
          const { updateDoc, doc } = await import("firebase/firestore");
-         await updateDoc(doc(db, "candidatePool", cardData.id), {
-            pipelineStage: newStage,
-            updatedAt: new Date().toISOString()
-         });
+         
+         if (cardData.isSubmission && cardData.submissionId) {
+             let status = newStage.toUpperCase();
+             if (newStage === "Candidate Added") status = "ADDED";
+             else if (newStage === "Matched") status = "MATCHED";
+             else if (newStage === "Submitted") status = "SUBMITTED";
+             else if (newStage === "Shortlisted") status = "SHORTLISTED";
+             else if (newStage === "Interview") status = "INTERVIEW_REQUESTED";
+             else if (newStage === "Offer") status = "OFFER_DRAFTED";
+             else if (newStage === "Placement") status = "PLACED";
+
+             await updateDoc(doc(db, "submissions", cardData.submissionId), {
+                status: status,
+                updatedAt: new Date().toISOString()
+             });
+         } else {
+             await updateDoc(doc(db, "candidatePool", cardData.id), {
+                pipelineStage: newStage,
+                updatedAt: new Date().toISOString()
+             });
+         }
       }
     } catch(err) {
       console.error(err);
@@ -112,17 +129,19 @@ const VendorCandidatePipeline = ({ candidates, onCandidateClick }: { candidates:
   };
 
   const mappedStages = PIPELINE_STAGES.map(stage => {
+      // Instead of relying purely on candidate pipelineStage, evaluate globalSubmissions where available
+      // The prop `candidates` is actually an array of candidate objects OR submission objects injected from CandidatesTab. Let's process the input `candidates` list.
       return {
           title: stage,
           items: candidates.filter(c => {
-               const st = (c.pipelineStage || c.status || "Candidate Added").toUpperCase();
-               if(stage === "Candidate Added") return st.includes("ADDED") || st === "UPLOADED" || st === "QUEUED";
-               if(stage === "Matched") return st.includes("MATCH");
-               if(stage === "Submitted") return st.includes("SUBMIT") || st.includes("PENDING_REVIEW");
-               if(stage === "Shortlisted") return st.includes("SHORTLIST");
-               if(stage === "Interview") return st.includes("INTERVIEW");
-               if(stage === "Offer") return st.includes("OFFER");
-               if(stage === "Placement") return st.includes("PLACE");
+               const st = (c.isSubmission ? c.status : (c.pipelineStage || c.status || "Candidate Added")).toUpperCase();
+               if(stage === "Candidate Added") return !c.isSubmission && (st.includes("ADDED") || st === "UPLOADED" || st === "QUEUED");
+               if(stage === "Matched") return !c.isSubmission && st.includes("MATCH");
+               if(stage === "Submitted") return c.isSubmission && (st.includes("SUBMIT") || st.includes("PENDING_REVIEW"));
+               if(stage === "Shortlisted") return c.isSubmission && st.includes("SHORTLIST");
+               if(stage === "Interview") return c.isSubmission && st.includes("INTERVIEW");
+               if(stage === "Offer") return c.isSubmission && st.includes("OFFER");
+               if(stage === "Placement") return c.isSubmission && (st.includes("PLACE") || st.includes("ONBOARD"));
                return false;
           })
       };
@@ -1443,13 +1462,21 @@ ${extText}`;
 
         {viewMode === "PIPELINE" ? (
           <VendorCandidatePipeline 
-            candidates={candidates.filter(
+            candidates={[
+              ...candidates.filter(c => !globalSubmissions.some(s => s.candidateId === c.id)),
+              ...globalSubmissions.map(s => ({
+                 ...s,
+                 id: s.candidateId,
+                 name: s.candidateName || s.name || "Unknown",
+                 fullName: s.candidateName || s.name || "Unknown",
+                 isSubmission: true,
+                 submissionId: s.id
+              }))
+            ].filter(
                 (c) =>
                   (!searchQuery ||
                   c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))) &&
-                  (!isClient || (c.pipelineStage && c.pipelineStage !== "Candidate Added" && c.pipelineStage !== "Matched"))
+                  c.name?.toLowerCase().includes(searchQuery.toLowerCase()))
               )} 
             onCandidateClick={setSelectedCandidate} 
           />

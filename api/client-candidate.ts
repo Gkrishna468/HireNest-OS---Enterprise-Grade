@@ -19,13 +19,24 @@ export default async function handler(req: any, res: any) {
       .limit(1)
       .get();
 
-    if (subSnap.empty) {
-      // Allow if the client is essentially HQ or something, but typically reject
-      // Let's also check if it's a generic dealRoom access
-      return res.status(403).json({ error: "Access denied. Candidate not submitted to your organization." });
+    let isAuthorized = !subSnap.empty;
+
+    // 2. Fallback: Does this client have an AI match for this candidate?
+    if (!isAuthorized) {
+       const aiMatchSnap = await adminDb.collection("candidatePool")
+          .doc(candidateId as string)
+          .collection("ai_matches")
+          .where("clientId", "==", clientId)
+          .limit(1)
+          .get();
+       isAuthorized = !aiMatchSnap.empty;
     }
 
-    // 2. Fetch full candidate data
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Access denied. Candidate not submitted or matched to your organization." });
+    }
+
+    // 3. Fetch full candidate data
     const candDoc = await adminDb.collection("candidatePool").doc(candidateId as string).get();
     let candidateData = candDoc.exists ? candDoc.data() : null;
 
@@ -42,21 +53,41 @@ export default async function handler(req: any, res: any) {
     }
 
     // 3. Fetch AI match data context (the one related to this submission)
-    const subRecord = subSnap.docs[0].data();
+    const subRecord = !subSnap.empty ? subSnap.docs[0].data() : null;
     let aiAnalysis = null;
     
     // get from ai_matches if it exists
-    if (subRecord.requirementId) {
+    if (subRecord && subRecord.requirementId) {
        const matchDoc = await adminDb.collection("candidatePool").doc(candidateId as string)
            .collection("ai_matches").doc(subRecord.requirementId).get();
        if (matchDoc.exists) {
            aiAnalysis = matchDoc.data();
        }
+    } else {
+       // fallback generic match for the client
+       const aiMatchSnap = await adminDb.collection("candidatePool")
+          .doc(candidateId as string)
+          .collection("ai_matches")
+          .where("clientId", "==", clientId)
+          .limit(1)
+          .get();
+       if (!aiMatchSnap.empty) {
+          aiAnalysis = aiMatchSnap.docs[0].data();
+       }
     }
+
+    // 4. Fetch interviews for this client
+    const interviewsSnap = await adminDb.collection("interviews")
+      .where("candidateId", "==", candidateId)
+      .where("clientId", "==", clientId)
+      .get();
+    
+    let interviews = interviewsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     return res.status(200).json({
       candidate: candidateData,
-      aiAnalysis: aiAnalysis
+      aiAnalysis: aiAnalysis,
+      interviews: interviews
     });
 
   } catch (error) {
