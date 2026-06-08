@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { Badge } from "../../lib/Badge";
 import { CheckCircle, Bot, User, Presentation, Activity } from "lucide-react";
 import Candidate360Modal from "../../components/modals/Candidate360Modal";
+import { InterviewSchedulerModal } from "../../components/modals/InterviewSchedulerModal";
 
 export default function ClientCandidateWorkspace({ userOrgId, userRole }: { userOrgId: string; userRole: string }) {
   const [activeTab, setActiveTab] = useState<"MATCHED" | "SUBMITTED" | "INTERVIEWS">("MATCHED");
@@ -11,9 +12,95 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [schedulingSubmission, setSchedulingSubmission] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [reqs, setReqs] = useState<Record<string, string>>({});
+
+  const handleShortlist = async (candidate: any) => {
+    if (!candidate.submissionId) return alert("Cannot shortlist - missing submission context. Was this from AI Matches?");
+    try {
+      await updateDoc(doc(db, "submissions", candidate.submissionId), {
+        status: "SHORTLISTED",
+        updatedAt: serverTimestamp()
+      });
+      alert("Candidate shortlisted successfully.");
+      setSelectedCandidate(null);
+    } catch (e) {
+      console.error(e);
+      alert("Error shortlisting candidate.");
+    }
+  };
+
+  const handleReject = async (candidate: any) => {
+    if (!candidate.submissionId) return alert("Cannot reject - missing submission context.");
+    const reason = window.prompt("Rejection reason (e.g. Missing Skills, Experience Gap):");
+    if (!reason) return;
+    try {
+      await updateDoc(doc(db, "submissions", candidate.submissionId), {
+        status: "REJECTED",
+        rejectReason: reason,
+        updatedAt: serverTimestamp()
+      });
+      alert("Candidate rejected.");
+      setSelectedCandidate(null);
+    } catch (e) {
+      console.error(e);
+      alert("Error rejecting candidate.");
+    }
+  };
+
+  const handleOpenDealRoom = async (candidate: any) => {
+    if (!candidate.submissionId) return alert("Cannot open deal room - missing submission context.");
+    try {
+      if (candidate.dealRoomId) {
+         window.location.href = "/deal-rooms"; 
+      } else {
+         const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
+         await addDoc(collection(db, "dealRooms"), {
+           id: roomId,
+           requirementId: candidate.requirementId || "",
+           candidateId: candidate.candidateId || candidate.id,
+           vendorId: candidate.vendorId || "Unknown",
+           clientId: userOrgId,
+           clientName: 'Client',
+           vendorName: candidate.vendorName || 'Vendor',
+           candidateName: candidate.candidateName || candidate.name || 'Anonymous',
+           jobTitle: candidate.reqTitle || reqs[candidate.requirementId] || "Strategic Role",
+           experience: candidate.experience || "Not Specified",
+           status: "ACTIVE",
+           currentStage: "clarification",
+           identitiesRevealed: false,
+           createdAt: serverTimestamp(),
+           matchData: { matchScore: candidate.matchScore || 0 }
+         });
+         await updateDoc(doc(db, "submissions", candidate.submissionId), {
+           dealRoomId: roomId,
+           updatedAt: serverTimestamp()
+         });
+         alert("Clarification thread (Deal Room) created successfully.");
+         setSelectedCandidate(null);
+      }
+    } catch (e) {
+       console.error(e);
+       alert("Error creating Deal Room.");
+    }
+  };
+
+  const handleOffer = async (candidate: any) => {
+    if (!candidate.submissionId) return alert("Cannot offer - missing submission context.");
+    try {
+      await updateDoc(doc(db, "submissions", candidate.submissionId), {
+        status: "OFFER_DRAFTED",
+        updatedAt: serverTimestamp()
+      });
+      alert("Candidate moved to Offer stage.");
+      setSelectedCandidate(null);
+    } catch (e) {
+      console.error(e);
+      alert("Error offering candidate.");
+    }
+  };
 
   useEffect(() => {
     if (!userOrgId) return;
@@ -125,7 +212,7 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
                 <div
                   key={sub.id}
                   className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                  onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true })}
+                  onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
                 >
                    <div className="p-4 border-b border-slate-100 bg-slate-50">
                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
@@ -189,6 +276,23 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
           userOrgId={userOrgId}
           userRole={userRole}
           isClientReviewMode={true}
+          onShortlist={() => handleShortlist(selectedCandidate)}
+          onReject={() => handleReject(selectedCandidate)}
+          onSchedule={() => {
+            setSchedulingSubmission(selectedCandidate);
+            setSelectedCandidate(null);
+          }}
+          onRequestClarification={() => handleOpenDealRoom(selectedCandidate)}
+          onOffer={() => handleOffer(selectedCandidate)}
+        />
+      )}
+
+      {schedulingSubmission && (
+        <InterviewSchedulerModal
+          submission={schedulingSubmission}
+          requirement={{ id: schedulingSubmission.requirementId, title: reqs[schedulingSubmission.requirementId] || schedulingSubmission.reqTitle }}
+          isClientAction={true}
+          onClose={() => setSchedulingSubmission(null)}
         />
       )}
     </div>
