@@ -1,96 +1,100 @@
-import { adminDb } from "../../lib/firebase-admin.js";
+import { adminDb } from "../../lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   const { candidateId, clientId } = req.query;
+
   if (!candidateId || !clientId) {
-    return res.status(400).json({ error: "candidateId and clientId are required" });
+    return res.status(400).json({ error: "Missing candidateId or clientId" });
   }
 
   try {
-    if (!adminDb) return res.status(503).json({ error: "No DB" });
-
-    // Ensure the client has access to this candidate (either via a submission or ai_match on their requirement)
-    let hasAccess = false;
-
-    // 1. Check submissions
+    // 1. Verify access: Does this client have a submission for this candidate?
     const subSnap = await adminDb.collection("submissions")
-       .where("candidateId", "==", candidateId)
-       .where("clientId", "==", clientId)
-       .get();
-       
-    if (!subSnap.empty) {
-        hasAccess = true;
-    } else {
-        // 2. Check ai_matches on client's requirements
-        const reqSnap = await adminDb.collection("requirements_public")
-           .where("clientId", "==", clientId)
-           .get();
-        const reqIds = reqSnap.docs.map(d => d.id);
-        
-        if (reqIds.length > 0) {
-            // Because we can't query group easily with IN, just get the candidate's ai_matches and see if any match reqIds
-            const candMatches = await adminDb.collection("candidatePool")
-               .doc(candidateId)
-               .collection("ai_matches")
-               .get();
-               
-            for (const doc of candMatches.docs) {
-                const matchData = doc.data();
-                const matchReqId = matchData.canonicalRequirementId || matchData.requirementId || matchData.reqId || doc.id;
-                if (reqIds.includes(matchReqId)) {
-                    hasAccess = true;
-                    break;
-                }
-            }
-        }
+      .where("clientId", "==", clientId)
+      .where("candidateId", "==", candidateId)
+      .limit(1)
+      .get();
+
+    let isAuthorized = !subSnap.empty;
+
+    // 2. Fallback: Does this client have an AI match for this candidate?
+    if (!isAuthorized) {
+       const aiMatchSnap = await adminDb.collection("candidatePool")
+          .doc(candidateId as string)
+          .collection("ai_matches")
+          .where("clientId", "==", clientId)
+          .limit(1)
+          .get();
+       isAuthorized = !aiMatchSnap.empty;
     }
 
-    if (!hasAccess) {
-        return res.status(403).json({ error: "Forbidden: No submission or match found." });
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Access denied. Candidate not submitted or matched to your organization." });
     }
 
-    // Now fetch candidatePool and aiAnalysis
-    const candSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
-    if (!candSnap.exists) {
-        return res.status(404).json({ error: "Candidate not found" });
+    // 3. Fetch full candidate data
+    const candDoc = await adminDb.collection("candidatePool").doc(candidateId as string).get();
+    let candidateData = candDoc.exists ? candDoc.data() : null;
+
+    if (!candidateData) {
+       return res.status(404).json({ error: "Candidate not found in pool." });
     }
 
-    const candData = candSnap.data();
+    // fallback for resume text just in case
+    if (!candidateData.resumeText && !candidateData.parsedResumeText) {
+       const parseDoc = await adminDb.collection("resume_parses").doc(candidateId as string).get();
+       if (parseDoc.exists) {
+         candidateData.parsedResumeText = parseDoc.data()?.text || parseDoc.data()?.extractedText || "";
+       }
+    }
 
-    // Fetch the best aiAnalysis logic
-    const candMatches = await adminDb.collection("candidatePool")
-       .doc(candidateId)
-       .collection("ai_matches")
-       .get();
-
+    // 3. Fetch AI match data context (the one related to this submission)
+    const subRecord = !subSnap.empty ? subSnap.docs[0].data() : null;
     let aiAnalysis = null;
-    const matches = candMatches.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (matches.length > 0) {
-        matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
-        aiAnalysis = matches[0];
+    
+    // get from ai_matches if it exists
+    if (subRecord && subRecord.requirementId) {
+       const matchDoc = await adminDb.collection("candidatePool").doc(candidateId as string)
+           .collection("ai_matches").doc(subRecord.requirementId).get();
+       if (matchDoc.exists) {
+           aiAnalysis = matchDoc.data();
+       }
+    } else {
+       // fallback generic match for the client
+       const aiMatchSnap = await adminDb.collection("candidatePool")
+          .doc(candidateId as string)
+          .collection("ai_matches")
+          .where("clientId", "==", clientId)
+          .limit(1)
+          .get();
+       if (!aiMatchSnap.empty) {
+          aiAnalysis = aiMatchSnap.docs[0].data();
+       }
     }
 
-    // fallback to resume_parses if resumeText is missing
-    if (!candData?.resumeText && !candData?.parsedResumeText && !candData?.extractedText) {
-        const parseDoc = await adminDb.collection("resume_parses").doc(candidateId).get();
-        if (parseDoc.exists && parseDoc.data()?.text) {
-             if (candData) {
-                 candData.parsedResumeText = parseDoc.data()?.text || "";
-             }
-        }
-    }
+    // 4. Fetch interviews for this client
+    const interviewsSnap = await adminDb.collection("interviews")
+      .where("candidateId", "==", candidateId)
+      .where("clientId", "==", clientId)
+      .get();
+    
+    let interviews = interviewsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    return res.status(200).json({ candidate: candData, aiAnalysis });
+    return res.status(200).json({
+      candidate: candidateData,
+      aiAnalysis: aiAnalysis,
+      interviews: interviews
+    });
 
-  } catch (error: any) {
-    console.error("Error fetching client candidate full data:", error);
-    return res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    console.error("CLIENT_CANDIDATE_ERROR", err);
+    return res.status(500).json({ 
+       success: false,
+       error: String(err)
+    });
   }
 }

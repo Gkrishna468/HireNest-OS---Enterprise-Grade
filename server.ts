@@ -15,15 +15,15 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Static Imports for all Handlers & Admin
 import { adminAuth } from './src/lib/firebase-admin.ts';
-import adminHandler from './api/admin.ts';
-import userHandler from './api/user.ts';
+import adminHandler from './src/api-lib/handlers/admin.ts';
+import userHandler from './src/api-lib/handlers/user.ts';
 import candidatesHandler from './src/api-lib/handlers/candidates.ts';
 import matchingGlobalHandler from './src/api-lib/handlers/matching-global.ts';
-import intelHandler from './api/intel.ts';
-import parseJdHandler from './api/parse-jd.ts';
-import extractTextHandler from './api/extract-text.ts';
-import matchDetailedHandler from './api/match-candidates-detailed.ts';
-import bulkParseHandler from './api/bulk-parse-resumes.ts';
+import intelHandler from './src/api-lib/handlers/intel.ts';
+import parseJdHandler from './src/api-lib/handlers/parse-jd.ts';
+import extractTextHandler from './src/api-lib/handlers/extract-text.ts';
+import matchDetailedHandler from './src/api-lib/handlers/match-candidates-detailed.ts';
+import bulkParseHandler from './src/api-lib/handlers/bulk-parse-resumes.ts';
 import workflowsHandler from './src/api-lib/handlers/workflows.ts';
 import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches.ts';
 import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
@@ -33,11 +33,11 @@ import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts'
 import auditHandler from './src/api-lib/handlers/audit.ts';
 import oauthHandler from './src/api-lib/handlers/oauth.ts';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
-import clientCandidateHandler from './api/client-candidate.ts';
-import clientSubmissionsHandler from './api/client-submissions.ts';
-import interviewsHandler from './api/interviews.ts';
+import clientCandidateHandler from './src/api-lib/handlers/client-candidate.ts';
+import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions.ts';
+import interviewsHandler from './src/api-lib/handlers/interviews.ts';
 
-import analyticsHandler from './api/analytics.ts';
+import analyticsHandler from './src/api-lib/handlers/analytics.ts';
 
 const __dirname = process.cwd();
 

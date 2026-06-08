@@ -1,4 +1,4 @@
-import { adminDb } from "../src/lib/firebase-admin.js';
+import { adminDb } from "../../lib/firebase-admin.js';
 
 function extractYearsOfExperience(text: string): number {
   if (!text) return 0;

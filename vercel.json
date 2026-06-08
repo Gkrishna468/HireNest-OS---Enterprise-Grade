@@ -1,43 +1,192 @@
 {
   "rewrites": [
-    { "source": "/api/user/create", "destination": "/api/user?action=create" },
-    { "source": "/api/create-user", "destination": "/api/user?action=create" },
-    { "source": "/api/user/delete", "destination": "/api/user?action=delete" },
-    { "source": "/api/delete-user", "destination": "/api/user?action=delete" },
-    { "source": "/api/user/assign-role", "destination": "/api/user?action=assign" },
-    { "source": "/api/assign-role", "destination": "/api/user?action=assign" },
-    { "source": "/api/user/context", "destination": "/api/user?action=context" },
-    { "source": "/api/user-context", "destination": "/api/user?action=context" },
-    { "source": "/api/user/candidates", "destination": "/api/admin?action=candidates" },
-    { "source": "/api/candidates", "destination": "/api/admin?action=candidates" },
-    { "source": "/api/user-candidates", "destination": "/api/admin?action=candidates" },
-    { "source": "/api/admin/metrics", "destination": "/api/admin?action=metrics" },
-    { "source": "/api/metrics", "destination": "/api/admin?action=metrics" },
-    { "source": "/api/admin/diagnostics", "destination": "/api/admin?action=diagnostics" },
-    { "source": "/api/diagnostics", "destination": "/api/admin?action=diagnostics" },
-    { "source": "/api/admin/governance-data", "destination": "/api/admin?action=governance-data" },
-    { "source": "/api/governance-data", "destination": "/api/admin?action=governance-data" },
-    { "source": "/api/admin/pre-flight", "destination": "/api/admin?action=pre-flight" },
-    { "source": "/api/pre-flight", "destination": "/api/admin?action=pre-flight" },
-    { "source": "/api/admin/approve-request", "destination": "/api/admin?action=approve-request" },
-    { "source": "/api/approve-request", "destination": "/api/admin?action=approve-request" },
-    { "source": "/api/admin/onboard-request", "destination": "/api/admin?action=onboard-request" },
-    { "source": "/api/onboard-request", "destination": "/api/admin?action=onboard-request" },
-    { "source": "/api/admin/governance", "destination": "/api/admin?action=governance" },
-    { "source": "/api/governance", "destination": "/api/admin?action=governance" },
-    { "source": "/api/strategy/analyze", "destination": "/api/admin?action=strategy-analyze" },
-    { "source": "/api/deal-intelligence", "destination": "/api/intel" },
-    { "source": "/api/matching/global", "destination": "/api/admin?action=matching-global" },
-    { "source": "/api/admin/notify-approval", "destination": "/api/admin?action=notify-approval" },
-    { "source": "/api/admin/approve-requirement", "destination": "/api/admin?action=approve-requirement" },
-    { "source": "/api/admin/notifications", "destination": "/api/admin?action=notifications" },
-    { "source": "/api/jobs/update-status", "destination": "/api/admin?action=update-status" },
-    { "source": "/api/rescan-matches", "destination": "/api/admin?action=rescan-matches" },
-    { "source": "/api/rebuild-matrix", "destination": "/api/admin?action=rebuild-matrix" },
-    { "source": "/api/cleanup-matches", "destination": "/api/admin?action=cleanup-matches" },
-    { "source": "/api/match-health", "destination": "/api/admin?action=match-health" },
-    { "source": "/api/client-matches", "destination": "/api/admin?action=client-ai-matches" },
-    { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/:path*", "destination": "/index.html" }
+    {
+      "source": "/api/user/create",
+      "destination": "/api/user?action=create"
+    },
+    {
+      "source": "/api/create-user",
+      "destination": "/api/user?action=create"
+    },
+    {
+      "source": "/api/user/delete",
+      "destination": "/api/user?action=delete"
+    },
+    {
+      "source": "/api/delete-user",
+      "destination": "/api/user?action=delete"
+    },
+    {
+      "source": "/api/user/assign-role",
+      "destination": "/api/user?action=assign"
+    },
+    {
+      "source": "/api/assign-role",
+      "destination": "/api/user?action=assign"
+    },
+    {
+      "source": "/api/user/context",
+      "destination": "/api/user?action=context"
+    },
+    {
+      "source": "/api/user-context",
+      "destination": "/api/user?action=context"
+    },
+    {
+      "source": "/api/user/candidates",
+      "destination": "/api/admin?action=candidates"
+    },
+    {
+      "source": "/api/candidates",
+      "destination": "/api/admin?action=candidates"
+    },
+    {
+      "source": "/api/user-candidates",
+      "destination": "/api/admin?action=candidates"
+    },
+    {
+      "source": "/api/admin/metrics",
+      "destination": "/api/admin?action=metrics"
+    },
+    {
+      "source": "/api/metrics",
+      "destination": "/api/admin?action=metrics"
+    },
+    {
+      "source": "/api/admin/diagnostics",
+      "destination": "/api/admin?action=diagnostics"
+    },
+    {
+      "source": "/api/diagnostics",
+      "destination": "/api/admin?action=diagnostics"
+    },
+    {
+      "source": "/api/admin/governance-data",
+      "destination": "/api/admin?action=governance-data"
+    },
+    {
+      "source": "/api/governance-data",
+      "destination": "/api/admin?action=governance-data"
+    },
+    {
+      "source": "/api/admin/pre-flight",
+      "destination": "/api/admin?action=pre-flight"
+    },
+    {
+      "source": "/api/pre-flight",
+      "destination": "/api/admin?action=pre-flight"
+    },
+    {
+      "source": "/api/admin/approve-request",
+      "destination": "/api/admin?action=approve-request"
+    },
+    {
+      "source": "/api/approve-request",
+      "destination": "/api/admin?action=approve-request"
+    },
+    {
+      "source": "/api/admin/onboard-request",
+      "destination": "/api/admin?action=onboard-request"
+    },
+    {
+      "source": "/api/onboard-request",
+      "destination": "/api/admin?action=onboard-request"
+    },
+    {
+      "source": "/api/admin/governance",
+      "destination": "/api/admin?action=governance"
+    },
+    {
+      "source": "/api/governance",
+      "destination": "/api/admin?action=governance"
+    },
+    {
+      "source": "/api/strategy/analyze",
+      "destination": "/api/admin?action=strategy-analyze"
+    },
+    {
+      "source": "/api/deal-intelligence",
+      "destination": "/api/intel"
+    },
+    {
+      "source": "/api/matching/global",
+      "destination": "/api/admin?action=matching-global"
+    },
+    {
+      "source": "/api/admin/notify-approval",
+      "destination": "/api/admin?action=notify-approval"
+    },
+    {
+      "source": "/api/admin/approve-requirement",
+      "destination": "/api/admin?action=approve-requirement"
+    },
+    {
+      "source": "/api/admin/notifications",
+      "destination": "/api/admin?action=notifications"
+    },
+    {
+      "source": "/api/jobs/update-status",
+      "destination": "/api/admin?action=update-status"
+    },
+    {
+      "source": "/api/rescan-matches",
+      "destination": "/api/admin?action=rescan-matches"
+    },
+    {
+      "source": "/api/rebuild-matrix",
+      "destination": "/api/admin?action=rebuild-matrix"
+    },
+    {
+      "source": "/api/cleanup-matches",
+      "destination": "/api/admin?action=cleanup-matches"
+    },
+    {
+      "source": "/api/match-health",
+      "destination": "/api/admin?action=match-health"
+    },
+    {
+      "source": "/api/client-matches",
+      "destination": "/api/admin?action=client-ai-matches"
+    },
+    {
+      "source": "/api/client-candidate",
+      "destination": "/api/client?action=candidate"
+    },
+    {
+      "source": "/api/client-submissions",
+      "destination": "/api/client?action=submissions"
+    },
+    {
+      "source": "/api/parse-jd",
+      "destination": "/api/ai?action=parse-jd"
+    },
+    {
+      "source": "/api/extract-text",
+      "destination": "/api/ai?action=extract-text"
+    },
+    {
+      "source": "/api/match-candidates-detailed",
+      "destination": "/api/ai?action=match-detailed"
+    },
+    {
+      "source": "/api/bulk-parse-resumes",
+      "destination": "/api/ai?action=bulk-parse"
+    },
+    {
+      "source": "/api/validate-submission",
+      "destination": "/api/workflow?action=validate-submission"
+    },
+    {
+      "source": "/api/repair-candidates",
+      "destination": "/api/workflow?action=repair"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
   ]
 }
