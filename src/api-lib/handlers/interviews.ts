@@ -36,6 +36,27 @@ export default async function handler(req: any, res: any) {
          return res.status(400).json({ error: "Missing parameters" });
       }
 
+      console.log("INTERVIEW PAYLOAD", {
+        submissionId: submission?.submissionId,
+        id: submission?.id,
+        candidateId: submission?.candidateId,
+        clientId: submission?.clientId,
+        vendorId: submission?.vendorId,
+        requirementId: requirement?.id,
+        isClientAction
+      });
+
+      const subId = submission?.submissionId || submission?.id || submission?.submissionRef || null;
+
+      if (!subId) {
+        console.error("Submission object received:", submission);
+        return res.status(400).json({
+           success:false,
+           error:"Missing submissionId in interview request"
+        });
+      }
+
+      console.log("ROOM CREATE");
       // 1. Create Handle Deal Room
       let roomId = submission.dealRoomId;
       if (!roomId) {
@@ -60,12 +81,8 @@ export default async function handler(req: any, res: any) {
       }
 
       const targetStatus = isClientAction ? 'INTERVIEW_REQUESTED' : 'INTERVIEW_SCHEDULED';
-      const subId = submission.submissionId || submission.id;
 
-      if (!subId) {
-        throw new Error("Missing submission ID");
-      }
-
+      console.log("SUBMISSION UPDATE", subId);
       // 2. Update Submission Status
       await adminDb.collection("submissions").doc(subId).update({
         dealRoomId: roomId,
@@ -73,6 +90,7 @@ export default async function handler(req: any, res: any) {
         updatedAt: new Date()
       });
 
+      console.log("INTERVIEW CREATE");
       // 3. Create Interview Record linked to submission
       const interviewRef = await adminDb.collection("interviews").add({
         submissionId: subId,
@@ -97,6 +115,7 @@ export default async function handler(req: any, res: any) {
         createdAt: new Date()
       });
 
+      console.log("MESSAGE CREATE");
       // 4. Add system message to Deal Room
       await adminDb.collection("dealRooms").doc(roomId).collection("messages").add({
          senderRole: "System",
@@ -108,6 +127,7 @@ export default async function handler(req: any, res: any) {
          timestamp: new Date()
       });
 
+      console.log("NOTIFICATION CREATE");
       // 5. Send notifications
       const notifBase = {
         title: isClientAction ? "Interview Requested" : "Interview Scheduled",
