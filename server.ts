@@ -14,29 +14,29 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Static Imports for all Handlers & Admin
-import { adminAuth } from './src/lib/firebase-admin.ts';
-import adminHandler from './src/api-lib/handlers/admin.ts';
-import userHandler from './src/api-lib/handlers/user.ts';
-import candidatesHandler from './src/api-lib/handlers/candidates.ts';
-import matchingGlobalHandler from './src/api-lib/handlers/matching-global.ts';
-import intelHandler from './src/api-lib/handlers/intel.ts';
-import parseJdHandler from './src/api-lib/handlers/parse-jd.ts';
-import extractTextHandler from './src/api-lib/handlers/extract-text.ts';
-import matchDetailedHandler from './src/api-lib/handlers/match-candidates-detailed.ts';
-import bulkParseHandler from './src/api-lib/handlers/bulk-parse-resumes.ts';
-import workflowsHandler from './src/api-lib/handlers/workflows.ts';
-import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches.ts';
-import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix.ts';
-import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches.ts';
-import matchHealthHandler from './src/api-lib/handlers/match-health.ts';
-import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches.ts';
-import oauthHandler from './src/api-lib/handlers/oauth.ts';
-import googleProxyHandler from './src/api-lib/handlers/google-proxy.ts';
-import clientCandidateHandler from './src/api-lib/handlers/client-candidate.ts';
-import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions.ts';
-import interviewsHandler from './src/api-lib/handlers/interviews.ts';
+import { adminAuth } from './src/lib/firebase-admin';
+import adminHandler from './src/api-lib/handlers/admin';
+import userHandler from './src/api-lib/handlers/user';
+import candidatesHandler from './src/api-lib/handlers/candidates';
+import matchingGlobalHandler from './src/api-lib/handlers/matching-global';
+import intelHandler from './src/api-lib/handlers/intel';
+import parseJdHandler from './src/api-lib/handlers/parse-jd';
+import extractTextHandler from './src/api-lib/handlers/extract-text';
+import matchDetailedHandler from './src/api-lib/handlers/match-candidates-detailed';
+import bulkParseHandler from './src/api-lib/handlers/bulk-parse-resumes';
+import workflowsHandler from './src/api-lib/handlers/workflows';
+import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches';
+import rebuildMatrixHandler from './src/api-lib/handlers/rebuild-matrix';
+import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches';
+import matchHealthHandler from './src/api-lib/handlers/match-health';
+import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches';
+import oauthHandler from './src/api-lib/handlers/oauth';
+import googleProxyHandler from './src/api-lib/handlers/google-proxy';
+import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
+import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
+import interviewsHandler from './src/api-lib/handlers/interviews';
 
-import analyticsHandler from './src/api-lib/handlers/analytics.ts';
+import analyticsHandler from './src/api-lib/handlers/analytics';
 
 const __dirname = process.cwd();
 

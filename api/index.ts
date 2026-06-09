@@ -1,19 +1,19 @@
-import adminHandler from '../src/api-lib/handlers/admin.ts';
-import clientCandidateHandler from '../src/api-lib/handlers/client-candidate.ts';
-import clientSubmissionsHandler from '../src/api-lib/handlers/client-submissions.ts';
-import repairCandidatesHandler from '../src/api-lib/handlers/repair-candidates.ts';
-import validateSubmissionHandler from '../src/api-lib/handlers/validate-submission.ts';
-import parseJdHandler from '../src/api-lib/handlers/parse-jd.ts';
-import extractTextHandler from '../src/api-lib/handlers/extract-text.ts';
-import matchDetailedHandler from '../src/api-lib/handlers/match-candidates-detailed.ts';
-import bulkParseHandler from '../src/api-lib/handlers/bulk-parse-resumes.ts';
-import interviewsHandler from '../src/api-lib/handlers/interviews.ts';
-import intelHandler from '../src/api-lib/handlers/intel.ts';
-import analyticsHandler from '../src/api-lib/handlers/analytics.ts';
-import userHandler from '../src/api-lib/handlers/user.ts';
-import workflowsHandler from '../src/api-lib/handlers/workflows.ts';
-import oauthHandler from '../src/api-lib/handlers/oauth.ts';
-import googleProxyHandler from '../src/api-lib/handlers/google-proxy.ts';
+import adminHandler from '../src/api-lib/handlers/admin';
+import clientCandidateHandler from '../src/api-lib/handlers/client-candidate';
+import clientSubmissionsHandler from '../src/api-lib/handlers/client-submissions';
+import repairCandidatesHandler from '../src/api-lib/handlers/repair-candidates';
+import validateSubmissionHandler from '../src/api-lib/handlers/validate-submission';
+import parseJdHandler from '../src/api-lib/handlers/parse-jd';
+import extractTextHandler from '../src/api-lib/handlers/extract-text';
+import matchDetailedHandler from '../src/api-lib/handlers/match-candidates-detailed';
+import bulkParseHandler from '../src/api-lib/handlers/bulk-parse-resumes';
+import interviewsHandler from '../src/api-lib/handlers/interviews';
+import intelHandler from '../src/api-lib/handlers/intel';
+import analyticsHandler from '../src/api-lib/handlers/analytics';
+import userHandler from '../src/api-lib/handlers/user';
+import workflowsHandler from '../src/api-lib/handlers/workflows';
+import oauthHandler from '../src/api-lib/handlers/oauth';
+import googleProxyHandler from '../src/api-lib/handlers/google-proxy';
 
 export default async function handler(req: any, res: any) {
   const { path } = req.query;
