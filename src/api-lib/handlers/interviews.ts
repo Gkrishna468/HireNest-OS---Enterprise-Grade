@@ -1,6 +1,19 @@
-import { adminDb } from "../../lib/firebase-admin";
+import { adminDb, runtimeMode } from "../../lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
+  console.log("INTERVIEW HANDLER START");
+  console.log("runtimeMode", runtimeMode);
+  console.log("adminDb exists", !!adminDb);
+
+  if (!adminDb) {
+    console.error("INTERVIEWS_HANDLER_ADMIN_DB_NULL", runtimeMode);
+    return res.status(503).json({
+      success: false,
+      error: "Admin Firestore unavailable",
+      runtimeMode
+    });
+  }
+
   if (req.method === "GET") {
     const { candidateId, clientId, vendorId } = req.query;
     try {
