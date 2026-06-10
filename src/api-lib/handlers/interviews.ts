@@ -1,3 +1,8 @@
+console.log("=== INTERVIEW START ===");
+console.log("runtimeMode", runtimeMode);
+console.log("adminDb", !!adminDb);
+console.log("body", JSON.stringify(req.body));
+
 import { adminDb, runtimeMode } from "../../lib/firebase-admin";
 
 export default async function handler(req: any, res: any) {
