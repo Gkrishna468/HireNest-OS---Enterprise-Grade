@@ -1,3 +1,5 @@
+console.log("API INDEX LOADED");
+
 import adminHandler from '../src/api-lib/handlers/admin';
 import clientCandidateHandler from '../src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from '../src/api-lib/handlers/client-submissions';
@@ -18,8 +20,15 @@ import googleProxyHandler from '../src/api-lib/handlers/google-proxy';
 export default async function handler(req: any, res: any) {
   try {
     const { path } = req.query;
+    console.log("PATH =", path);
     
+    return res.status(200).json({
+      success: true,
+      message: "api/index alive"
+    });
+
     // Also support action param just in case
+
     const action = req.query.action || req.body?.action;
 
     // We map paths based on the requested endpoint
