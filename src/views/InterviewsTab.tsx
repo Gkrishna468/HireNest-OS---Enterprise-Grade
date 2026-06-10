@@ -41,18 +41,26 @@ export default function InterviewsTab() {
 
                let q;
                if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
-                 q = query(collection(db, "interviews"), orderBy("createdAt", "desc"));
+                 q = query(collection(db, "interviews"));
                } else if (role.startsWith("vendor")) {
-                 q = query(collection(db, "interviews"), where("vendorId", "==", orgId), orderBy("createdAt", "desc"));
+                 q = query(collection(db, "interviews"), where("vendorId", "==", orgId));
                } else if (role.startsWith("client") || role === "hiring_manager") {
-                 q = query(collection(db, "interviews"), where("clientId", "==", orgId), orderBy("createdAt", "desc"));
+                 q = query(collection(db, "interviews"), where("clientId", "==", orgId));
                } else {
-                 q = query(collection(db, "interviews"), orderBy("createdAt", "desc"));
+                 q = query(collection(db, "interviews"));
                }
 
                unsubscribeData = onSnapshot(q, querySnap => {
                   const data = querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                  // Sort locally in memory to bypass composite index requirement
+                  data.sort((a: any, b: any) => {
+                     const aTime = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
+                     const bTime = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
+                     return bTime - aTime;
+                  });
                   setInterviews(data);
+               }, err => {
+                  console.error("Interview Listener Error:", err);
                });
             }
          }).catch(err => console.warn(err));
