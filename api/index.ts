@@ -3,53 +3,47 @@ export default async function handler(req: any, res: any) {
     const { path } = req.query;
     const action = req.query.action || req.body?.action;
 
-    // Use dynamic import so that if a module is broken, it doesn't crash the entire function on boot.
-    const runHandler = async (modulePath: string) => {
-      try {
-         const module = await import(modulePath);
-         return await module.default(req, res);
-      } catch (err: any) {
-         console.error("DYNAMIC_IMPORT_ERROR:", err);
-         return res.status(500).json({ success: false, error: "Handler load failed: " + String(err.message || err.toString()), stack: err.stack });
+    let targetHandler: any;
+
+    if (path === 'admin')            targetHandler = (await import('../src/api-lib/handlers/admin')).default;
+    else if (path === 'client-candidate') targetHandler = (await import('../src/api-lib/handlers/client-candidate')).default;
+    else if (path === 'client-submissions') targetHandler = (await import('../src/api-lib/handlers/client-submissions')).default;
+    else if (path === 'repair-candidates') targetHandler = (await import('../src/api-lib/handlers/repair-candidates')).default;
+    else if (path === 'validate-submission') targetHandler = (await import('../src/api-lib/handlers/validate-submission')).default;
+    else if (path === 'parse-jd')          targetHandler = (await import('../src/api-lib/handlers/parse-jd')).default;
+    else if (path === 'extract-text')      targetHandler = (await import('../src/api-lib/handlers/extract-text')).default;
+    else if (path === 'match-detailed')    targetHandler = (await import('../src/api-lib/handlers/match-candidates-detailed')).default;
+    else if (path === 'bulk-parse')        targetHandler = (await import('../src/api-lib/handlers/bulk-parse-resumes')).default;
+    else if (path === 'interviews')        targetHandler = (await import('../src/api-lib/handlers/interviews')).default;
+    else if (path === 'intel')             targetHandler = (await import('../src/api-lib/handlers/intel')).default;
+    else if (path === 'analytics')         targetHandler = (await import('../src/api-lib/handlers/analytics')).default;
+    else if (path === 'user')              targetHandler = (await import('../src/api-lib/handlers/user')).default;
+    else if (path === 'workflows')         targetHandler = (await import('../src/api-lib/handlers/workflows')).default;
+    else if (path === 'oauth')             targetHandler = (await import('../src/api-lib/handlers/oauth')).default;
+    else if (path === 'google')            targetHandler = (await import('../src/api-lib/handlers/google-proxy')).default;
+    else {
+      // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
+      switch (action) {
+        case 'candidate': targetHandler = (await import('../src/api-lib/handlers/client-candidate')).default; break;
+        case 'submissions': targetHandler = (await import('../src/api-lib/handlers/client-submissions')).default; break;
+        case 'repair': targetHandler = (await import('../src/api-lib/handlers/repair-candidates')).default; break;
+        case 'validate-submission': targetHandler = (await import('../src/api-lib/handlers/validate-submission')).default; break;
+        case 'parse-jd': targetHandler = (await import('../src/api-lib/handlers/parse-jd')).default; break;
+        case 'extract-text': targetHandler = (await import('../src/api-lib/handlers/extract-text')).default; break;
+        case 'match-detailed': targetHandler = (await import('../src/api-lib/handlers/match-candidates-detailed')).default; break;
+        case 'bulk-parse': targetHandler = (await import('../src/api-lib/handlers/bulk-parse-resumes')).default; break;
+        default: targetHandler = (await import('../src/api-lib/handlers/admin')).default; break;
       }
-    };
-
-    if (path === 'admin')            return await runHandler('../src/api-lib/handlers/admin');
-    if (path === 'client-candidate') return await runHandler('../src/api-lib/handlers/client-candidate');
-    if (path === 'client-submissions') return await runHandler('../src/api-lib/handlers/client-submissions');
-    if (path === 'repair-candidates') return await runHandler('../src/api-lib/handlers/repair-candidates');
-    if (path === 'validate-submission') return await runHandler('../src/api-lib/handlers/validate-submission');
-    if (path === 'parse-jd')          return await runHandler('../src/api-lib/handlers/parse-jd');
-    if (path === 'extract-text')      return await runHandler('../src/api-lib/handlers/extract-text');
-    if (path === 'match-detailed')    return await runHandler('../src/api-lib/handlers/match-candidates-detailed');
-    if (path === 'bulk-parse')        return await runHandler('../src/api-lib/handlers/bulk-parse-resumes');
-    if (path === 'interviews')        return await runHandler('../src/api-lib/handlers/interviews');
-    if (path === 'intel')             return await runHandler('../src/api-lib/handlers/intel');
-    if (path === 'analytics')         return await runHandler('../src/api-lib/handlers/analytics');
-    if (path === 'user')              return await runHandler('../src/api-lib/handlers/user');
-    if (path === 'workflows')         return await runHandler('../src/api-lib/handlers/workflows');
-    if (path === 'oauth')             return await runHandler('../src/api-lib/handlers/oauth');
-    if (path === 'google')            return await runHandler('../src/api-lib/handlers/google-proxy');
-
-    switch (action) {
-      case 'candidate': return await runHandler('../src/api-lib/handlers/client-candidate');
-      case 'submissions': return await runHandler('../src/api-lib/handlers/client-submissions');
-      case 'repair': return await runHandler('../src/api-lib/handlers/repair-candidates');
-      case 'validate-submission': return await runHandler('../src/api-lib/handlers/validate-submission');
-      case 'parse-jd': return await runHandler('../src/api-lib/handlers/parse-jd');
-      case 'extract-text': return await runHandler('../src/api-lib/handlers/extract-text');
-      case 'match-detailed': return await runHandler('../src/api-lib/handlers/match-candidates-detailed');
-      case 'bulk-parse': return await runHandler('../src/api-lib/handlers/bulk-parse-resumes');
     }
 
-    if (!path && !action) {
-       return res.status(200).json({ success: true, message: "api/index root reached with no path or action" });
+    if (targetHandler) {
+      return await targetHandler(req, res);
     }
 
-    return await runHandler('../src/api-lib/handlers/admin');
+    return res.status(200).json({ success: true, message: "api/index alive but no handler matched" });
   } catch (err: any) {
     console.error("VERCEL_API_ERROR_CAUGHT:", err);
-    return res.status(500).json({ success: false, error: String(err.message || err) });
+    return res.status(500).json({ success: false, error: String(err.message || err.toString()), stack: err.stack });
   }
 }
 
