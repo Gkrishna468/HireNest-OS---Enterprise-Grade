@@ -1,4 +1,4 @@
-import { db } from '../../lib/firebase-admin';
+import { db } from '../../lib/firebase-admin.js';
 import { OAuth2Client } from 'google-auth-library';
 import express from 'express';
 

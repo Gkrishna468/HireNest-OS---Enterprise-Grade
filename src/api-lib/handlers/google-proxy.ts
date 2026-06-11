@@ -1,7 +1,7 @@
 import express from 'express';
-import { db } from '../../lib/firebase-admin';
+import { db } from '../../lib/firebase-admin.js';
 import { OAuth2Client } from 'google-auth-library';
-import { oauth2Client } from './oauth';
+import { oauth2Client } from './oauth.js';
 
 const googleProxyHandler = express.Router();
 

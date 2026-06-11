@@ -48,3 +48,102 @@ We are temporarily pausing net-new AI capability development (no autonomous recr
 4. **Multi-Tenant Protection** Validation (Vendor vs Client vs HQ)
 
 Every architectural or code change MUST be strictly validated against the 6-Stage Gate (Product Manager, Software Architect, Firestore Auditor, Governance Auditor, Security Auditor, AI Matching Auditor) as documented in `docs/20_PRODUCTION_READINESS_CERTIFICATION.md`. AI Matching is restricted to Layer 1 (Deterministic), Layer 2 (Semantic Inference), and Layer 3 (Recruiter Override). Recruiter insights ALWAYS win over AI predictions.
+
+## Master Architecture Guidelines
+
+HireNestOS is an AI-Native Staffing Operating System.
+
+### CRITICAL RULES:
+
+1. **NEVER** create duplicate data models.
+2. **NEVER** create new candidate, requirement, submission, vendor, recruiter, client objects if they already exist.
+3. Follow **Single Source of Truth** architecture across Firestore and application states.
+4. Any new feature **MUST** integrate into existing architecture smoothly.
+5. Before generating code:
+   - Audit current structure.
+   - Identify reusable components, services, Firestore collections, and APIs.
+6. **Do not modify** existing production logic unless explicitly requested.
+7. Backward compatibility is mandatory.
+8. Every implementation must internally include:
+   - Architecture impact analysis.
+   - Files affected & Risk assessment.
+   - Rollback strategy considerations.
+9. If a request conflicts with architecture: **STOP**, explain the conflict, and suggest an alternative implementation.
+10. Preserve all existing core domains:
+   - Candidate 360
+   - Requirement Intelligence
+   - Strategic Routing
+   - Submission Ledger
+   - Vendor Workspace
+   - Client Workspace
+
+### Feature Implementation Flow
+Before writing code for new features, reference these document blueprints:
+- `docs/01_Vision_PRD.md` (Business Vision / Specs)
+- `docs/02_Technical_TRD.md` (Technical Specs)
+- `docs/03_Data_Model.md` (Data Shapes / Firestore)
+- `docs/04_App_Flows.md` (Navigation & Event Mapping)
+
+Acknowledge these limits to reduce orchestration conflicts, schema fragmentation, and broken integrations.
+
+### Mandatory AI Workflow
+Every prompt and feature request must be executed following this 5-Phase pipeline:
+- **PHASE 1 (Architecture Audit):** Review feature against all master docs.
+- **PHASE 2 (Impact Analysis):** Determine what modules, states, and APIs are affected.
+- **PHASE 3 (Implementation Plan):** Outline steps without writing code.
+- **PHASE 4 (Approval Required):** Wait for user confirmation.
+- **PHASE 5 (Code Generation):** Generate code only after approval.
+
+When a feature is requested, analyze the feature against:
+- `01_Vision_PRD.md`
+- `02_Technical_TRD.md`
+- `03_Data_Model.md`
+- `04_App_Flows.md`
+- `05_API_Contracts.md`
+- `06_State_Architecture.md`
+- `07_Module_Ownership.md`
+
+Identify conflicts, generate the implementation plan only, and **do not write code** initially.
+
+### ARCHITECTURAL ENFORCEMENT
+Before modifying any file, the agent MUST:
+1. Identify source of truth.
+2. Verify data ownership.
+3. Verify state ownership.
+4. Verify API contract.
+5. Verify backward compatibility.
+
+If any verification fails:
+**STOP.**
+Do not generate code.
+Explain the conflict constraints to the user.
+
+## Release Gates
+
+To prevent AI from treating a database change like a UI tweak, all modifications must pass through the appropriate release gate:
+
+### P0 Gate (High Risk)
+- Data model changes (Firestore collections, schema definitions)
+- Requires full architecture review.
+
+### P1 Gate (Medium High Risk)
+- Service contract changes (API signatures, handler outputs)
+- Requires full architecture review.
+
+### P2 Gate (Medium Risk)
+- State architecture changes (Redux, Context, Store mappings)
+- Requires impact analysis.
+
+### P3 Gate (Low Risk)
+- UI-only changes (Components, styles, text updates)
+- Can be implemented directly without blocking approval.
+
+## AI Agent Charter
+
+No single AI agent should perform all roles. Agents must embody the following personas depending on the requested task:
+
+- **Architect Agent:** Analysis only. (Used for structural reviews and system design).
+- **Planner Agent:** Creates implementation plans based on architectural analysis.
+- **Developer Agent:** Generates code based strictly on approved implementation plans.
+- **QA Agent:** Regression testing and verification.
+- **Auditor Agent:** Validates that code and configurations adhere to the central Architecture Registry and Governance Rules.

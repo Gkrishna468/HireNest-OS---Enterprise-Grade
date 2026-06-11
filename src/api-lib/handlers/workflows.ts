@@ -1,9 +1,9 @@
 import { temporal } from '../temporal/engine.js';
-import '../temporal/workflows/candidate-lifecycle';
-import '../temporal/workflows/vendor-governance';
-import '../temporal/workflows/ai-copilot';
-import '../temporal/workflows/sla-escalation';
-import '../temporal/workflows/interview-coordination';
+import '../temporal/workflows/candidate-lifecycle.js';
+import '../temporal/workflows/vendor-governance.js';
+import '../temporal/workflows/ai-copilot.js';
+import '../temporal/workflows/sla-escalation.js';
+import '../temporal/workflows/interview-coordination.js';
 import { adminDb } from '../../lib/firebase-admin.js';
 
 export default async function workflowsHandler(req: any, res: any) {

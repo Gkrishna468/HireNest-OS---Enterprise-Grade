@@ -1,4 +1,4 @@
-import { adminDb, runtimeMode } from "../../lib/firebase-admin";
+import { adminDb, runtimeMode } from "../../lib/firebase-admin.js";
 
 export default async function handler(req: any, res: any) {
   console.log("INTERVIEW HANDLER START");
