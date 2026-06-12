@@ -16,39 +16,50 @@ export default function WorkflowOperationsTab({ orgId, userRole }: { orgId?: str
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // We would normally filter this by visibility scopes
-    const q = query(
-      collection(db, "workflow_instances"),
-      orderBy("updatedAt", "desc")
-    );
-    
-    const unsubscribe = onSnapshot(q, async (snap) => {
-      const wfs = snap.docs.map(d => d.data() as WorkflowInstance);
-      setWorkflows(wfs);
-      
-      // Auto select first
-      if (wfs.length > 0 && !selectedWorkflow) {
-        setSelectedWorkflow(wfs[0]);
-      }
-      setLoading(false);
-    });
+    import("../lib/firebase").then(({ auth, db }) => {
+      import("firebase/firestore").then(({ collection, query, orderBy, onSnapshot }) => {
+        if (!auth.currentUser?.uid) return;
 
-    return () => unsubscribe();
-  }, []);
+        // We would normally filter this by visibility scopes
+        const q = query(
+          collection(db, "workflow_instances"),
+          orderBy("updatedAt", "desc")
+        );
+        
+        const unsubscribe = onSnapshot(q, async (snap) => {
+          const wfs = snap.docs.map(d => d.data() as WorkflowInstance);
+          setWorkflows(wfs);
+          
+          // Auto select first
+          if (wfs.length > 0 && !selectedWorkflow) {
+            setSelectedWorkflow(wfs[0]);
+          }
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      });
+    });
+  }, [selectedWorkflow]);
 
   useEffect(() => {
     if (!selectedWorkflow) return;
     const loadEvents = async () => {
-        const q = query(
-            collection(db, "workflow_events"),
-            where("workflowId", "==", selectedWorkflow.workflowId),
-            orderBy("timestamp", "asc")
-        );
-        const snap = await getDocs(q);
-        setEvents(prev => ({
-            ...prev,
-            [selectedWorkflow.workflowId]: snap.docs.map(d => d.data() as WorkflowEvent)
-        }));
+        import("../lib/firebase").then(async ({ auth, db }) => {
+          if (!auth.currentUser?.uid) return;
+          import("firebase/firestore").then(async ({ collection, query, orderBy, getDocs, where }) => {
+            const q = query(
+                collection(db, "workflow_events"),
+                where("workflowId", "==", selectedWorkflow.workflowId),
+                orderBy("timestamp", "asc")
+            );
+            const snap = await getDocs(q);
+            setEvents(prev => ({
+                ...prev,
+                [selectedWorkflow.workflowId]: snap.docs.map(d => d.data() as WorkflowEvent)
+            }));
+          });
+        });
     };
     loadEvents();
   }, [selectedWorkflow]);

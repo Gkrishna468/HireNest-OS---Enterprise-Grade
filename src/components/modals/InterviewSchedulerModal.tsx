@@ -29,25 +29,26 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
     }
     
     setIsProcessing(true);
+    const actualSubId = submission.submissionId || submission.id;
     try {
-      if (submission && submission.id) {
+      if (submission && actualSubId) {
          if (isClientAction) {
-            await requestInterview(submission.id, {
+            await requestInterview(actualSubId, {
                interviewStatus: "INTERVIEW_REQUESTED",
                isNewRound: true,
                interviewDetails: formData,
-               submissionId: submission.id,
+               submissionId: actualSubId,
                candidateId: submission.candidateId,
                requirementId: submission.requirementId,
                clientId: submission.clientId,
                vendorId: submission.vendorId,
-               dealRoomId: submission.dealRoomId || `DR-${submission.id}`,
+               dealRoomId: submission.dealRoomId || `DR-${actualSubId}`,
                round: formData.round,
                interviewer: formData.interviewer,
                date: formData.date
             });
          } else {
-            await updateInterviewEvent(submission.id, {
+            await updateInterviewEvent(actualSubId, {
                interviewStatus: "INTERVIEW_SCHEDULED",
                interviewFeedback: "",
                isNewRound: true,
