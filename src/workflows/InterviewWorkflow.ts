@@ -5,11 +5,31 @@ import { WorkflowStatus } from './types/WorkflowStatus';
 import { ServiceProvider } from '../lib/providers/ServiceProvider';
 import { EventTypes } from '../lib/events/EventTypes';
 
+const ILLEGAL_TRANSITIONS: Record<string, string[]> = {
+  'REJECTED': ['SCHEDULED', 'REQUESTED', 'INTERVIEW_REQUESTED'],
+  'PASSED': ['FEEDBACK_PENDING', 'SCHEDULED'],
+  'COMPLETED': ['REQUESTED', 'INTERVIEW_REQUESTED', 'SCHEDULING']
+};
+
 export class InterviewWorkflow implements IWorkflow {
   name = 'InterviewWorkflow';
 
+  private validateTransition(currentStatus: string, newStatus: string): boolean {
+     if (ILLEGAL_TRANSITIONS[currentStatus] && ILLEGAL_TRANSITIONS[currentStatus].includes(newStatus)) {
+        return false;
+     }
+     return true;
+  }
+
   async execute(context: WorkflowContext): Promise<WorkflowResult> {
     try {
+      // Validate Transitions
+      const currentStatus = context.metadata?.currentStatus || '';
+      const newStatus = context.metadata?.newStatus || '';
+      if (currentStatus && newStatus && !this.validateTransition(currentStatus, newStatus)) {
+         throw new Error(`Illegal state transition from ${currentStatus} to ${newStatus}`);
+      }
+
       if (context.triggerEvent === EventTypes.INTERVIEW_REQUESTED) {
          console.log(`[InterviewWorkflow] Orchestrating INTERVIEW_REQUESTED: ${context.metadata.submissionId}`);
          
@@ -42,7 +62,8 @@ export class InterviewWorkflow implements IWorkflow {
         status: WorkflowStatus.COMPLETED,
         completedAt: new Date()
       };
-    } catch (e) {
+    } catch (e: any) {
+      console.error(`[InterviewWorkflow] Error: ${e.message}`);
       throw e;
     }
   }
@@ -57,3 +78,4 @@ export class InterviewWorkflow implements IWorkflow {
     };
   }
 }
+

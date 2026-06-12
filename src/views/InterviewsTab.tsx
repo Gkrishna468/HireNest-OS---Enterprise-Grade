@@ -9,6 +9,7 @@ import { Button } from '../lib/Button';
 
 export default function InterviewsTab() {
    const [interviews, setInterviews] = useState<any[]>([]);
+   const [candidatesMap, setCandidatesMap] = useState<Record<string, any>>({});
    const [selectedInterview, setSelectedInterview] = useState<any>(null);
    const [userRole, setUserRole] = useState<string>('user');
    const [userOrgId, setUserOrgId] = useState<string>('');
@@ -26,6 +27,15 @@ export default function InterviewsTab() {
      decision: 'Proceed',
      notes: ''
    });
+
+   useEffect(() => {
+      const unsub = onSnapshot(collection(db, "candidates"), snap => {
+         const cmap: Record<string, any> = {};
+         snap.forEach(d => cmap[d.id] = d.data());
+         setCandidatesMap(cmap);
+      });
+      return () => unsub();
+   }, []);
 
    useEffect(() => {
       let active = true;
@@ -264,6 +274,10 @@ export default function InterviewsTab() {
                            const ageHours = Math.floor((Date.now() - createdAtMs) / (1000 * 60 * 60));
                            const isBreached = ageHours > 24;
                            const det = inv.interviewDetails || {};
+                           const c = candidatesMap[inv.candidateId] || {};
+                           const exp = c.totalExperience ? `${c.totalExperience} Years` : 'Exp: N/A';
+                           const match = c.aiMatchScore ? `Match ${c.aiMatchScore}%` : 'Match: N/A';
+                           const skillsStr = c.skills?.slice(0,3).join(' | ') || 'Skills: N/A';
                            
                            return (
                            <div key={inv.id} 
@@ -273,20 +287,18 @@ export default function InterviewsTab() {
                                 }}
                                 onClick={() => setSelectedInterview(inv)} 
                                 className={`bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer block ${isBreached && (inv.status === 'REQUESTED' || inv.status === 'AVAILABILITY_PENDING') ? 'border-rose-300' : 'border-slate-200 hover:border-indigo-300'}`}>
-                              <div className="flex items-center justify-between mb-2">
-                                 <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] uppercase tracking-wider">{det.round || 'Round'}</Badge>
-                                 <span className="text-[10px] text-slate-400 font-mono">
-                                    Age: {ageHours}h
-                                 </span>
-                              </div>
-                              <h3 className="font-bold text-slate-800 text-sm mb-2">{inv.candidateName || 'Candidate'}</h3>
-                              <div className="space-y-1 text-xs text-slate-500 mb-3">
-                                 <div className="flex items-center gap-2"><Calendar size={12}/> {det.date || 'TBD'} {det.time ? `at ${det.time}` : ''}</div>
-                                 <div className="flex items-center gap-2"><Users size={12}/> {det.interviewer || 'TBD'}</div>
+                              <h3 className="font-bold text-slate-800 text-sm mb-1">{inv.candidateName || c.fullName || 'Candidate'}</h3>
+                              <div className="text-xs text-slate-500 mb-1">{skillsStr}</div>
+                              <div className="text-xs text-slate-500 mb-3">{exp} | {match}</div>
+
+                              <div className="border-t border-slate-100 pt-3 mb-3">
+                                <div className="text-xs font-semibold text-slate-700 mb-1">Round: {det.round || 'Technical 1'}</div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1"><Calendar size={12}/> {det.date || 'TBD'} • {det.time || 'TBD'}</div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500"><Video size={12}/> {det.mode || 'TBD'}</div>
                               </div>
                               <div className={`mt-3 text-[10px] uppercase font-bold tracking-widest flex items-center justify-between px-2 py-1 rounded-md ${isBreached ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                 <span>SLA Status</span>
-                                 <span>{isBreached ? 'Breached' : 'Healthy'}</span>
+                                 <span>SLA: {24 - ageHours > 0 ? `${24 - ageHours}h Remaining` : 'Breached'}</span>
+                                 <span className="text-slate-400 font-mono text-[9px] lowercase bg-white/50 px-1 py-0.5 rounded border border-current">dr-{inv.id.slice(-4)}</span>
                               </div>
                            </div>
                            );
@@ -343,22 +355,59 @@ export default function InterviewsTab() {
                         <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">{det.notes || 'No specific notes.'}</p>
                      </div>
                   </div>
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 rounded-b-2xl flex gap-3 justify-end shrink-0">
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 rounded-b-2xl flex flex-wrap gap-3 justify-end shrink-0">
                      <Button variant="outline" className="bg-white" onClick={() => setSelectedInterview(null)}>Close</Button>
+                     
+                     {/* Workflow Advance Buttons */}
+                     {userRole !== 'vendor' && (
+                        <>
+                           {selectedInterview.status === 'SCHEDULED' && (
+                              <Button className="bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={async () => {
+                                 await updateDoc(doc(db, "submissions", selectedInterview.id), { status: 'COMPLETED', updatedAt: serverTimestamp() });
+                                 await publishEvent({ type: 'success', title: 'Interview Completed', message: 'Interview marked as completed.', recipients: ["GLOBAL_ADMIN"] });
+                                 setSelectedInterview(null);
+                              }}>
+                                 <CheckCircle size={16} className="mr-2"/> Mark Complete
+                              </Button>
+                           )}
+                           
+                           {['COMPLETED', 'FEEDBACK_PENDING'].includes(selectedInterview.status) && (
+                              <Button className="bg-amber-500 hover:bg-amber-600 font-bold text-white" onClick={() => { setSelectedInterview(null); setShowFeedbackForm(true); }}>
+                                 <MessageSquare size={16} className="mr-2"/> Provide Feedback
+                              </Button>
+                           )}
+
+                           {['FEEDBACK_PENDING', 'DECISION_PENDING'].includes(selectedInterview.status) && (
+                              <div className="flex gap-2 border-l border-slate-200 pl-3 ml-1">
+                                 <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold text-white" onClick={async () => {
+                                    await updateDoc(doc(db, "submissions", selectedInterview.id), { status: 'PASSED', updatedAt: serverTimestamp() });
+                                    await publishEvent({ type: 'success', title: 'Candidate Selected', message: 'Candidate was selected.', recipients: ["GLOBAL_ADMIN"] });
+                                    setSelectedInterview(null);
+                                 }}>
+                                    Select Candidate
+                                 </Button>
+                                 <Button className="bg-rose-600 hover:bg-rose-700 font-bold text-white" onClick={async () => {
+                                    await updateDoc(doc(db, "submissions", selectedInterview.id), { status: 'REJECTED', updatedAt: serverTimestamp() });
+                                    await publishEvent({ type: 'urgent', title: 'Candidate Rejected', message: 'Candidate was rejected.', recipients: ["GLOBAL_ADMIN"] });
+                                    setSelectedInterview(null);
+                                 }}>
+                                    Reject
+                                 </Button>
+                              </div>
+                           )}
+
+                           {selectedInterview.status === 'SCHEDULING' && (
+                              <Button className="bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={() => { setSelectedInterview(null); setShowConfirmSchedule(true); }}>
+                                 <Calendar size={16} className="mr-2"/> Confirm Schedule
+                              </Button>
+                           )}
+                        </>
+                     )}
+
                      {(selectedInterview.status === 'REQUESTED' || selectedInterview.status === 'AVAILABILITY_PENDING') && userRole === 'vendor' && (
                         <Button className="bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={() => { setSelectedInterview(null); setShowAvailabilityForm(true); }}>
                            <Calendar size={16} className="mr-2"/> Provide Availability
                         </Button>
-                     )}
-                     {selectedInterview.status === 'SCHEDULING' && userRole !== 'vendor' && (
-                        <Button className="bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={() => { setSelectedInterview(null); setShowConfirmSchedule(true); }}>
-                           <CheckCircle size={16} className="mr-2"/> Confirm Schedule
-                        </Button>
-                     )}
-                     {(selectedInterview.status === 'SCHEDULED' || selectedInterview.status === 'COMPLETED' || selectedInterview.status === 'FEEDBACK_PENDING') && userRole !== 'vendor' && (
-                         <Button className="bg-indigo-600 hover:bg-indigo-700 font-bold" onClick={() => { setSelectedInterview(null); setShowFeedbackForm(true); }}>
-                            <MessageSquare size={16} className="mr-2"/> Provide Feedback
-                         </Button>
                      )}
                   </div>
                </div>
