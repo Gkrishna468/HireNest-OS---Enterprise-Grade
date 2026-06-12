@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { query, collection, where, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../lib/firebase";
 import { X, Bell, CheckCircle, AlertTriangle, Info } from "lucide-react";
+import { useIdentityStore } from "../stores/IdentityStore";
 
 export function LiveToaster({
   orgId,
@@ -11,50 +10,17 @@ export function LiveToaster({
   userRole?: string;
 }) {
   const [toasts, setToasts] = useState<any[]>([]);
+  const { subscribeToNotifications } = useIdentityStore();
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const recipients = [auth.currentUser.uid];
-    if (orgId) recipients.push(orgId);
-    if (userRole) {
-      const isAdmin = userRole === "admin" || userRole === "super_admin" || userRole === "ops_admin" || userRole === "hq" || userRole === "hq_admin";
-      if (!isAdmin) return; // Only Admin can query notifications globally for now
-      recipients.push("GLOBAL_ADMIN");
-    }
-
-    // Since we don't have a complex index, we query limit the timeframe client-side
-    // or by checking the timestamp if we don't index it. We will only show toasts for NEW docs.
-    const now = new Date();
-
-    const q = query(
-      collection(db, "notifications"),
-      where("recipientId", "in", recipients),
-    );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      snap.docChanges().forEach((change) => {
-        if (change.type === "added") {
-          const data = change.doc.data();
-          const docTime = data.createdAt
-            ? new Date(data.createdAt.seconds * 1000)
-            : new Date();
-          // Only show toast if it happened near 'now' (e.g. within 10 seconds of app start or entirely new)
-          if (docTime >= now) {
-            const newToast = { id: change.doc.id, ...data };
-            setToasts((prev) => [...prev, newToast]);
-
-            // Auto dismiss after 5 seconds
-            setTimeout(() => {
-              setToasts((prev) => prev.filter((t) => t.id !== change.doc.id));
-            }, 5000);
-          }
-        }
-      });
+    const unsub = subscribeToNotifications({ orgId, userRole }, (newToast) => {
+      setToasts((prev) => [...prev, newToast]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
+      }, 5000);
     });
-
-    return () => unsubscribe();
-  }, [orgId, userRole]);
+    return () => { if (unsub) unsub(); };
+  }, [orgId, userRole, subscribeToNotifications]);
 
   if (toasts.length === 0) return null;
 

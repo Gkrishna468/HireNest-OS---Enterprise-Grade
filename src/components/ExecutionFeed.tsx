@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { Zap, Clock, MessageSquare, ShieldCheck, Activity } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useRequirementStore } from "../stores/RequirementStore";
 
 interface ExecutionFeedProps {
   requirementId?: string;
@@ -13,30 +12,15 @@ interface ExecutionFeedProps {
 export function ExecutionFeed({ requirementId, dealId, className }: ExecutionFeedProps) {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { subscribeToExecutionEvents } = useRequirementStore();
 
   useEffect(() => {
-    let q;
-    if (dealId) {
-      q = query(collection(db, "execution_events"), where("targetId", "==", dealId));
-    } else if (requirementId) {
-      q = query(collection(db, "execution_events"), where("requirementId", "==", requirementId));
-    } else {
-      q = query(collection(db, "execution_events"), orderBy("timestamp", "desc"));
-    }
-
-    return onSnapshot(q, (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      if (dealId || requirementId) {
-        data.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
-      }
+    const unsub = subscribeToExecutionEvents({ dealId, requirementId }, (data) => {
       setEvents(data);
       setLoading(false);
-    }, (error) => {
-      console.warn("ExecutionFeed permission denied (expected for clients):", error.message);
-      setEvents([]);
-      setLoading(false);
     });
-  }, [requirementId, dealId]);
+    return () => { if (unsub) unsub(); };
+  }, [requirementId, dealId, subscribeToExecutionEvents]);
 
   return (
     <div className={cn("flex flex-col space-y-4", className)}>

@@ -1,52 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Check, AlertCircle } from 'lucide-react';
+import { MessageSquare, AlertCircle } from 'lucide-react';
 import { Button } from '../lib/Button';
-import { db, auth } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { publishEvent } from '../lib/eventEngine';
+import { useRequirementStore } from '../stores/RequirementStore';
 
 export function RequirementDiscussionThread({ requirementId, requirementTitle }: { requirementId: string, requirementTitle: string }) {
    const [comments, setComments] = useState<any[]>([]);
    const [newComment, setNewComment] = useState("");
+   const { subscribeToComments, addComment, getUserRole } = useRequirementStore();
    const [userRole, setUserRole] = useState("User");
 
    useEffect(() => {
       const fetchRole = async () => {
-         if (auth.currentUser) {
-            const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
-            if (snap.exists()) {
-               setUserRole(snap.data().role || 'User');
-            }
-         }
+         const role = await getUserRole();
+         setUserRole(role);
       };
       fetchRole();
-   }, []);
+   }, [getUserRole]);
 
    useEffect(() => {
-      const q = query(
-         collection(db, "requirements_public", requirementId, "comments"),
-         orderBy("timestamp", "asc")
-      );
-      const unsub = onSnapshot(q, snap => {
-         setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }, err => {
-         console.warn("RequirementDiscussionThread permissions", err.message);
+      if (!requirementId) return;
+      const unsub = subscribeToComments(requirementId, (data) => {
+         setComments(data);
       });
-      return () => unsub();
-   }, [requirementId]);
+      return () => { if (unsub) unsub(); };
+   }, [requirementId, subscribeToComments]);
 
    const handleSend = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newComment.trim()) return;
 
       try {
-         await addDoc(collection(db, "requirements_public", requirementId, "comments"), {
-            text: newComment,
-            author: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || "User",
-            role: userRole,
-            timestamp: serverTimestamp()
-         });
-
+         await addComment(requirementId, newComment, userRole);
+         
          const mentions = newComment.match(/@\w+/g);
          if (mentions) {
              mentions.forEach(m => publishEvent({
