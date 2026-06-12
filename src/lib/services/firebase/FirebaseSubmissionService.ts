@@ -22,6 +22,11 @@ export class FirebaseSubmissionService implements ISubmissionService {
     return { id: docRef.id, ...newDoc } as Submission;
   }
 
+  async updateSubmission(id: string, updates: Partial<Record<string, any>>): Promise<void> {
+    const docRef = doc(db, this.collectionName, id);
+    await updateDoc(docRef, updates);
+  }
+
   async updateStatus(id: string, status: string): Promise<void> {
     const docRef = doc(db, this.collectionName, id);
     await updateDoc(docRef, { status });

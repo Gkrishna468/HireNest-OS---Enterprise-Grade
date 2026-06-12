@@ -11,7 +11,10 @@ interface SubmissionState {
   error: string | null;
   getSubmission: (id: string) => Promise<Submission | null>;
   createSubmission: (data: SubmissionInput) => Promise<Submission>;
+  updateSubmission: (id: string, updates: Partial<Record<string, any>>) => Promise<void>;
+  updateInterviewEvent: (id: string, event: Record<string, any>) => Promise<void>;
   updateStatus: (id: string, status: string) => Promise<void>;
+  submitCandidateProfile: (payload: any) => Promise<any>;
 }
 
 export const useSubmissionStore = create<SubmissionState>((set, get) => ({
@@ -50,6 +53,34 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     }
   },
 
+  updateSubmission: async (id: string, updates: Partial<Record<string, any>>) => {
+    set({ isLoading: true, error: null });
+    try {
+      await ServiceProvider.submissionService.updateSubmission(id, updates);
+      set((state) => {
+        const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, ...updates } as Submission : state.selectedSubmission;
+        return { selectedSubmission: selected, isLoading: false };
+      });
+    } catch (e: any) {
+      set({ error: e.message, isLoading: false });
+      throw e;
+    }
+  },
+
+  updateInterviewEvent: async (id: string, event: Record<string, any>) => {
+    set({ isLoading: true, error: null });
+    try {
+      await ServiceProvider.submissionService.updateInterviewEvent(id, event);
+      set((state) => {
+        const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, interviewStatus: event.interviewStatus || state.selectedSubmission.interviewStatus } as Submission : state.selectedSubmission;
+        return { selectedSubmission: selected, isLoading: false };
+      });
+    } catch (e: any) {
+      set({ error: e.message, isLoading: false });
+      throw e;
+    }
+  },
+
   updateStatus: async (id: string, status: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -61,6 +92,19 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     } catch (e: any) {
       set({ error: e.message, isLoading: false });
       throw e;
+    }
+  },
+
+  submitCandidateProfile: async (payload: any) => {
+    set({ isLoading: true, error: null });
+    try {
+       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
+       const res = await SubmissionOrchestrator.submitCandidate(payload);
+       set({ isLoading: false });
+       return res;
+    } catch (e: any) {
+       set({ error: e.message, isLoading: false });
+       throw e;
     }
   }
 }));

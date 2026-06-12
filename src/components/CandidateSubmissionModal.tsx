@@ -1,22 +1,10 @@
 import { useState, useRef } from "react";
 import { Upload, X, Bot, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "../lib/Button";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  setDoc,
-  doc,
-  getDocs,
-  query,
-  where,
-  updateDoc
-} from "firebase/firestore";
-import { workflowOrchestrator } from "../services/workflow/workflowOrchestrator";
-import { SubmissionState, WorkflowInstance } from "../types/workflow";
 import { emitEvent } from "../services/eventBus";
-import { publishEvent } from "../lib/eventEngine";
+import { useCandidateStore } from "../stores/CandidateStore";
+import { useSubmissionStore } from "../stores/SubmissionStore";
+import { useRequirementStore } from "../stores/RequirementStore";
 
 interface CandidateSubmissionModalProps {
   onClose: () => void;
@@ -117,52 +105,27 @@ export default function CandidateSubmissionModal({
     fileInputRef.current?.click();
   };
 
+  const { addGeneralCandidate } = useCandidateStore();
+  const { submitCandidateProfile } = useSubmissionStore();
+
   const handleSubmit = async () => {
     if (!name || !email) return;
     setIsSubmitting(true);
     try {
-      const { auth } = await import("../lib/firebase");
-      let submitterUid = auth.currentUser?.uid || "local_user";
-      let orgId = "local";
-      if (submitterUid !== "local_user") {
-        try {
-          const { getDoc, doc } = await import("firebase/firestore");
-          const userProfile = await getDoc(doc(db, "users", submitterUid));
-          if (userProfile.exists()) {
-            orgId = userProfile.data().organizationId || "local";
-          }
-        } catch(e) {
-          console.error("Error fetching user profile", e);
-        }
-      }
+      const payload = {
+        name,
+        email,
+        phone,
+        experience,
+        currentLocation,
+        keySkills,
+        aiAnalysis,
+        orgId: "local", // Fallback Mock
+        submitterUid: "local_user"
+      };
 
       if (reqId === "GENERAL") {
-         const candId = "HN-CAN-" + Math.random().toString(36).substr(2, 9);
-         await setDoc(doc(db, "candidatePool", candId), {
-            fullName: name,
-            name: name,
-            manualName: name,
-            primaryEmail: email,
-            email: email,
-            phone: phone,
-            experience: experience,
-            location: currentLocation,
-            candidateId: candId,
-            vendorId: orgId,
-            sourceOrganizations: [orgId],
-            pipelineStage: "Candidate Added",
-            source: "Manual Add",
-            resumeText: aiAnalysis?.analysis || "",
-            skills: keySkills.split(",").map((s) => s.trim()).filter(Boolean),
-            status: "QUEUED",
-            distillationStatus: "COMPLETED",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-         });
-         
-         const { CandidateOwnershipEngine } = await import("../lib/workflows/CandidateOwnershipEngine");
-         await CandidateOwnershipEngine.establishOwnership(candId, orgId, "VENDOR", 180);
-
+         await addGeneralCandidate(payload);
          onClose();
          if (typeof alert !== "undefined") {
             alert("Candidate added to pool securely with ownership locked.");
@@ -171,22 +134,7 @@ export default function CandidateSubmissionModal({
          return;
       }
 
-      const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
-      
-      let targetClientId = "";
-      if (reqId !== "GENERAL") {
-        try {
-          const { getDoc, doc } = await import("firebase/firestore");
-          const reqSnap = await getDoc(doc(db, "requirements_public", reqId));
-          if (reqSnap.exists()) {
-            targetClientId = reqSnap.data().clientId || "HQ";
-          }
-        } catch (err) {
-          console.log("Could not fetch requirement for clientId", err);
-        }
-      }
-
-      const response = await SubmissionOrchestrator.submitCandidate({
+      const response = await submitCandidateProfile({
         candidateData: {
           name,
           email,
@@ -195,74 +143,31 @@ export default function CandidateSubmissionModal({
           skills: keySkills.split(",").map((s) => s.trim()).filter(Boolean),
         },
         requirementId: reqId,
-        clientId: targetClientId,
-        vendorId: orgId,
-        submitterId: submitterUid,
+        reqTitle,
+        clientId: "HQ", // Default fallback if not fetched
+        vendorId: "local",
+        submitterId: "local_user",
         initialStatus: "PENDING_REVIEW",
         matchScore: aiAnalysis?.fitScore || 0,
         aiAnalysis: aiAnalysis || null,
       });
 
-      if (!response.success && response.ownershipDetails) {
-         alert("Blocked: " + response.message);
+      if (response && !response.success) {
+         if (response.ownershipDetails) {
+            alert("Blocked: " + response.message);
+         } else {
+            alert("Submission failed: " + response.error);
+         }
          setIsSubmitting(false);
          return;
       }
       
-      if (!response.success) {
-         alert("Submission failed: " + response.error);
-         setIsSubmitting(false);
-         return;
-      }
-
-      const subRefId = response.submissionId;
-
-      if (reqId !== "GENERAL" && subRefId) {
-        // TRIGGER GOVERNANCE ENGINE
-        try {
-          await fetch("/api/validate-submission", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ submissionId: subRefId }),
-          });
-        } catch (e) {
-          console.error("Governance engine execution failed:", e);
-        }
-
-        await emitEvent(
-          "SubmissionCreated",
-          "SUBMISSION",
-          subRefId,
-          "local_user",
-          "vendor",
-          {
-            candidateId: response.candidateId,
-            candidateName: name,
-            requirementId: reqId,
-            reqTitle: reqTitle,
-            aiFitScore: aiAnalysis?.fitScore || 0,
-          },
-        );
-
-        // INITIALIZE WORKFLOW GRAPH
-        await workflowOrchestrator.initializeWorkflow(
-          "submission_lifecycle",
-          subRefId,
-          SubmissionState.SUBMITTED,
-          "local", // Vendor org context
-          "local_user",
-          "vendor_recruiter", // actorRole
-          "submissions"
-        );
-      }
-
       onClose();
       if (typeof alert !== "undefined") {
         alert("Candidate ingested & indexed via AI. Orchestrated successfully.");
       }
     } catch (error) {
       console.error("Submission failed: ", error);
-      handleFirestoreError(error, OperationType.WRITE, "candidatePool");
     } finally {
       setIsSubmitting(false);
     }

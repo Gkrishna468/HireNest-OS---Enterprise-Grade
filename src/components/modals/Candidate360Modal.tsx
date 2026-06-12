@@ -7,8 +7,6 @@ import {
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
 import { cn } from '../../lib/utils';
-import { db } from '../../lib/firebase';
-import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
 import { publishEvent } from '../../lib/eventEngine';
 import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
 import { parseBulkResumes } from "../../services/aiService";
@@ -64,42 +62,16 @@ export default function Candidate360Modal({
     if (deleteConfirmText !== "DELETE") return;
     setIsDeleting(true);
     try {
-      const { updateDoc, doc, collection, query, where, getDocs, serverTimestamp } = await import("firebase/firestore");
-      const candId = candidate.candidateId || candidate.id;
+      const { useCandidateStore } = await import("../../stores/CandidateStore");
+      await useCandidateStore.getState().deleteCandidate(candidate.candidateId || candidate.id);
       
-      const updateData = {
-        status: "DELETED",
-        isActive: false,
-        deletedAt: serverTimestamp(),
-        deletedBy: "super_admin",
-        deletionReason: "Admin Requested Deletion"
-      };
-
-      await updateDoc(doc(db, "candidatePool", candId), updateData);
-      
-      const ownershipQ = query(collection(db, "ownershipVault"), where("candidateId", "==", candId));
-      const ownershipSnap = await getDocs(ownershipQ);
-      for (const d of ownershipSnap.docs) {
-         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
-      }
-
-      const submissionsQ = query(collection(db, "submissions"), where("candidateId", "==", candId));
-      const submissionsSnap = await getDocs(submissionsQ);
-      for (const d of submissionsSnap.docs) {
-         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
-      }
-      
-      const dealRoomsQ = query(collection(db, "dealRooms"), where("candidateId", "==", candId));
-      const dealRoomsSnap = await getDocs(dealRoomsQ);
-      for (const d of dealRoomsSnap.docs) {
-         await updateDoc(d.ref, { isActive: false, status: "DELETED" });
-      }
-      
-      await publishEvent({
-        type: "info",
-        title: "Candidate Deleted",
-        message: `Candidate ${candId} was soft-deleted by user.`,
-        recipients: ["GLOBAL_ADMIN"]
+      import("../../lib/eventEngine").then(({ publishEvent }) => {
+        publishEvent({
+          type: "info",
+          title: "Candidate Deleted",
+          message: `Candidate ${candidate.candidateId || candidate.id} was soft-deleted by user.`,
+          recipients: ["GLOBAL_ADMIN"]
+        });
       });
       
       alert("Candidate successfully deleted.");
@@ -115,121 +87,12 @@ export default function Candidate360Modal({
   const handleRetryEnrichment = async () => {
     setIsRetrying(true);
     try {
-      const { updateDoc, doc, serverTimestamp, getDoc } = await import("firebase/firestore");
-      const candId = candidate.candidateId || candidate.id;
-      
-      let resumeTextToUse = candidate.resumeText || candidate.extractedText;
-
-      if (candidate.storagePath) {
-        try {
-          const { getStorage, ref, getDownloadURL } = await import("firebase/storage");
-          const storage = getStorage();
-          const fileRef = ref(storage, candidate.storagePath);
-          const url = await getDownloadURL(fileRef);
-          
-          const fileRes = await fetch(url);
-          const blob = await fileRes.blob();
-          
-          const formData = new FormData();
-          formData.append("file", blob, candidate.fileName || "resume.pdf");
-          
-          const extRes = await fetch("/api/extract-text", {
-             method: "POST",
-             body: formData
-          });
-          
-          if (extRes.ok) {
-             const extData = await extRes.json();
-             if (extData.text && extData.text.length > 50) {
-                 resumeTextToUse = extData.text;
-                 await updateDoc(doc(db, "candidatePool", candId), { resumeText: resumeTextToUse });
-             }
-          }
-        } catch (e) {
-          console.warn("Could not fetch or re-extract from storage, falling back to existing DB text", e);
-        }
-      }
-
-      if (!resumeTextToUse || resumeTextToUse.includes("[Parse Failure Fallback]") && resumeTextToUse.length < 500) {
-        alert("No valid resume text available to parse. Upload a new resume instead.");
-        setIsRetrying(false);
-        return;
-      }
-
-      const parsedResults = await parseBulkResumes([resumeTextToUse]);
-      const result = parsedResults && parsedResults.length > 0 ? parsedResults[0] : null;
-
-      if (result && result.name && result.name !== "Pending Distillation") {
-         // Prevent overwriting structural candidate properties
-         delete result.pipelineStage;
-         delete result.candidateId;
-         delete result.id;
-         
-         let updatePayload: any = {
-           ...result,
-           fullName: result.name,
-           name: result.name,
-           primaryEmail: result.email,
-           phoneHash: result.phone,
-           distillationStatus: result.status === "PARSE_FAILED" ? "FAILED" : "COMPLETED",
-           enrichmentAttempts: (candidate.enrichmentAttempts || 0) + 1,
-           lastEnrichmentAttemptAt: new Date().toISOString(),
-           lastEnrichmentStatus: result.status || "COMPLETED",
-           updatedAt: serverTimestamp(),
-           resumeStoragePath: candidate.storagePath || "",
-           resumeLastParsedAt: new Date().toISOString(),
-           resumeParserVersion: "v1_gemini_pro",
-           resumeSource: candidate.storagePath ? "firebase_storage_retry" : "db_text_fallback_retry"
-         };
-         
-         if (result.status === "PARSE_FAILED") {
-            updatePayload.failureReason = "MODEL_TIMEOUT_OR_FAILURE";
-         }
-         
-         const candSnap = await getDoc(doc(db, "candidatePool", candId));
-         if (candSnap.exists()) {
-             const candData = candSnap.data();
-             if (candData.manualName || candData.isNameManuallyEdited || candData.source === "Manual Add") {
-                 delete updatePayload.name;
-                 delete updatePayload.fullName;
-             }
-         }
-         
-         if (result.email === "pending@hirenest.os" || result.email === "mock@example.com") {
-             delete updatePayload.email;
-             delete updatePayload.primaryEmail;
-         }
-         
-         if (result.phone === "N/A" || result.phone === "Unparsed") {
-             delete updatePayload.phone;
-             delete updatePayload.phoneHash;
-         }
-         
-         if (result.name === "Unnamed Candidate" || result.name === "Parsing Pending" || result.name === "Candidate (Requires Human Review)") {
-             delete updatePayload.name;
-             delete updatePayload.fullName;
-         }
-
-         await updateDoc(doc(db, "candidatePool", candId), updatePayload);
-         if (result.status !== "PARSE_FAILED") {
-            alert("AI Enrichment Retry completed successfully.");
-         } else {
-            alert("Enrichment failed again. Please review the document manually.");
-         }
-      } else {
-         await updateDoc(doc(db, "candidatePool", candId), {
-           distillationStatus: "FAILED",
-           enrichmentAttempts: (candidate.enrichmentAttempts || 0) + 1,
-           lastEnrichmentAttemptAt: new Date().toISOString(),
-           lastEnrichmentStatus: "PARSE_FAILED",
-           failureReason: "MODEL_TIMEOUT_OR_FAILURE",
-           updatedAt: serverTimestamp(),
-         });
-         alert("Enrichment failed again. Please review the document manually.");
-      }
+      const { useCandidateStore } = await import("../../stores/CandidateStore");
+      await useCandidateStore.getState().retryEnrichment(candidate);
+      alert("AI Enrichment Retry completed successfully.");
     } catch (e: any) {
       console.error("Retry failed:", e);
-      alert("Retry failed: " + e.message);
+      alert("Retry failed / No valid text: " + e.message);
     } finally {
       setIsRetrying(false);
     }
@@ -239,15 +102,13 @@ export default function Candidate360Modal({
     if (!selectedJobId) return;
     setIsMapping(true);
     try {
-      const { auth } = await import("../../lib/firebase");
-      const submitterUid = auth.currentUser?.uid || "local_user";
-      
+      const { useSubmissionStore } = await import("../../stores/SubmissionStore");
       const selectedReq = jobs.find(j => j.id === selectedJobId);
       const targetClientId = selectedReq?.clientId || "ORG-CLIENT-1";
 
       const candidateId = candidate.candidateId || candidate.id;
       
-      const response = await SubmissionOrchestrator.submitCandidate({
+      const response = await useSubmissionStore.getState().submitCandidateProfile({
         candidateData: {
           id: candidateId,
           name: nameStr,
@@ -259,17 +120,17 @@ export default function Candidate360Modal({
         requirementId: selectedJobId,
         clientId: targetClientId,
         vendorId: userOrgId || "local",
-        submitterId: submitterUid,
+        submitterId: "local_user",
         initialStatus: "PENDING_REVIEW",
         matchScore: mappingResult?.matchScore || mappingResult?.fitScore || 0,
         aiAnalysis: mappingResult || null,
         bypassOwnershipCheck: isAdmin,
       });
 
-      if (response.success) {
+      if (response && response.success) {
         alert("Success: Candidate submitted successfully!");
       } else {
-        alert("Error: " + response.message);
+        alert("Error: " + (response?.message || "Failed"));
       }
     } catch(e) {
       console.error(e);
@@ -280,117 +141,40 @@ export default function Candidate360Modal({
   };
 
   useEffect(() => {
-    // Load timeline events
     const id = candidate.candidateId || candidate.originalId || candidate.id;
-
-    // Fetch full candidate from pool to get resumeText, skills, etc.
     let unsubProfile = () => {};
-    if (!userRole.includes("client")) {
-       import("firebase/firestore").then(({ doc, onSnapshot: os, getDoc }) => {
-         unsubProfile = os(doc(db, "candidatePool", id), async snap => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (!data.resumeText && !data.parsedResumeText && !data.extractedText) {
-                  // Fallback to resume_parses
-                  try {
-                    const parseDoc = await getDoc(doc(db, "resume_parses", id));
-                    if (parseDoc.exists()) {
-                      data.parsedResumeText = parseDoc.data().text || parseDoc.data().extractedText || "";
-                    }
-                  } catch(e) {}
-                }
-                setFullCandidateData(data);
-            }
-         }, err => console.warn(err));
-       });
-    } else {
-       import("../../lib/firebase").then(({ auth }) => {
-          auth.currentUser?.getIdToken().then(token => {
-             fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-             })
-             .then(async res => {
-                const text = await res.text();
-                try {
-                   return JSON.parse(text);
-                } catch {
-                   console.error("Failed to parse client-candidate response", text);
-                   return null;
-                }
-             })
+    let unsubEvents = () => {};
+    let unsubInterviews = () => {};
+    let unsubMatches = () => {};
+
+    import("../../stores/CandidateStore").then(({ useCandidateStore }) => {
+       const store = useCandidateStore.getState();
+       
+       if (!userRole.includes("client")) {
+          unsubProfile = store.subscribeToCandidate(id, (data) => {
+             setFullCandidateData(data);
+          });
+       }
+
+       if (!userRole.includes("client")) {
+          unsubEvents = store.subscribeToEvents(id, (evs) => setEvents(evs));
+          unsubInterviews = store.subscribeToInterviews(id, (ints) => setInterviews(ints));
+          unsubMatches = store.subscribeToMatches(id, selectedJobId || candidate.requirementId, (match) => {
+             if (match) setMappingResult(match);
+          });
+       } else {
+             fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`)
+             .then(res => res.json())
              .then(data => {
                 if (data?.candidate) setFullCandidateData(data.candidate);
                 if (data?.aiAnalysis) setMappingResult(data.aiAnalysis);
                 if (data?.interviews) {
-                    const ivs = data.interviews;
-                    ivs.sort((a: any, b: any) => {
-                      const ta = new Date(a.createdAt || 0).getTime();
-                      const tb = new Date(b.createdAt || 0).getTime();
-                      return tb - ta;
-                    });
-                    setInterviews(ivs);
+                    setInterviews(data.interviews);
                 }
              })
              .catch(err => console.warn("Failed to fetch client candidate data via API", err));
-          });
-       });
-    }
-    
-    // Load interviews via Firebase ONLY if not restricted client
-    let unsubInterviews = () => {};
-    if (!userRole.includes("client")) {
-       const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
-       unsubInterviews = onSnapshot(qInterviews, snap => {
-          const ivs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          ivs.sort((a: any, b: any) => {
-            const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
-            const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
-            return tb - ta;
-          });
-          setInterviews(ivs);
-       }, err => {
-          console.warn("Interview timeline error:", err.message);
-       });
-    }
-
-    let unsubEvents = () => {};
-    if (!userRole.includes("client")) {
-       let qEvents = query(collection(db, "operationalEvents"), where("entityId", "==", id));
-       unsubEvents = onSnapshot(qEvents, snap => {
-          const evs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          evs.sort((a: any, b: any) => {
-            const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime();
-            const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || 0).getTime();
-            return tb - ta;
-          });
-          setEvents(evs);
-       }, err => {
-          console.warn("Event timeline error:", err.message);
-       });
-    }
-
-    const reqIdTarget = candidate.requirementId || selectedJobId;
-    let unsubMatches = () => {};
-    if (!userRole.includes("client")) {
-        const qMatches = query(collection(db, "candidatePool", id, "ai_matches"));
-        unsubMatches = onSnapshot(qMatches, snap => {
-           const matches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-           if (matches.length > 0) {
-             if (reqIdTarget) {
-                const specificMatch = matches.find((m: any) => m.id === reqIdTarget || m.requirementId === reqIdTarget);
-                if (specificMatch) {
-                   setMappingResult(specificMatch);
-                   return;
-                }
-             }
-             // get the highest scoring match
-             matches.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
-             setMappingResult(matches[0]);
-           }
-        }, err => {
-           console.warn("AI Matches query error:", err);
-        });
-    }
+       }
+    });
 
     return () => {
        unsubProfile();
@@ -398,7 +182,7 @@ export default function Candidate360Modal({
        unsubInterviews();
        unsubMatches();
     };
-  }, [candidate]);
+  }, [candidate, selectedJobId, userRole, userOrgId]);
 
   const candidateIdStr = displayCandidate.candidateId || displayCandidate.id || "HN-CAN-PENDING";
   const nameStr = displayCandidate.candidateName || displayCandidate.displayName || displayCandidate.fullName || displayCandidate.name || displayCandidate.parsedName || displayCandidate.parsedResume?.name || displayCandidate.resumeData?.name || "Unknown Candidate";
@@ -864,11 +648,9 @@ export default function Candidate360Modal({
                       }
                       
                       const id = candidate.originalId || candidate.id || candidate.candidateId;
-                      import('firebase/firestore').then(({ doc, updateDoc }) => {
+                      import('../../stores/CandidateStore').then(({ useCandidateStore }) => {
                          if (id) {
-                            updateDoc(doc(db, "candidates", id), { comments: [...comments, newComment] }).catch(err => {
-                               // Fallback on candidates global
-                            });
+                            useCandidateStore.getState().updateCandidate(id, { comments: [...comments, newComment] }).catch(() => {});
                          }
                       });
                       input.value = "";

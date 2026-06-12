@@ -1,46 +1,17 @@
-import { db } from "../lib/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { ServiceProvider } from "../lib/providers/ServiceProvider";
+import { EventTypes } from "../lib/events/EventTypes";
 
-export type EventType = 
-  | "CandidateUploaded"
-  | "CandidateMatched"
-  | "SubmissionCreated"
-  | "SubmissionMatched"
-  | "InterviewScheduled"
-  | "JobPublished"
-  | "JobClosed"
-  | "DealRoomOpened"
-  | "PlacementCompleted"
-  | "GovernancePolicyApplied"
-  | "CandidateEnriched";
+export type EventType = keyof typeof EventTypes;
 
 export async function emitEvent(
-  type: EventType,
+  type: string,
   entityType: 'CANDIDATE' | 'JOB' | 'SUBMISSION' | 'DEAL_ROOM' | 'VENDOR' | 'SYSTEM',
   entityId: string,
   actorId: string,
   actorRole: string,
   metadata: Record<string, any> = {}
 ) {
-  try {
-    await addDoc(collection(db, "operationalEvents"), {
-      type,
-      entityType,
-      entityId,
-      actorId,
-      actorRole,
-      metadata,
-      eventVersion: 1,
-      correlationId: metadata?.correlationId || metadata?.requirementId || metadata?.jobId || entityId,
-      timestamp: serverTimestamp()
-    });
-  } catch (error: any) {
-    if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
-      console.warn(`[EventBus] emit deferred (Pending Firebase Rules Update)`);
-    } else {
-      console.error(`[EventBus] Failed to emit ${type}:`, error);
-    }
-  }
+  return ServiceProvider.eventService.emitEvent(type, entityType, entityId, actorId, actorRole, metadata);
 }
 
 export function subscribeToEvents(
@@ -49,60 +20,5 @@ export function subscribeToEvents(
   orgId?: string,
   role?: string
 ) {
-  let q;
-
-  const isAdminUser = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
-  const isClientUser = role?.includes("client");
-  const isVendorUser = role?.includes("vendor") || role?.includes("recruiter") || role?.includes("independent");
-
-  if (isAdminUser || !orgId) {
-    q = query(
-      collection(db, "operationalEvents"),
-      orderBy("timestamp", "desc"),
-      limit(limitCount)
-    );
-  } else if (isClientUser) {
-    q = query(
-      collection(db, "operationalEvents"),
-      where("metadata.clientId", "==", orgId),
-      limit(limitCount)
-    );
-  } else if (isVendorUser) {
-    q = query(
-      collection(db, "operationalEvents"),
-      where("metadata.vendorId", "==", orgId),
-      limit(limitCount)
-    );
-  } else {
-    q = query(
-      collection(db, "operationalEvents"),
-      orderBy("timestamp", "desc"),
-      limit(limitCount)
-    );
-  }
-  
-  return onSnapshot(q, (snapshot) => {
-    let events = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    if (!isAdminUser && orgId) {
-       events.sort((a: any, b: any) => {
-          const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
-          const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
-          return tb - ta;
-       });
-    }
-
-    callback(events);
-  }, (error) => {
-    if (error.code === 'permission-denied' || error.message.includes('Missing or insufficient permissions')) {
-      console.warn("[EventBus] Waiting for Firestore rules deployment to access operationalEvents.");
-      // Provide an empty feed gracefully until rules are deployed
-      callback([]);
-    } else {
-      console.error("[EventBus] Subscription error:", error);
-    }
-  });
+  return ServiceProvider.eventService.subscribeToEvents(callback, limitCount, orgId, role);
 }

@@ -1,10 +1,10 @@
-import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { ICandidateService } from '../contracts/ICandidateService';
 import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate';
 
 export class FirebaseCandidateService implements ICandidateService {
-  private collectionName = 'candidates';
+  private collectionName = 'candidatePool';
 
   async getCandidate(id: string): Promise<Candidate | null> {
     const docRef = doc(db, this.collectionName, id);
@@ -28,7 +28,33 @@ export class FirebaseCandidateService implements ICandidateService {
   }
 
   async archiveCandidate(id: string): Promise<void> {
+    const updateData = {
+      status: "DELETED",
+      isActive: false,
+      deletedAt: serverTimestamp(),
+      deletedBy: "system", // This should ideally come from parameter
+      deletionReason: "Admin Requested Deletion"
+    };
+
     const docRef = doc(db, this.collectionName, id);
-    await updateDoc(docRef, { isArchived: true });
+    await updateDoc(docRef, updateData);
+
+    const ownershipQ = query(collection(db, "ownershipVault"), where("candidateId", "==", id));
+    const ownershipSnap = await getDocs(ownershipQ);
+    for (const d of ownershipSnap.docs) {
+       await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+    }
+
+    const submissionsQ = query(collection(db, "submissions"), where("candidateId", "==", id));
+    const submissionsSnap = await getDocs(submissionsQ);
+    for (const d of submissionsSnap.docs) {
+       await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+    }
+    
+    const dealRoomsQ = query(collection(db, "dealRooms"), where("candidateId", "==", id));
+    const dealRoomsSnap = await getDocs(dealRoomsQ);
+    for (const d of dealRoomsSnap.docs) {
+       await updateDoc(d.ref, { isActive: false, status: "DELETED" });
+    }
   }
 }

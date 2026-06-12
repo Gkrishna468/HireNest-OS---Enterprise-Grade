@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { X, Calendar, Clock, Video, Users, AlignLeft, Globe, Link } from 'lucide-react';
 import { Button } from '../../lib/Button';
-import { db } from '../../lib/firebase';
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { useSubmissionStore } from '../../stores/SubmissionStore';
 
 export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const { updateInterviewEvent } = useSubmissionStore();
    const [formData, setFormData] = useState({
     round: 'Technical Round 1',
     date: '', // used as preferred date or exact date
@@ -30,52 +30,20 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
     
     setIsProcessing(true);
     try {
-      import('../../lib/firebase').then(({ auth }) => {
-        auth.currentUser?.getIdToken().then(async token => {
-          try {
-            const res = await fetch('/api/interviews', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                submission,
-                requirement,
-                isClientAction,
-                formData
-              })
-            });
-
-            if (!res.ok) {
-              const text = await res.text();
-              console.error("INTERVIEW RESPONSE ERROR", text);
-              let errorMsg = "Failed to schedule interview";
-              try {
-                const parsed = JSON.parse(text);
-                errorMsg = parsed.error || errorMsg;
-              } catch(e) {
-                errorMsg = text;
-              }
-              throw new Error(errorMsg);
-            }
-
-            alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
-            onClose();
-          } catch (e: any) {
-            console.error("Interview API error:", e);
-            alert("Error processing interview: " + e.message);
-            setIsProcessing(false);
-          }
-        }).catch(e => {
-          console.error(e);
-          alert("Error getting auth token: " + e.message);
-          setIsProcessing(false);
-        });
-      });
+      if (submission && submission.id) {
+         await updateInterviewEvent(submission.id, {
+            interviewStatus: isClientAction ? "INTERVIEW_REQUESTED" : "INTERVIEW_SCHEDULED",
+            interviewFeedback: "",
+            isNewRound: true,
+            interviewDetails: formData
+         });
+      }
+      alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
+      onClose();
     } catch (e: any) {
       console.error(e);
       alert("Error processing interview: " + e.message);
+    } finally {
       setIsProcessing(false);
     }
   };

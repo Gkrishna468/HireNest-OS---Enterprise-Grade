@@ -80,9 +80,9 @@ import { LiveToaster } from "./components/LiveToaster";
 import SignalsTab from "./views/SignalsTab";
 import { NotificationCenter } from "./components/NotificationCenter";
 
-import { auth, db } from "./lib/firebase";
+import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useSystemStore } from "./stores/SystemStore";
 
 import SettingsTab from "./views/SettingsTab";
 
@@ -131,148 +131,15 @@ const SidebarItem = ({
 
 const AppContent = () => {
   const location = useLocation();
-  const [user, setUser] = React.useState<any>(null);
-  const [userData, setUserData] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [showDemo, setShowDemo] = React.useState(false);
+  const { user, userData, loading, showDemo, initialize, closeDemo } = useSystemStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   React.useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (u) => {
-      console.log("AUTH UID", u?.uid);
-      setUser(u);
-      if (u) {
-        try {
-          const {
-            doc,
-            getDoc,
-            updateDoc,
-            collection,
-            query,
-            where,
-            getDocs,
-            deleteDoc,
-          } = await import("firebase/firestore");
-          const { db } = await import("./lib/firebase");
-          let d;
-          let data: any = {};
-          try {
-            d = await getDoc(doc(db, "users", u.uid));
-            if (d.exists()) {
-              data = d.data();
-            }
-          } catch (offlineError) {
-             console.warn("Failed to get user doc, possibly offline.", offlineError);
-             data = {}; 
-          }
-
-          const superAdmins = [
-            "gopal@hirenestworkforce.com",
-            "gopalkrishna0046@gmail.com",
-          ];
-          if (u.email && superAdmins.includes(u.email.toLowerCase())) {
-            data.role = "super_admin";
-            data.organizationId = "ORG-GLOBAL-HQ";
-            data.status = "ACTIVE";
-            data.onboardingCompleted = true;
-
-            // -------- ONE TIME CLEANUP SCRIPT -------- //
-            // This runs automatically for the admin to satisfy the roger1 request
-            try {
-              const q = query(
-                collection(db, "users"),
-                where("email", "==", "roger1@mapoutinc.com"),
-              );
-              const reqs = await getDocs(q);
-              if (!reqs.empty) {
-                for (let rUser of reqs.docs) {
-                  const uId = rUser.id;
-                  const uData = rUser.data();
-                  // reset onboarding flag
-                  if (uData.onboardingCompleted) {
-                    await updateDoc(doc(db, "users", uId), {
-                      onboardingCompleted: false,
-                      ndaUploaded: false,
-                      verificationStatus: "PENDING",
-                    });
-                  }
-                  const orgId = uData.organizationId || uData.orgId || uId;
-
-                  // Reset Org
-                  try {
-                    await updateDoc(doc(db, "organizations", orgId), {
-                      onboardingCompleted: false,
-                      ndaUploaded: false,
-                      verificationStatus: "PENDING",
-                    });
-                  } catch (e) {}
-
-                  // Submissions / DealRooms / Requirements
-                  const qReq = await getDocs(
-                    query(
-                      collection(db, "requirements"),
-                      where("clientId", "==", orgId),
-                    ),
-                  );
-                  let reqIds: string[] = [];
-                  for (let rDoc of qReq.docs) {
-                    reqIds.push(rDoc.id);
-                    await deleteDoc(rDoc.ref);
-                  }
-
-                  try {
-                    const qCand = await getDocs(
-                      collection(db, "candidatePool"),
-                    );
-                    for (let cDoc of qCand.docs) {
-                      const cd = cDoc.data();
-                      if (
-                        cd.vendorId === orgId ||
-                        cd.clientId === orgId ||
-                        reqIds.includes(cd.mappedJobId)
-                      ) {
-                        await deleteDoc(cDoc.ref);
-                      }
-                    }
-                  } catch (cleanupErr) {
-                    console.error(
-                      "Cleanup script error on candidatePool:",
-                      cleanupErr,
-                    );
-                  }
-
-                  const qDeal = await getDocs(collection(db, "dealRooms"));
-                  for (let dDoc of qDeal.docs) {
-                    const dd = dDoc.data();
-                    if (dd.requirementId && reqIds.includes(dd.requirementId)) {
-                      await deleteDoc(dDoc.ref);
-                    } else if (dd.clientId === orgId || dd.vendorId === orgId) {
-                      await deleteDoc(dDoc.ref);
-                    }
-                  }
-                  console.log("[CLEANUP] Wiped Roger1 context.");
-                }
-              }
-            } catch (cle) {
-              console.warn("[CLEANUP] Failed", cle);
-            }
-            // ------ END CLEANUP SCRIPT -------- //
-          }
-
-          setUserData(data);
-          if (!data.hasSeenDemo && Object.keys(data).length > 0) {
-            setShowDemo(true);
-          }
-        } catch (e) {
-          console.error("User data sync failed", e);
-        }
-      } else {
-        setUserData(null);
-      }
-      setLoading(false);
-    });
-    return () => unsub();
-  }, []);
+    const unsub = initialize();
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [initialize]);
 
   if (loading) {
     return (
@@ -326,15 +193,7 @@ const AppContent = () => {
       userData?.organizationId);
 
   const handleCloseDemo = async () => {
-    setShowDemo(false);
-    if (user) {
-      setUserData((prev: any) => ({ ...prev, hasSeenDemo: true }));
-      try {
-        await updateDoc(doc(db, "users", user.uid), { hasSeenDemo: true });
-      } catch (err) {
-        console.error("Failed to update demo flag:", err);
-      }
-    }
+    await closeDemo();
   };
 
   if (user && !hasCompletedOnboarding && !isAdmin) {

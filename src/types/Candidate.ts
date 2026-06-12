@@ -5,6 +5,7 @@ export interface Candidate {
   experience: string;
   domain: string;
   aiScore: number;
+  comments?: any[];
 }
 
 export type CandidateInput = Omit<Candidate, 'id'>;

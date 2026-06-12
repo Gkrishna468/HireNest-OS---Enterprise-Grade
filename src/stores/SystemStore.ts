@@ -1,0 +1,71 @@
+import { create } from 'zustand';
+import { ServiceProvider } from '../lib/providers/ServiceProvider';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+
+interface SystemState {
+  user: User | null;
+  userData: any | null;
+  loading: boolean;
+  showDemo: boolean;
+  initialize: () => () => void;
+  closeDemo: () => Promise<void>;
+}
+
+export const useSystemStore = create<SystemState>((set, get) => ({
+  user: null,
+  userData: null,
+  loading: true,
+  showDemo: false,
+  
+  initialize: () => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      console.log("AUTH UID", u?.uid);
+      set({ user: u });
+      if (u) {
+        try {
+          let data = await ServiceProvider.identityService.getUserProfile(u.uid) || {};
+          
+          const superAdmins = [
+            "gopal@hirenestworkforce.com",
+            "gopalkrishna0046@gmail.com",
+          ];
+          if (u.email && superAdmins.includes(u.email.toLowerCase())) {
+            data.role = "super_admin";
+            data.organizationId = "ORG-GLOBAL-HQ";
+            data.status = "ACTIVE";
+            data.onboardingCompleted = true;
+
+            // One-time cleanup script
+            await ServiceProvider.identityService.executeAdminCleanup("roger1@mapoutinc.com");
+          }
+
+          const hasSeenDemo = data.hasSeenDemo;
+          set({ 
+            userData: data,
+            showDemo: !hasSeenDemo && Object.keys(data).length > 0
+          });
+        } catch (e) {
+          console.error("User data sync failed", e);
+        }
+      } else {
+        set({ userData: null });
+      }
+      set({ loading: false });
+    });
+    return unsub;
+  },
+
+  closeDemo: async () => {
+    set({ showDemo: false });
+    const { user, userData } = get();
+    if (user) {
+      set({ userData: { ...userData, hasSeenDemo: true } });
+      try {
+        await ServiceProvider.identityService.updateDemoFlag(user.uid, true);
+      } catch (err) {
+        console.error("Failed to update demo flag:", err);
+      }
+    }
+  }
+}));
