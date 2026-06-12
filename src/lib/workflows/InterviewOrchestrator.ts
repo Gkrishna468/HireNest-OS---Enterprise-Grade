@@ -44,8 +44,25 @@ export class InterviewOrchestrator {
       updatedAt: serverTimestamp()
     });
 
-    // Add to deal room activity ledger
+    // Create or update the root deal room document
     if (req.dealRoomId) {
+      const { setDoc, getDoc } = await import('firebase/firestore');
+      const dealRoomRef = doc(db, "dealRooms", req.dealRoomId);
+      const dealRoomSnap = await getDoc(dealRoomRef);
+      if (!dealRoomSnap.exists()) {
+         await setDoc(dealRoomRef, {
+            id: req.dealRoomId,
+            submissionId: req.submissionId,
+            requirementId: req.requirementId,
+            candidateId: req.candidateId,
+            clientId: req.clientId,
+            vendorId: req.vendorId,
+            status: "ACTIVE",
+            currentStage: "interview",
+            createdAt: serverTimestamp(),
+         });
+      }
+
       await addDoc(collection(db, "dealRooms", req.dealRoomId, "messages"), {
         type: 'event',
         text: `Interview Requested: ${req.roundName}. Waiting for candidate availability.`,

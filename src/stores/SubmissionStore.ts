@@ -13,6 +13,7 @@ interface SubmissionState {
   createSubmission: (data: SubmissionInput) => Promise<Submission>;
   updateSubmission: (id: string, updates: Partial<Record<string, any>>) => Promise<void>;
   updateInterviewEvent: (id: string, event: Record<string, any>) => Promise<void>;
+  requestInterview: (id: string, reqDetails: any) => Promise<void>;
   updateStatus: (id: string, status: string) => Promise<void>;
   submitCandidateProfile: (payload: any) => Promise<any>;
 }
@@ -73,6 +74,35 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
       await ServiceProvider.submissionService.updateInterviewEvent(id, event);
       set((state) => {
         const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, interviewStatus: event.interviewStatus || state.selectedSubmission.interviewStatus } as Submission : state.selectedSubmission;
+        return { selectedSubmission: selected, isLoading: false };
+      });
+    } catch (e: any) {
+      set({ error: e.message, isLoading: false });
+      throw e;
+    }
+  },
+
+  requestInterview: async (id: string, reqDetails: any) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Using existing updateInterviewEvent logic pattern to simulate Service call
+      await ServiceProvider.submissionService.updateStatus(id, 'INTERVIEW_REQUESTED');
+      
+      // We can also trigger the Event Dispatcher here
+      const { EventDispatcher } = await import('../events/EventDispatcher');
+      const { EventTypes } = await import('../lib/events/EventTypes');
+      
+      const eventBus = EventDispatcher.getInstance();
+      await eventBus.publish({
+         id: "evt_" + Math.random().toString(36).substring(2, 9),
+         type: EventTypes.INTERVIEW_REQUESTED,
+         timestamp: new Date().toISOString(),
+         tenantId: "SYSTEM",
+         payload: { submissionId: id, ...reqDetails }
+      });
+      
+      set((state) => {
+        const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, status: 'INTERVIEW_REQUESTED' } as Submission : state.selectedSubmission;
         return { selectedSubmission: selected, isLoading: false };
       });
     } catch (e: any) {

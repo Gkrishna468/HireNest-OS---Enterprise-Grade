@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { auth } from './lib/firebase';
+import { initializeWorkflows } from './workflows';
+import { initializeEventBus } from './events';
+
+initializeWorkflows();
+initializeEventBus();
 
 const originalFetch = window.fetch;
 Object.defineProperty(window, 'fetch', {

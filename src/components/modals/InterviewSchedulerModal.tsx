@@ -5,7 +5,7 @@ import { useSubmissionStore } from '../../stores/SubmissionStore';
 
 export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
-  const { updateInterviewEvent } = useSubmissionStore();
+  const { updateInterviewEvent, requestInterview } = useSubmissionStore();
    const [formData, setFormData] = useState({
     round: 'Technical Round 1',
     date: '', // used as preferred date or exact date
@@ -31,12 +31,29 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
     setIsProcessing(true);
     try {
       if (submission && submission.id) {
-         await updateInterviewEvent(submission.id, {
-            interviewStatus: isClientAction ? "INTERVIEW_REQUESTED" : "INTERVIEW_SCHEDULED",
-            interviewFeedback: "",
-            isNewRound: true,
-            interviewDetails: formData
-         });
+         if (isClientAction) {
+            await requestInterview(submission.id, {
+               interviewStatus: "INTERVIEW_REQUESTED",
+               isNewRound: true,
+               interviewDetails: formData,
+               submissionId: submission.id,
+               candidateId: submission.candidateId,
+               requirementId: submission.requirementId,
+               clientId: submission.clientId,
+               vendorId: submission.vendorId,
+               dealRoomId: submission.dealRoomId || `DR-${submission.id}`,
+               round: formData.round,
+               interviewer: formData.interviewer,
+               date: formData.date
+            });
+         } else {
+            await updateInterviewEvent(submission.id, {
+               interviewStatus: "INTERVIEW_SCHEDULED",
+               interviewFeedback: "",
+               isNewRound: true,
+               interviewDetails: formData
+            });
+         }
       }
       alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
       onClose();
