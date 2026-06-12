@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Calendar, Clock, Video, Users, Navigation, Monitor, Plus, CheckCircle, MessageSquare } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, where, serverTimestamp } from 'firebase/firestore';
 import { Badge } from '../lib/Badge';
 import { publishEvent } from '../lib/eventEngine';
 import { Button } from '../lib/Button';
@@ -41,17 +41,22 @@ export default function InterviewsTab() {
 
                let q;
                if (role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin") {
-                 q = query(collection(db, "interviews"));
+                 q = query(collection(db, "submissions"));
                } else if (role.startsWith("vendor")) {
-                 q = query(collection(db, "interviews"), where("vendorId", "==", orgId));
+                 q = query(collection(db, "submissions"), where("vendorId", "==", orgId));
                } else if (role.startsWith("client") || role === "hiring_manager") {
-                 q = query(collection(db, "interviews"), where("clientId", "==", orgId));
+                 q = query(collection(db, "submissions"), where("clientId", "==", orgId));
                } else {
-                 q = query(collection(db, "interviews"));
+                 q = query(collection(db, "submissions"));
                }
 
                unsubscribeData = onSnapshot(q, querySnap => {
-                  const data = querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                  const allowedStatuses = ['INTERVIEW_REQUESTED', 'AVAILABILITY_PENDING', 'INTERVIEW_AVAILABLE', 'SCHEDULING', 'INTERVIEW_SCHEDULED', 'INTERVIEW_ROUND_1', 'INTERVIEW_ROUND_2', 'FINAL_INTERVIEW', 'COMPLETED', 'FEEDBACK_PENDING', 'DECISION_PENDING', 'PASSED'];
+                  
+                  const data = querySnap.docs
+                     .map(d => ({ id: d.id, ...d.data() }))
+                     .filter((d: any) => allowedStatuses.includes(d.status));
+                  
                   // Sort locally in memory to bypass composite index requirement
                   data.sort((a: any, b: any) => {
                      const aTime = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
@@ -80,17 +85,11 @@ export default function InterviewsTab() {
          return;
       }
       try {
-         await updateDoc(doc(db, "interviews", selectedInterview.id), {
+         await updateDoc(doc(db, "submissions", selectedInterview.id), {
             status: 'SCHEDULING',
-            availableSlots: validSlots,
-            updatedAt: new Date().toISOString()
+            'interviewDetails.availableSlots': validSlots,
+            updatedAt: serverTimestamp()
          });
-         
-         if (selectedInterview.submissionId) {
-            await updateDoc(doc(db, "submissions", selectedInterview.submissionId), {
-               status: 'SCHEDULING'
-            });
-         }
          
          await publishEvent({
             type: 'success',
@@ -115,20 +114,13 @@ export default function InterviewsTab() {
          return;
       }
       try {
-         await updateDoc(doc(db, "interviews", selectedInterview.id), {
+         await updateDoc(doc(db, "submissions", selectedInterview.id), {
             status: 'INTERVIEW_SCHEDULED',
-            date: confirmSlot.date,
-            time: confirmSlot.time,
-            meetingLink: confirmSlot.meetingLink || '',
-            startTime: `${confirmSlot.date}T${confirmSlot.time}`,
-            updatedAt: new Date().toISOString()
+            'interviewDetails.date': confirmSlot.date,
+            'interviewDetails.time': confirmSlot.time,
+            'interviewDetails.meetingLink': confirmSlot.meetingLink || '',
+            updatedAt: serverTimestamp()
          });
-         
-         if (selectedInterview.submissionId) {
-            await updateDoc(doc(db, "submissions", selectedInterview.submissionId), {
-               status: 'INTERVIEW_SCHEDULED',
-            });
-         }
          
          await publishEvent({
             type: 'success',
@@ -150,33 +142,25 @@ export default function InterviewsTab() {
       if (!selectedInterview) return;
 
       let newStatus = 'FEEDBACK_SUBMITTED';
-      if (feedback.decision === 'Proceed') newStatus = 'DECISION_PENDING';
-      else if (feedback.decision === 'Reject') newStatus = 'COMPLETED';
+      if (feedback.decision === 'Proceed') newStatus = 'SHORTLISTED';
+      else if (feedback.decision === 'Reject') newStatus = 'REJECTED';
+      else if (feedback.decision === 'Hold') newStatus = 'CLIENT_REVIEW';
 
       try {
-         await updateDoc(doc(db, "interviews", selectedInterview.id), {
-            status: newStatus,
-            feedback: {
-               ...feedback,
-               submittedAt: new Date().toISOString()
-            },
-            outcomeNotes: `Decision: ${feedback.decision}. Technical: ${feedback.technical}. Notes: ${feedback.notes}`
+         await updateDoc(doc(db, "submissions", selectedInterview.id), {
+             status: newStatus,
+             'interviewDetails.feedback': {
+                ...feedback,
+                submittedAt: new Date().toISOString()
+             },
+             'interviewDetails.outcomeNotes': `Decision: ${feedback.decision}. Technical: ${feedback.technical}. Notes: ${feedback.notes}`,
+             updatedAt: serverTimestamp()
          });
-         
-         if (selectedInterview.submissionId) {
-             let nextSubStatus = 'INTERVIEW_SCHEDULED';
-             if (feedback.decision === 'Proceed') nextSubStatus = 'SHORTLISTED';
-             else if (feedback.decision === 'Reject') nextSubStatus = 'REJECTED';
-             else if (feedback.decision === 'Hold') nextSubStatus = 'CLIENT_REVIEW';
-             await updateDoc(doc(db, "submissions", selectedInterview.submissionId), {
-                 status: nextSubStatus
-             });
-         }
          
          await publishEvent({
             type: feedback.decision === 'Reject' ? 'urgent' : 'success',
             title: `Interview Feedback Submitted`,
-            message: `Decision: ${feedback.decision} for ${selectedInterview.round}. ${feedback.notes}`,
+            message: `Decision: ${feedback.decision}. ${feedback.notes}`,
             recipients: ["GLOBAL_ADMIN"]
          });
          
@@ -241,7 +225,35 @@ export default function InterviewsTab() {
             {KANBAN_STAGES.map(stage => {
                const stageCards = columns[stage.id];
                return (
-                  <div key={stage.id} className="w-80 shrink-0 flex flex-col max-h-full">
+                  <div key={stage.id} 
+                       className="w-80 shrink-0 flex flex-col max-h-full"
+                       onDragOver={e => e.preventDefault()}
+                       onDrop={async e => {
+                          e.preventDefault();
+                          const dataStr = e.dataTransfer.getData("application/json");
+                          if (!dataStr) return;
+                          try {
+                             const inv = JSON.parse(dataStr);
+                             if (!inv || !inv.id) return;
+                             
+                             // Dispatch to SubmissionStore updateStatus (mimicking UI action to Store pattern)
+                             await updateDoc(doc(db, "submissions", inv.id), {
+                                status: stage.id,
+                                updatedAt: serverTimestamp()
+                             });
+                             
+                             // Publish event for tracking/workflows
+                             await publishEvent({
+                                type: 'success',
+                                title: `Stage Advanced`,
+                                message: `Moved ${inv.candidateName} to ${stage.label}.`,
+                                recipients: ["GLOBAL_ADMIN"]
+                             });
+                          } catch (err) {
+                             console.error("Drop failed:", err);
+                          }
+                       }}
+                  >
                      <div className="font-bold text-[11px] uppercase tracking-widest text-slate-500 mb-3 flex items-center justify-between">
                         {stage.label}
                         <Badge variant="outline" className="bg-white text-slate-500 border-slate-200">{stageCards.length}</Badge>
@@ -251,19 +263,26 @@ export default function InterviewsTab() {
                            const createdAtMs = inv.createdAt ? (inv.createdAt.seconds ? inv.createdAt.seconds * 1000 : new Date(inv.createdAt).getTime()) : Date.now();
                            const ageHours = Math.floor((Date.now() - createdAtMs) / (1000 * 60 * 60));
                            const isBreached = ageHours > 24;
+                           const det = inv.interviewDetails || {};
                            
                            return (
-                           <div key={inv.id} onClick={() => setSelectedInterview(inv)} className={`bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer block ${isBreached && (inv.status === 'REQUESTED' || inv.status === 'AVAILABILITY_PENDING') ? 'border-rose-300' : 'border-slate-200 hover:border-indigo-300'}`}>
+                           <div key={inv.id} 
+                                draggable 
+                                onDragStart={e => {
+                                   e.dataTransfer.setData("application/json", JSON.stringify(inv));
+                                }}
+                                onClick={() => setSelectedInterview(inv)} 
+                                className={`bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer block ${isBreached && (inv.status === 'REQUESTED' || inv.status === 'AVAILABILITY_PENDING') ? 'border-rose-300' : 'border-slate-200 hover:border-indigo-300'}`}>
                               <div className="flex items-center justify-between mb-2">
-                                 <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] uppercase tracking-wider">{inv.round || 'Round'}</Badge>
+                                 <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] uppercase tracking-wider">{det.round || 'Round'}</Badge>
                                  <span className="text-[10px] text-slate-400 font-mono">
                                     Age: {ageHours}h
                                  </span>
                               </div>
                               <h3 className="font-bold text-slate-800 text-sm mb-2">{inv.candidateName || 'Candidate'}</h3>
                               <div className="space-y-1 text-xs text-slate-500 mb-3">
-                                 <div className="flex items-center gap-2"><Calendar size={12}/> {inv.date || 'TBD'} {inv.time ? `at ${inv.time}` : ''}</div>
-                                 <div className="flex items-center gap-2"><Users size={12}/> {inv.interviewer || 'TBD'}</div>
+                                 <div className="flex items-center gap-2"><Calendar size={12}/> {det.date || 'TBD'} {det.time ? `at ${det.time}` : ''}</div>
+                                 <div className="flex items-center gap-2"><Users size={12}/> {det.interviewer || 'TBD'}</div>
                               </div>
                               <div className={`mt-3 text-[10px] uppercase font-bold tracking-widest flex items-center justify-between px-2 py-1 rounded-md ${isBreached ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                  <span>SLA Status</span>
@@ -278,12 +297,14 @@ export default function InterviewsTab() {
             })}
          </div>
 
-         {selectedInterview && (
+         {selectedInterview && (() => {
+            const det = selectedInterview.interviewDetails || {};
+            return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
                <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
                   <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-2xl">
                      <div>
-                        <h2 className="text-xl font-bold tracking-tight text-slate-900">{selectedInterview.round || 'Interview Details'}</h2>
+                        <h2 className="text-xl font-bold tracking-tight text-slate-900">{det.round || 'Interview Details'}</h2>
                         <div className="text-xs text-slate-500 font-medium tracking-wide mt-1 uppercase">{selectedInterview.status || 'SCHEDULED'}</div>
                      </div>
                      <button onClick={() => setSelectedInterview(null)} className="p-2 bg-white rounded-full border border-slate-200 hover:bg-slate-100"><Plus size={20} className="rotate-45" /></button>
@@ -296,30 +317,30 @@ export default function InterviewsTab() {
                         </div>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Interviewer</div>
-                           <div className="font-semibold text-slate-800 text-sm">{selectedInterview.interviewer || 'TBD'}</div>
+                           <div className="font-semibold text-slate-800 text-sm">{det.interviewer || 'TBD'}</div>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Date & Time</div>
-                           <div className="font-semibold text-slate-800 text-sm">{selectedInterview.date || 'TBD'} {selectedInterview.time || ''}</div>
+                           <div className="font-semibold text-slate-800 text-sm">{det.date || 'TBD'} {det.time || ''}</div>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Platform</div>
-                           <div className="font-semibold text-slate-800 text-sm">{selectedInterview.mode || 'TBD'}</div>
+                           <div className="font-semibold text-slate-800 text-sm">{det.mode || 'TBD'}</div>
                         </div>
                      </div>
 
-                     {selectedInterview.meetingLink && (
+                     {det.meetingLink && (
                         <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
                            <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-1">Meeting Link</div>
-                           <a href={selectedInterview.meetingLink} target="_blank" rel="noreferrer" className="text-indigo-600 font-semibold text-sm hover:underline flex items-center gap-2">
-                              {selectedInterview.meetingLink} <Navigation size={12}/>
+                           <a href={det.meetingLink} target="_blank" rel="noreferrer" className="text-indigo-600 font-semibold text-sm hover:underline flex items-center gap-2">
+                              {det.meetingLink} <Navigation size={12}/>
                            </a>
                         </div>
                      )}
 
                      <div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Preparation Notes</div>
-                        <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">{selectedInterview.notes || 'No specific notes.'}</p>
+                        <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">{det.notes || 'No specific notes.'}</p>
                      </div>
                   </div>
                   <div className="p-4 bg-slate-50 border-t border-slate-100 rounded-b-2xl flex gap-3 justify-end shrink-0">
@@ -342,7 +363,8 @@ export default function InterviewsTab() {
                   </div>
                </div>
             </div>
-         )}
+            );
+         })()}
 
          {showAvailabilityForm && (
             <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -390,11 +412,11 @@ export default function InterviewsTab() {
                   </h3>
                   <div className="text-xs text-slate-500 mb-4">Select from provided slots or enter a new confirmed date and time.</div>
                   
-                  {selectedInterview?.availableSlots && selectedInterview.availableSlots.length > 0 && (
+                  {selectedInterview?.interviewDetails?.availableSlots && selectedInterview.interviewDetails.availableSlots.length > 0 && (
                      <div className="mb-4">
                         <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Provided Slots</label>
                         <div className="space-y-2">
-                           {selectedInterview.availableSlots.map((slot: any, idx: number) => (
+                           {selectedInterview.interviewDetails.availableSlots.map((slot: any, idx: number) => (
                               <button key={idx} onClick={() => setConfirmSlot({ ...confirmSlot, date: slot.date, time: slot.time })} className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors ${confirmSlot.date === slot.date && confirmSlot.time === slot.time ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-200 bg-white hover:border-indigo-300'}`}>
                                  {slot.date} at {slot.time}
                               </button>

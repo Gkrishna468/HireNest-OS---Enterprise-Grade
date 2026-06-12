@@ -30,15 +30,9 @@ export class InterviewOrchestrator {
    * Status change: SUBMITTED or SHORTLISTED -> INTERVIEW_REQUESTED
    */
   static async requestInterview(req: InterviewRequest) {
-    // We would create an interview document in 'interviews' collection
-    const interviewRef = await addDoc(collection(db, "interviews"), {
-      ...req,
-      status: 'AVAILABILITY_PENDING',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    // We do not create an 'interviews' document anymore; it's projected from Submission
 
-    // Update Submission Status
+    // Update Submission Status (if not already done by UI store)
     await updateDoc(doc(db, "submissions", req.submissionId), {
       status: 'INTERVIEW_REQUESTED',
       updatedAt: serverTimestamp()
@@ -72,7 +66,7 @@ export class InterviewOrchestrator {
       });
     }
 
-    return interviewRef.id;
+    return req.submissionId;
   }
 
   /**

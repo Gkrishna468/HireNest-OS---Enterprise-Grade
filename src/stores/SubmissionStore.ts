@@ -86,6 +86,10 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // Using existing updateInterviewEvent logic pattern to simulate Service call
+      await ServiceProvider.submissionService.updateInterviewEvent(id, {
+        interviewStatus: "INTERVIEW_REQUESTED",
+        interviewDetails: reqDetails.interviewDetails
+      });
       await ServiceProvider.submissionService.updateStatus(id, 'INTERVIEW_REQUESTED');
       
       // We can also trigger the Event Dispatcher here
@@ -102,7 +106,7 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
       });
       
       set((state) => {
-        const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, status: 'INTERVIEW_REQUESTED' } as Submission : state.selectedSubmission;
+        const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, status: 'INTERVIEW_REQUESTED', interviewStatus: 'INTERVIEW_REQUESTED', interviewDetails: reqDetails.interviewDetails } as Submission : state.selectedSubmission;
         return { selectedSubmission: selected, isLoading: false };
       });
     } catch (e: any) {
