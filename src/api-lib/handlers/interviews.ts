@@ -71,22 +71,24 @@ export default async function handler(req: any, res: any) {
 
       console.log("ROOM CREATE");
       // 1. Create Handle Deal Room
-      let roomId = submission.dealRoomId;
-      if (!roomId) {
-         roomId = "DR-" + Math.random().toString(36).substr(2, 9);
-         await adminDb.collection("dealRooms").doc(roomId).set({
+      let roomId = `DR-${subId}`;
+      const drRef = adminDb.collection("dealRooms").doc(roomId);
+      const drSnap = await drRef.get();
+      if (!drSnap.exists) {
+         await drRef.set({
            id: roomId,
+           submissionId: subId,
            requirementId: requirement.id || "",
            candidateId: submission.candidateId || "",
            vendorId: submission.vendorId || "Unknown",
            clientId: requirement.clientId || submission.clientId || "",
+           participants: [requirement.clientId || submission.clientId, submission.vendorId],
            clientName: requirement.clientName || 'Client',
            vendorName: submission.vendorName || 'Vendor',
            candidateName: submission.candidateName || 'Anonymous',
            jobTitle: requirement.title || "Strategic Role",
            experience: requirement.experience || "Not Specified",
            status: "ACTIVE",
-           currentStage: formData.round || "interview",
            identitiesRevealed: false,
            createdAt: new Date(),
            matchData: { matchScore: submission.matchScore || 0 }

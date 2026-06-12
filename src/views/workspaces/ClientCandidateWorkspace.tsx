@@ -6,6 +6,8 @@ import { CheckCircle, Target, User, Presentation, Activity, Sparkles } from "luc
 import Candidate360Modal from "../../components/modals/Candidate360Modal";
 import { InterviewSchedulerModal } from "../../components/modals/InterviewSchedulerModal";
 
+import { useSubmissionStore } from "../../stores/SubmissionStore";
+
 export default function ClientCandidateWorkspace({ userOrgId, userRole }: { userOrgId: string; userRole: string }) {
   const [activeTab, setActiveTab] = useState<"MATCHED" | "SUBMITTED" | "SHORTLISTED" | "INTERVIEWS" | "OFFERS" | "PLACED">("SUBMITTED");
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -15,14 +17,12 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
   const [loading, setLoading] = useState(true);
 
   const [reqs, setReqs] = useState<Record<string, string>>({});
+  const { updateStatus } = useSubmissionStore();
 
   const handleShortlist = async (candidate: any) => {
     if (!candidate.submissionId) return alert("Cannot shortlist - missing submission context. Was this from AI Matches?");
     try {
-      await updateDoc(doc(db, "submissions", candidate.submissionId), {
-        status: "SHORTLISTED",
-        updatedAt: serverTimestamp()
-      });
+      await updateStatus(candidate.submissionId, "SHORTLISTED");
       alert("Candidate shortlisted successfully.");
       setSelectedCandidate(null);
     } catch (e) {
@@ -37,10 +37,9 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
     if (!reason) return;
     try {
       await updateDoc(doc(db, "submissions", candidate.submissionId), {
-        status: "REJECTED",
-        rejectReason: reason,
-        updatedAt: serverTimestamp()
+         rejectReason: reason
       });
+      await updateStatus(candidate.submissionId, "REJECTED");
       alert("Candidate rejected.");
       setSelectedCandidate(null);
     } catch (e) {
@@ -55,34 +54,16 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
       if (candidate.dealRoomId) {
          window.location.href = "/deal-rooms"; 
       } else {
-         const roomId = "DR-" + Math.random().toString(36).substr(2, 9);
-         await addDoc(collection(db, "dealRooms"), {
-           id: roomId,
-           requirementId: candidate.requirementId || "",
-           candidateId: candidate.candidateId || candidate.id,
-           vendorId: candidate.vendorId || "Unknown",
-           clientId: userOrgId,
-           clientName: 'Client',
-           vendorName: candidate.vendorName || 'Vendor',
-           candidateName: candidate.candidateName || candidate.name || 'Anonymous',
-           jobTitle: candidate.reqTitle || reqs[candidate.requirementId] || "Strategic Role",
-           experience: candidate.experience || "Not Specified",
-           status: "ACTIVE",
-           currentStage: "clarification",
-           identitiesRevealed: false,
-           createdAt: serverTimestamp(),
-           matchData: { matchScore: candidate.matchScore || 0 }
-         });
-         await updateDoc(doc(db, "submissions", candidate.submissionId), {
-           dealRoomId: roomId,
-           updatedAt: serverTimestamp()
-         });
-         alert("Clarification thread (Deal Room) created successfully.");
+         const roomId = `DR-${candidate.submissionId}`;
+         // We also update dealRoomId before status update so projection works
+         await updateDoc(doc(db, "submissions", candidate.submissionId), { dealRoomId: roomId });
+         await updateStatus(candidate.submissionId, "INTERVIEW_REQUESTED");
+         alert("Deal Room request sent. The projection will be built.");
          setSelectedCandidate(null);
       }
     } catch (e) {
        console.error(e);
-       alert("Error creating Deal Room.");
+       alert("Error requesting Deal Room.");
     }
   };
 

@@ -115,6 +115,30 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await ServiceProvider.submissionService.updateStatus(id, status);
+      
+      const { EventDispatcher } = await import('../events/EventDispatcher');
+      const { EventTypes } = await import('../lib/events/EventTypes');
+      const eventBus = EventDispatcher.getInstance();
+      
+      // Emit status update generically
+      await eventBus.publish({
+         id: "evt_" + Math.random().toString(36).substring(2, 9),
+         type: EventTypes.SUBMISSION_STATUS_UPDATED,
+         timestamp: new Date().toISOString(),
+         tenantId: "SYSTEM",
+         payload: { submissionId: id, status }
+      });
+
+      if (status === 'REJECTED' || status === 'ARCHIVED') {
+         await eventBus.publish({
+            id: "evt_" + Math.random().toString(36).substring(2, 9),
+            type: EventTypes.SUBMISSION_ARCHIVED,
+            timestamp: new Date().toISOString(),
+            tenantId: "SYSTEM",
+            payload: { submissionId: id, status }
+         });
+      }
+
       set((state) => {
         const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, status } as Submission : state.selectedSubmission;
         return { selectedSubmission: selected, isLoading: false };

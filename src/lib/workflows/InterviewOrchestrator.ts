@@ -57,8 +57,8 @@ export class InterviewOrchestrator {
             candidateId: req.candidateId,
             clientId: req.clientId,
             vendorId: req.vendorId,
+            participants: [req.clientId, req.vendorId],
             status: "ACTIVE",
-            currentStage: "interview",
             createdAt: serverTimestamp(),
          });
       }
