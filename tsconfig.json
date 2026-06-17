@@ -32,7 +32,8 @@
     "src/**/*.tsx",
     "api/**/*.ts",
     "lib/**/*.ts",
-    "server.ts"
+    "server.ts",
+    "packages/**/*.ts"
   ],
   "exclude": [
     "node_modules",

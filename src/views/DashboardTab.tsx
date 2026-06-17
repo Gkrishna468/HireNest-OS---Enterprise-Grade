@@ -186,6 +186,63 @@ export default function DashboardTab() {
       }
   };
 
+  const handleFixVisibilityDrift = async () => {
+      if(!window.confirm("This will synchronize candidatePool.activePipelines with existing submissions and remove orphans. Continue?")) {
+        return;
+      }
+      try {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          const cands = await getDocs(collection(db, "candidatePool"));
+          const subs = await getDocs(collection(db, "submissions"));
+
+          let fixedCount = 0;
+
+          // Process candidates
+          for (const c of cands.docs) {
+             const cand = c.data();
+             const candId = cand.candidateId || c.id;
+             let changed = false;
+             const activePipelines = cand.activePipelines || [];
+             let updatedPipelines = [...activePipelines];
+
+             // 1. Remove orphaned activePipelines (candidate has reqId but no matching submission)
+             for (const reqId of activePipelines) {
+                const hasSub = subs.docs.some(s => {
+                    const sData = s.data();
+                    return sData.candidateId === candId && (sData.requirementId === reqId || sData.canonicalRequirementId === reqId);
+                });
+                if (!hasSub) {
+                   updatedPipelines = updatedPipelines.filter(id => id !== reqId);
+                   changed = true;
+                }
+             }
+
+             // 2. Add missing activePipelines (submission exists but candidate missing reqId)
+             subs.docs.forEach(sDoc => {
+                const s = sDoc.data();
+                if (s.candidateId === candId && s.status !== "REJECTED" && s.status !== "REJECT") {
+                   const reqId = s.requirementId || s.canonicalRequirementId;
+                   if (reqId && !updatedPipelines.includes(reqId)) {
+                      updatedPipelines.push(reqId);
+                      changed = true;
+                   }
+                }
+             });
+
+             if (changed) {
+                await updateDoc(doc(db, "candidatePool", c.id), {
+                   activePipelines: updatedPipelines
+                });
+                fixedCount++;
+             }
+          }
+
+          alert(`Visibility Drift Fixed! Repaired ${fixedCount} candidate pipelines.`);
+      } catch (err: any) {
+          alert("Fix failed: " + err.message);
+      }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -409,6 +466,14 @@ export default function DashboardTab() {
                         >
                            <Database size={12} className="mr-2" />
                            Fix Candidate Drift
+                        </Button>
+                        <Button
+                           onClick={handleFixVisibilityDrift}
+                           variant="outline"
+                           className="text-[9px] uppercase font-bold tracking-widest border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-8"
+                        >
+                           <Database size={12} className="mr-2" />
+                           Fix Visibility Drift
                         </Button>
                       </div>
                     </div>

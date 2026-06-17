@@ -35,6 +35,7 @@ import googleProxyHandler from './src/api-lib/handlers/google-proxy';
 import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
 import interviewsHandler from './src/api-lib/handlers/interviews';
+import integrationsHandler from './src/api-lib/handlers/integrations';
 
 import analyticsHandler from './src/api-lib/handlers/analytics';
 
@@ -227,6 +228,11 @@ async function createServer() {
         case 'analytics/hq':
         case 'analytics/hq-production-health':
           return await analyticsHandler(req, res);
+
+        case 'integrations/events':
+        case 'integrations/sync/resolve':
+        case 'integrations/status':
+          return await integrationsHandler(req, res);
       }
       
       console.warn(`[API_404] No static handler explicitly configured for: ${apiPath}.`);

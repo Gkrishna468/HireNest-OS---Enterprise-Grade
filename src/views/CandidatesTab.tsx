@@ -266,7 +266,13 @@ export default function CandidatesTab() {
 
       if (candSnap.exists()) {
          const data = candSnap.data();
-         const candHash = await generateIdentityHash(data.email || "", data.phone !== "No Phone Provided" ? data.phone || "" : "");
+         const candHash = await generateIdentityHash(
+            data.email || "", 
+            data.phone !== "No Phone Provided" ? data.phone || "" : "",
+            data.name || data.fullName || "",
+            data.linkedin || "",
+            data.experience || ""
+         );
          if (candHash) {
              try {
                 await updateDoc(doc(db, "candidate_identity", candHash), {
@@ -457,7 +463,12 @@ export default function CandidatesTab() {
               q,
               (snap) => {
                 setCandidates(
-                  snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c: any) => c.status !== "DELETED" && c.isActive !== false),
+                  snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c: any) => 
+                     c.status !== "DELETED" && 
+                     c.isActive !== false && 
+                     c.name !== "Parsing Pending" &&
+                     c.status !== "PARSING_PENDING"
+                  ),
                 );
               },
               (error: any) => {
@@ -750,7 +761,13 @@ export default function CandidatesTab() {
       // Candidate Ownership Vault Logic
       let candHash = null;
       if (formData.email || formData.phone) {
-        candHash = await generateIdentityHash(formData.email, formData.phone);
+        candHash = await generateIdentityHash(
+          formData.email, 
+          formData.phone,
+          formData.name,
+          formData.linkedin,
+          formData.experience
+        );
       }
 
       if (dMatch) {
@@ -1149,7 +1166,13 @@ ${extText}`;
             const candSnap = await getDoc(doc(db, "candidatePool", candId));
             const submissionVendorId = candSnap.exists() ? candSnap.data().vendorId : "UNKNOWN_VENDOR";
 
-            const candHash = await generateIdentityHash(result.email, result.phone !== "No Phone Provided" ? result.phone : "");
+            const candHash = await generateIdentityHash(
+              result.email, 
+              result.phone !== "No Phone Provided" ? result.phone : "",
+              result.name || "",
+              result.linkedin || "",
+              result.experience || ""
+            );
             
             if (candHash) {
                 const vaultResult = await checkAndClaimOwnership(candHash, submissionVendorId, result.name, "Bulk Upload AI Parse", result.email, result.phone !== "No Phone Provided" ? result.phone : "");

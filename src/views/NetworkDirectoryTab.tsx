@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Network, Users, Building2, Fingerprint, Activity, ActivityIcon, FileText, ShieldCheck, CheckCircle } from "lucide-react";
@@ -39,17 +40,23 @@ export default function NetworkDirectoryTab() {
     fetchOrgs();
   }, []);
 
+  const location = useLocation();
+  const rawType = new URLSearchParams(location.search).get("type"); // 'vendor' or 'client'
+  
+  // Decide what to do with activeFilter
+  const typeFilter = rawType === 'vendor' ? 'VENDOR' : rawType === 'client' ? 'CLIENT' : null;
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         let q;
         if (activeFilter === 'organizations') {
-          q = query(collection(db, "organizations"), limit(50));
+          q = query(collection(db, "organizations"), limit(100));
         } else if (activeFilter === 'people') {
-          q = query(collection(db, "users"), limit(50));
+          q = query(collection(db, "users"), limit(100));
         } else if (activeFilter === 'candidates') {
-          q = query(collection(db, "candidatePool"), limit(50));
+          q = query(collection(db, "candidatePool"), limit(100));
         } else if (activeFilter === 'activity') {
           // Just use the events we already have subscription for
           setData(events);
@@ -61,8 +68,34 @@ export default function NetworkDirectoryTab() {
           try {
             const snap = await getDocs(q);
             const results = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+            
             if (activeFilter === 'candidates') {
-               setData(results.filter((c:any) => c.status !== "DELETED" && c.isActive !== false));
+               setData(results.filter((c:any) => 
+                 c.status !== "DELETED" && 
+                 c.isActive !== false &&
+                 c.name &&
+                 c.name !== "Parsing Pending" &&
+                 c.status !== "PARSING_PENDING"
+               ));
+            } else if (activeFilter === 'organizations') {
+               // Filter organizations by vendor/client if specified
+               if (typeFilter) {
+                 setData(results.filter((o:any) => o.type === typeFilter || (o.type || "").toUpperCase() === typeFilter));
+               } else {
+                 setData(results);
+               }
+            } else if (activeFilter === 'people') {
+               // Filter users by vendor/client if specified
+               if (typeFilter) {
+                 setData(results.filter((u:any) => {
+                   const r = (u.role || "").toUpperCase();
+                   if (typeFilter === 'VENDOR') return r.includes('VENDOR');
+                   if (typeFilter === 'CLIENT') return r.includes('CLIENT');
+                   return false;
+                 }));
+               } else {
+                 setData(results);
+               }
             } else {
                setData(results);
             }
@@ -77,7 +110,7 @@ export default function NetworkDirectoryTab() {
       setLoading(false);
     };
     fetchData();
-  }, [activeFilter, events]);
+  }, [activeFilter, events, typeFilter]);
 
   const renderContent = () => {
     if (loading) {

@@ -1,13 +1,16 @@
 import { db } from './firebase';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
-export async function generateIdentityHash(email: string, phone: string): Promise<string | null> {
+export async function generateIdentityHash(email: string, phone: string, name: string = "", linkedin: string = "", experience: string = ""): Promise<string | null> {
   const normEmail = email?.trim().toLowerCase() || "";
   const normPhone = phone?.replace(/\D/g, "") || "";
+  const normName = name?.trim().toLowerCase().replace(/\s+/g, "") || "";
+  const normLinkedIn = linkedin?.trim().toLowerCase() || "";
+  const normExp = experience?.trim().toLowerCase() || "";
   
-  if (!normEmail && !normPhone) return null;
+  if (!normEmail && !normPhone && !normName) return null;
   
-  const input = `${normEmail}|${normPhone}`;
+  const input = `${normEmail}|${normPhone}|${normName}|${normLinkedIn}|${normExp}`;
   const utf8 = new TextEncoder().encode(input);
   const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
