@@ -38,7 +38,8 @@ import {
   TrendingUp,
   ShieldAlert,
   Globe2,
-  Video
+  Video,
+  Star
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -61,6 +62,7 @@ import FinancialsTab from "./views/FinancialsTab";
 import TrustEngineTab from "./views/TrustEngineTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
+import MatchIntelligenceTab from "./views/MatchIntelligenceTab";
 import AdminOverview from "./views/AdminOverview";
 import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
 import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
@@ -291,6 +293,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Intelligence"
+                active={location.pathname === "/matches"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 id="tour-submissions"
                 to="/deal-rooms"
                 icon={MessageSquare}
@@ -358,6 +367,13 @@ const AppContent = () => {
                 icon={Users}
                 label="Candidates"
                 active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Intelligence"
+                active={location.pathname === "/matches"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -503,6 +519,13 @@ const AppContent = () => {
                 icon={Users}
                 label="Candidates"
                 active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Intelligence"
+                active={location.pathname === "/matches"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -742,6 +765,7 @@ const AppContent = () => {
               />
             )}
             <Route path="/candidates" element={<CandidatesTab />} />
+            <Route path="/matches" element={<MatchIntelligenceTab />} />
             <Route path="/jobs" element={<JobsTab />} />
             <Route 
               path="/pipeline" 

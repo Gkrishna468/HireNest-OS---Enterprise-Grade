@@ -49,6 +49,30 @@ We are temporarily pausing net-new AI capability development (no autonomous recr
 
 Every architectural or code change MUST be strictly validated against the 6-Stage Gate (Product Manager, Software Architect, Firestore Auditor, Governance Auditor, Security Auditor, AI Matching Auditor) as documented in `docs/20_PRODUCTION_READINESS_CERTIFICATION.md`. AI Matching is restricted to Layer 1 (Deterministic), Layer 2 (Semantic Inference), and Layer 3 (Recruiter Override). Recruiter insights ALWAYS win over AI predictions.
 
+## MATCH INTELLIGENCE GOVERNANCE
+
+No Match Intelligence component 
+may render:
+
+- Candidate
+- Requirement
+- Revenue
+- Match Score
+
+unless sourced from:
+
+candidate_matches
+
+or
+
+requirement_match_index
+
+collections.
+
+Mock, synthetic, demo, 
+placeholder or hardcoded 
+match data is prohibited.
+
 ## Master Architecture Guidelines
 
 HireNestOS is an AI-Native Staffing Operating System.

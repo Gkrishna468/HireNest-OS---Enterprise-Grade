@@ -24,15 +24,15 @@ service cloud.firestore {
     }
 
     function authEmail() {
-      return request.auth.token.get('email', '').lower();
+      return request.auth != null && request.auth.token.email != null ? request.auth.token.email.lower() : '';
     }
 
     function authRole() {
-      return request.auth.token.get('role', '') != '' ? request.auth.token.get('role', '') : (getUserData() != null ? getUserData().role : '');
+      return request.auth.token.get('role', '') != '' ? request.auth.token.get('role', '') : (getUserData() != null ? getUserData().get('role', '') : '');
     }
 
     function authOrgId() {
-      return request.auth.token.get('organizationId', '') != '' ? request.auth.token.get('organizationId', '') : (getUserData() != null ? getUserData().organizationId : '');
+      return request.auth.token.get('organizationId', '') != '' ? request.auth.token.get('organizationId', '') : (getUserData() != null ? getUserData().get('organizationId', '') : '');
     }
 
     function incoming() {
@@ -1069,6 +1069,15 @@ service cloud.firestore {
 
       allow write:
       if isSuperAdmin();
+    }
+
+    // =====================================================
+    // CANDIDATE MATCHES
+    // =====================================================
+
+    match /candidate_matches/{matchId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
     }
 
     // =====================================================
