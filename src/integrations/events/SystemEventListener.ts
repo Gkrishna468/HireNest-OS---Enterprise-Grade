@@ -1,7 +1,7 @@
 import { db } from "../../lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, setDoc } from "firebase/firestore";
 import { EventDispatcher } from "../../events/EventDispatcher";
-import { EventEnvelope } from "../../packages/shared-integration/index";
+import { EventEnvelope } from '../../../packages/shared-integration/index';
 import { CRMEventBridge } from "../crm/CRMEventBridge";
 
 export class SystemEventListener {

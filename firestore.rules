@@ -1076,8 +1076,22 @@ service cloud.firestore {
     // =====================================================
 
     match /candidate_matches/{matchId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow create: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(request.resource.data.vendorId) ||
+        isSameOrg(request.resource.data.clientId)
+      );
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     // =====================================================
@@ -1085,33 +1099,82 @@ service cloud.firestore {
     // =====================================================
 
     match /dealRooms/{roomId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /dealRooms/{roomId}/messages/{messageId} {
       allow read: if isVerified();
-      allow write: if isVerified();
+      allow create: if isVerified();
+      allow update, delete: if isSuperAdmin();
     }
 
     match /interviews/{interviewId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /placements/{placementId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /invoices/{invoiceId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /resume_parses/{parseId} {
-      allow read: if isVerified();
-      allow write: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isSuperAdmin();
     }
 
     // =====================================================

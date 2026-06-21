@@ -43,7 +43,7 @@ export default function MatchIntelligenceTab() {
 
         const snapshot = await getDocs(q);
         if (active) {
-          setMatches(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+          setMatches(snapshot.docs.map(d => ({ id: d.id, ...(d.data() as object) })));
         }
       } catch (err) {
         console.error("Match engine list error", err);

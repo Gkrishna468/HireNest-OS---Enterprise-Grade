@@ -8,24 +8,37 @@ export default async function handler(req: any, res: any) {
   console.log(`[USER_API] Action: ${action} Method: ${req.method} Path: ${rawPath}`);
 
   try {
+    const authUserId = req.user?.uid;
+    const authRole = req.user?.role;
+    const authOrgId = req.user?.organizationId;
+    const isAdmin = authRole === 'admin' || authRole === 'super_admin' || authRole === 'hq_admin' || authRole === 'ops_admin' || authOrgId === 'ORG-GLOBAL-HQ';
+
     if (action === 'finalize-onboarding') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       const { orgId, orgType, companyName, userProfile } = req.body;
       if (!adminDb || !adminAuth) return res.status(400).json({ error: "Authority node not initialized" });
       
+      if (userProfile.uid !== authUserId && !isAdmin) {
+         return res.status(403).json({ error: "Access Denied" });
+      }
+
       console.log(`[USER_API] Finalize Onboarding for UI: ${userProfile.uid} in Org: ${orgId}`);
       await adminDb.collection("organizations").doc(orgId).set({
         id: orgId, organizationId: orgId, type: orgType, companyName, status: 'ACTIVE', createdAt: new Date().toISOString()
       }, { merge: true });
       
-      await adminDb.collection("users").doc(userProfile.uid).set(userProfile, { merge: true });
-      await adminAuth.setCustomUserClaims(userProfile.uid, { role: userProfile.role, orgId: orgId });
+      const safeRole = isAdmin ? userProfile.role : (userProfile.role === 'admin' ? 'client_admin' : userProfile.role);
+
+      await adminDb.collection("users").doc(userProfile.uid).set({...userProfile, role: safeRole}, { merge: true });
+      await adminAuth.setCustomUserClaims(userProfile.uid, { role: safeRole, orgId: orgId });
       
       return res.status(200).json({ ok: true });
     }
 
     if (action === 'create') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+      if (!isAdmin) return res.status(403).json({ error: "Access Denied. Admins only." });
+      
       const { email, password, role, companyName } = req.body;
       console.log(`[USER_API] Creating user: ${email} with role: ${role}`);
       
@@ -61,6 +74,7 @@ export default async function handler(req: any, res: any) {
 
     if (action === 'delete') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+      if (!isAdmin) return res.status(403).json({ error: "Access Denied. Admins only." });
       const { uid, organizationId } = req.body;
       if (!adminDb || !adminAuth) {
         return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
@@ -77,6 +91,7 @@ export default async function handler(req: any, res: any) {
 
     if (action === 'assign') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+      if (!isAdmin) return res.status(403).json({ error: "Access Denied. Admins only." });
       const { uid, role, organizationId } = req.body;
       if (!adminDb || !adminAuth) {
         return res.status(400).json({ error: "Authority node not initialized (missing Firebase Admin credentials on the backend)" });
@@ -89,8 +104,8 @@ export default async function handler(req: any, res: any) {
     let requirements: any[] = [];
     if (adminDb) {
       try {
-        const queryOrgId = req.query.orgId || req.body.orgId;
-        const queryRole = req.query.role || req.body.role;
+        const queryOrgId = isAdmin ? (req.query.orgId || req.body.orgId || authOrgId) : authOrgId;
+        const queryRole = isAdmin ? (req.query.role || req.body.role || authRole) : authRole;
         if (queryOrgId) {
           console.log(`[USER_API] Fetching proxy requirements for orgId: ${queryOrgId} under role: ${queryRole}`);
           let requirementsSnap;
@@ -122,13 +137,12 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       success: true,
       user: {
-        uid: "system-init-user", 
-        name: "Enterprise Admin", 
-        email: "admin@hirenestworkforce.com", 
-        role: req.query.role || req.body.role || "super_admin", 
-        organizationId: req.query.orgId || req.body.orgId || "ORG-GLOBAL-HQ", 
+        uid: authUserId || "anonymous", 
+        name: "Enterprise User", 
+        role: authRole || "guest", 
+        organizationId: authOrgId || "", 
         status: "active",
-        permissions: ["manage_users", "manage_requirements", "view_diagnostics", "execute_governance", "manage_vendors", "manage_clients"]
+        permissions: isAdmin ? ["manage_users", "manage_requirements", "view_diagnostics", "execute_governance", "manage_vendors", "manage_clients"] : []
       },
       requirements,
       environment: "production", 

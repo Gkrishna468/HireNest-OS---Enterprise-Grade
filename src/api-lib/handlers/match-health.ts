@@ -5,8 +5,8 @@ export default async function handler(req: any, res: any) {
   if (!adminDb) return res.status(503).json({ error: "Firebase Admin is running in fallback mode. Missing or invalid FIREBASE_SERVICE_ACCOUNT." });
 
   try {
-    const role = req.headers['x-user-role'] || req.query.role;
-    if (role !== 'adminHQ') {
+    const role = req.user?.role;
+    if (role !== 'admin' && role !== 'adminHQ' && role !== 'hq_admin' && role !== 'super_admin') {
       return res.status(403).json({ error: 'Only Admin HQ can view match health.' });
     }
 

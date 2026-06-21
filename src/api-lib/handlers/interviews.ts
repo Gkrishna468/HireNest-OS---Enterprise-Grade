@@ -15,9 +15,39 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === "GET") {
-    const { candidateId, clientId, vendorId } = req.query;
+    const { candidateId } = req.query;
+    let clientId = req.query.clientId as string | undefined;
+    let vendorId = req.query.vendorId as string | undefined;
+
+    const userId = req.user?.uid;
+    let role = req.user?.role;
+    let orgId = req.user?.organizationId;
+
     try {
-      let q = adminDb.collection("interviews");
+      if (userId) {
+         const userDoc = await adminDb.collection("users").doc(userId).get();
+         if (userDoc.exists) {
+            role = userDoc.data()?.role || role;
+            orgId = userDoc.data()?.organizationId || orgId;
+         }
+      }
+
+      const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
+
+      if (!isAdmin) {
+         // Force authorization
+         if (role?.includes('vendor') || role?.includes('recruiter')) {
+            if (vendorId && vendorId !== orgId) return res.status(403).json({ error: "Access Denied" });
+            vendorId = orgId;
+            clientId = undefined;
+         } else {
+            if (clientId && clientId !== orgId) return res.status(403).json({ error: "Access Denied" });
+            clientId = orgId;
+            vendorId = undefined;
+         }
+      }
+
+      let q: FirebaseFirestore.Query = adminDb.collection("interviews");
       if (candidateId) q = q.where("candidateId", "==", candidateId);
       if (clientId) q = q.where("clientId", "==", clientId);
       if (vendorId) q = q.where("vendorId", "==", vendorId);
@@ -67,6 +97,31 @@ export default async function handler(req: any, res: any) {
            success:false,
            error:"Missing submissionId in interview request"
         });
+      }
+
+      // AUTHORIZATION CHECK
+      const userId = req.user?.uid;
+      let role = req.user?.role;
+      let orgId = req.user?.organizationId;
+
+      if (userId) {
+         const userDoc = await adminDb.collection("users").doc(userId).get();
+         if (userDoc.exists) {
+            role = userDoc.data()?.role || role;
+            orgId = userDoc.data()?.organizationId || orgId;
+         }
+      }
+
+      const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
+      
+      const reqClientId = requirement.clientId || submission.clientId;
+      const reqVendorId = submission.vendorId;
+
+      if (!isAdmin) {
+         if (orgId !== reqClientId && orgId !== reqVendorId) {
+             console.warn(`[SECURITY] User ${userId} (${orgId}) attempted to create interview for submission ${subId} (Client: ${reqClientId}, Vendor: ${reqVendorId})`);
+             return res.status(403).json({ error: "Access Denied: Organization Mismatch" });
+         }
       }
 
       console.log("ROOM CREATE");

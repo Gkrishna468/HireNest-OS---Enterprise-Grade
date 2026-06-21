@@ -1,4 +1,4 @@
-import { EventEnvelope } from '../../packages/shared-integration/index';
+import { EventEnvelope } from '../../../packages/shared-integration';
 import { EventDispatcher } from '../../events/EventDispatcher';
 
 export default async function integrationsHandler(req: any, res: any) {

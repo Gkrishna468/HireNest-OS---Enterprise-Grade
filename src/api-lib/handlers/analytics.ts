@@ -26,8 +26,8 @@ export default async function analyticsHandler(req: any, res: any) {
     }
 
     const orgId = req.query.orgId;
-    const userId = req.query.userId || req.user?.uid;
-    const userRole = req.query.role || req.user?.role;
+    const userId = req.user?.uid;
+    const userRole = req.user?.role;
     let verifiedOrgId = orgId;
     
     // Security check to prevent Analytics Isolation Bypass

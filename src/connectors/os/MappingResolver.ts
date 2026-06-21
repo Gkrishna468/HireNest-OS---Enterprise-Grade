@@ -1,4 +1,4 @@
-import { IntegrationMapping } from '../../packages/shared-integration/index';
+import { IntegrationMapping } from '../../../packages/shared-integration';
 import { WebhookClient } from './WebhookClient';
 
 export class MappingResolver {

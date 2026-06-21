@@ -2,7 +2,9 @@ import { adminDb } from "../../lib/firebase-admin.js";
 import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 export default async function handler(req: any, res: any) {
-  const { orgId, role, scan } = req.query;
+  const role = req.user?.role;
+  const orgId = req.user?.organizationId;
+  const scan = req.query.scan;
 
   try {
     if (!adminDb) {

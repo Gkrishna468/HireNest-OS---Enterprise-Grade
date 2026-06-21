@@ -5,7 +5,33 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { orgId } = req.query;
+  let { orgId } = req.query;
+  
+  const userId = req.user?.uid;
+  let role = req.user?.role;
+  let userOrg = req.user?.organizationId;
+
+  if (userId) {
+     try {
+       const userDoc = await adminDb.collection("users").doc(userId).get();
+       if (userDoc.exists) {
+          role = userDoc.data()?.role || role;
+          userOrg = userDoc.data()?.organizationId || userOrg;
+       }
+     } catch (e) {
+       console.error("[AUTH] Error", e);
+     }
+  }
+
+  const isAdmin = role === "admin" || role === "super_admin" || role === "hq_admin" || userOrg === "ORG-GLOBAL-HQ";
+
+  if (!isAdmin) {
+     if (orgId && orgId !== userOrg) {
+         return res.status(403).json({ error: "Access Denied: Organization Mismatch" });
+     }
+     orgId = userOrg;
+  }
+
   if (!orgId) {
     return res.status(400).json({ error: "orgId is required" });
   }

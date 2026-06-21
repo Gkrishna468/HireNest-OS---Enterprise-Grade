@@ -1,4 +1,4 @@
-import { EventEnvelope } from '../../packages/shared-integration/index';
+import { EventEnvelope } from '../../../packages/shared-integration';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 

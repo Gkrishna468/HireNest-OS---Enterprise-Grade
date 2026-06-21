@@ -28,13 +28,30 @@ export default async function matchingGlobalHandler(req: any, res: any) {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const { requirementId, orgId, role, skills } = req.query;
+  const { requirementId, skills } = req.query;
   const targetReqId = requirementId || "";
 
   if (!targetReqId) {
     return res
       .status(400)
       .json({ error: "requirementId is required for contextual matching" });
+  }
+
+  const userId = req.user?.uid;
+  let role = req.user?.role;
+  let orgId = req.user?.organizationId;
+
+  if (adminDb && userId) {
+     try {
+       const userDoc = await adminDb.collection("users").doc(userId).get();
+       if (userDoc.exists) {
+          const userData = userDoc.data();
+          role = userData?.role || role;
+          orgId = userData?.organizationId || orgId;
+       }
+     } catch(e) {
+       console.error("[AUTH] Failed to fetch user doc", e);
+     }
   }
 
   // Parse skills array
