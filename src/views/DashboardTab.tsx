@@ -320,7 +320,81 @@ export default function DashboardTab() {
               throw new Error("Invalid JSON response");
             }
           })
-          .then(setMetrics)
+          .then(async (data) => {
+             // If Backend lacks credentials (adminDb null fallback) and returns all 0s, fetch natively
+             if (isVendor && data.totalJobs === 0 && data.totalCandidates === 0 && data.revenue === 0) {
+                 console.log("Analytics backend returned fallback zeros. Hydrating via Client SDK...");
+                 const orgId = session.org.id || session.user.organizationId || '';
+                 if (orgId) {
+                     try {
+                         let allocatedReqs = 0;
+                         try {
+                             const reqSnap = await getDocs(collection(db, "requirements_public"));
+                             reqSnap.docs.forEach((d: any) => {
+                                 const rData = d.data();
+                                 if (!rData.assignedVendorIds || rData.assignedVendorIds.includes(orgId)) {
+                                     allocatedReqs++;
+                                 }
+                             });
+                         } catch (e: any) { console.error("requirements_public query failed:", e.message); }
+                         
+                         let candsCount = 0;
+                         let readyForSubmit = 0;
+                         try {
+                             const candsSnap = await getDocs(query(collection(db, "candidatePool"), where("vendorId", "==", orgId)));
+                             candsCount = candsSnap.docs.length;
+                             candsSnap.docs.forEach((d: any) => {
+                                const data = d.data();
+                                if (data.status !== "DELETED" && data.isActive !== false) {
+                                   const stage = (data.pipelineStage || '').toUpperCase();
+                                   if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
+                                       readyForSubmit++;
+                                   }
+                                }
+                             });
+                         } catch(e: any) { console.error("candidatePool query failed:", e.message); }
+
+                         let matchesCount = 0;
+                         try {
+                             const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
+                             matchesCount = matchesSnap.docs.length;
+                         } catch(e: any) { console.error("candidate_matches query failed:", e.message); }
+
+                         let revenue = 0;
+                         let interviews = 0;
+                         let placements = 0;
+                         try {
+                             const subsSnap = await getDocs(query(collection(db, "submissions"), where("vendorId", "==", orgId)));
+                             subsSnap.docs.forEach((d: any) => {
+                                const data = d.data();
+                                if (data.status === "DELETED" || data.isActive === false) return;
+                                const status = (data.status || '').toUpperCase();
+                                if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+                                if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
+                                   placements++;
+                                   revenue += Number(data.vendorPayout || data.financials?.vendorPayout) || 0;
+                                }
+                             });
+                         } catch(e: any) { console.error("submissions query failed:", e.message); }
+                         
+                         setMetrics({
+                            ...data,
+                            revenue: revenue,
+                            totalJobs: allocatedReqs,
+                            totalCandidates: candsCount,
+                            aiMatches: matchesCount,
+                            readyForSubmission: readyForSubmit,
+                            interviewsToday: interviews,
+                            placements: placements
+                         });
+                         return;
+                     } catch(err) {
+                         console.error("Client fallback fetch failed", err);
+                     }
+                 }
+             }
+             setMetrics(data);
+          })
           .catch(err => {
             console.warn("Metrics fetch failed, using zeroed fallback", err);
             setMetrics({
@@ -332,7 +406,12 @@ export default function DashboardTab() {
               vendorQuality: 0,
               recruiterProductivity: 0,
               timeToHireDays: 0,
-              offerAcceptanceRate: 0
+              offerAcceptanceRate: 0,
+              totalJobs: 0,
+              totalCandidates: 0,
+              interviewsToday: 0,
+              aiMatches: 0,
+              readyForSubmission: 0
             });
           });
       });

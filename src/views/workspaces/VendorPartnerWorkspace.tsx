@@ -180,7 +180,7 @@ export default function VendorPartnerWorkspace({
 
                 <div className="flex items-center justify-between mt-8">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                    Active Operations
+                    Revenue Opportunities
                   </h3>
                 </div>
 
@@ -195,33 +195,50 @@ export default function VendorPartnerWorkspace({
                       </span>
                     </div>
                     <h4 className="font-semibold text-slate-900 text-sm">
-                      Allocated Requirements
+                      Open Requirements Available
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Open jobs available for you
+                      Jobs published to your network
                     </p>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer">
                     <div className="flex justify-between items-start mb-4">
-                      <div className="bg-rose-50 text-rose-600 p-2 rounded-lg">
-                        <Users size={18} />
+                      <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg">
+                        <Sparkles size={18} />
                       </div>
                       <span className="text-2xl font-light text-slate-900">
-                        {metrics?.totalCandidates || 0}
+                        {metrics?.aiMatches || 0}
                       </span>
                     </div>
                     <h4 className="font-semibold text-slate-900 text-sm">
-                      Bench Candidates
+                      AI Matches Found
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Ready for submission
+                      System-identified bench candidates
                     </p>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer">
                     <div className="flex justify-between items-start mb-4">
                       <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
+                        <Users size={18} />
+                      </div>
+                      <span className="text-2xl font-light text-slate-900">
+                        {metrics?.readyForSubmission !== undefined ? metrics.readyForSubmission : (metrics?.totalCandidates || 0)}
+                      </span>
+                    </div>
+                    <h4 className="font-semibold text-slate-900 text-sm">
+                      Ready For Submission
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Candidates awaiting review
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="bg-rose-50 text-rose-600 p-2 rounded-lg">
                         <Calendar size={18} />
                       </div>
                       <span className="text-2xl font-light text-slate-900">
@@ -229,32 +246,15 @@ export default function VendorPartnerWorkspace({
                       </span>
                     </div>
                     <h4 className="font-semibold text-slate-900 text-sm">
-                      Interviews Scheduled
+                      Interviews Active
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Updates on your float candidates
-                    </p>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors cursor-pointer">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg">
-                        <Target size={18} />
-                      </div>
-                      <span className="text-2xl font-light text-slate-900">
-                        {metrics?.placements || 0}
-                      </span>
-                    </div>
-                    <h4 className="font-semibold text-slate-900 text-sm">
-                      Active Placements
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Successful hires
+                      Candidates progressing in pipeline
                     </p>
                   </div>
                 </div>
 
-                {(metrics?.totalCandidates === 0 && metrics?.totalJobs === 0) && (
+                {(metrics?.totalCandidates === 0 && metrics?.totalJobs === 0 && !metrics?.aiMatches) && (
                   <div className="mt-8 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center max-w-2xl mx-auto">
                      <Users className="w-12 h-12 text-indigo-300 mx-auto mb-4" />
                      <h3 className="text-lg font-bold text-indigo-900 mb-2">No candidates mapped yet</h3>

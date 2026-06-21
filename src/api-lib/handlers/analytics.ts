@@ -15,6 +15,11 @@ export default async function analyticsHandler(req: any, res: any) {
          avgMargin: 0,
          vendorQuality: 0,
          recruiterProductivity: 0,
+         totalJobs: 0,
+         totalCandidates: 0,
+         interviewsToday: 0,
+         aiMatches: 0,
+         readyForSubmission: 0,
          heatmaps: []
       });
     }
@@ -93,10 +98,16 @@ export default async function analyticsHandler(req: any, res: any) {
        const subsSnap = await adminDb.collection("submissions")
           .where("vendorId", "==", verifiedOrgId || "UNKNOWN")
           .get();
+       const matchesSnap = await adminDb.collection("candidate_matches")
+          .where("vendorId", "==", verifiedOrgId || "UNKNOWN")
+          .get();
           
        let revenue = 0;
        let interviews = 0;
        let placements = 0;
+       let readyForSubmit = 0;
+       
+       const aiMatches = matchesSnap.docs.length;
        
        let activeSubs = 0;
        subsSnap.docs.forEach((d: any) => {
@@ -116,6 +127,10 @@ export default async function analyticsHandler(req: any, res: any) {
           const data = d.data();
           if (data.status !== "DELETED" && data.isActive !== false) {
              activeCands++;
+             const stage = (data.pipelineStage || '').toUpperCase();
+             if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
+                 readyForSubmit++;
+             }
           }
        });
 
@@ -127,6 +142,10 @@ export default async function analyticsHandler(req: any, res: any) {
           const data = d.data();
           if (data.status !== "DELETED" && data.isActive !== false && data.vendorId !== verifiedOrgId) {
              activeCands++;
+             const stage = (data.pipelineStage || '').toUpperCase();
+             if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
+                 readyForSubmit++;
+             }
           }
        });
        
@@ -160,6 +179,8 @@ export default async function analyticsHandler(req: any, res: any) {
           interviewsToday: interviews, // Represents "Interviews Scheduled"
           activeDeals: activeSubs,
           placements: placements, // Represents "Active Placements"
+          aiMatches: aiMatches,
+          readyForSubmission: readyForSubmit,
        });
     }
 
