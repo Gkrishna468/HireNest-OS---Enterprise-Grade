@@ -320,28 +320,31 @@ export default function DashboardTab() {
               throw new Error("Invalid JSON response");
             }
           })
-          .then(async (data) => {
+           .then(async (data) => {
              // If Backend lacks credentials (adminDb null fallback) and returns all 0s, fetch natively
-             if (isVendor && data.totalJobs === 0 && data.totalCandidates === 0 && data.revenue === 0) {
-                 console.log("Analytics backend returned fallback zeros. Hydrating via Client SDK...");
+             if (data.fallbackRequired && (isVendor || isClient)) {
+                 console.log("Analytics backend requested fallback. Hydrating via Client SDK...");
                  const orgId = session.org.id || session.user.organizationId || '';
                  if (orgId) {
                      try {
                          let allocatedReqs = 0;
                          try {
-                             const reqSnap = await getDocs(collection(db, "requirements_public"));
-                             reqSnap.docs.forEach((d: any) => {
-                                 const rData = d.data();
-                                 if (!rData.assignedVendorIds || rData.assignedVendorIds.includes(orgId)) {
-                                     allocatedReqs++;
-                                 }
-                             });
+                             if (isVendor) {
+                                 const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("assignedVendorIds", "array-contains", orgId)));
+                                 allocatedReqs = reqSnap.docs.length;
+                             } else if (isClient) {
+                                  const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("clientId", "==", orgId)));
+                                  allocatedReqs = reqSnap.docs.length;
+                             }
                          } catch (e: any) { console.error("requirements_public query failed:", e.message); }
                          
                          let candsCount = 0;
                          let readyForSubmit = 0;
                          try {
-                             const candsSnap = await getDocs(query(collection(db, "candidatePool"), where("vendorId", "==", orgId)));
+                             const candQuery = isVendor 
+                                ? query(collection(db, "candidatePool"), where("vendorId", "==", orgId))
+                                : query(collection(db, "candidatePool"), where("clientId", "==", orgId));
+                             const candsSnap = await getDocs(candQuery);
                              candsCount = candsSnap.docs.length;
                              candsSnap.docs.forEach((d: any) => {
                                 const data = d.data();
@@ -356,23 +359,33 @@ export default function DashboardTab() {
 
                          let matchesCount = 0;
                          try {
-                             const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
-                             matchesCount = matchesSnap.docs.length;
+                             if (isVendor) {
+                                 const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
+                                 matchesCount = matchesSnap.docs.length;
+                             } else {
+                                 const matchesClientSnap = await getDocs(query(collection(db, "candidate_matches"), where("clientId", "==", orgId)));
+                                 matchesCount = matchesClientSnap.docs.length;
+                             }
                          } catch(e: any) { console.error("candidate_matches query failed:", e.message); }
 
                          let revenue = 0;
                          let interviews = 0;
                          let placements = 0;
+                         let pendingReview = 0;
                          try {
-                             const subsSnap = await getDocs(query(collection(db, "submissions"), where("vendorId", "==", orgId)));
+                             const subsQuery = isVendor
+                               ? query(collection(db, "submissions"), where("vendorId", "==", orgId))
+                               : query(collection(db, "submissions"), where("clientId", "==", orgId));
+                             const subsSnap = await getDocs(subsQuery);
                              subsSnap.docs.forEach((d: any) => {
                                 const data = d.data();
                                 if (data.status === "DELETED" || data.isActive === false) return;
                                 const status = (data.status || '').toUpperCase();
+                                if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
                                 if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
                                 if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
                                    placements++;
-                                   revenue += Number(data.vendorPayout || data.financials?.vendorPayout) || 0;
+                                   revenue += Number(data.vendorPayout || data.financials?.vendorPayout || data.financials?.clientBudget || data.budget?.amount) || 0;
                                 }
                              });
                          } catch(e: any) { console.error("submissions query failed:", e.message); }
@@ -380,8 +393,9 @@ export default function DashboardTab() {
                          setMetrics({
                             ...data,
                             revenue: revenue,
+                            spending: isClient ? revenue : data.spending,
                             totalJobs: allocatedReqs,
-                            totalCandidates: candsCount,
+                            totalCandidates: isClient ? pendingReview : candsCount,
                             aiMatches: matchesCount,
                             readyForSubmission: readyForSubmit,
                             interviewsToday: interviews,

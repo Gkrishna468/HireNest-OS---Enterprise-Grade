@@ -8,6 +8,7 @@ export default async function analyticsHandler(req: any, res: any) {
   try {
     if (!adminDb) {
       return res.status(200).json({
+         fallbackRequired: true,
          revenue: 0,
          spending: 0,
          activeDeals: 0,
@@ -57,15 +58,16 @@ export default async function analyticsHandler(req: any, res: any) {
           .get();
           
        let totalSpend = 0;
-       let activeReqs = 0;
+       let activeReqs = reqsSnap.docs.length; // Count all client requirements
        
        reqsSnap.docs.forEach((d: any) => {
           const data = d.data();
-          if (data.status === 'PUBLISHED' || data.status === 'ACTIVE') activeReqs++;
           if (data.financials) {
              totalSpend += Number(data.financials.clientBudget) || 0;
           } else if (data.vendorVisibleBudget) {
              totalSpend += Number(data.vendorVisibleBudget) || 0;
+          } else if (data.budget?.amount) {
+             totalSpend += Number(data.budget.amount) || 0;
           }
        });
        
@@ -74,8 +76,10 @@ export default async function analyticsHandler(req: any, res: any) {
        let placements = 0;
        
        subsSnap.docs.forEach((d: any) => {
-          const status = (d.data().status || '').toUpperCase();
-          if (status === 'SUBMITTED') pendingReview++;
+          const data = d.data();
+          if (data.status === 'DELETED' || data.isActive === false) return;
+          const status = (data.status || '').toUpperCase();
+          if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
           if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
           if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) placements++;
        });
@@ -91,7 +95,7 @@ export default async function analyticsHandler(req: any, res: any) {
     }
 
     if (apiPath === 'vendor') {
-       const reqsSnap = await adminDb.collection("requirements_public").get();
+       const reqsSnap = await adminDb.collection("requirements_public").where("assignedVendorIds", "array-contains", verifiedOrgId || "UNKNOWN").get();
        const candsSnap = await adminDb.collection("candidatePool")
           .where("vendorId", "==", verifiedOrgId || "UNKNOWN")
           .get();
@@ -164,13 +168,7 @@ export default async function analyticsHandler(req: any, res: any) {
           }
        });
        
-       let allocatedReqs = 0;
-       reqsSnap.docs.forEach((d: any) => {
-          const data = d.data();
-          if (!data.assignedVendorIds || data.assignedVendorIds.includes(verifiedOrgId)) {
-             allocatedReqs++;
-          }
-       });
+       let allocatedReqs = reqsSnap.docs.length;
 
        return res.status(200).json({
           revenue: revenue,
