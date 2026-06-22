@@ -9,7 +9,19 @@ const startSaga = async (sagaName: string, payload: any, steps: string[]) => {
   console.log(`[SAGA] Starting saga ${sagaName}`);
 };
 const dispatchWorkflowEvent = async (db: any, payload: any) => {
-   console.log(`[EVENT BUS] Dispatched: ${payload.type}`);
+   if (!db) return;
+   try {
+     const docRef = db.collection("system_events").doc();
+     await docRef.set({
+       ...payload,
+       type: payload.eventType || payload.type,
+       id: docRef.id,
+       createdAt: new Date().toISOString()
+     });
+     console.log(`[EVENT BUS] Dispatched: ${payload.eventType || payload.type} to system_events`);
+   } catch (e) {
+     console.error("[EVENT BUS] Failed to dispatch event:", e);
+   }
 };
 
 import matchingGlobalHandler from "./matching-global.js";
@@ -301,67 +313,81 @@ export default async function handler(req: any, res: any) {
 
     // 6. Approve Requirement in details (with dynamic platform margin deduction)
     if (action === 'approve-requirement') {
-      if (!adminDb) {
-        return res.status(503).json({ error: "Administrative runtime unavailable", status: "degraded" });
-      }
-      const { id, actualBudget, marginValue, marginType, currency, orgId } = req.body;
-      
-      const financials = await computeFinancials(adminDb, {
-         actualBudget: Number(actualBudget) || 0,
-         currency: currency || "INR",
-         enterpriseId: orgId
-      });
-      
-      const profit = financials.profit;
-      const vendorPayout = financials.vendorPayout;
-
-      // Update core requirement record to active / published status
-      await adminDb.collection("requirements_public").doc(id).update({
-        status: "PUBLISHED",
-        visibility: "VENDOR_NETWORK",
-        adminApproved: true,
-        financials: {
-          clientBudget: actualBudget,
-          clientCurrency: currency || "INR",
-          staffingModel: "Permanent",
-          adminMargin: profit,
-          vendorPayout: vendorPayout,
-          platformProfit: profit,
-          marginConfig: { type: "POLICY_ENGINE", value: financials.marginRate, policy: financials.appliedPolicy }
-        },
-        publishedAt: new Date().toISOString()
-      });
-
-      // Maintain status within administrative queues
       try {
-        await adminDb.collection("jobApprovalQueue").doc(id).update({
-          status: "APPROVED",
-          approvedAt: new Date().toISOString()
-        });
-      } catch (queueErr) {
-        console.warn("No corresponding queue document was found, bypassing non-blocking update:", queueErr);
-      }
-      
-      try {
-        // Start saga indicating distributed broadcast workflow
-        await startSaga(
-           "PUBLISH_REQUIREMENT_SAGA",
-           { requirementId: id, orgId, budget: actualBudget },
-           ["FINANCIAL_APPRAISAL", "INDEX_VECTOR_SEARCH", "BROADCAST_TO_VENDORS", "NOTIFY_CLIENT"]
-        );
+        const { id, reqId, reqId: bodyReqId, actualBudget, marginValue, marginType, currency, orgId } = req.body;
+        const targetId = id || reqId || bodyReqId || req.body.financials?.reqId;
+        
+        if (!targetId) {
+          return res.status(400).json({ error: "Missing requirement ID" });
+        }
 
-        await dispatchWorkflowEvent(adminDb, {
-          eventType: "JOB_APPROVED",
-          eventVersion: "v2",
-          producer: "api/admin",
-          status: "QUEUED",
-          payload: { jobId: id, marginValue, vendorPayout, timestamp: new Date().toISOString() }
-        });
-      } catch (evtErr) {
-         console.warn("Failed to trigger JOB_APPROVED workflow saga", evtErr);
-      }
+        if (!adminDb) {
+          // Fallback: If adminDb is missing, we allow the client to perform the update natively
+          // We return success so the frontend's await fetch() doesn't throw.
+          return res.status(200).json({ ok: true, fallbackRequired: true });
+        }
 
-      return res.status(200).json({ ok: true });
+        const financials = await computeFinancials(adminDb, {
+           actualBudget: Number(actualBudget || req.body.financials?.clientBudget) || 0,
+           currency: currency || req.body.financials?.clientCurrency || "INR",
+           enterpriseId: orgId
+        });
+        
+        const profit = financials.profit;
+        const vendorPayout = financials.vendorPayout;
+
+        // Update core requirement record to active / published status
+        await adminDb.collection("requirements_public").doc(targetId).update({
+          status: "PUBLISHED",
+          visibility: "VENDOR_NETWORK",
+          adminApproved: true,
+          financials: {
+            clientBudget: req.body.financials?.clientBudget || actualBudget,
+            clientCurrency: req.body.financials?.clientCurrency || currency || "INR",
+            staffingModel: req.body.financials?.staffingModel || "Permanent",
+            adminMargin: profit,
+            vendorPayout: vendorPayout,
+            platformProfit: profit,
+            marginConfig: { type: "POLICY_ENGINE", value: financials.marginRate, policy: financials.appliedPolicy }
+          },
+          publishedAt: new Date().toISOString()
+        });
+
+        // Maintain status within administrative queues
+        try {
+          await adminDb.collection("jobApprovalQueue").doc(targetId).update({
+            status: "APPROVED",
+            approvedAt: new Date().toISOString()
+          });
+        } catch (queueErr) {
+          console.warn("No corresponding queue document was found, bypassing non-blocking update:", queueErr);
+        }
+        
+        try {
+          // Start saga indicating distributed broadcast workflow
+          await startSaga(
+             "PUBLISH_REQUIREMENT_SAGA",
+             { requirementId: targetId, orgId, budget: actualBudget },
+             ["FINANCIAL_APPRAISAL", "INDEX_VECTOR_SEARCH", "BROADCAST_TO_VENDORS", "NOTIFY_CLIENT"]
+          );
+
+          // IMPORTANT: Emit JOB_PUBLISHED event for Vendor Workflow
+          await dispatchWorkflowEvent(adminDb, {
+            eventType: "JOB_PUBLISHED",
+            eventVersion: "v2",
+            producer: "api/admin",
+            status: "QUEUED",
+            payload: { jobId: targetId, marginValue, vendorPayout, timestamp: new Date().toISOString() }
+          });
+        } catch (evtErr) {
+           console.warn("Failed to trigger JOB_PUBLISHED workflow saga", evtErr);
+        }
+
+        return res.status(200).json({ ok: true });
+      } catch (err: any) {
+        console.error("EXACT EXCEPTION IN approve-requirement:", err);
+        return res.status(500).json({ error: err.message, stack: err.stack });
+      }
     }
 
     // 7. Get Recent Dispatched Alert Notifications
@@ -391,6 +417,47 @@ export default async function handler(req: any, res: any) {
       } catch (err: any) {
         console.error("[OTLP SINK] Telemetry Sink Failure", err);
         return res.status(500).json({ success: false, error: err.message });
+      }
+    }
+
+    // 9. Backfill Migration
+    if (action === 'migration-backfill') {
+      if (!adminDb) return res.status(503).json({ error: "Administrative runtime unavailable" });
+      try {
+         const updates = [];
+         
+         // 1. Backfill Requirements
+         const reqSnap = await adminDb.collection("requirements_public").get();
+         for (const doc of reqSnap.docs) {
+            const data = doc.data();
+            const updatesObj: any = {};
+            if (!data.tenantId) updatesObj.tenantId = "TENANT-HQ";
+            if (!data.orgId && data.enterpriseId) updatesObj.orgId = data.enterpriseId;
+            if (!data.clientId && data.enterpriseId) updatesObj.clientId = data.enterpriseId;
+            if (!data.sourceSystem) updatesObj.sourceSystem = "OS";
+            if (Object.keys(updatesObj).length > 0) {
+              updates.push(doc.ref.update(updatesObj));
+            }
+         }
+
+         // 2. Backfill Candidates
+         const candSnap = await adminDb.collection("candidatePool").get();
+         for (const doc of candSnap.docs) {
+            const data = doc.data();
+            const updatesObj: any = {};
+            if (!data.tenantId) updatesObj.tenantId = "TENANT-HQ";
+            if (!data.vendorId) Object.assign(updatesObj, { vendorId: data.orgId || "ORG-UNKNOWN" });
+            if (!data.sourceSystem) updatesObj.sourceSystem = "OS";
+            if (Object.keys(updatesObj).length > 0) {
+              updates.push(doc.ref.update(updatesObj));
+            }
+         }
+
+         await Promise.all(updates);
+         return res.status(200).json({ success: true, processed: updates.length });
+      } catch (err: any) {
+         console.error("MIGRATION ERROR", err);
+         return res.status(500).json({ error: err.message });
       }
     }
 

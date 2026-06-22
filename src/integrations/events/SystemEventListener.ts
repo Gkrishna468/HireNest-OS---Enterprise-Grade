@@ -5,7 +5,12 @@ import { EventEnvelope } from '../../../packages/shared-integration/index';
 import { CRMEventBridge } from "../crm/CRMEventBridge";
 
 export class SystemEventListener {
+  private static isInitialized = false;
+
   static async initialize() {
+    if (this.isInitialized) return;
+    this.isInitialized = true;
+
     console.log("[SystemEventListener] Initializing hybrid event bridge...");
 
     // Initialize OS-side bridges

@@ -478,12 +478,10 @@ export default function JobsTab() {
       }
     };
 
-    // Run first scan immediately
+    // Run first scan immediately, then exit. 
+    // Do NOT run continuous background scanning loops on the frontend.
     runAutomatedScanner();
-
-    // Set interval scanning under 5 minutes (every 20 seconds for hot real-time experience)
-    const scanInterval = setInterval(runAutomatedScanner, 20000);
-    return () => clearInterval(scanInterval);
+    return;
   }, [jobs, db, userRole, orgId]);
 
   const isAdmin =
