@@ -41,13 +41,8 @@ export async function runMatchIntelligenceEngine(
     }));
   }
 
-  // Fetch all candidates
-  const activeCandidates = await getScopedCandidateUniverse(
-    adminDb,
-    "candidatePool",
-    role,
-    orgId,
-  ).get();
+  // Fetch all candidates (System Task context requires global fetch to generate all opportunities)
+  const activeCandidates = await adminDb.collection("candidatePool").get();
 
   const candidates = activeCandidates.docs.map((d: any) => ({
     id: d.id,

@@ -150,7 +150,23 @@ export default function MatchIntelligenceTab() {
             opportunities.
           </p>
           {isAdmin && (
-            <button className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors uppercase tracking-wider">
+            <button
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  await fetch("/api/admin", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "rescan-matches" }),
+                  });
+                  setTimeout(() => window.location.reload(), 2000);
+                } catch (err) {
+                  console.error(err);
+                  setLoading(false);
+                }
+              }}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors uppercase tracking-wider"
+            >
               Run Match Scan
             </button>
           )}
@@ -179,115 +195,285 @@ export default function MatchIntelligenceTab() {
                 Expected Value
               </p>
               <p className="text-3xl font-black text-slate-900 mt-2">
-                ₹{matches.reduce((acc, m) => acc + (m.expectedRevenue || 0), 0).toLocaleString()}
+                ₹
+                {matches
+                  .reduce((acc, m) => acc + (m.expectedRevenue || 0), 0)
+                  .toLocaleString()}
               </p>
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                Opportunity Pipeline
+                Opportunity Pipeline (
+                {viewMode === "requirements"
+                  ? "By Requirement"
+                  : "By Candidate"}
+                )
               </h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Requirement
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Candidate
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Probability
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Expected Revenue
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {matches.map((match) => {
-                    const req = requirements[match.requirementId];
-                    const cand = candidates[match.candidateId] || match;
-
-                    let revenueStr = "--";
-                    let expectedRevStr = "--";
-                    let marginVal =
-                      (req?.financials?.clientBilling || 0) *
-                      ((req?.financials?.commissionPercent || 0) / 100);
-
-                    if (isAdmin || userData?.role === "hq") {
-                      revenueStr = req?.financials
-                        ? `₹${marginVal.toLocaleString()}`
-                        : "--";
-                      expectedRevStr = match.expectedRevenue 
-                        ? `₹${match.expectedRevenue.toLocaleString()}` 
-                        : (req?.financials ? `₹${Math.round(marginVal * ((match.placementProbability || 0)/100)).toLocaleString()}` : "--");
-                    } else if (userData?.role === "vendor") {
-                      let vendorBudget =
-                        (req?.financials?.clientBilling || 0) - marginVal;
-                      revenueStr = req?.financials
-                        ? `₹${vendorBudget.toLocaleString()}`
-                        : "--";
-                      expectedRevStr = match.expectedRevenue 
-                        ? `₹${match.expectedRevenue.toLocaleString()}`
-                        : (req?.financials ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0)/100)).toLocaleString()}` : "--");
-                    }
-
+              {viewMode === "requirements"
+                ? Object.entries(
+                    matches.reduce(
+                      (acc, match) => {
+                        if (!acc[match.requirementId])
+                          acc[match.requirementId] = [];
+                        acc[match.requirementId].push(match);
+                        return acc;
+                      },
+                      {} as Record<string, any[]>,
+                    ),
+                  ).map(([reqId, groupMatches]) => {
+                    const req = requirements[reqId];
                     return (
-                      <tr
-                        key={match.id}
-                        className="hover:bg-slate-50/50 transition-colors"
+                      <div
+                        key={reqId}
+                        className="border-b border-slate-200 last:border-0"
                       >
-                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
-                            {match.status || "DISCOVERED"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-bold text-slate-900 text-sm">
-                            {req?.title || match.requirementId}
-                          </p>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {match.vendorId || cand?.vendorId || "--"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-700 text-sm">
-                            {cand?.name ||
-                              cand?.candidateName ||
-                              match.candidateId}
-                          </p>
-                          <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
-                            MATCH: {match.score || match.matchScore}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                           <div className="flex items-center gap-2">
-                             <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
-                               <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${match.placementProbability || Math.min(95, (match.score||match.matchScore||0)*0.5)}%` }}></div>
-                             </div>
-                             <span className="text-xs font-bold text-slate-700">{match.placementProbability || Math.round(Math.min(95, (match.score||match.matchScore||0)*0.5))}%</span>
-                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <p className="font-mono text-sm font-black text-slate-900">
-                            {expectedRevStr}
-                          </p>
-                           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                            Forecast: {revenueStr}
-                           </p>
-                        </td>
-                      </tr>
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+                          <div>
+                            <span className="text-xs font-black uppercase tracking-widest text-indigo-600 mr-2">
+                              Requirement
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              {req?.title || reqId}
+                            </span>
+                          </div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {groupMatches.length} Matches
+                          </div>
+                        </div>
+                        <table className="w-full">
+                          <tbody className="divide-y divide-slate-50">
+                            {groupMatches
+                              .sort(
+                                (a, b) =>
+                                  (b.placementProbability || 0) -
+                                  (a.placementProbability || 0),
+                              )
+                              .map((match) => {
+                                const cand =
+                                  candidates[match.candidateId] || match;
+                                let revenueStr = "--";
+                                let expectedRevStr = "--";
+                                let marginVal =
+                                  (req?.financials?.clientBilling || 0) *
+                                  ((req?.financials?.commissionPercent || 0) /
+                                    100);
+                                if (isAdmin || userData?.role === "hq") {
+                                  revenueStr = req?.financials
+                                    ? `₹${marginVal.toLocaleString()}`
+                                    : "--";
+                                  expectedRevStr = match.expectedRevenue
+                                    ? `₹${match.expectedRevenue.toLocaleString()}`
+                                    : req?.financials
+                                      ? `₹${Math.round(marginVal * ((match.placementProbability || 0) / 100)).toLocaleString()}`
+                                      : "--";
+                                } else if (userData?.role === "vendor") {
+                                  let vendorBudget =
+                                    (req?.financials?.clientBilling || 0) -
+                                    marginVal;
+                                  revenueStr = req?.financials
+                                    ? `₹${vendorBudget.toLocaleString()}`
+                                    : "--";
+                                  expectedRevStr = match.expectedRevenue
+                                    ? `₹${match.expectedRevenue.toLocaleString()}`
+                                    : req?.financials
+                                      ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0) / 100)).toLocaleString()}`
+                                      : "--";
+                                }
+                                return (
+                                  <tr
+                                    key={match.id}
+                                    className="hover:bg-slate-50/50 transition-colors"
+                                  >
+                                    <td className="px-4 py-3 w-32">
+                                      <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
+                                        {match.status || "DISCOVERED"}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <p className="font-bold text-slate-900 text-sm">
+                                        {cand?.name ||
+                                          cand?.candidateName ||
+                                          match.candidateId}
+                                      </p>
+                                      <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
+                                        MATCH: {match.score || match.matchScore}
+                                        %
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-left w-48">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
+                                          <div
+                                            className="bg-emerald-500 h-1.5 rounded-full"
+                                            style={{
+                                              width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
+                                            }}
+                                          ></div>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-700">
+                                          {match.placementProbability ||
+                                            Math.round(
+                                              Math.min(
+                                                95,
+                                                (match.score ||
+                                                  match.matchScore ||
+                                                  0) * 0.5,
+                                              ),
+                                            )}
+                                          %
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right w-48">
+                                      <p className="font-mono text-sm font-black text-slate-900">
+                                        {expectedRevStr}
+                                      </p>
+                                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                        Forecast: {revenueStr}
+                                      </p>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })
+                : Object.entries(
+                    matches.reduce(
+                      (acc, match) => {
+                        if (!acc[match.candidateId])
+                          acc[match.candidateId] = [];
+                        acc[match.candidateId].push(match);
+                        return acc;
+                      },
+                      {} as Record<string, any[]>,
+                    ),
+                  ).map(([candId, groupMatches]) => {
+                    const cand = candidates[candId] || groupMatches[0];
+                    return (
+                      <div
+                        key={candId}
+                        className="border-b border-slate-200 last:border-0"
+                      >
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+                          <div>
+                            <span className="text-xs font-black uppercase tracking-widest text-emerald-600 mr-2">
+                              Candidate
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              {cand?.name || cand?.candidateName || candId}
+                            </span>
+                            <span className="ml-2 text-xs text-slate-500 font-medium">
+                              ({cand.vendorId || "Direct"})
+                            </span>
+                          </div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {groupMatches.length} Opportunities
+                          </div>
+                        </div>
+                        <table className="w-full">
+                          <tbody className="divide-y divide-slate-50">
+                            {groupMatches
+                              .sort(
+                                (a, b) =>
+                                  (b.placementProbability || 0) -
+                                  (a.placementProbability || 0),
+                              )
+                              .map((match) => {
+                                const req = requirements[match.requirementId];
+                                let revenueStr = "--";
+                                let expectedRevStr = "--";
+                                let marginVal =
+                                  (req?.financials?.clientBilling || 0) *
+                                  ((req?.financials?.commissionPercent || 0) /
+                                    100);
+                                if (isAdmin || userData?.role === "hq") {
+                                  revenueStr = req?.financials
+                                    ? `₹${marginVal.toLocaleString()}`
+                                    : "--";
+                                  expectedRevStr = match.expectedRevenue
+                                    ? `₹${match.expectedRevenue.toLocaleString()}`
+                                    : req?.financials
+                                      ? `₹${Math.round(marginVal * ((match.placementProbability || 0) / 100)).toLocaleString()}`
+                                      : "--";
+                                } else if (userData?.role === "vendor") {
+                                  let vendorBudget =
+                                    (req?.financials?.clientBilling || 0) -
+                                    marginVal;
+                                  revenueStr = req?.financials
+                                    ? `₹${vendorBudget.toLocaleString()}`
+                                    : "--";
+                                  expectedRevStr = match.expectedRevenue
+                                    ? `₹${match.expectedRevenue.toLocaleString()}`
+                                    : req?.financials
+                                      ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0) / 100)).toLocaleString()}`
+                                      : "--";
+                                }
+                                return (
+                                  <tr
+                                    key={match.id}
+                                    className="hover:bg-slate-50/50 transition-colors"
+                                  >
+                                    <td className="px-4 py-3 w-32">
+                                      <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
+                                        {match.status || "DISCOVERED"}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <p className="font-bold text-slate-900 text-sm">
+                                        {req?.title || match.requirementId}
+                                      </p>
+                                      <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
+                                        MATCH: {match.score || match.matchScore}
+                                        %
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-left w-48">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
+                                          <div
+                                            className="bg-emerald-500 h-1.5 rounded-full"
+                                            style={{
+                                              width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
+                                            }}
+                                          ></div>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-700">
+                                          {match.placementProbability ||
+                                            Math.round(
+                                              Math.min(
+                                                95,
+                                                (match.score ||
+                                                  match.matchScore ||
+                                                  0) * 0.5,
+                                              ),
+                                            )}
+                                          %
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right w-48">
+                                      <p className="font-mono text-sm font-black text-slate-900">
+                                        {expectedRevStr}
+                                      </p>
+                                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                        Forecast: {revenueStr}
+                                      </p>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
