@@ -48,9 +48,8 @@ export default async function handler(req: any, res: any) {
 
     // 2. Fallback: Does this client have an AI match for this candidate?
     if (!isAuthorized) {
-       const aiMatchSnap = await adminDb.collection("candidatePool")
-          .doc(candidateId as string)
-          .collection("ai_matches")
+       const aiMatchSnap = await adminDb.collection("candidate_matches")
+          .where("candidateId", "==", candidateId as string)
           .where("clientId", "==", clientId)
           .limit(1)
           .get();
@@ -81,18 +80,16 @@ export default async function handler(req: any, res: any) {
     const subRecord = !subSnap.empty ? subSnap.docs[0].data() : null;
     let aiAnalysis = null;
     
-    // get from ai_matches if it exists
+    // get from candidate_matches if it exists
     if (subRecord && subRecord.requirementId) {
-       const matchDoc = await adminDb.collection("candidatePool").doc(candidateId as string)
-           .collection("ai_matches").doc(subRecord.requirementId).get();
+       const matchDoc = await adminDb.collection("candidate_matches").doc(`${candidateId}_${subRecord.requirementId}`).get();
        if (matchDoc.exists) {
            aiAnalysis = matchDoc.data();
        }
     } else {
        // fallback generic match for the client
-       const aiMatchSnap = await adminDb.collection("candidatePool")
-          .doc(candidateId as string)
-          .collection("ai_matches")
+       const aiMatchSnap = await adminDb.collection("candidate_matches")
+          .where("candidateId", "==", candidateId as string)
           .where("clientId", "==", clientId)
           .limit(1)
           .get();

@@ -22,7 +22,7 @@ export default async function handler(req: any, res: any) {
         reqMap.set(doc.id, doc.data());
     });
 
-    const allMatchesSnapshot = await adminDb.collectionGroup('ai_matches').get();
+    const allMatchesSnapshot = await adminDb.collection('candidate_matches').get();
     
     let totalMatches = allMatchesSnapshot.docs.length;
     let activeMatches = 0;

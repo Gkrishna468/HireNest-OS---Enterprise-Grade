@@ -379,6 +379,12 @@ export default async function handler(req: any, res: any) {
             status: "QUEUED",
             payload: { jobId: targetId, marginValue, vendorPayout, timestamp: new Date().toISOString() }
           });
+          
+          import('./rescan-matches.js').then(({ runMatchIntelligenceEngine }) => {
+              runMatchIntelligenceEngine(targetId, orgId).catch(err => {
+                  console.error("Match Intelligence Engine failed:", err);
+              });
+          });
         } catch (evtErr) {
            console.warn("Failed to trigger JOB_PUBLISHED workflow saga", evtErr);
         }

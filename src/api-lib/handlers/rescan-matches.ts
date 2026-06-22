@@ -4,29 +4,23 @@ import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  if (!adminDb) return res.status(503).json({ success: false, error: "Firebase Service Account configuration is missing. Cannot perform requirement refresh in client fallback mode." });
-
-  try {
-    const { orgId, role, reqId } = req.body;
+export async function runMatchIntelligenceEngine(reqId?: string, orgId?: string, role?: string) {
+    if (!adminDb) return 0;
     
     // We fetch requirements. If reqId is provided, we fetch only that one.
-    let requirements = [];
+    let requirements: any[] = [];
     if (reqId) {
       const docRef = await adminDb.collection("requirements_public").doc(reqId).get();
       if (docRef.exists) {
         requirements = [{ id: docRef.id, ...docRef.data() }];
         
         // Delete old matches for this requirement since we are refreshing
-        const oldMatches = await adminDb.collectionGroup('ai_matches').get();
+        const oldMatches = await adminDb.collection('candidate_matches').where('requirementId', '==', reqId).get();
         for (const doc of oldMatches.docs) {
-            if (doc.id === reqId || doc.data().requirementId === reqId) {
-                await doc.ref.delete();
-            }
+            await doc.ref.delete();
         }
       } else {
-        return res.status(404).json({ error: "Requirement not found" });
+        throw new Error("Requirement not found");
       }
     } else {
        // Global rescan (currently discouraged but supported)
@@ -58,45 +52,29 @@ export default async function handler(req: any, res: any) {
       const isBlacklisted = cand.status === 'blacklisted' || cand.isBlacklisted;
       
       if (isArchived || isDeleted || isBlacklisted) {
-        continue;
+         continue; 
       }
 
-      const candidateSummary = `Name: ${cand.fullName || cand.name}
-Role: ${cand.role || 'Undefined'}
-Skills: ${(cand.skills || []).join(", ")}
-Experience: ${cand.experience || "N/A"}
-Resume: ${cand.resumeText ? cand.resumeText.slice(0, 1500) : "N/A"}`;
-
       for (const reqObj of requirements) {
-        // Skip if already in client submission for this requirement
-        // "Never rematch rejected candidates" or already submitted candidates
-        const candSubmissions = submissions.filter(
-          (sub: any) =>
-            (sub.requirementId === reqObj.id || sub.reqId === reqObj.id) && 
-            (sub.candidateId === (cand.candidateId || cand.id))
+        // Exclude if already submitted
+        const alreadySubmitted = submissions.find(
+          (s: any) => s.requirementId === reqObj.id && s.candidateId === cand.id
         );
+        if (alreadySubmitted) continue;
 
-        let shouldSkip = false;
-        if (candSubmissions.length > 0) {
-            for (const s of candSubmissions) {
-                const status = (s.status || "").toLowerCase();
-                // Skip if it was submitted or rejected.
-                if (status === 'submitted' || status.includes('rejected') || status === 'match_rejected') {
-                   shouldSkip = true;
-                   break;
-                }
-            }
-            // Actually, based on previous logic, if they have ANY submission, we skip to avoid duplicate evaluations.
-            shouldSkip = true;
-        }
-
-        if (shouldSkip) {
-          continue; 
-        }
-
-        // Use Google API to rescan match
+        // Create Summaries for AI
         const jdSummary = `Title: ${reqObj.title}
-Skills: ${(reqObj.skills || []).join(", ")}
+Role: ${reqObj.role || "N/A"}
+Org: ${reqObj.clientId || reqObj.orgId || "N/A"}
+Must Have Skills: ${(reqObj.mustHaveSkills || []).join(", ")}
+Good To Have Skills: ${(reqObj.goodToHaveSkills || []).join(", ")}
+Description: ${reqObj.description || "N/A"}
+Experience: ${reqObj.experience || reqObj.yearsOfExperience || "N/A"}`;
+
+        const candidateSummary = `Name: ${cand.name || "N/A"}
+Title: ${cand.title || cand.role || "N/A"}
+Vendor: ${cand.vendorId || cand.orgId || "N/A"}
+Skills: ${(cand.skills || []).join(", ")}
 Experience: ${reqObj.experience || reqObj.yearsOfExperience || "N/A"}`;
 
         const prompt = `You are a recruitment AI.
@@ -126,16 +104,23 @@ Return JSON strictly in this format:
              const matchResult = {
                 canonicalRequirementId: reqObj.id,
                 requirementId: reqObj.id,
+                tenantId: reqObj.tenantId || cand.tenantId || "TENANT-HQ",
                 matchScore: mScore,
                 summary: resultJson.summary || "AI Rescan Completed",
                 strengths: resultJson.strengths || [],
                 missingSkills: resultJson.missingSkills || [],
                 breakdown: resultJson.breakdown || { skillsScore: mScore, experienceScore: mScore, domainScore: mScore, locationScore: mScore },
-                lastScanned: new Date().toISOString()
              };
              
-             // Save to a subcollection "ai_matches" under the candidate
-             await adminDb.collection("candidatePool").doc(cand.id).collection("ai_matches").doc(reqObj.id).set(matchResult);
+             const matchId = `${cand.id}_${reqObj.id}`;
+             // Save to core collection "candidate_matches"
+             await adminDb.collection("candidate_matches").doc(matchId).set({
+                 ...matchResult,
+                 candidateId: cand.id,
+                 vendorId: cand.vendorId || cand.orgId || "UNKNOWN",
+                 source: "MATCH_ENGINE_V1",
+                 generatedAt: new Date().toISOString()
+             });
              matchUpdatesCount++;
           }
         } catch (genErr) {
@@ -144,6 +129,34 @@ Return JSON strictly in this format:
       }
     }
 
+    // 4. Generate requirement_match_index
+    for (const reqObj of requirements) {
+        const matchesSnap = await adminDb.collection("candidate_matches").where("requirementId", "==", reqObj.id).get();
+        let topScore = 0;
+        let totalMatches = matchesSnap.size;
+        matchesSnap.docs.forEach((doc: any) => {
+             const data = doc.data();
+             if (data.matchScore > topScore) topScore = data.matchScore;
+        });
+
+        await adminDb.collection("requirement_match_index").doc(reqObj.id).set({
+             requirementId: reqObj.id,
+             totalMatches: totalMatches,
+             topMatchScore: topScore,
+             lastCalculated: new Date().toISOString()
+        });
+    }
+
+    return matchUpdatesCount;
+}
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (!adminDb) return res.status(503).json({ success: false, error: "Firebase Service Account configuration is missing. Cannot perform requirement refresh in client fallback mode." });
+
+  try {
+    const { orgId, role, reqId } = req.body;
+    const matchUpdatesCount = await runMatchIntelligenceEngine(reqId, orgId, role);
     return res.status(200).json({ success: true, matchUpdatesCount });
   } catch (e: any) {
     console.error("Rescan Error:", e);

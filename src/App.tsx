@@ -524,7 +524,7 @@ const AppContent = () => {
               <SidebarItem
                 to="/matches"
                 icon={Star}
-                label="Match Intelligence"
+                label="Match Opportunities"
                 active={location.pathname === "/matches"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />

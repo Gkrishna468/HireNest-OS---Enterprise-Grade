@@ -95,7 +95,16 @@ export default async function analyticsHandler(req: any, res: any) {
     }
 
     if (apiPath === 'vendor') {
-       const reqsSnap = await adminDb.collection("requirements_public").where("assignedVendorIds", "array-contains", verifiedOrgId || "UNKNOWN").get();
+       const reqsSnapPublic = await adminDb.collection("requirements_public").where("visibility", "==", "VENDOR_NETWORK").where("status", "==", "PUBLISHED").get();
+       const reqsSnapAssigned = await adminDb.collection("requirements_public").where("assignedVendorIds", "array-contains", verifiedOrgId || "UNKNOWN").get();
+       
+       // Combine them using a Map to ensure distinct reqs
+       const allocatedReqs = new Map();
+       reqsSnapPublic.docs.forEach((d: any) => allocatedReqs.set(d.id, d.data()));
+       reqsSnapAssigned.docs.forEach((d: any) => allocatedReqs.set(d.id, d.data()));
+       
+       const activeReqs = allocatedReqs.size;
+
        const candsSnap = await adminDb.collection("candidatePool")
           .where("vendorId", "==", verifiedOrgId || "UNKNOWN")
           .get();
@@ -168,11 +177,12 @@ export default async function analyticsHandler(req: any, res: any) {
           }
        });
        
-       let allocatedReqs = reqsSnap.docs.length;
+       // We already computed activeReqs above
+       let vendorAllocatedReqs = activeReqs;
 
        return res.status(200).json({
           revenue: revenue,
-          totalJobs: allocatedReqs, // Represents "Allocated Requirements" on Vendor Dash
+          totalJobs: vendorAllocatedReqs, // Represents "Allocated Requirements" on Vendor Dash
           totalCandidates: activeCands, // Represents "Bench Candidates" on Vendor Dash
           interviewsToday: interviews, // Represents "Interviews Scheduled"
           activeDeals: activeSubs,

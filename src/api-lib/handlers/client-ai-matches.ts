@@ -47,10 +47,10 @@ export default async function handler(req: any, res: any) {
 
     if (reqIds.size === 0) return res.status(200).json({ matches: [] });
 
-    const allMatchesSnapshot = await adminDb.collectionGroup('ai_matches').get();
+    const allMatchesSnapshot = await adminDb.collection('candidate_matches').get();
     const matches: any[] = [];
     
-    console.log("Total ai_matches found = ", allMatchesSnapshot.size);
+    console.log("Total candidate_matches found = ", allMatchesSnapshot.size);
 
     let reqFiltered = 0;
     let activeFiltered = 0;
