@@ -39,7 +39,8 @@ import {
   ShieldAlert,
   Globe2,
   Video,
-  Star
+  Star,
+  Award,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -49,6 +50,9 @@ import AgentHQ from "./views/AgentHQ";
 import CandidatesTab from "./views/CandidatesTab";
 import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
+import Client360Tab from "./views/Client360Tab";
+import Vendor360Tab from "./views/Vendor360Tab";
+import RecruiterPerformanceTab from "./views/RecruiterPerformanceTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
@@ -59,6 +63,7 @@ import InboxTab from "./views/InboxTab";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
 import FinancialsTab from "./views/FinancialsTab";
+import RevenueIntelligenceTab from "./views/RevenueIntelligenceTab";
 import TrustEngineTab from "./views/TrustEngineTab";
 import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
@@ -133,7 +138,8 @@ const SidebarItem = ({
 
 const AppContent = () => {
   const location = useLocation();
-  const { user, userData, loading, showDemo, initialize, closeDemo } = useSystemStore();
+  const { user, userData, loading, showDemo, initialize, closeDemo } =
+    useSystemStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   React.useEffect(() => {
@@ -573,6 +579,27 @@ const AppContent = () => {
                 }
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <SidebarItem
+                to="/client-360"
+                icon={Building2}
+                label="Client 360"
+                active={location.pathname === "/client-360"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/vendor-360"
+                icon={Building2}
+                label="Vendor 360"
+                active={location.pathname === "/vendor-360"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/recruiter-performance"
+                icon={Award}
+                label="Recruiter Engine"
+                active={location.pathname === "/recruiter-performance"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
 
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Finance
@@ -587,8 +614,15 @@ const AppContent = () => {
               <SidebarItem
                 to="/financials"
                 icon={DollarSign}
-                label="Revenue"
+                label="Finance Ledger"
                 active={location.pathname === "/financials"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/revenue-intelligence"
+                icon={Activity}
+                label="Revenue Intel"
+                active={location.pathname === "/revenue-intelligence"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
 
@@ -700,22 +734,26 @@ const AppContent = () => {
                       ? "Recruiter Workspace"
                       : "User Workspace"}
             </div>
-            
+
             {/* Universal Search Bar */}
             <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 focus-within:w-80 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-               <Search size={16} className="text-slate-400 shrink-0" />
-               <input 
-                 type="text" 
-                 placeholder="Search Candidates, Requirements..." 
-                 className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400"
-                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                       // Universal Search handling (placeholder behavior for MVP)
-                       alert(`Universal Search for: ${e.currentTarget.value}\n(Routing implementation pending)`);
-                    }
-                 }}
-               />
-               <div className="ml-2 bg-slate-200 text-slate-500 text-[9px] rounded px-1.5 py-0.5 font-mono opacity-60 pointer-events-none">⌘K</div>
+              <Search size={16} className="text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Search Candidates, Requirements..."
+                className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    // Universal Search handling (placeholder behavior for MVP)
+                    alert(
+                      `Universal Search for: ${e.currentTarget.value}\n(Routing implementation pending)`,
+                    );
+                  }
+                }}
+              />
+              <div className="ml-2 bg-slate-200 text-slate-500 text-[9px] rounded px-1.5 py-0.5 font-mono opacity-60 pointer-events-none">
+                ⌘K
+              </div>
             </div>
 
             <div className="flex items-center gap-2 hidden lg:flex">
@@ -767,18 +805,25 @@ const AppContent = () => {
             <Route path="/candidates" element={<CandidatesTab />} />
             <Route path="/matches" element={<MatchIntelligenceTab />} />
             <Route path="/jobs" element={<JobsTab />} />
-            <Route 
-              path="/pipeline" 
-              element={<CandidatesTab />} 
-            />
+            <Route path="/pipeline" element={<CandidatesTab />} />
             {(isAdmin || isRecruiter) && (
               <Route path="/network" element={<NetworkDirectoryTab />} />
             )}
-            {isAdmin && <Route path="/benchmarks" element={<BenchmarkDashboard />} />}
-            {isAdmin && <Route path="/adoption" element={<CustomerSuccessDashboard />} />}
-            {isAdmin && <Route path="/ai-learning" element={<AILearningLoopTab />} />}
-            {isAdmin && <Route path="/evidence" element={<EvidenceDashboard />} />}
-            {isAdmin && <Route path="/founder-tower" element={<FounderControlTower />} />}
+            {isAdmin && (
+              <Route path="/benchmarks" element={<BenchmarkDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/adoption" element={<CustomerSuccessDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/ai-learning" element={<AILearningLoopTab />} />
+            )}
+            {isAdmin && (
+              <Route path="/evidence" element={<EvidenceDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/founder-tower" element={<FounderControlTower />} />
+            )}
             {isAdmin && (
               <Route
                 path="/health"
@@ -801,6 +846,35 @@ const AppContent = () => {
                     userId={user?.uid || ""}
                   />
                 }
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/revenue-intelligence"
+                element={
+                  <RevenueIntelligenceTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/client-360"
+                element={<Client360Tab userRole={role || ""} />}
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/vendor-360"
+                element={<Vendor360Tab userRole={role || ""} />}
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/recruiter-performance"
+                element={<RecruiterPerformanceTab userRole={role || ""} />}
               />
             )}
             {(isAdmin || isVendor) && (
@@ -830,7 +904,12 @@ const AppContent = () => {
               />
             )}
             {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
-            {isAdmin && <Route path="/governance" element={<AdminGovernanceDashboard />} />}
+            {isAdmin && (
+              <Route
+                path="/governance"
+                element={<AdminGovernanceDashboard />}
+              />
+            )}
             {isAdmin && (
               <Route
                 path="/users"
@@ -866,7 +945,16 @@ const AppContent = () => {
                 <Onboarding onComplete={() => window.location.reload()} />
               }
             />
-            <Route path="/settings" element={user && !loading ? <SettingsTab /> : <Navigate to="/dashboard" />} />
+            <Route
+              path="/settings"
+              element={
+                user && !loading ? (
+                  <SettingsTab />
+                ) : (
+                  <Navigate to="/dashboard" />
+                )
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

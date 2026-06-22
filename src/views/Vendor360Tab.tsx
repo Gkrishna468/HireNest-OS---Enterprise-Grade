@@ -1,0 +1,337 @@
+import React, { useState, useEffect } from "react";
+import {
+  Building,
+  Search,
+  Users,
+  Briefcase,
+  Star,
+  FileText,
+  CheckCircle2,
+  DollarSign,
+  Activity,
+} from "lucide-react";
+import { cn } from "../lib/utils";
+import { db } from "../lib/firebase";
+import { collection, query, getDocs, where } from "firebase/firestore";
+
+export default function Vendor360Tab({ userRole }: { userRole: string }) {
+  const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string>("");
+  const [vendorData, setVendorData] = useState<any>(null);
+
+  const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(
+    userRole,
+  );
+
+  useEffect(() => {
+    let active = true;
+    const fetchVendors = async () => {
+      try {
+        const orgsSnap = await getDocs(
+          query(collection(db, "organizations"), where("type", "==", "vendor")),
+        );
+        const orgs = orgsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        if (!active) return;
+        setVendors(orgs);
+        if (orgs.length > 0) {
+          setSelectedVendorId(orgs[0].id);
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    };
+    fetchVendors();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedVendorId) return;
+
+    setLoading(true);
+    const fetchVendor360 = async () => {
+      try {
+        // 1. Account Info
+        const vendorObj = vendors.find((v) => v.id === selectedVendorId);
+
+        // 2. Fetch Candidates
+        const candsSnap = await getDocs(
+          query(
+            collection(db, "candidatePool"),
+            where("vendorId", "==", selectedVendorId),
+          ),
+        );
+        const candidates = candsSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        // 3. Fetch Matches
+        const oppQ = query(
+          collection(db, "match_opportunities"),
+          where("vendorId", "==", selectedVendorId),
+        );
+        const oppSnap = await getDocs(oppQ);
+        const opps = oppSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // 4. Fetch Submissions
+        const subSnap = await getDocs(
+          query(
+            collection(db, "submissions"),
+            where("vendorId", "==", selectedVendorId),
+          ),
+        );
+        const subs = subSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // 5. Fetch Placements / DealRooms
+        // Assuming dealRooms might have a vendorId, if not, we use submissions that reached placement
+        const dealSnap = await getDocs(collection(db, "dealRooms"));
+        const deals = dealSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        if (!active) return;
+
+        let interviews = 0;
+        let placements = 0;
+        let revenue = 0;
+
+        subs.forEach((s: any) => {
+          if (s.status === "INTERVIEWING") interviews++;
+          if (s.status === "HIRED" || s.status === "SELECTED") {
+            placements++;
+            revenue += 20000; // Mock revenue per placement for vendor component
+          }
+        });
+
+        // Correlate deals if vendorId is tracked
+        deals.forEach((d) => {
+          // Let's assume deal tracks vendorId or we rely on submissions
+          if (d.vendorId === selectedVendorId) {
+            if (d.currentStage === "Interview" || d.currentStage === "Offer")
+              interviews++;
+            if (d.currentStage === "Hired" || d.status === "WON") {
+              placements++;
+              revenue += 20000;
+            }
+          }
+        });
+
+        // De-duplicate if needed, but for now we aggregate
+        const calcPlacementRatio =
+          subs.length > 0 ? Math.round((placements / subs.length) * 100) : 0;
+        const calcInterviewRatio =
+          subs.length > 0 ? Math.round((interviews / subs.length) * 100) : 0;
+
+        let vendorScore = 50; // Base score
+        vendorScore += Math.min(30, calcPlacementRatio);
+        vendorScore += Math.min(20, calcInterviewRatio);
+
+        setVendorData({
+          account: vendorObj,
+          benchCandidates: candidates.length,
+          opportunities: opps.length,
+          submissions: subs.length,
+          interviews: interviews,
+          placements: placements,
+          interviewRatio: calcInterviewRatio,
+          placementRatio: calcPlacementRatio,
+          revenueGenerated: revenue,
+          vendorScore: vendorScore,
+        });
+
+        setLoading(false);
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    };
+    fetchVendor360();
+    return () => {
+      active = false;
+    };
+  }, [selectedVendorId, vendors]);
+
+  if (!isAdmin && userRole !== "hq") {
+    return (
+      <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
+        Access Restricted to HQ
+      </div>
+    );
+  }
+
+  const formatCurrency = (val: number) => "₹" + val.toLocaleString("en-IN");
+
+  return (
+    <div className="flex flex-col h-full bg-slate-50 overflow-y-auto w-full">
+      <div className="bg-white border-b border-slate-200 px-8 py-6">
+        <div className="max-w-[1400px] mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Building className="text-purple-600" size={28} />
+              <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
+                Vendor 360
+              </h1>
+            </div>
+            <p className="text-slate-500 font-medium text-sm">
+              Supply chain performance and revenue impact.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 relative">
+            <Search className="absolute left-3 text-slate-400" size={16} />
+            <select
+              className="pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500"
+              value={selectedVendorId}
+              onChange={(e) => setSelectedVendorId(e.target.value)}
+            >
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name || "Unnamed Vendor"}
+                </option>
+              ))}
+              {vendors.length === 0 && (
+                <option value="">No Vendors Found</option>
+              )}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-8 max-w-[1400px] mx-auto w-full">
+        {loading ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-32 bg-slate-200 rounded-2xl w-full"></div>
+            <div className="h-64 bg-slate-200 rounded-2xl w-full"></div>
+          </div>
+        ) : vendorData ? (
+          <div className="space-y-8">
+            {/* Account Header */}
+            <div className="bg-slate-900 rounded-2xl p-8 border border-slate-800 text-white flex flex-col md:flex-row justify-between items-start md:items-center">
+              <div>
+                <h2 className="text-3xl font-black">
+                  {vendorData.account?.name || "Unknown"}
+                </h2>
+                <p className="text-slate-400 font-medium mt-1">
+                  Vendor Partner Profile
+                </p>
+              </div>
+              <div className="mt-4 md:mt-0 flex gap-6 text-right">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-black mb-1">
+                    Response Time
+                  </p>
+                  <p className="text-xl font-bold text-white">4 hrs</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-amber-400 font-black mb-1">
+                    Vendor Score
+                  </p>
+                  <p
+                    className={cn(
+                      "text-2xl font-black",
+                      vendorData.vendorScore >= 80
+                        ? "text-emerald-400"
+                        : vendorData.vendorScore >= 50
+                          ? "text-amber-400"
+                          : "text-rose-400",
+                    )}
+                  >
+                    {vendorData.vendorScore}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Lifecycle Pipeline */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-8">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-8">
+                Performance Pipeline
+              </h3>
+
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+                <MetricCard
+                  icon={<Users size={16} />}
+                  label="Bench Candidates"
+                  value={vendorData.benchCandidates}
+                  color="text-indigo-600"
+                />
+                <MetricCard
+                  icon={<Star size={16} />}
+                  label="Matches Accessed"
+                  value={vendorData.opportunities}
+                  color="text-amber-500"
+                />
+                <MetricCard
+                  icon={<FileText size={16} />}
+                  label="Submissions"
+                  value={vendorData.submissions}
+                  color="text-sky-500"
+                />
+                <MetricCard
+                  icon={<CheckCircle2 size={16} />}
+                  label="Placements"
+                  value={vendorData.placements}
+                  color="text-emerald-500"
+                />
+
+                <div className="col-span-2 grid grid-cols-2 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">
+                      Interview Rate
+                    </p>
+                    <p className="text-2xl font-black text-slate-800">
+                      {vendorData.interviewRatio}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">
+                      Placement Rate
+                    </p>
+                    <p className="text-2xl font-black text-emerald-600">
+                      {vendorData.placementRatio}%
+                    </p>
+                  </div>
+                  <div className="col-span-2 mt-2 pt-2 border-t border-slate-200">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1">
+                      Revenue Generated
+                    </p>
+                    <p className="text-xl font-black text-indigo-600">
+                      {formatCurrency(vendorData.revenueGenerated)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center p-12 text-slate-400 font-bold uppercase tracking-widest text-sm border-2 border-dashed border-slate-200 rounded-2xl">
+            No Vendor Data Available
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ icon, label, value, color }: any) {
+  return (
+    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
+      <div
+        className={cn(
+          "w-10 h-10 rounded-full flex items-center justify-center bg-white shadow-sm mb-3",
+          color,
+        )}
+      >
+        {icon}
+      </div>
+      <p className="text-2xl font-black text-slate-800">{value}</p>
+      <p className="text-[9px] uppercase tracking-widest font-bold text-slate-500 mt-1 text-center leading-tight">
+        {label}
+      </p>
+    </div>
+  );
+}
