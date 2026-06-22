@@ -113,14 +113,47 @@ Return JSON strictly in this format:
              };
              
              const matchId = `${cand.id}_${reqObj.id}`;
+             const vendorId = cand.vendorId || cand.orgId || "UNKNOWN";
              // Save to core collection "candidate_matches"
              await adminDb.collection("candidate_matches").doc(matchId).set({
                  ...matchResult,
                  candidateId: cand.id,
-                 vendorId: cand.vendorId || cand.orgId || "UNKNOWN",
+                 vendorId: vendorId,
                  source: "MATCH_ENGINE_V1",
                  generatedAt: new Date().toISOString()
              });
+
+             // Create match opportunity
+             const vendorPerformanceScore = 85;
+             let reqAgeDays = 2;
+             if (reqObj.createdAt) {
+                 const created = new Date(reqObj.createdAt);
+                 reqAgeDays = Math.max(1, Math.floor((new Date().getTime() - created.getTime()) / (1000 * 3600 * 24)));
+             }
+             const prob = Math.round((mScore * 0.5) + (vendorPerformanceScore * 0.3) - (reqAgeDays * 0.5));
+             const placementProbability = Math.max(5, Math.min(95, prob));
+             
+             let forecastRevenue = 0;
+             if (reqObj.financials && reqObj.financials.clientBilling && reqObj.financials.commissionPercent) {
+                 forecastRevenue = (reqObj.financials.clientBilling * (reqObj.financials.commissionPercent / 100));
+             }
+             const expectedRevenue = Math.round(forecastRevenue * (placementProbability / 100));
+             
+             const oppId = `MO-${matchId}`;
+             await adminDb.collection("match_opportunities").doc(oppId).set({
+                 opportunityId: oppId,
+                 candidateId: cand.id,
+                 requirementId: reqObj.id,
+                 vendorId: vendorId,
+                 tenantId: reqObj.tenantId || cand.tenantId || "TENANT-HQ",
+                 matchScore: mScore,
+                 status: "DISCOVERED",
+                 forecastRevenue,
+                 placementProbability,
+                 expectedRevenue,
+                 createdAt: new Date().toISOString()
+             });
+
              matchUpdatesCount++;
           }
         } catch (genErr) {

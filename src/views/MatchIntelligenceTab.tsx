@@ -35,15 +35,15 @@ export default function MatchIntelligenceTab() {
 
         let q;
         if (isAdmin || isClient) {
-          q = query(collection(db, "candidate_matches"), limit(100));
+          q = query(collection(db, "match_opportunities"), limit(100));
         } else if (isVendor && orgId) {
           q = query(
-            collection(db, "candidate_matches"),
+            collection(db, "match_opportunities"),
             where("vendorId", "==", orgId),
             limit(100),
           );
         } else {
-          q = query(collection(db, "candidate_matches"), limit(1));
+          q = query(collection(db, "match_opportunities"), limit(1));
         }
 
         const snapshot = await getDocs(q);
@@ -164,35 +164,29 @@ export default function MatchIntelligenceTab() {
                 size={80}
               />
               <p className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-                Total Matches
+                Active Opportunities
               </p>
               <p className="text-3xl font-black text-slate-900 mt-2">
                 {matches.length}
               </p>
             </div>
             <div className="bg-white p-5 border border-slate-200 rounded-xl shadow-sm relative overflow-hidden">
-              <Briefcase
-                className="absolute -right-4 -bottom-4 text-indigo-500/10"
+              <TrendingUp
+                className="absolute -right-4 -bottom-4 text-emerald-500/10"
                 size={80}
               />
               <p className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-                Avg Match Score
+                Expected Value
               </p>
               <p className="text-3xl font-black text-slate-900 mt-2">
-                {Math.round(
-                  matches.reduce(
-                    (acc, m) => acc + (m.score || m.matchScore || 0),
-                    0,
-                  ) / matches.length,
-                )}
-                %
+                ₹{matches.reduce((acc, m) => acc + (m.expectedRevenue || 0), 0).toLocaleString()}
               </p>
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                Real-time Opportunities
+                Opportunity Pipeline
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -200,19 +194,19 @@ export default function MatchIntelligenceTab() {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
                       Requirement
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
                       Candidate
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Score
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Vendor
+                      Probability
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-black tracking-widest text-slate-500 uppercase">
-                      Forecast Revenue
+                      Expected Revenue
                     </th>
                   </tr>
                 </thead>
@@ -222,6 +216,7 @@ export default function MatchIntelligenceTab() {
                     const cand = candidates[match.candidateId] || match;
 
                     let revenueStr = "--";
+                    let expectedRevStr = "--";
                     let marginVal =
                       (req?.financials?.clientBilling || 0) *
                       ((req?.financials?.commissionPercent || 0) / 100);
@@ -230,12 +225,18 @@ export default function MatchIntelligenceTab() {
                       revenueStr = req?.financials
                         ? `₹${marginVal.toLocaleString()}`
                         : "--";
+                      expectedRevStr = match.expectedRevenue 
+                        ? `₹${match.expectedRevenue.toLocaleString()}` 
+                        : (req?.financials ? `₹${Math.round(marginVal * ((match.placementProbability || 0)/100)).toLocaleString()}` : "--");
                     } else if (userData?.role === "vendor") {
                       let vendorBudget =
                         (req?.financials?.clientBilling || 0) - marginVal;
                       revenueStr = req?.financials
                         ? `₹${vendorBudget.toLocaleString()}`
                         : "--";
+                      expectedRevStr = match.expectedRevenue 
+                        ? `₹${match.expectedRevenue.toLocaleString()}`
+                        : (req?.financials ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0)/100)).toLocaleString()}` : "--");
                     }
 
                     return (
@@ -243,9 +244,17 @@ export default function MatchIntelligenceTab() {
                         key={match.id}
                         className="hover:bg-slate-50/50 transition-colors"
                       >
+                         <td className="px-4 py-3">
+                          <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
+                            {match.status || "DISCOVERED"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">
                           <p className="font-bold text-slate-900 text-sm">
                             {req?.title || match.requirementId}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium">
+                            {match.vendorId || cand?.vendorId || "--"}
                           </p>
                         </td>
                         <td className="px-4 py-3">
@@ -254,21 +263,25 @@ export default function MatchIntelligenceTab() {
                               cand?.candidateName ||
                               match.candidateId}
                           </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1 font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-xs border border-emerald-100">
-                            {match.score || match.matchScore}%
+                          <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
+                            MATCH: {match.score || match.matchScore}%
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-xs text-slate-500 font-medium">
-                            {match.vendorId || cand?.vendorId || "--"}
-                          </p>
+                           <div className="flex items-center gap-2">
+                             <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
+                               <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${match.placementProbability || Math.min(95, (match.score||match.matchScore||0)*0.5)}%` }}></div>
+                             </div>
+                             <span className="text-xs font-bold text-slate-700">{match.placementProbability || Math.round(Math.min(95, (match.score||match.matchScore||0)*0.5))}%</span>
+                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <p className="font-mono text-sm font-bold text-slate-900">
-                            {revenueStr}
+                          <p className="font-mono text-sm font-black text-slate-900">
+                            {expectedRevStr}
                           </p>
+                           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            Forecast: {revenueStr}
+                           </p>
                         </td>
                       </tr>
                     );
