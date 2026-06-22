@@ -1178,6 +1178,66 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // MATCH ENGINE & PIPELINE
+    // =====================================================
+
+    match /match_opportunities/{oppId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId) ||
+        isSameOrg(resource.data.orgId)
+      );
+      allow create: if isVerified();
+      allow update: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId) ||
+        isSameOrg(resource.data.orgId)
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /revenue_pipeline/{docId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId) ||
+        isSameOrg(resource.data.orgId)
+      );
+      allow create, update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /requirement_match_index/{docId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        isSameOrg(resource.data.clientId) ||
+        isSameOrg(resource.data.orgId)
+      );
+      allow create, update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
+    // =====================================================
+    // SYSTEM EVENTS & EVENT BUS
+    // =====================================================
+
+    match /system_events/{eventId} {
+      allow read: if isVerified();
+      allow create: if isVerified();
+      allow update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /system_event_subscriptions/{subId} {
+      allow read: if isVerified();
+      allow create: if isPlatformAuthority();
+      allow update, delete: if isPlatformAuthority();
+    }
+
+    // =====================================================
     // GLOBAL HQ OVERRIDE
     // =====================================================
 

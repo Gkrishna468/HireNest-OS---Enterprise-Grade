@@ -142,6 +142,7 @@ Return JSON strictly in this format:
               ...matchResult,
               candidateId: cand.id,
               vendorId: vendorId,
+              orgId: cand.orgId || vendorId || "SYSTEM",
               source: "MATCH_ENGINE_V1",
               generatedAt: new Date().toISOString(),
             });
@@ -187,6 +188,7 @@ Return JSON strictly in this format:
               requirementId: reqObj.id,
               clientId: reqObj.clientId || "CLI-001",
               vendorId: vendorId,
+              orgId: cand.orgId || vendorId || "SYSTEM",
               tenantId: reqObj.tenantId || cand.tenantId || "TENANT-HQ",
               matchScore: mScore,
               status: "DISCOVERED",
@@ -204,6 +206,7 @@ Return JSON strictly in this format:
               clientId: reqObj.clientId || "CLI-001",
               requirementId: reqObj.id,
               vendorId: vendorId,
+              orgId: cand.orgId || vendorId || "SYSTEM",
               forecastRevenue,
               expectedRevenue,
               probability: placementProbability,
