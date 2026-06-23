@@ -217,7 +217,18 @@ export default async function handler(req: any, res: any) {
        const requestDoc = await adminDb.collection("onboarding_requests").doc(requestId).get();
        const requestData = requestDoc.data();
        const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
-       await adminDb.collection("organizations").doc(orgId).set({ id: orgId, organizationId: orgId, companyName: requestData?.companyName || "New Org", type: role?.includes('vendor') ? 'vendor' : 'client', status: 'ACTIVE', createdAt: new Date().toISOString() });
+       const finalOrgType = role?.includes('vendor') ? 'VENDOR' : 'CLIENT';
+       await adminDb.collection("organizations").doc(orgId).set({ 
+           id: orgId, 
+           organizationId: orgId, 
+           companyName: requestData?.companyName || "New Org", 
+           orgType: finalOrgType, 
+           type: finalOrgType.toLowerCase(), // keep for legacy backwards compatibility
+           status: 'ACTIVE', 
+           tenantId: "TENANT-HQ",
+           sourceSystem: "OS",
+           createdAt: new Date().toISOString() 
+       });
        const userRecord = await adminAuth.createUser({ email: requestData?.email, password: "DefaultPassword123!", displayName: requestData?.companyName });
        await adminDb.collection("users").doc(userRecord.uid).set({ uid: userRecord.uid, email: requestData?.email, role: role || 'client_admin', organizationId: orgId, status: 'ACTIVE', createdAt: new Date().toISOString() });
        await adminDb.collection("onboarding_requests").doc(requestId).update({ verificationStatus: 'VERIFIED', approvedAt: new Date().toISOString() });
@@ -427,40 +438,227 @@ export default async function handler(req: any, res: any) {
     }
 
     // 9. Backfill Migration
+    if (action === 'rebuild-revenue-pipeline') {
+      if (!adminDb) return res.status(503).json({ error: "Administrative runtime unavailable" });
+      try {
+        const reqSnap = await adminDb.collection("requirements_public").get();
+        const requirements = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const matchesSnap = await adminDb.collection("candidate_matches").get();
+        const matches = matchesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const subsSnap = await adminDb.collection("submissions").get();
+        const subs = subsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const dealSnap = await adminDb.collection("dealRooms").get();
+        const deals = dealSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        let processed = 0;
+        const updates = [];
+
+        for (const req of requirements) {
+          const reqMatches = matches.filter((m: any) => m.requirementId === req.id);
+          const reqSubs = subs.filter((s: any) => s.requirementId === req.id);
+          const reqDeals = deals.filter((d: any) => d.requirementId === req.id);
+
+          const interviews = reqSubs.filter((s: any) => s.status === 'INTERVIEWING').length + reqDeals.filter((d: any) => d.currentStage === 'Interview' || d.currentStage === 'Offer').length;
+          const placements = reqSubs.filter((s: any) => s.status === 'HIRED' || s.status === 'SELECTED').length + reqDeals.filter((d: any) => d.currentStage === 'Hired' || d.status === 'WON').length;
+
+          const pipelineValue = req.financials?.clientBilling ? (req.financials.clientBilling * (req.financials.commissionPercent || 0) / 100) : 0;
+          
+          let expectedRevenue = 0;
+          reqMatches.forEach((m: any) => expectedRevenue += (m.expectedRevenue || 0));
+
+          const realizedRevenue = placements * pipelineValue; // Simplified assumption
+
+          const pipelineId = `REV-${req.id}`;
+          updates.push(adminDb.collection("revenue_pipeline").doc(pipelineId).set({
+            pipelineId,
+            orgId: req.orgId || req.clientId || "ORG-UNKNOWN",
+            crmOpportunityId: req.opportunityId || `OPP-${req.id}`,
+            requirementId: req.id,
+            pipelineValue,
+            matches: reqMatches.length,
+            submissions: reqSubs.length,
+            interviews,
+            placements,
+            expectedRevenue,
+            realizedRevenue,
+            status: req.status === "CLOSED" ? "CLOSED" : "ACTIVE",
+            updatedAt: new Date().toISOString()
+          }, { merge: true }));
+          processed++;
+        }
+
+        await Promise.all(updates);
+        return res.status(200).json({ success: true, processed });
+      } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
     if (action === 'migration-backfill') {
       if (!adminDb) return res.status(503).json({ error: "Administrative runtime unavailable" });
       try {
+         let organizationsCreated = 0;
+         let crmAccountsLinked = 0;
+         let clientsLinked = 0;
+         let vendorsLinked = 0;
+         let requirementsUpdated = 0;
+         let candidatesUpdated = 0;
+         let missingDomains = 0;
+         let duplicatesDetected = 0;
+         let failures = 0;
+
          const updates = [];
+         const processedOrgs = new Set<string>();
          
-         // 1. Backfill Requirements
+         // 0. Sync CRM Accounts, Clients, Vendors to Organizations
+         const crmSnap = await adminDb.collection("crm_accounts").get();
+         for (const doc of crmSnap.docs) {
+             const data = doc.data();
+             const orgId = data.id || doc.id;
+             if (processedOrgs.has(orgId)) { duplicatesDetected++; continue; }
+             processedOrgs.add(orgId);
+
+             const domain = data.website ? data.website.replace(/^https?:\/\//, '').split('/')[0] : (data.domain || "");
+             if (!domain) missingDomains++;
+
+             updates.push(adminDb.collection("organizations").doc(orgId).set({
+                 id: orgId,
+                 orgId: orgId,
+                 companyName: data.name || data.companyName || "Unnamed CRM Account",
+                 orgType: data.type === 'Client' ? 'CLIENT' : 'VENDOR',
+                 tenantId: data.tenantId || "TENANT-HQ",
+                 sourceSystem: "CRM",
+                 domain: domain,
+                 primaryContact: data.primaryContact || null,
+                 createdAt: data.createdAt || new Date().toISOString()
+             }, { merge: true }));
+             crmAccountsLinked++;
+             organizationsCreated++;
+         }
+
+         const clientsSnap = await adminDb.collection("clients").get();
+         for (const doc of clientsSnap.docs) {
+             const data = doc.data();
+             const orgId = data.id || doc.id;
+             if (processedOrgs.has(orgId)) { duplicatesDetected++; continue; }
+             processedOrgs.add(orgId);
+
+             const domain = data.website ? data.website.replace(/^https?:\/\//, '').split('/')[0] : (data.domain || "");
+             if (!domain) missingDomains++;
+
+             updates.push(adminDb.collection("organizations").doc(orgId).set({
+                 id: orgId,
+                 orgId: orgId,
+                 companyName: data.companyName || data.name || "Unnamed Client",
+                 orgType: 'CLIENT',
+                 tenantId: data.tenantId || "TENANT-HQ",
+                 sourceSystem: "OS",
+                 domain: domain,
+                 primaryContact: data.primaryContact || null,
+                 createdAt: data.createdAt || new Date().toISOString()
+             }, { merge: true }));
+             clientsLinked++;
+             organizationsCreated++;
+         }
+
+         const vendorsSnap = await adminDb.collection("vendors").get();
+         for (const doc of vendorsSnap.docs) {
+             const data = doc.data();
+             const orgId = data.id || doc.id;
+             if (processedOrgs.has(orgId)) { duplicatesDetected++; continue; }
+             processedOrgs.add(orgId);
+
+             const domain = data.website ? data.website.replace(/^https?:\/\//, '').split('/')[0] : (data.domain || "");
+             if (!domain) missingDomains++;
+
+             updates.push(adminDb.collection("organizations").doc(orgId).set({
+                 id: orgId,
+                 orgId: orgId,
+                 companyName: data.companyName || data.name || "Unnamed Vendor",
+                 orgType: 'VENDOR',
+                 tenantId: data.tenantId || "TENANT-HQ",
+                 sourceSystem: "OS",
+                 domain: domain,
+                 primaryContact: data.primaryContact || null,
+                 createdAt: data.createdAt || new Date().toISOString()
+             }, { merge: true }));
+             vendorsLinked++;
+             organizationsCreated++;
+         }
+
+         const orgsSnap = await adminDb.collection("organizations").get();
+         for (const doc of orgsSnap.docs) {
+             const data = doc.data();
+             const updatesObj: any = {};
+             if (!data.tenantId) updatesObj.tenantId = "TENANT-HQ";
+             if (!data.orgId) updatesObj.orgId = data.id || doc.id;
+             if (!data.sourceSystem) updatesObj.sourceSystem = "OS";
+             if (!data.orgType) updatesObj.orgType = (data.type || "").toUpperCase() === 'VENDOR' ? 'VENDOR' : 'CLIENT';
+             if (!data.companyName) updatesObj.companyName = data.name || "Unnamed Organization";
+             if (!data.domain && !processedOrgs.has(data.id || doc.id)) missingDomains++;
+             
+             if (Object.keys(updatesObj).length > 0) {
+               updates.push(doc.ref.update(updatesObj));
+             }
+         }
+
+         // 1. Backfill Requirements (reference orgId only)
          const reqSnap = await adminDb.collection("requirements_public").get();
          for (const doc of reqSnap.docs) {
             const data = doc.data();
             const updatesObj: any = {};
             if (!data.tenantId) updatesObj.tenantId = "TENANT-HQ";
-            if (!data.orgId && data.enterpriseId) updatesObj.orgId = data.enterpriseId;
-            if (!data.clientId && data.enterpriseId) updatesObj.clientId = data.enterpriseId;
+            if (!data.orgId) {
+               const potentialOrgId = data.clientId || data.enterpriseId;
+               if (potentialOrgId) updatesObj.orgId = potentialOrgId;
+            }
             if (!data.sourceSystem) updatesObj.sourceSystem = "OS";
             if (Object.keys(updatesObj).length > 0) {
               updates.push(doc.ref.update(updatesObj));
+              requirementsUpdated++;
             }
          }
 
-         // 2. Backfill Candidates
+         // 2. Backfill Candidates (preserve vendorId intact)
          const candSnap = await adminDb.collection("candidatePool").get();
          for (const doc of candSnap.docs) {
             const data = doc.data();
             const updatesObj: any = {};
             if (!data.tenantId) updatesObj.tenantId = "TENANT-HQ";
-            if (!data.vendorId) Object.assign(updatesObj, { vendorId: data.orgId || "ORG-UNKNOWN" });
+            if (!data.vendorId && data.orgId) updatesObj.vendorId = data.orgId;
             if (!data.sourceSystem) updatesObj.sourceSystem = "OS";
             if (Object.keys(updatesObj).length > 0) {
               updates.push(doc.ref.update(updatesObj));
+              candidatesUpdated++;
             }
          }
 
-         await Promise.all(updates);
-         return res.status(200).json({ success: true, processed: updates.length });
+         try {
+            await Promise.all(updates);
+         } catch (e) {
+            failures++;
+            console.error("Batch update error:", e);
+         }
+         
+         const auditLog = {
+             organizationsCreated,
+             crmAccountsLinked,
+             clientsLinked,
+             vendorsLinked,
+             requirementsUpdated,
+             candidatesUpdated,
+             missingDomains,
+             duplicatesDetected,
+             failures,
+             executedAt: new Date().toISOString()
+         };
+
+         await adminDb.collection("migration_logs").add(auditLog);
+         
+         return res.status(200).json({ success: true, processed: updates.length, audit: auditLog });
       } catch (err: any) {
          console.error("MIGRATION ERROR", err);
          return res.status(500).json({ error: err.message });

@@ -73,9 +73,14 @@ export default function RevenueIntelligenceTab({
         // Sales Metrics
         let pipelineValue = 0;
         let expectedRev = 0;
+        let actualRevenue = 0;
+        let pipelineCount = 0;
+
         revPipeline.forEach((o: any) => {
-          pipelineValue += o.forecastRevenue || 0;
+          pipelineCount++;
+          pipelineValue += o.pipelineValue || o.forecastRevenue || 0;
           expectedRev += o.expectedRevenue || 0;
+          actualRevenue += o.realizedRevenue || 0;
         });
 
         let matchedCount = opps.length;
@@ -90,9 +95,11 @@ export default function RevenueIntelligenceTab({
 
         let interviews = 0;
         let placements = 0;
-        let actualRevenue = 0;
         let margin = 0;
         let vendorSpend = 0;
+
+        const vendorStats: Record<string, any> = {};
+        const recruiterStats: Record<string, any> = {};
 
         dealRooms.forEach((d: any) => {
           if (d.currentStage === "Interview" || d.currentStage === "Offer") {
@@ -100,21 +107,46 @@ export default function RevenueIntelligenceTab({
           }
           if (d.currentStage === "Hired" || d.status === "WON") {
             placements++;
-            // Mock Actual Revenue
-            actualRevenue += 25000;
-            margin += 5000;
+            
+            // Stats aggregation
+            const vId = d.vendorId || "Direct";
+            if (!vendorStats[vId]) vendorStats[vId] = { id: vId, placements: 0, revenue: 0 };
+            vendorStats[vId].placements++;
+            vendorStats[vId].revenue += 20000; // simplified
             vendorSpend += 20000;
+            
+            const rId = d.ownerId || "System";
+            if (!recruiterStats[rId]) recruiterStats[rId] = { id: rId, placements: 0, revenue: 0, interviews: 0, submissions: 0 };
+            recruiterStats[rId].placements++;
+            recruiterStats[rId].revenue += 25000; // simplified
+            margin += 5000;
           }
         });
 
         subs.forEach((s: any) => {
-          if (s.status === "INTERVIEWING") interviews++;
-          if (s.status === "HIRED" || s.status === "SELECTED") placements++;
+          const vId = s.vendorId || "Direct";
+          if (!vendorStats[vId]) vendorStats[vId] = { id: vId, placements: 0, revenue: 0, subs: 0 };
+          vendorStats[vId].subs = (vendorStats[vId].subs || 0) + 1;
+
+          const rId = s.submittedBy || "System";
+          if (!recruiterStats[rId]) recruiterStats[rId] = { id: rId, placements: 0, revenue: 0, interviews: 0, submissions: 0 };
+          recruiterStats[rId].submissions++;
+
+          if (s.status === "INTERVIEWING") {
+             interviews++;
+             recruiterStats[rId].interviews++;
+          }
+          if (s.status === "HIRED" || s.status === "SELECTED") {
+             placements++;
+          }
         });
+
+        const topVendors = Object.values(vendorStats).sort((a:any, b:any) => b.placements - a.placements).slice(0, 3);
+        const topRecruiters = Object.values(recruiterStats).sort((a:any, b:any) => b.revenue - a.revenue).slice(0, 3);
 
         setMetrics({
           sales: {
-            openOpps: matchedCount, // Approx
+            openOpps: pipelineCount,
             pipelineValue,
             wonValue: actualRevenue,
             lostValue: 0,
@@ -133,7 +165,9 @@ export default function RevenueIntelligenceTab({
             platformMargin: margin || actualRevenue * 0.15,
             vendorSpend: vendorSpend || actualRevenue * 0.85,
           },
-        });
+          topVendors,
+          topRecruiters,
+        } as any);
         setLoading(false);
       } catch (err) {
         console.error(err);
@@ -334,6 +368,60 @@ export default function RevenueIntelligenceTab({
                 value={formatCurrency(metrics.financials.vendorSpend)}
                 textClass="text-slate-500"
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* TOP VENDORS */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Briefcase className="text-purple-500" size={20} />
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">
+                Top Vendors (Revenue)
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {(metrics as any).topVendors?.map((v: any, i: number) => (
+                <div key={v.id || i} className="flex justify-between items-center py-2 border-b border-slate-50 border-dotted last:border-0">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{v.id}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{v.subs || 0} Submissions &middot; {v.placements || 0} Placements</p>
+                  </div>
+                  <span className="font-black text-emerald-600">
+                    {formatCurrency(v.revenue)}
+                  </span>
+                </div>
+              ))}
+              {!(metrics as any).topVendors?.length && (
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center py-4">No vendor data yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* TOP RECRUITERS */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Star className="text-amber-500" size={20} />
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">
+                Top Recruiters (Revenue)
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {(metrics as any).topRecruiters?.map((r: any, i: number) => (
+                <div key={r.id || i} className="flex justify-between items-center py-2 border-b border-slate-50 border-dotted last:border-0">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{r.id}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{r.submissions || 0} Subs &middot; {r.interviews || 0} Intvs &middot; {r.placements || 0} Placements</p>
+                  </div>
+                  <span className="font-black text-emerald-600">
+                    {formatCurrency(r.revenue)}
+                  </span>
+                </div>
+              ))}
+              {!(metrics as any).topRecruiters?.length && (
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center py-4">No recruiter data yet</p>
+              )}
             </div>
           </div>
         </div>

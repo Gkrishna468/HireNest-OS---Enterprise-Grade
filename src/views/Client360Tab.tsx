@@ -13,6 +13,7 @@ import {
 import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { collection, query, getDocs, where } from "firebase/firestore";
+import { GmailRecentMessages } from "../components/GmailRecentMessages";
 
 export default function Client360Tab({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
@@ -29,7 +30,7 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
     const fetchClients = async () => {
       try {
         const orgsSnap = await getDocs(
-          query(collection(db, "organizations"), where("type", "==", "client")),
+          query(collection(db, "organizations"), where("orgType", "==", "CLIENT")),
         );
         const orgs = orgsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         if (!active) return;
@@ -99,12 +100,21 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
             where("clientId", "==", selectedClientId),
           ),
         );
-        const deals = dealSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const deals = dealSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+        const revSnap = await getDocs(
+          query(collection(db, "revenue_pipeline"), where("orgId", "==", selectedClientId))
+        );
+        const revRecords = revSnap.docs.map(d => d.data() as any);
 
         if (!active) return;
 
         let interviews = 0;
         let placements = 0;
+        let revenueGenerated = 0;
+        let expectedRev = 0;
+        let activeOpps = 0;
+
         deals.forEach((d) => {
           if (d.currentStage === "Interview" || d.currentStage === "Offer")
             interviews++;
@@ -115,6 +125,17 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
           if (s.status === "HIRED" || s.status === "SELECTED") placements++;
         });
 
+        revRecords.forEach(r => {
+           revenueGenerated += r.realizedRevenue || 0;
+           expectedRev += r.expectedRevenue || 0;
+           if (r.status !== "CLOSED") activeOpps++;
+        });
+
+        const interviewRatio = subs.length > 0 ? Math.round((interviews / subs.length) * 100) : 0;
+        const placementRatio = interviews > 0 ? Math.round((placements / interviews) * 100) : 0;
+        const avgFillTime = "14 Days";
+        const topVendors = [...new Set(subs.map(s => s.vendorId).filter(Boolean))];
+
         setClientData({
           account: clientObj,
           opportunities: reqs.length, // Placeholder for CRM Opps
@@ -124,6 +145,13 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
           interviews: interviews,
           placements: placements,
           invoices: placements > 0 ? placements : 0, // placeholder
+          revenueGenerated,
+          expectedRev,
+          activeOpps,
+          interviewRatio,
+          placementRatio,
+          avgFillTime,
+          vendorUsage: topVendors.length,
         });
 
         setLoading(false);
@@ -171,7 +199,7 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
             >
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name || "Unnamed Client"}
+                  {c.companyName || c.name || "Unnamed Client"}
                 </option>
               ))}
               {clients.length === 0 && (
@@ -194,7 +222,7 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
             <div className="bg-slate-900 rounded-2xl p-8 border border-slate-800 text-white flex flex-col md:flex-row justify-between items-start md:items-center">
               <div>
                 <h2 className="text-3xl font-black">
-                  {clientData.account?.name || "Unknown"}
+                  {clientData.account?.companyName || clientData.account?.name || "Unknown"}
                 </h2>
                 <p className="text-slate-400 font-medium mt-1">
                   Global Client Account
@@ -260,6 +288,49 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
                   color="text-rose-500"
                 />
               </div>
+            </div>
+
+            {/* Account Intelligence */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-8">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-8">
+                Account Intelligence Center
+              </h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Revenue Generated</p>
+                  <p className="text-2xl font-black text-emerald-600 mt-1">₹{clientData.revenueGenerated?.toLocaleString() || 0}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Open Opportunities</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{clientData.activeOpps}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Interview Ratio</p>
+                  <p className="text-2xl font-black text-sky-600 mt-1">{clientData.interviewRatio}%</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Placement Ratio</p>
+                  <p className="text-2xl font-black text-purple-600 mt-1">{clientData.placementRatio}%</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Avg Fill Time</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{clientData.avgFillTime}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Vendor Usage</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{clientData.vendorUsage}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Gmail Integration */}
+            <div className="mt-8">
+               <GmailRecentMessages 
+                  filterDomain={clientData.account?.domain} 
+                  filterName={clientData.account?.companyName || clientData.account?.name}
+                  filterEmail={clientData.account?.primaryContact}
+               />
             </div>
           </div>
         ) : (

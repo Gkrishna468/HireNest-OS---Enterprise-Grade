@@ -224,7 +224,7 @@ export default function MatchIntelligenceTab() {
                       },
                       {} as Record<string, any[]>,
                     ),
-                  ).map(([reqId, groupMatches]) => {
+                  ).map(([reqId, groupMatches]: [string, any[]]) => {
                     const req = requirements[reqId];
                     return (
                       <div
@@ -288,25 +288,25 @@ export default function MatchIntelligenceTab() {
                                     key={match.id}
                                     className="hover:bg-slate-50/50 transition-colors"
                                   >
-                                    <td className="px-4 py-3 w-32">
+                                    <td className="px-4 py-3 w-28">
                                       <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
                                         {match.status || "DISCOVERED"}
                                       </span>
                                     </td>
                                     <td className="px-4 py-3">
                                       <p className="font-bold text-slate-900 text-sm">
-                                        {cand?.name ||
-                                          cand?.candidateName ||
-                                          match.candidateId}
+                                        {cand?.name || cand?.candidateName || match.candidateId}
                                       </p>
                                       <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
-                                        MATCH: {match.score || match.matchScore}
-                                        %
+                                        MATCH: {match.score || match.matchScore}%
+                                      </span>
+                                      <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">
+                                        VEND: {cand?.vendorId || match.vendorId || "DIRECT"}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-3 text-left w-48">
+                                    <td className="px-4 py-3 text-left w-40">
                                       <div className="flex items-center gap-2">
-                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
                                           <div
                                             className="bg-emerald-500 h-1.5 rounded-full"
                                             style={{
@@ -315,16 +315,7 @@ export default function MatchIntelligenceTab() {
                                           ></div>
                                         </div>
                                         <span className="text-xs font-bold text-slate-700">
-                                          {match.placementProbability ||
-                                            Math.round(
-                                              Math.min(
-                                                95,
-                                                (match.score ||
-                                                  match.matchScore ||
-                                                  0) * 0.5,
-                                              ),
-                                            )}
-                                          %
+                                          {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
                                         </span>
                                       </div>
                                     </td>
@@ -333,7 +324,7 @@ export default function MatchIntelligenceTab() {
                                         {expectedRevStr}
                                       </p>
                                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                        Forecast: {revenueStr}
+                                        Mgn: {revenueStr}
                                       </p>
                                     </td>
                                   </tr>
@@ -354,7 +345,7 @@ export default function MatchIntelligenceTab() {
                       },
                       {} as Record<string, any[]>,
                     ),
-                  ).map(([candId, groupMatches]) => {
+                  ).map(([candId, groupMatches]: [string, any[]]) => {
                     const cand = candidates[candId] || groupMatches[0];
                     return (
                       <div
@@ -420,7 +411,7 @@ export default function MatchIntelligenceTab() {
                                     key={match.id}
                                     className="hover:bg-slate-50/50 transition-colors"
                                   >
-                                    <td className="px-4 py-3 w-32">
+                                    <td className="px-4 py-3 w-28">
                                       <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
                                         {match.status || "DISCOVERED"}
                                       </span>
@@ -430,13 +421,17 @@ export default function MatchIntelligenceTab() {
                                         {req?.title || match.requirementId}
                                       </p>
                                       <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
-                                        MATCH: {match.score || match.matchScore}
-                                        %
+                                        MATCH: {match.score || match.matchScore}%
                                       </span>
+                                      {req?.priority && (
+                                        <span className="ml-2 text-[10px] font-bold text-rose-500 uppercase">
+                                          {req.priority} PRIORITY
+                                        </span>
+                                      )}
                                     </td>
-                                    <td className="px-4 py-3 text-left w-48">
+                                    <td className="px-4 py-3 text-left w-40">
                                       <div className="flex items-center gap-2">
-                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[80px]">
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
                                           <div
                                             className="bg-emerald-500 h-1.5 rounded-full"
                                             style={{
@@ -445,16 +440,7 @@ export default function MatchIntelligenceTab() {
                                           ></div>
                                         </div>
                                         <span className="text-xs font-bold text-slate-700">
-                                          {match.placementProbability ||
-                                            Math.round(
-                                              Math.min(
-                                                95,
-                                                (match.score ||
-                                                  match.matchScore ||
-                                                  0) * 0.5,
-                                              ),
-                                            )}
-                                          %
+                                          {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
                                         </span>
                                       </div>
                                     </td>
@@ -463,7 +449,7 @@ export default function MatchIntelligenceTab() {
                                         {expectedRevStr}
                                       </p>
                                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                        Forecast: {revenueStr}
+                                        Mgn: {revenueStr}
                                       </p>
                                     </td>
                                   </tr>

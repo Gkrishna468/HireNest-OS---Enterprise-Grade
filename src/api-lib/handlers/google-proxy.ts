@@ -37,10 +37,11 @@ async function getClientForUser(uid: string) {
 googleProxyHandler.get('/gmail/messages', async (req, res) => {
    const uid = (req as any).user?.uid;
    if (!uid) return res.status(401).json({ error: "Unauthorized" });
+   const queryStr = req.query.q ? `&q=${encodeURIComponent(req.query.q as string)}` : '';
 
    try {
       const client = await getClientForUser(uid);
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15`;
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15${queryStr}`;
       const response = await client.request({ url });
       
       const data: any = response.data;

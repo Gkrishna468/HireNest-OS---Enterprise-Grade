@@ -249,6 +249,70 @@ export default function AdminOverview() {
           >
             <Shield size={16} className="mr-2"/> {isActionLoading === "cleanup" ? "Working..." : "Cleanup Matches / Force Purge Req"}
           </Button>
+
+          <Button 
+            disabled={isActionLoading !== ""}
+            onClick={async () => {
+              setIsActionLoading("backfill");
+              setActionStatus("Running migration backfill...");
+              try {
+                const token = await auth.currentUser?.getIdToken();
+                const res = await fetch('/api/admin?action=migration-backfill', { 
+                  method: 'GET', 
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+                const d = await res.json();
+                if (d.success) {
+                   setActionStatus(`Backfill complete. Processed ${d.processed} records. Check migration_logs for details.`);
+                   fetchData();
+                } else {
+                   setActionStatus("Error: " + d.error);
+                }
+              } catch(e:any) {
+                setActionStatus("Error: " + e.message);
+              } finally {
+                setIsActionLoading("");
+                setTimeout(() => setActionStatus(""), 8000);
+              }
+            }}
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
+          >
+            <Sparkles size={16} className="mr-2"/> {isActionLoading === "backfill" ? "Working..." : "Run Migration Backfill"}
+          </Button>
+
+          <Button 
+            disabled={isActionLoading !== ""}
+            onClick={async () => {
+              setIsActionLoading("revenue");
+              setActionStatus("Rebuilding revenue pipeline...");
+              try {
+                const token = await auth.currentUser?.getIdToken();
+                const res = await fetch('/api/admin?action=rebuild-revenue-pipeline', { 
+                  method: 'GET', 
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+                const d = await res.json();
+                if (d.success) {
+                   setActionStatus(`Pipeline rebuilt. Processed ${d.processed} requirements.`);
+                   fetchData();
+                } else {
+                   setActionStatus("Error: " + d.error);
+                }
+              } catch(e:any) {
+                setActionStatus("Error: " + e.message);
+              } finally {
+                setIsActionLoading("");
+                setTimeout(() => setActionStatus(""), 8000);
+              }
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 text-sm rounded-[20px] flex items-center shadow-sm"
+          >
+            <DollarSign size={16} className="mr-2"/> {isActionLoading === "revenue" ? "Working..." : "Rebuild Revenue Pipeline"}
+          </Button>
       </div>
       </div>
       
