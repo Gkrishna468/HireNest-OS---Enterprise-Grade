@@ -29,10 +29,14 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
     let active = true;
     const fetchClients = async () => {
       try {
-        const orgsSnap = await getDocs(
-          query(collection(db, "organizations"), where("orgType", "==", "CLIENT")),
-        );
-        const orgs = orgsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const orgsSnap = await getDocs(collection(db, "organizations"));
+        const orgs = orgsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as any))
+          .filter(
+            (o) =>
+              o.orgType === "CLIENT" ||
+              o.type?.toLowerCase() === "client"
+          );
         if (!active) return;
         setClients(orgs);
         if (orgs.length > 0) {
@@ -60,28 +64,36 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
         // 1. Account Info
         const clientObj = clients.find((c) => c.id === selectedClientId);
 
-        // 2. Fetch Requirements
+        // 2. Fetch Requirements (now using orgId)
         const reqsSnap = await getDocs(
+          query(
+            collection(db, "requirements_public"),
+            where("orgId", "==", selectedClientId),
+          ),
+        );
+        const reqs = reqsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        
+        // Also fetch requirements using clientId as a fallback for unmigrated data
+        const reqsSnapLegacy = await getDocs(
           query(
             collection(db, "requirements_public"),
             where("clientId", "==", selectedClientId),
           ),
         );
-        const reqs = reqsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const reqIds = reqs.map((r) => r.id);
+        const legacyReqs = reqsSnapLegacy.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const allReqs = [...reqs, ...legacyReqs];
+        // Deduplicate
+        const uniqueReqs = Array.from(new Map(allReqs.map(r => [r.id, r])).values());
+        
+        const reqIds = uniqueReqs.map((r) => r.id);
 
-        // 3. Fetch Matches (if reqs exist, we might lookup matches by requirementId)
+        // 3. Fetch Matches
         let opps: any[] = [];
         if (reqIds.length > 0) {
-          const oppQ = query(
-            collection(db, "match_opportunities"),
-            where("clientId", "==", selectedClientId),
-          );
-          // But Wait match_opportunities might only have requirementId, not clientId. We will fetch all and filter client side.
-          const oppSnap = await getDocs(collection(db, "match_opportunities"));
+          const oppSnap = await getDocs(collection(db, "candidate_matches"));
           opps = oppSnap.docs
-            .filter((d) => reqIds.includes(d.data().requirementId))
-            .map((d) => ({ id: d.id, ...d.data() }));
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => reqIds.includes(d.requirementId));
         }
 
         // 4. Fetch Submissions
@@ -89,18 +101,18 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
         if (reqIds.length > 0) {
           const subSnap = await getDocs(collection(db, "submissions"));
           subs = subSnap.docs
-            .filter((d) => reqIds.includes(d.data().requirementId))
-            .map((d) => ({ id: d.id, ...d.data() }));
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => reqIds.includes(d.requirementId));
         }
 
         // 5. Fetch Placements / DealRooms
-        const dealSnap = await getDocs(
-          query(
-            collection(db, "dealRooms"),
-            where("clientId", "==", selectedClientId),
-          ),
-        );
-        const deals = dealSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        let deals: any[] = [];
+        if (reqIds.length > 0) {
+          const dealSnap = await getDocs(collection(db, "dealRooms"));
+          deals = dealSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => reqIds.includes(d.requirementId));
+        }
 
         const revSnap = await getDocs(
           query(collection(db, "revenue_pipeline"), where("orgId", "==", selectedClientId))

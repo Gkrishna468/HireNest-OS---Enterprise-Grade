@@ -29,10 +29,14 @@ export default function Vendor360Tab({ userRole }: { userRole: string }) {
     let active = true;
     const fetchVendors = async () => {
       try {
-        const orgsSnap = await getDocs(
-          query(collection(db, "organizations"), where("orgType", "==", "VENDOR")),
-        );
-        const orgs = orgsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const orgsSnap = await getDocs(collection(db, "organizations"));
+        const orgs = orgsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as any))
+          .filter(
+            (o) =>
+              o.orgType === "VENDOR" ||
+              o.type?.toLowerCase() === "vendor"
+          );
         if (!active) return;
         setVendors(orgs);
         if (orgs.length > 0) {
@@ -74,7 +78,7 @@ export default function Vendor360Tab({ userRole }: { userRole: string }) {
 
         // 3. Fetch Matches
         const oppQ = query(
-          collection(db, "match_opportunities"),
+          collection(db, "candidate_matches"),
           where("vendorId", "==", selectedVendorId),
         );
         const oppSnap = await getDocs(oppQ);

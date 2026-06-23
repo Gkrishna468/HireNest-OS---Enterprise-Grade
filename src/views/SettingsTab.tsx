@@ -3,10 +3,12 @@ import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { User as UserIcon, Building, Bell, Shield, LogOut, Moon, Sun, Monitor, AlertTriangle } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export default function SettingsTab() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -16,6 +18,14 @@ export default function SettingsTab() {
         if (userDoc.exists()) {
           setUserData(userDoc.data());
         }
+
+        const token = await auth.currentUser.getIdToken();
+        const res = await fetch('/api/oauth/status', {
+           headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setIsGoogleConnected(data.connected);
+
       } catch (err) {
         console.error("Failed to load user profile:", err);
       } finally {
@@ -97,6 +107,57 @@ export default function SettingsTab() {
                  <div className="sm:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Workspace Type</label>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 capitalize">{userData?.type || userData?.role || "Standard"}</div>
+                 </div>
+              </div>
+            </section>
+
+            {/* Integrations */}
+            <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 mb-6">
+                <Monitor className="text-indigo-600" size={20} />
+                <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">Integrations</h3>
+              </div>
+              <div className="space-y-4">
+                 <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                       <p className="font-bold text-sm text-slate-800">Google Workspace (Gmail & Calendar)</p>
+                       <p className="text-xs text-slate-500 mt-1">Connect your Google account to enable email sync and calendar integrations within Client360 and Vendor360.</p>
+                    </div>
+                    <button 
+                       onClick={async () => {
+                         try {
+                           const token = await auth.currentUser?.getIdToken();
+                           const uid = auth.currentUser?.uid;
+                           if (isGoogleConnected) {
+                              await fetch('/api/oauth/disconnect', {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              setIsGoogleConnected(false);
+                              return;
+                           }
+                           const res = await fetch(`/api/oauth/url?uid=${uid}&redirectTo=/app`, {
+                             headers: { 'Authorization': `Bearer ${token}` }
+                           });
+                           const data = await res.json();
+                           if (data.url) {
+                             window.location.href = data.url;
+                           } else {
+                             alert("Failed to get OAuth URL");
+                           }
+                         } catch (e) {
+                           console.error(e);
+                         }
+                       }}
+                       className={cn(
+                         "px-4 py-2 font-bold text-xs uppercase tracking-widest rounded-lg whitespace-nowrap shrink-0 transition-colors",
+                         isGoogleConnected 
+                           ? "bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200"
+                           : "bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700"
+                       )}
+                    >
+                       {isGoogleConnected ? "Disconnect" : "Connect Google"}
+                    </button>
                  </div>
               </div>
             </section>
