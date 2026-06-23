@@ -37,6 +37,27 @@ export default async function handler(req: any, res: any) {
     }
 
     if (targetHandler) {
+      if (path === 'oauth' || path === 'google') {
+        // Rewrite req.url so the Express Router matches it
+        const originalUrl = req.url;
+        const qs = originalUrl ? originalUrl.split('?')[1] : '';
+        req.url = action ? `/${action}` : '/';
+        if (qs) req.url += `?${qs}`;
+        
+        return new Promise((resolve, reject) => {
+          const originalEnd = res.end;
+          res.end = function (...args: any[]) {
+            resolve(undefined);
+            return originalEnd.apply(this, args);
+          };
+
+          targetHandler(req, res, (err: any) => {
+            req.url = originalUrl; // Restore just in case
+            if (err) return reject(err);
+            resolve(res.status(404).json({ error: "Route not found in Express Router" }));
+          });
+        });
+      }
       return await targetHandler(req, res);
     }
 

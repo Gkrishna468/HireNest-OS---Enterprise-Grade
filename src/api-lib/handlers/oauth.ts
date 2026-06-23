@@ -44,6 +44,11 @@ oauthHandler.get('/callback', async (req, res) => {
       
       oauth2Client.setCredentials(tokens);
 
+      if (!db) {
+         console.error("[OAuth] Firebase adminDb is null. Cannot store token. Check FIREBASE_PRIVATE_KEY env vars.");
+         return res.status(500).send("Database not configured. Check backend environment variables.");
+      }
+
       // Store in backend vault securely
       await db.collection('token_vault').doc(state.uid).set({
          accessToken: tokens.access_token,
@@ -66,6 +71,11 @@ oauthHandler.get('/status', async (req, res) => {
    // Validate firebase token via middleware 
    const uid = (req as any).user?.uid;
    if (!uid) return res.status(401).json({ error: "Unauthorized" });
+
+   if (!db) {
+       console.error("[OAuth Status] adminDb is null");
+       return res.json({ connected: false, error: "Database not configured" });
+   }
 
    try {
       const doc = await db.collection('token_vault').doc(uid).get();
