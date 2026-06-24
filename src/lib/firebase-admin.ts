@@ -78,7 +78,7 @@ try {
 
   if (app) {
     try {
-      adminDb = getFirestore(app);
+      adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
     } catch (e: any) {
       console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
     }
@@ -105,7 +105,25 @@ if (adminDb) {
       .then(() => console.log("[Firebase Admin] Server-side Firestore verification successful."))
       .catch((err: any) => {
         console.warn("[Firebase Admin] Auth verification warning:", err.message);
-        // We'll keep adminDb even if system table read fails since ADC is configured, but permissions might be tight
+        if (err.message.includes("UNAUTHENTICATED") || err.message.includes("PERMISSION_DENIED")) {
+           console.warn("[Firebase Admin] Invalid credentials detected. Disabling adminDb.");
+           
+           // Replace adminDb with a Proxy that throws an authentication error
+           // This prevents 'TypeError: Cannot read properties of null (reading 'collection')'
+           // and allows our try/catch blocks to gracefully fallback
+           adminDb = new Proxy({}, {
+             get: function(target, prop) {
+               if (prop === 'then' || prop === 'catch' || prop === 'finally' || typeof prop === 'symbol') {
+                 return undefined;
+               }
+               return function() {
+                 throw new Error("16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token.");
+               };
+             }
+           }) as any;
+           
+           runtimeMode = "CLIENT_FALLBACK";
+        }
       });
   } catch (syncErr: any) {
     console.warn("[Firebase Admin] Synchronous check failed.", syncErr.message);

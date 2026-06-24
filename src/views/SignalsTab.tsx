@@ -14,51 +14,84 @@ export default function SignalsTab() {
       let loadedSignals: any[] = [];
       
       try {
-        const reqSnap = await getDocs(query(collection(db, "requirements_public"), limit(10)));
-        reqSnap.docs.forEach(doc => {
-          const data = doc.data();
-          const createdAt = data.createdAt ? new Date(data.createdAt.seconds * 1000) : new Date();
+        const reqSnap = await getDocs(query(collection(db, "requirements_public")));
+        const reqs = reqSnap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        
+        const subSnap = await getDocs(query(collection(db, "submissions")));
+        const subs = subSnap.docs.map(d => ({id: d.id, ...d.data()} as any));
+
+        // Requirement Signals
+        reqs.forEach(req => {
+          let createdAt = new Date();
+          if (req.createdAt) {
+            if (req.createdAt.seconds) {
+              createdAt = new Date(req.createdAt.seconds * 1000);
+            } else if (typeof req.createdAt === 'string') {
+              createdAt = new Date(req.createdAt);
+            } else if (req.createdAt.toDate) {
+              createdAt = req.createdAt.toDate();
+            }
+          }
+          if (isNaN(createdAt.getTime())) createdAt = new Date();
           const diffDays = Math.floor((new Date().getTime() - createdAt.getTime()) / (1000 * 3600 * 24));
           
-          if (diffDays > 20 && data.status !== 'CLOSED') {
+          const reqSubs = subs.filter((s:any) => s.requirementId === req.id || s.canonicalRequirementId === req.id);
+          const interviews = reqSubs.filter((s:any) => s.status && s.status.includes('INTERVIEW')).length;
+
+          if (diffDays > 14 && req.status !== 'CLOSED' && interviews === 0) {
             loadedSignals.push({
-              id: doc.id + '-aging',
-              type: 'REQUIREMENT_AGING',
-              title: 'Requirement Aging',
-              description: `Requirement "${data.title}" has been open for >20 days.`,
+              id: req.id + '-risk',
+              type: 'REQUIREMENT_RISK',
+              title: 'Requirement At Risk',
+              description: `Requirement "${req.title}" open for ${diffDays} days with 0 interviews. Action: Run Match Scan`,
               urgency: 'HIGH',
               icon: Clock
             });
           }
-          if (diffDays <= 2 && data.status === 'PUBLISHED') {
-            loadedSignals.push({
-              id: doc.id + '-new',
-              type: 'REQUIREMENT_NEW',
-              title: 'New Requirement',
-              description: `Client posted new requirement: "${data.title}"`,
-              urgency: 'MEDIUM',
-              icon: FileText
-            });
-          }
         });
 
-        // Add some mock signals as per requirement
-        loadedSignals.push({
-            id: 'mock-cand-1',
-            type: 'CANDIDATE_ACTIVE',
-            title: 'Candidate became available',
-            description: 'Candidate "John Doe" uploaded a new resume and reduced notice period.',
-            urgency: 'HIGH',
-            icon: Target
+        // Candidate Signals (Get recent high-match candidates)
+        try {
+           const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("matchScore", ">=", 85), limit(10)));
+           matchesSnap.docs.forEach(match => {
+               const mData = match.data();
+               loadedSignals.push({
+                 id: match.id,
+                 type: 'CANDIDATE_ACTIVE',
+                 title: 'New Candidate Uploaded',
+                 description: `Top Match: ${mData.requirementTitle || 'Job'} (${mData.matchScore}% Match). Vendor: ${mData.vendorName || mData.vendorId}.`,
+                 urgency: 'HIGH',
+                 icon: Target
+               });
+           });
+        } catch(e) { console.error(e); }
+
+        // Vendor Signals (Calculate ratio for vendors)
+        const vendorStats: Record<string, { subs: number, interviews: number, placements: number }> = {};
+        subs.forEach((s:any) => {
+            if (!s.vendorId) return;
+            if (!vendorStats[s.vendorId]) vendorStats[s.vendorId] = { subs: 0, interviews: 0, placements: 0 };
+            vendorStats[s.vendorId].subs++;
+            const status = (s.status || '').toUpperCase();
+            if (status.includes('INTERVIEW') || status === 'SHORTLISTED') vendorStats[s.vendorId].interviews++;
+            if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) vendorStats[s.vendorId].placements++;
         });
 
-        loadedSignals.push({
-            id: 'mock-vend-1',
-            type: 'VENDOR_PERFORMANCE',
-            title: 'High Vendor Performance',
-            description: 'Vendor "ABC Staffing" achieved 80% interview ratio this week.',
-            urgency: 'LOW',
-            icon: Zap
+        Object.entries(vendorStats).forEach(([vendorId, stats]) => {
+           if (stats.subs >= 3) {
+               const intRatio = Math.round((stats.interviews / stats.subs) * 100);
+               const placeRatio = Math.round((stats.placements / stats.subs) * 100);
+               if (intRatio >= 50) {
+                 loadedSignals.push({
+                   id: 'vend-' + vendorId,
+                   type: 'VENDOR_PERFORMANCE',
+                   title: 'Vendor Performance Rising',
+                   description: `Vendor ${vendorId} - Interview Ratio: ${intRatio}%, Placement Ratio: ${placeRatio}%.`,
+                   urgency: 'LOW',
+                   icon: Zap
+                 });
+               }
+           }
         });
 
         setSignals(loadedSignals);

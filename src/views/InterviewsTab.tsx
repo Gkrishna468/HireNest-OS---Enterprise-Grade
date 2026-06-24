@@ -186,10 +186,10 @@ export default function InterviewsTab() {
      { id: 'REQUESTED', label: 'Requested' },
      { id: 'AVAILABILITY_PENDING', label: 'Availability Pending' },
      { id: 'SCHEDULING', label: 'Scheduling' },
-     { id: 'SCHEDULED', label: 'Scheduled', defaultIncludes: ['INTERVIEW_SCHEDULED', 'INTERVIEW_ROUND_1', 'INTERVIEW_ROUND_2', 'FINAL_INTERVIEW'] },
-     { id: 'COMPLETED', label: 'Completed' },
+     { id: 'SCHEDULED', label: 'Scheduled' },
      { id: 'FEEDBACK_PENDING', label: 'Feedback Pending' },
-     { id: 'DECISION_PENDING', label: 'Decision Pending' }
+     { id: 'DECISION_PENDING', label: 'Decision Pending' },
+     { id: 'COMPLETED', label: 'Completed' }
    ];
 
    const getColumns = () => {

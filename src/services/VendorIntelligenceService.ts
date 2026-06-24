@@ -1,6 +1,6 @@
 import { db } from "../lib/firebase";
 import { doc, setDoc, serverTimestamp, increment, getDoc } from "firebase/firestore";
-import { observabilityService } from "../api-lib/services/ObservabilityService";
+import { frontendTelemetry } from "../lib/frontendTelemetry";
 
 export class VendorIntelligenceService {
   static async trackVendorEvent(vendorId: string, vendorName: string, tenantId: string, eventType: string, value: number = 0) {
@@ -68,7 +68,7 @@ export class VendorIntelligenceService {
 
     } catch (err) {
       console.error("[VendorIntelligenceService] Error tracking vendor event", err);
-      observabilityService.logRuntimeError({
+      frontendTelemetry.logRuntimeError({
         tenantId,
         sourceSystem: "VendorIntelligenceService",
         message: err instanceof Error ? err.message : String(err),

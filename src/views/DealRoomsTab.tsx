@@ -74,54 +74,55 @@ export default function DealRoomsTab() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   useEffect(() => {
-    // Fetch User Role
-    const fetchUser = async () => {
-      if (auth.currentUser) {
-        // Priority 1: Check HQ Sync for users if possible, or fallback to direct Firebase
-        try {
-          const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-          let role = "user";
-          let userOrgId = "";
+    let unsubDealRooms: any;
+    let unsubAuth: any;
 
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            role = data.role;
-            userOrgId = data.organizationId;
-          }
+    import("firebase/auth").then(({ onAuthStateChanged }) => {
+      unsubAuth = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            let role = "user";
+            let userOrgId = "";
 
-          // Apply super admin logic
-          const superAdmins = [
-            "gopal@hirenestworkforce.com",
-            "gopalkrishna0046@gmail.com",
-          ];
-          if (
-            auth.currentUser.email &&
-            superAdmins.includes(auth.currentUser.email.toLowerCase())
-          ) {
-            role = "super_admin";
-            userOrgId = "ORG-GLOBAL-HQ";
-          }
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              role = data.role;
+              userOrgId = data.organizationId;
+            }
 
-          if (!userDoc.exists() && role === "user") {
-            const knownAdmins = [
-              "0xpXdzSQE6V92xbnCkiczPHexiU2",
-              "vetAu3RF2qYVmsCuB6cpEz9DDqA2",
-              "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53",
+            const superAdmins = [
+              "gopal@hirenestworkforce.com",
+              "gopalkrishna0046@gmail.com",
             ];
-            if (knownAdmins.includes(auth.currentUser.uid)) {
-              role = "admin";
+            if (
+              user.email &&
+              superAdmins.includes(user.email.toLowerCase())
+            ) {
+              role = "super_admin";
               userOrgId = "ORG-GLOBAL-HQ";
             }
-          }
 
-          setUserRole(role);
-          setOrgId(userOrgId);
-        } catch (e) {
-          console.warn("User profile fetch failed, using session heuristics");
+            if (!userDoc.exists() && role === "user") {
+              const knownAdmins = [
+                "0xpXdzSQE6V92xbnCkiczPHexiU2",
+                "vetAu3RF2qYVmsCuB6cpEz9DDqA2",
+                "ZlpY4qN9BKS7n0yoMQP7LDMvvJ53",
+              ];
+              if (knownAdmins.includes(user.uid)) {
+                role = "admin";
+                userOrgId = "ORG-GLOBAL-HQ";
+              }
+            }
+
+            setUserRole(role);
+            setOrgId(userOrgId);
+          } catch (e) {
+            console.warn("User profile fetch failed, using session heuristics");
+          }
         }
-      }
-    };
-    fetchUser();
+      });
+    });
 
     // Listen to Deal Rooms
     const loadDealRooms = async () => {
@@ -160,7 +161,8 @@ export default function DealRoomsTab() {
         const unsubscribe = onSnapshot(
           q,
           (snap) => {
-            const data = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
+            const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const data = raw.filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
             setDealRooms(data);
           },
           (error) => {
@@ -173,9 +175,12 @@ export default function DealRoomsTab() {
       }
     };
 
-    let unsub: any;
-    loadDealRooms().then((u) => (unsub = u));
-    return () => unsub && unsub();
+    loadDealRooms().then((u) => (unsubDealRooms = u));
+    
+    return () => {
+      if (unsubAuth) unsubAuth();
+      if (unsubDealRooms) unsubDealRooms();
+    };
   }, [orgId, userRole]); // Added dependencies
 
   useEffect(() => {
@@ -260,7 +265,7 @@ export default function DealRoomsTab() {
 
     const payload = {
       senderRole: userRole || "User",
-      senderId: auth.currentUser?.uid,
+      senderId: auth.currentUser?.uid || "unknown",
       text: inputText,
       type: "text",
       timestamp: serverTimestamp(),
@@ -551,7 +556,7 @@ export default function DealRoomsTab() {
     // Simulate scheduling logic
     await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
       senderRole: userRole || "User",
-      senderId: auth.currentUser?.uid,
+      senderId: auth.currentUser?.uid || "unknown",
       text: `📅 CALENDAR REQUEST: Interview session requested for ${selectedRoom.candidateName || "Candidate"}. Check email for direct link.`,
       type: "text",
       timestamp: serverTimestamp(),

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, ChangeEvent } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { BulkUploadProcess } from "../components/BulkUploadProcess";
 import { Badge } from "../lib/Badge";
 import {
@@ -129,22 +130,32 @@ const PIPELINE_STAGES = [
   };
 
   const mappedStages = PIPELINE_STAGES.map(stage => {
-      // Instead of relying purely on candidate pipelineStage, evaluate globalSubmissions where available
-      // The prop `candidates` is actually an array of candidate objects OR submission objects injected from CandidatesTab. Let's process the input `candidates` list.
       return {
           title: stage,
           items: candidates.filter(c => {
-               const st = (c.isSubmission ? c.status : (c.pipelineStage || c.status || "Candidate Added")).toUpperCase();
-               if(stage === "Candidate Added") return !c.isSubmission && (st.includes("ADDED") || st === "UPLOADED" || st === "QUEUED");
-               if(stage === "Matched") return !c.isSubmission && st.includes("MATCH");
-               if(stage === "Submitted") return c.isSubmission && (st.includes("SUBMIT") || st.includes("PENDING_REVIEW"));
-               if(stage === "Shortlisted") return c.isSubmission && st.includes("SHORTLIST");
-               if(stage === "Interview") return c.isSubmission && st.includes("INTERVIEW");
-               if(stage === "Offer") return c.isSubmission && st.includes("OFFER");
-               if(stage === "Placement") return c.isSubmission && (st.includes("PLACE") || st.includes("ONBOARD"));
+               const st = (c.highestStage || c.pipelineStage || c.status || "Candidate Added").toUpperCase();
+               
+               const isMatch = st.includes("MATCH");
+               const isSubmit = st.includes("SUBMIT") || st.includes("PENDING_REVIEW");
+               const isShortlist = st.includes("SHORTLIST");
+               const isInterview = st.includes("INTERVIEW");
+               const isOffer = st.includes("OFFER");
+               const isPlacement = st.includes("PLACE") || st.includes("ONBOARD");
+
+               if(stage === "Matched") return isMatch;
+               if(stage === "Submitted") return isSubmit;
+               if(stage === "Shortlisted") return isShortlist;
+               if(stage === "Interview") return isInterview;
+               if(stage === "Offer") return isOffer;
+               if(stage === "Placement") return isPlacement;
+               
+               // Candidate Added: Only if it doesn't match any of the advanced stages
+               if(stage === "Candidate Added") {
+                   return !isMatch && !isSubmit && !isShortlist && !isInterview && !isOffer && !isPlacement;
+               }
                return false;
           })
-      };
+      }
   });
 
   return (
@@ -1365,7 +1376,7 @@ ${extText}`;
         await SubmissionOrchestrator.submitCandidate({
           candidateData: {
             id: dbId,
-            name: selectedCandidate.fullName || selectedCandidate.name || "Unknown",
+            name: selectedCandidate.fullName || selectedCandidate.name || undefined,
             email: selectedCandidate.primaryEmail || selectedCandidate.email,
           },
           requirementId: jobId,
@@ -1409,8 +1420,8 @@ ${extText}`;
       const resp = await SubmissionOrchestrator.submitCandidate({
         candidateData: {
           id: candidateDbId,
-          name: selectedCandidate.name || selectedCandidate.fullName,
-          email: selectedCandidate.email || selectedCandidate.primaryEmail,
+          name: selectedCandidate.fullName || selectedCandidate.name || undefined,
+          email: selectedCandidate.primaryEmail || selectedCandidate.email,
         },
         requirementId: selectedJobId,
         clientId: job.clientId,
@@ -1485,18 +1496,35 @@ ${extText}`;
 
         {viewMode === "PIPELINE" ? (
           <VendorCandidatePipeline 
-            candidates={[
-              ...candidates.filter(c => !globalSubmissions.some(s => s.candidateId === (c.originalId || c.id))),
-              ...globalSubmissions.map(s => ({
-                  ...s,
-                  id: s.id,
-                  originalCandidateId: s.candidateId,
-                  name: s.candidateName || s.name || "Unknown",
-                  fullName: s.candidateName || s.name || "Unknown",
-                  isSubmission: true,
-                  submissionId: s.id
-              }))
-            ].filter(
+            candidates={candidates.map(c => {
+               const candSubs = globalSubmissions.filter(s => s.candidateId === (c.originalId || c.id) && s.status !== "REJECTED");
+               let highestStage = c.pipelineStage || "Candidate Added";
+               
+               if (candSubs.length > 0) {
+                   const getRank = (st: string) => {
+                       const s = (st || "").toUpperCase();
+                       if(s.includes("PLACE") || s.includes("ONBOARD")) return 6;
+                       if(s.includes("OFFER")) return 5;
+                       if(s.includes("INTERVIEW")) return 4;
+                       if(s.includes("SHORTLIST")) return 3;
+                       if(s.includes("SUBMIT") || s.includes("PENDING_REVIEW") || s === "NEW") return 2;
+                       if(s.includes("MATCH")) return 1;
+                       return 0;
+                   };
+                   
+                   let maxRank = getRank(highestStage);
+                   
+                   candSubs.forEach(s => {
+                       const subRank = getRank(s.status);
+                       if (subRank > maxRank) {
+                           maxRank = subRank;
+                           highestStage = s.status;
+                       }
+                   });
+               }
+               
+               return { ...c, highestStage };
+            }).filter(
                 (c) =>
                   (!searchQuery ||
                   c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||

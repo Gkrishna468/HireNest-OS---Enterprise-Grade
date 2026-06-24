@@ -242,6 +242,47 @@ export class SubmissionOrchestrator {
         throw e;
       }
 
+      // 4.5. Fetch candidate name and req title to prevent undefined in logs
+      let candidateName = candidateData.name || candidateData.fullName;
+      if (candidateId && (!candidateName || candidateName === "Unknown" || candidateName === "Anonymous")) {
+         try {
+             const { getDoc, doc } = await import("firebase/firestore");
+             const candSnap = await getDoc(doc(db, "candidatePool", candidateId));
+             if (candSnap.exists()) {
+                 candidateName = candSnap.data().name || candSnap.data().fullName || candSnap.data().manualName;
+             }
+         } catch (e) {
+             console.error("Failed to fetch candidate name", e);
+         }
+      }
+      candidateName = candidateName || "Anonymous";
+
+      let reqTitle = "Unknown Requirement";
+      if (requirementId) {
+         try {
+             const { getDoc, doc } = await import("firebase/firestore");
+             const reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+             if (reqSnap.exists()) {
+                 reqTitle = reqSnap.data().title || "Unknown Requirement";
+             }
+         } catch(e) {
+             console.error("Failed to fetch req title", e);
+         }
+      }
+
+      let vendorName = "HQ";
+      if (vendorId && vendorId !== "HQ") {
+         try {
+             const { getDoc, doc } = await import("firebase/firestore");
+             const vendorSnap = await getDoc(doc(db, "organizations", vendorId));
+             if (vendorSnap.exists()) {
+                 vendorName = vendorSnap.data().name || vendorId;
+             }
+         } catch(e) {
+             console.error("Failed to fetch vendor name", e);
+         }
+      }
+
       let submissionId = null;
 
       if (!subSnap.empty) {
@@ -287,12 +328,12 @@ export class SubmissionOrchestrator {
           });
           const newSubRef = await addDoc(collection(db, "submissions"), {
             candidateId,
-            candidateName:
-              candidateData.name || candidateData.fullName || "Anonymous",
+            candidateName: candidateName,
             candidateEmail:
               candidateData.email || candidateData.primaryEmail || "",
             requirementId,
             canonicalRequirementId: requirementId,
+            reqTitle: reqTitle,
             clientId,
             vendorId, // authoritative
             status: initialStatus,
@@ -356,7 +397,7 @@ export class SubmissionOrchestrator {
           submissionId,
           request.submitterId || "SYSTEM",
           "vendor",
-          { candidateId, requirementId, vendorId, matchScore },
+          { candidateId, requirementId, vendorId, vendorName, matchScore, candidateName, reqTitle },
         );
         await emitEvent(
           "CandidateMatched",
@@ -364,7 +405,7 @@ export class SubmissionOrchestrator {
           candidateId,
           request.submitterId || "SYSTEM",
           "vendor",
-          { candidateId, requirementId, vendorId, matchScore },
+          { candidateId, requirementId, vendorId, vendorName, matchScore, candidateName, reqTitle },
         );
         console.log("STEP 7 SUCCESS");
       } catch (e) {

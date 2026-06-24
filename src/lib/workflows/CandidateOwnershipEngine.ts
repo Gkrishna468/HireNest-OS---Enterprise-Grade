@@ -34,6 +34,20 @@ export class CandidateOwnershipEngine {
         timestamp: serverTimestamp()
       };
 
+      // Fetch vendorName if applicable
+      let vendorName = ownerId === "HQ" || ownerId === "ORG-GLOBAL-HQ" ? "HQ" : ownerId;
+      try {
+        if (ownerId && ownerId !== "HQ" && ownerId !== "ORG-GLOBAL-HQ") {
+           const { getDoc, doc } = await import("firebase/firestore");
+           const vendorSnap = await getDoc(doc(db, "organizations", ownerId));
+           if (vendorSnap.exists()) {
+             vendorName = vendorSnap.data().name || ownerId;
+           }
+        }
+      } catch (e) {
+        console.error("Failed to fetch owner name", e);
+      }
+
       // Add to candidateOwnership collection
       await setDoc(doc(db, "candidateOwnership", `${candidateId}_${ownerId}`), record);
       
@@ -44,6 +58,7 @@ export class CandidateOwnershipEngine {
         actorRole: ownerType,
         metadata: {
           ownerId,
+          vendorName,
           lockUntil: record.lockUntil
         },
         timestamp: serverTimestamp()

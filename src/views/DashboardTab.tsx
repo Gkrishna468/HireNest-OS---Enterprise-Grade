@@ -56,11 +56,15 @@ export default function DashboardTab() {
       // DealRooms (Backup placements count, etc.)
       const drSnap = await getDocs(collection(db, "dealRooms"));
       const dealRooms = drSnap.docs.map(d => d.data());
+      
+      let activeDealRooms = 0;
       dealRooms.forEach(dr => {
+         if (dr.status !== "DELETED" && dr.isActive !== false) {
+             activeDealRooms++;
+         }
          const drStage = dr.currentStage || "";
          if (drStage === "technical_l1" || drStage === "technical_l2" || drStage === "final_round") interviews++;
          if (drStage === "offer") offers++;
-         // deduplication logic can be added if needed, approximating here.
       });
 
       setExecStats({
@@ -68,7 +72,8 @@ export default function DashboardTab() {
         submissions,
         interviews,
         offers,
-        placements
+        placements,
+        activeDealRooms
       });
     } catch (err) {
       console.warn("Failed to fetch executive stats", err);
@@ -302,135 +307,139 @@ export default function DashboardTab() {
       else if (isRecruiter) queryType = "recruiter";
       else if (isIndependent) queryType = "vendor"; // Use vendor for independent
 
-      auth.currentUser?.getIdToken().then(token => {
-        fetch(`/api/analytics?type=${queryType}&orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-          .then(async res => {
-            if (!res.ok) {
-              const errRaw = await res.text();
-              console.error("[Dashboard] Non-200 response:", errRaw);
-              throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
-            }
-            const text = await res.text();
-            try {
-              return JSON.parse(text);
-            } catch (e) {
-              console.error("Invalid JSON from metrics:", text);
-              throw new Error("Invalid JSON response");
+      if (auth.currentUser) {
+        auth.currentUser.getIdToken().then(token => {
+          fetch(`/api/analytics?type=${queryType}&orgId=${session.org.id || session.user.organizationId || ''}&userId=${session.user.uid || ''}&role=${session.user.role || ''}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
             }
           })
-           .then(async (data) => {
-             // If Backend lacks credentials (adminDb null fallback) and returns all 0s, fetch natively
-             if (data.fallbackRequired && (isVendor || isClient)) {
-                 console.log("Analytics backend requested fallback. Hydrating via Client SDK...");
-                 const orgId = session.org.id || session.user.organizationId || '';
-                 if (orgId) {
-                     try {
-                         let allocatedReqs = 0;
-                         try {
-                             if (isVendor) {
-                                 const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("assignedVendorIds", "array-contains", orgId)));
-                                 allocatedReqs = reqSnap.docs.length;
-                             } else if (isClient) {
-                                  const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("clientId", "==", orgId)));
-                                  allocatedReqs = reqSnap.docs.length;
-                             }
-                         } catch (e: any) { console.error("requirements_public query failed:", e.message); }
-                         
-                         let candsCount = 0;
-                         let readyForSubmit = 0;
-                         try {
-                             const candQuery = isVendor 
-                                ? query(collection(db, "candidatePool"), where("vendorId", "==", orgId))
-                                : query(collection(db, "candidatePool"), where("clientId", "==", orgId));
-                             const candsSnap = await getDocs(candQuery);
-                             candsCount = candsSnap.docs.length;
-                             candsSnap.docs.forEach((d: any) => {
-                                const data = d.data();
-                                if (data.status !== "DELETED" && data.isActive !== false) {
-                                   const stage = (data.pipelineStage || '').toUpperCase();
-                                   if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
-                                       readyForSubmit++;
-                                   }
-                                }
-                             });
-                         } catch(e: any) { console.error("candidatePool query failed:", e.message); }
+            .then(async res => {
+              if (!res.ok) {
+                const errRaw = await res.text();
+                console.error("[Dashboard] Non-200 response:", errRaw);
+                throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
+              }
+              const text = await res.text();
+              try {
+                return JSON.parse(text);
+              } catch (e) {
+                console.error("Invalid JSON from metrics:", text);
+                throw new Error("Invalid JSON response");
+              }
+            })
+             .then(async (data) => {
+               // If Backend lacks credentials (adminDb null fallback) and returns all 0s, fetch natively
+               if (data.fallbackRequired && (isVendor || isClient)) {
+                   console.log("Analytics backend requested fallback. Hydrating via Client SDK...");
+                   const orgId = session.org.id || session.user.organizationId || '';
+                   if (orgId) {
+                       try {
+                           let allocatedReqs = 0;
+                           try {
+                               if (isVendor) {
+                                   const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("assignedVendorIds", "array-contains", orgId)));
+                                   allocatedReqs = reqSnap.docs.length;
+                               } else if (isClient) {
+                                    const reqSnap = await getDocs(query(collection(db, "requirements_public"), where("clientId", "==", orgId)));
+                                    allocatedReqs = reqSnap.docs.length;
+                               }
+                           } catch (e: any) { console.error("requirements_public query failed:", e.message); }
+                           
+                           let candsCount = 0;
+                           let readyForSubmit = 0;
+                           try {
+                               const candQuery = isVendor 
+                                  ? query(collection(db, "candidatePool"), where("vendorId", "==", orgId))
+                                  : query(collection(db, "candidatePool"), where("clientId", "==", orgId));
+                               const candsSnap = await getDocs(candQuery);
+                               candsCount = candsSnap.docs.length;
+                               candsSnap.docs.forEach((d: any) => {
+                                  const data = d.data();
+                                  if (data.status !== "DELETED" && data.isActive !== false) {
+                                     const stage = (data.pipelineStage || '').toUpperCase();
+                                     if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
+                                         readyForSubmit++;
+                                     }
+                                  }
+                               });
+                           } catch(e: any) { console.error("candidatePool query failed:", e.message); }
 
-                         let matchesCount = 0;
-                         try {
-                             if (isVendor) {
-                                 const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
-                                 matchesCount = matchesSnap.docs.length;
-                             } else {
-                                 const matchesClientSnap = await getDocs(query(collection(db, "candidate_matches"), where("clientId", "==", orgId)));
-                                 matchesCount = matchesClientSnap.docs.length;
-                             }
-                         } catch(e: any) { console.error("candidate_matches query failed:", e.message); }
+                           let matchesCount = 0;
+                           try {
+                               if (isVendor) {
+                                   const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
+                                   matchesCount = matchesSnap.docs.length;
+                               } else {
+                                   const matchesClientSnap = await getDocs(query(collection(db, "candidate_matches"), where("clientId", "==", orgId)));
+                                   matchesCount = matchesClientSnap.docs.length;
+                               }
+                           } catch(e: any) { console.error("candidate_matches query failed:", e.message); }
 
-                         let revenue = 0;
-                         let interviews = 0;
-                         let placements = 0;
-                         let pendingReview = 0;
-                         try {
-                             const subsQuery = isVendor
-                               ? query(collection(db, "submissions"), where("vendorId", "==", orgId))
-                               : query(collection(db, "submissions"), where("clientId", "==", orgId));
-                             const subsSnap = await getDocs(subsQuery);
-                             subsSnap.docs.forEach((d: any) => {
-                                const data = d.data();
-                                if (data.status === "DELETED" || data.isActive === false) return;
-                                const status = (data.status || '').toUpperCase();
-                                if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
-                                if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
-                                if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
-                                   placements++;
-                                   revenue += Number(data.vendorPayout || data.financials?.vendorPayout || data.financials?.clientBudget || data.budget?.amount) || 0;
-                                }
-                             });
-                         } catch(e: any) { console.error("submissions query failed:", e.message); }
-                         
-                         setMetrics({
-                            ...data,
-                            revenue: revenue,
-                            spending: isClient ? revenue : data.spending,
-                            totalJobs: allocatedReqs,
-                            totalCandidates: isClient ? pendingReview : candsCount,
-                            aiMatches: matchesCount,
-                            readyForSubmission: readyForSubmit,
-                            interviewsToday: interviews,
-                            placements: placements
-                         });
-                         return;
-                     } catch(err) {
-                         console.error("Client fallback fetch failed", err);
-                     }
-                 }
-             }
-             setMetrics(data);
-          })
-          .catch(err => {
-            console.warn("Metrics fetch failed, using zeroed fallback", err);
-            setMetrics({
-              revenue: 0,
-              spending: 0,
-              activeDeals: 0,
-              placements: 0,
-              avgMargin: 0,
-              vendorQuality: 0,
-              recruiterProductivity: 0,
-              timeToHireDays: 0,
-              offerAcceptanceRate: 0,
-              totalJobs: 0,
-              totalCandidates: 0,
-              interviewsToday: 0,
-              aiMatches: 0,
-              readyForSubmission: 0
+                           let revenue = 0;
+                           let interviews = 0;
+                           let placements = 0;
+                           let pendingReview = 0;
+                           try {
+                               const subsQuery = isVendor
+                                 ? query(collection(db, "submissions"), where("vendorId", "==", orgId))
+                                 : query(collection(db, "submissions"), where("clientId", "==", orgId));
+                               const subsSnap = await getDocs(subsQuery);
+                               subsSnap.docs.forEach((d: any) => {
+                                  const data = d.data();
+                                  if (data.status === "DELETED" || data.isActive === false) return;
+                                  const status = (data.status || '').toUpperCase();
+                                  if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
+                                  if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+                                  if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
+                                     placements++;
+                                     revenue += Number(data.vendorPayout || data.financials?.vendorPayout || data.financials?.clientBudget || data.budget?.amount) || 0;
+                                  }
+                               });
+                           } catch(e: any) { console.error("submissions query failed:", e.message); }
+                           
+                           setMetrics({
+                              ...data,
+                              revenue: revenue,
+                              spending: isClient ? revenue : data.spending,
+                              totalJobs: allocatedReqs,
+                              totalCandidates: isClient ? pendingReview : candsCount,
+                              aiMatches: matchesCount,
+                              readyForSubmission: readyForSubmit,
+                              interviewsToday: interviews,
+                              placements: placements
+                           });
+                           return;
+                       } catch(err) {
+                           console.error("Client fallback fetch failed", err);
+                       }
+                   }
+               }
+               setMetrics(data);
+            })
+            .catch(err => {
+              console.warn("Metrics fetch failed, using zeroed fallback", err);
+              setMetrics({
+                revenue: 0,
+                spending: 0,
+                activeDeals: 0,
+                placements: 0,
+                avgMargin: 0,
+                vendorQuality: 0,
+                recruiterProductivity: 0,
+                timeToHireDays: 0,
+                offerAcceptanceRate: 0,
+                totalJobs: 0,
+                totalCandidates: 0,
+                interviewsToday: 0,
+                aiMatches: 0,
+                readyForSubmission: 0
+              });
             });
-          });
-      });
+        }).catch(err => {
+            console.error("Auth token fetch failed", err);
+        });
+      }
     }
   }, [session?.org, isClient, isVendor, isRecruiter, isIndependent]);
 
@@ -586,13 +595,13 @@ export default function DashboardTab() {
                      </div>
                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                          {[
-                            { label: "Reqs Open", value: execStats.openReqs, color: "text-indigo-400" },
-                            { label: "Submissions", value: execStats.submissions, color: "text-blue-400" },
-                            { label: "Interviews", value: execStats.interviews, color: "text-amber-400" },
-                            { label: "Offers", value: execStats.offers, color: "text-fuchsia-400" },
-                            { label: "Placements", value: execStats.placements, color: "text-emerald-400" },
+                            { label: "Reqs Open", value: execStats.openReqs, color: "text-indigo-400", onClick: () => navigate("/jobs?status=OPEN") },
+                            { label: "Submissions", value: execStats.submissions, color: "text-blue-400", onClick: () => navigate("/candidates?tab=submissions") },
+                            { label: "Interviews", value: execStats.interviews, color: "text-amber-400", onClick: () => navigate("/interviews") },
+                            { label: "Offers", value: execStats.offers, color: "text-fuchsia-400", onClick: () => navigate("/deal-rooms") },
+                            { label: "Placements", value: execStats.placements, color: "text-emerald-400", onClick: () => navigate("/placements") },
                          ].map((s, i) => (
-                           <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                           <div key={i} onClick={s.onClick} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center cursor-pointer hover:bg-white/10 transition-colors">
                              <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">{s.label}</div>
                              <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
                            </div>
@@ -603,28 +612,28 @@ export default function DashboardTab() {
 
                 {/* Metric Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                    <div onClick={() => navigate("/candidates?filter=uploaded")} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-amber-600 transition-colors">Profiles Uploaded</div>
                         <div className="text-2xl font-black text-slate-900 font-mono">
                             {recentEvents.filter(e => e.type === 'CandidateUploaded').length}
                         </div>
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                    <div onClick={() => navigate("/candidates?tab=submissions&filter=client_submitted")} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">Client Submissions</div>
                         <div className="text-2xl font-black text-slate-900 font-mono">
                             {recentEvents.filter(e => e.type === 'SubmissionCreated').length}
                         </div>
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                    <div onClick={() => navigate("/deal-rooms?status=active")} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-fuchsia-600 transition-colors">Active Deal Rooms</div>
                         <div className="text-2xl font-black text-slate-900 font-mono">
-                            {recentEvents.filter(e => e.type === 'DealRoomOpened').length}
+                            {execStats?.activeDealRooms || 0}
                         </div>
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
+                    <div onClick={() => navigate("/placements")} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md cursor-pointer group">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-emerald-600 transition-colors">Converted Placements</div>
                         <div className="text-2xl font-black text-emerald-600 font-mono">
                             {recentEvents.filter(e => e.type === 'PlacementCompleted').length}
@@ -652,10 +661,11 @@ export default function DashboardTab() {
                               {evt.type === 'JobPublished' && <Briefcase size={16} className="text-indigo-500" />}
                               {evt.type === 'CandidateUploaded' && <Users size={16} className="text-emerald-500" />}
                               {evt.type === 'SubmissionCreated' && <Combine size={16} className="text-amber-500" />}
+                              {evt.type === 'CandidateMatched' && <Bot size={16} className="text-blue-500" />}
                               {evt.type === 'DealRoomOpened' && <ShieldCheck size={16} className="text-fuchsia-500" />}
                               {evt.type === 'InterviewScheduled' && <PlayCircle size={16} className="text-blue-500" />}
                               {evt.type === 'PlacementCompleted' && <Zap size={16} className="text-rose-500" />}
-                              {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted'].includes(evt.type) && <Activity size={16} className="text-slate-400" />}
+                              {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'CandidateMatched', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted'].includes(evt.type) && <Activity size={16} className="text-slate-400" />}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center justify-between mb-1">
@@ -666,21 +676,17 @@ export default function DashboardTab() {
                                   {evt.timestamp?.toDate ? evt.timestamp.toDate().toLocaleTimeString() : 'Just now'}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-600 mb-2">
+                              <p className="text-xs text-slate-600">
                                 {evt.type === 'JobPublished' && `New job "${evt.metadata?.title}" was published.`}
-                                {evt.type === 'CandidateUploaded' && `Candidate "${evt.metadata?.name}" was ingested successfully.`}
-                                {evt.type === 'SubmissionCreated' && `Candidate "${evt.metadata?.candidateName}" submitted for Job "${evt.metadata?.reqTitle}".`}
-                                {evt.type === 'DealRoomOpened' && `Deal room created for "${evt.metadata?.candidateName}".`}
-                                {evt.type === 'InterviewScheduled' && `Interview scheduled for "${evt.metadata?.candidateName}".`}
-                                {evt.type === 'PlacementCompleted' && `Placement finalized for "${evt.metadata?.candidateName}".`}
-                                {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted'].includes(evt.type) && JSON.stringify(evt.metadata)}
+                                {evt.type === 'CandidateUploaded' && `Candidate "${evt.metadata?.name || 'Unknown'}" was ingested successfully.`}
+                                {evt.type === 'SubmissionCreated' && `Candidate "${evt.metadata?.candidateName && evt.metadata?.candidateName !== 'Unknown' ? evt.metadata.candidateName : 'Unidentified Candidate'}" submitted for Job "${evt.metadata?.reqTitle && evt.metadata?.reqTitle !== 'Unknown Requirement' ? evt.metadata.reqTitle : 'Unspecified Role'}" by Vendor "${evt.metadata?.vendorName || evt.metadata?.vendorId || 'HQ'}".`}
+                                {evt.type === 'CandidateMatched' && `Candidate "${evt.metadata?.candidateName && evt.metadata?.candidateName !== 'Unknown' ? evt.metadata.candidateName : 'Unidentified Candidate'}" matched to Job "${evt.metadata?.reqTitle && evt.metadata?.reqTitle !== 'Unknown Requirement' ? evt.metadata.reqTitle : 'Unspecified Role'}" with a score of ${evt.metadata?.matchScore || 0}% for Vendor "${evt.metadata?.vendorName || evt.metadata?.vendorId || 'HQ'}".`}
+                                {evt.type === 'DealRoomOpened' && `Deal room created for "${evt.metadata?.candidateName || 'Candidate'}".`}
+                                {evt.type === 'InterviewScheduled' && `Interview scheduled for "${evt.metadata?.candidateName || 'Candidate'}".`}
+                                {evt.type === 'PlacementCompleted' && `Placement finalized for "${evt.metadata?.candidateName || 'Candidate'}".`}
+                                {evt.type === 'Ownership Established' && `Ownership locked for ${evt.metadata?.vendorName || (evt.metadata?.ownerId === 'ORG-GLOBAL-HQ' ? 'HQ' : 'Vendor')} until ${evt.metadata?.lockUntil ? new Date(evt.metadata.lockUntil).toLocaleDateString() : 'expiry'}.`}
+                                {!['JobPublished', 'CandidateUploaded', 'SubmissionCreated', 'CandidateMatched', 'DealRoomOpened', 'InterviewScheduled', 'PlacementCompleted', 'Ownership Established'].includes(evt.type) && (evt.metadata?.message || evt.type)}
                               </p>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-[8px] uppercase tracking-widest font-bold py-0 h-4">
-                                  {evt.entityType}
-                                </Badge>
-                                <span className="text-[9px] text-slate-400 font-mono">ID: {evt.entityId.substring(0, 8)}</span>
-                              </div>
                             </div>
                           </div>
                         ))}

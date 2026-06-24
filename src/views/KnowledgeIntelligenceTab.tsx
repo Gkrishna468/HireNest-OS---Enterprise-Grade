@@ -1,53 +1,59 @@
 import React, { useState, useEffect } from "react";
-import { Network, Brain, Cpu, FileText, Share2, Target, GitMerge, Award } from "lucide-react";
-import { collection, getDocs } from "firebase/firestore";
+import { Network, Brain, Cpu, FileText, Share2, Target, GitMerge, Award, Database, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
 
 export default function KnowledgeIntelligenceTab({ userRole }: { userRole: string }) {
-  const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
+  const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin", "ceo"].includes(userRole);
   const [loading, setLoading] = useState(true);
   
-  // Simulated knowledge patterns based on platform data
-  const patterns = [
-    {
-      id: "PT-001",
-      domain: "Java Requirement",
-      target: "Vendor A",
-      insight: "Historically produces 62% interview rate and 28% placement rate for Java roles within 14 days.",
-      confidence: 94,
-      type: "VENDOR_AFFINITY"
-    },
-    {
-      id: "PT-002",
-      domain: "Data Engineer",
-      target: "Recruiter B",
-      insight: "Average fill time of 11 Days with a 45% margin. Strong sourcing network detected.",
-      confidence: 88,
-      type: "RECRUITER_AFFINITY"
-    },
-    {
-      id: "PT-003",
-      domain: "Enterprise Tech Clients",
-      target: "Pricing Strategy",
-      insight: "Requirements with >= 22% expected margin close 40% faster than those below 18%.",
-      confidence: 91,
-      type: "COMMERCIAL_PATTERN"
-    },
-    {
-      id: "PT-004",
-      domain: "Healthcare IT",
-      target: "Submission Timing",
-      insight: "Submissions made within first 48 hours have a 3x higher probability of interview selection.",
-      confidence: 85,
-      type: "SLA_PATTERN"
-    }
+  const [auditResults, setAuditResults] = useState<any[]>([]);
+
+  const collectionsToAudit = [
+    { id: "vendor_performance", name: "Vendor Performance", eventSource: "Submission/Placement Events" },
+    { id: "recruiter_performance", name: "Recruiter Performance", eventSource: "Submission/Placement Events" },
+    { id: "revenue_pipeline", name: "Revenue Pipeline", eventSource: "Deal Room/Placement Events" },
+    { id: "candidate_matches", name: "Candidate Matches", eventSource: "Match Engine / AI Copilot" },
+    { id: "match_opportunities", name: "Match Opportunities", eventSource: "Requirement/Candidate PubSub" },
+    { id: "placements", name: "Placements", eventSource: "Deal Room Closure" },
+    { id: "invoices", name: "Invoices", eventSource: "Placement Ledger" },
+    { id: "vendor_payouts", name: "Vendor Payouts", eventSource: "Invoice Payment" }
   ];
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    async function runAudit() {
+      setLoading(true);
+      const results = [];
+      
+      for (const coll of collectionsToAudit) {
+        try {
+          const q = query(collection(db, coll.id), limit(1));
+          const snap = await getDocs(q);
+          results.push({
+            ...coll,
+            hasRecords: !snap.empty,
+            status: !snap.empty ? 'VERIFIED' : 'EMPTY',
+            error: null
+          });
+        } catch (err: any) {
+          results.push({
+            ...coll,
+            hasRecords: false,
+            status: 'ERROR',
+            error: err.message
+          });
+        }
+      }
+      
+      setAuditResults(results);
+      setLoading(false);
+    }
+    
+    if (isAdmin) {
+      runAudit();
+    }
+  }, [isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -57,21 +63,23 @@ export default function KnowledgeIntelligenceTab({ userRole }: { userRole: strin
     );
   }
 
+  const allVerified = auditResults.length > 0 && auditResults.every(r => r.hasRecords);
+
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto">
       <div className="bg-slate-900 border-b border-slate-800 px-8 py-8 shadow-inner relative overflow-hidden">
         <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
-           <Network size={200} className="text-fuchsia-400" />
+           <Database size={200} className="text-emerald-400" />
         </div>
         <div className="relative z-10 max-w-[1200px] mx-auto w-full">
           <div className="flex items-center gap-3 mb-2">
-            <Share2 className="text-fuchsia-400" size={28} />
+            <Database className="text-emerald-400" size={28} />
             <h1 className="text-3xl font-black text-white tracking-tighter">
-              Knowledge Graph
+              Production Data Audit
             </h1>
           </div>
-          <p className="text-slate-400 font-medium text-sm max-w-2xl">
-            Synthesized operational intelligence derived from historic placements, submissions, and vendor performance. Fed directly into the Autonomous Match Engine.
+          <p className="text-slate-400 font-medium text-sm max-w-2xl mt-2">
+            Before moving to the Knowledge Graph and Predictive Intelligence, we must verify that all foundational SSOT collections contain real production records created from events. No manual seeding. No mock data.
           </p>
         </div>
       </div>
@@ -79,41 +87,33 @@ export default function KnowledgeIntelligenceTab({ userRole }: { userRole: strin
       <div className="p-8 max-w-[1200px] mx-auto w-full space-y-8">
         
         {/* KPI Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex items-center gap-2 mb-4 text-fuchsia-600">
-                 <GitMerge size={18} />
-                 <h3 className="text-[10px] font-black uppercase tracking-widest">Active Patterns</h3>
+              <div className="flex items-center gap-2 mb-4 text-slate-600">
+                 <Database size={18} />
+                 <h3 className="text-[10px] font-black uppercase tracking-widest">Collections Audited</h3>
               </div>
-              <div className="text-3xl font-black text-slate-800">{loading ? '-' : '248'}</div>
-              <p className="text-xs text-slate-500 mt-2 font-medium">Derived from SSOT</p>
-           </div>
-           
-           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex items-center gap-2 mb-4 text-indigo-600">
-                 <Target size={18} />
-                 <h3 className="text-[10px] font-black uppercase tracking-widest">Prediction Accuracy</h3>
-              </div>
-              <div className="text-3xl font-black text-slate-800">{loading ? '-' : '92.4%'}</div>
-              <p className="text-xs text-slate-500 mt-2 font-medium">Last 30 days</p>
+              <div className="text-3xl font-black text-slate-800">{collectionsToAudit.length}</div>
            </div>
            
            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-4 text-emerald-600">
-                 <Award size={18} />
-                 <h3 className="text-[10px] font-black uppercase tracking-widest">Match Optimization</h3>
+                 <CheckCircle2 size={18} />
+                 <h3 className="text-[10px] font-black uppercase tracking-widest">Verified (Real Data)</h3>
               </div>
-              <div className="text-3xl font-black text-slate-800">{loading ? '-' : '+34%'}</div>
-              <p className="text-xs text-slate-500 mt-2 font-medium">Conversion lift</p>
+              <div className="text-3xl font-black text-emerald-600">
+                {loading ? '-' : auditResults.filter(r => r.hasRecords).length}
+              </div>
            </div>
            
            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-4 text-amber-600">
-                 <Brain size={18} />
-                 <h3 className="text-[10px] font-black uppercase tracking-widest">Copilot Integration</h3>
+                 <AlertTriangle size={18} />
+                 <h3 className="text-[10px] font-black uppercase tracking-widest">Empty / Pending</h3>
               </div>
-              <div className="text-3xl font-black text-slate-800">{loading ? '-' : 'Live'}</div>
-              <p className="text-xs text-slate-500 mt-2 font-medium">Continuous learning</p>
+              <div className="text-3xl font-black text-amber-600">
+                {loading ? '-' : auditResults.filter(r => !r.hasRecords).length}
+              </div>
            </div>
         </div>
 
@@ -121,46 +121,73 @@ export default function KnowledgeIntelligenceTab({ userRole }: { userRole: strin
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
              <div>
-               <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Synthesized Patterns</h3>
-               <p className="text-xs text-slate-500 mt-1">High-confidence rules extracted from historical placements and submissions.</p>
+               <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">SSOT Collection Status</h3>
+               <p className="text-xs text-slate-500 mt-1">Verifying event-driven data flow: Event Source &rarr; Collection &rarr; Dashboard</p>
              </div>
-             <button className="text-xs font-bold bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50">
-               Refresh Graph
-             </button>
+             <div className="flex items-center gap-3">
+               {!loading && allVerified && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">
+                    <CheckCircle2 size={14} /> Ready for Knowledge Graph
+                  </div>
+               )}
+               {!loading && !allVerified && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">
+                    <AlertTriangle size={14} /> Audit Required
+                  </div>
+               )}
+             </div>
            </div>
 
            <div className="p-0">
              <table className="w-full text-left border-collapse">
                <thead>
                  <tr className="bg-slate-50 border-b border-slate-100">
-                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pattern ID</th>
-                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Domain</th>
-                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Node</th>
-                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Insight</th>
-                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Confidence</th>
+                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Collection</th>
+                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Event Source</th>
+                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                   <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action Required</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                 {patterns.map((pt) => (
-                   <tr key={pt.id} className="hover:bg-slate-50 group">
-                     <td className="py-4 px-6 text-xs font-mono font-medium text-slate-500">{pt.id}</td>
-                     <td className="py-4 px-6 font-bold text-sm text-slate-800">{pt.domain}</td>
-                     <td className="py-4 px-6">
-                       <span className="text-[10px] font-bold uppercase tracking-wider bg-fuchsia-100 text-fuchsia-700 px-2 py-1 rounded">
-                         {pt.target}
-                       </span>
-                     </td>
-                     <td className="py-4 px-6 text-sm font-medium text-slate-600 max-w-md leading-relaxed">{pt.insight}</td>
-                     <td className="py-4 px-6">
-                       <div className="flex items-center gap-2">
-                         <div className="w-full bg-slate-100 rounded-full h-2 max-w-[60px]">
-                           <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${pt.confidence}%` }}></div>
-                         </div>
-                         <span className="text-xs font-bold text-slate-700">{pt.confidence}%</span>
-                       </div>
+                 {loading ? (
+                   <tr>
+                     <td colSpan={4} className="py-12 text-center text-slate-500 text-sm font-medium">
+                       Running Production Audit...
                      </td>
                    </tr>
-                 ))}
+                 ) : (
+                   auditResults.map((result) => (
+                     <tr key={result.id} className="hover:bg-slate-50 group">
+                       <td className="py-4 px-6 font-mono text-sm font-medium text-slate-700">{result.id}</td>
+                       <td className="py-4 px-6 text-sm text-slate-600">{result.eventSource}</td>
+                       <td className="py-4 px-6">
+                         {result.hasRecords ? (
+                           <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md w-fit">
+                             <CheckCircle2 size={14} /> VERIFIED (Records &gt; 0)
+                           </span>
+                         ) : result.status === 'ERROR' ? (
+                           <span className="flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-md w-fit">
+                             <AlertTriangle size={14} /> PERMISSION / ERROR
+                           </span>
+                         ) : (
+                           <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md w-fit">
+                             <AlertTriangle size={14} /> EMPTY
+                           </span>
+                         )}
+                       </td>
+                       <td className="py-4 px-6">
+                         {result.hasRecords ? (
+                           <span className="text-xs text-slate-400">None. SSOT confirmed.</span>
+                         ) : (
+                           <div className="text-xs text-rose-600 font-medium">
+                             Audit <span className="font-mono bg-rose-50 px-1 rounded">{result.eventSource}</span> &rarr; {result.id} &rarr; Dashboard
+                           </div>
+                         )}
+                         {result.error && <div className="text-[10px] text-rose-400 mt-1">{result.error}</div>}
+                       </td>
+                     </tr>
+                   ))
+                 )}
                </tbody>
              </table>
            </div>
@@ -170,3 +197,4 @@ export default function KnowledgeIntelligenceTab({ userRole }: { userRole: strin
     </div>
   );
 }
+

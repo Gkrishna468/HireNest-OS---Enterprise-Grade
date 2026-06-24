@@ -1,6 +1,6 @@
 import { db } from "../lib/firebase";
 import { collection, addDoc, doc, setDoc, serverTimestamp, increment } from "firebase/firestore";
-import { observabilityService } from "../api-lib/services/ObservabilityService";
+import { frontendTelemetry } from "../lib/frontendTelemetry";
 
 export class AnalyticsService {
   static async logOperationalEvent(tenantId: string, eventType: string, payload: any) {
@@ -34,12 +34,12 @@ export class AnalyticsService {
 
       // 3. System Health Telemetry
       if (["OPPORTUNITY_WON", "CLIENT_CREATED", "REQUIREMENT_CREATED", "PLACEMENT_CLOSED", "SUBMISSION_CREATED", "INTERVIEW_SCHEDULED"].includes(eventType)) {
-        await observabilityService.incrementSystemHealth("eventBusProcessed");
+        await frontendTelemetry.incrementSystemHealth("eventBusProcessed");
       }
 
     } catch (err) {
       console.warn("[AnalyticsService] Failed to log event:", err);
-      observabilityService.logRuntimeError({
+      frontendTelemetry.logRuntimeError({
         tenantId,
         sourceSystem: "AnalyticsService",
         message: err instanceof Error ? err.message : String(err),

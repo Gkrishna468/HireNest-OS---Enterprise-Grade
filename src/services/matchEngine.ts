@@ -4,7 +4,7 @@ import {
   addDoc, 
   serverTimestamp 
 } from "firebase/firestore";
-import { observabilityService } from "../api-lib/services/ObservabilityService";
+import { frontendTelemetry } from "../lib/frontendTelemetry";
 
 /**
  * HireNestOS Enterprise Match Engine
@@ -130,7 +130,7 @@ export class MatchEngine {
         timestamp: Date.now()
       };
     } catch (error) {
-      observabilityService.logWorkflowFailure({
+      frontendTelemetry.logWorkflowFailure({
         workflowId: `match-${Date.now()}`,
         workflowType: "MATCH_ENGINE",
         failureReason: error instanceof Error ? error.message : String(error),
@@ -158,7 +158,7 @@ export class MatchEngine {
       });
       
       // Hook into new observability collection
-      await observabilityService.incrementSystemHealth("matchEngineRuns");
+      await frontendTelemetry.incrementSystemHealth("matchEngineRuns");
     } catch (e) {
       console.warn("[MATCH_LOG] Failed:", e);
     }

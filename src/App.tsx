@@ -645,7 +645,7 @@ const AppContent = () => {
               <SidebarItem
                 to="/knowledge-graph"
                 icon={Network}
-                label="Knowledge Graph"
+                label="Knowledge Graph (Audit)"
                 active={location.pathname === "/knowledge-graph"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />

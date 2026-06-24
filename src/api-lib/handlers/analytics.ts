@@ -393,6 +393,25 @@ export default async function analyticsHandler(req: any, res: any) {
 
   } catch (err: any) {
     console.error("[ANALYTICS CATCH-ALL ERROR]", err);
+    if (err.message && (err.message.includes("UNAUTHENTICATED") || err.message.includes("PERMISSION_DENIED"))) {
+      // Fallback for missing admin credentials
+      return res.status(200).json({
+         fallbackRequired: true,
+         revenue: 0,
+         spending: 0,
+         activeDeals: 0,
+         placements: 0,
+         avgMargin: 0,
+         vendorQuality: 0,
+         recruiterProductivity: 0,
+         totalJobs: 0,
+         totalCandidates: 0,
+         interviewsToday: 0,
+         aiMatches: 0,
+         readyForSubmission: 0,
+         heatmaps: []
+      });
+    }
     return res.status(500).json({ error: err.message });
   }
 }

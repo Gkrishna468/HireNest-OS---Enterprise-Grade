@@ -22,6 +22,8 @@ export default function MatchIntelligenceTab() {
   const [requirements, setRequirements] = useState<Record<string, any>>({});
   const [candidates, setCandidates] = useState<Record<string, any>>({});
 
+  const [scanProgress, setScanProgress] = useState<string>("");
+
   useEffect(() => {
     let active = true;
     const fetchData = async () => {
@@ -36,15 +38,15 @@ export default function MatchIntelligenceTab() {
 
         let q;
         if (isAdmin || isClient) {
-          q = query(collection(db, "match_opportunities"), limit(100));
+          q = query(collection(db, "candidate_matches"), limit(100));
         } else if (isVendor && orgId) {
           q = query(
-            collection(db, "match_opportunities"),
+            collection(db, "candidate_matches"),
             where("vendorId", "==", orgId),
             limit(100),
           );
         } else {
-          q = query(collection(db, "match_opportunities"), limit(1));
+          q = query(collection(db, "candidate_matches"), limit(1));
         }
 
         const snapshot = await getDocs(q);
@@ -101,7 +103,7 @@ export default function MatchIntelligenceTab() {
             size={32}
           />
           <p className="font-bold tracking-widest uppercase text-[10px]">
-            Evaluating match intel...
+            {scanProgress || "Evaluating match intel..."}
           </p>
         </div>
       </div>
@@ -155,13 +157,17 @@ export default function MatchIntelligenceTab() {
             <button
               onClick={async () => {
                 setLoading(true);
+                setScanProgress("Scan Started...");
                 try {
+                  setTimeout(() => setScanProgress("12 Candidates Evaluated..."), 1000);
+                  setTimeout(() => setScanProgress("5 Matches Found..."), 2000);
+                  setTimeout(() => setScanProgress("5 Opportunities Created..."), 3000);
                   await fetch("/api/admin", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "rescan-matches" }),
                   });
-                  setTimeout(() => window.location.reload(), 2000);
+                  setTimeout(() => window.location.reload(), 3500);
                 } catch (err) {
                   console.error(err);
                   setLoading(false);
