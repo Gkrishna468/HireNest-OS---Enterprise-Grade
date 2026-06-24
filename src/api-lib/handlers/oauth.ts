@@ -4,10 +4,6 @@ import express from 'express';
 import { observabilityService } from '../services/ObservabilityService.js';
 
 // Use environment variables or rely on user metadata logic if missing
-console.log("CLIENT_ID", process.env.GOOGLE_CLIENT_ID);
-console.log("SECRET_EXISTS", !!process.env.GOOGLE_CLIENT_SECRET);
-console.log("SECRET_LENGTH", process.env.GOOGLE_CLIENT_SECRET?.length);
-
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/oauth/callback";
@@ -26,8 +22,7 @@ oauthHandler.get('/url', (req, res) => {
      scope: [
        'https://www.googleapis.com/auth/userinfo.email',
        'https://www.googleapis.com/auth/gmail.readonly',
-       'https://www.googleapis.com/auth/calendar.readonly',
-       'https://www.googleapis.com/auth/calendar.events'
+       'https://www.googleapis.com/auth/calendar'
      ],
      state: JSON.stringify({ uid, redirectTo: redirectTo || '/app' })
    });
