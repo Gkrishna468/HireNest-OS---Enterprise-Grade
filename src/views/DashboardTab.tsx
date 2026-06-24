@@ -247,7 +247,9 @@ export default function DashboardTab() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         try {
-          const d = await getDocs(query(collection(db, "users"), where("__name__", "==", u.uid))).then(s => s.empty ? null : s.docs[0]);
+          const { doc, getDoc } = await import("firebase/firestore");
+          const dRef = await getDoc(doc(db, "users", u.uid));
+          const d = dRef.exists() ? { data: () => dRef.data() } : null;
           if (d) {
             const data = d.data();
             let finalRole = data.role || "PENDING_VERIFICATION";

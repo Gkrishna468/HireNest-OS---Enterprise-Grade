@@ -78,7 +78,7 @@ try {
 
   if (app) {
     try {
-      adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
+      adminDb = getFirestore(app);
     } catch (e: any) {
       console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
     }

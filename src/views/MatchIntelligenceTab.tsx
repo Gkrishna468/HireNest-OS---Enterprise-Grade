@@ -28,9 +28,10 @@ export default function MatchIntelligenceTab() {
       if (!userData) return;
       setLoading(true);
       try {
-        const isAdmin = userData?.role === "admin" || userData?.role === "hq";
-        const isClient = userData?.role === "client";
-        const isVendor = userData?.role === "vendor";
+        const role = userData?.role || "";
+        const isAdmin = role === "admin" || role === "hq" || role === "super_admin" || role === "ops_admin";
+        const isClient = role === "client" || role === "client_admin" || role === "client_hm" || role === "client_finance" || role === "client_recruiter";
+        const isVendor = role === "vendor" || role === "vendor_admin" || role === "vendor_recruiter";
         const orgId = userData?.organizationId;
 
         let q;
@@ -88,7 +89,8 @@ export default function MatchIntelligenceTab() {
     };
   }, [userData]);
 
-  const isAdmin = userData?.role === "admin" || userData?.role === "hq";
+  const role = userData?.role || "";
+  const isAdmin = role === "admin" || role === "hq" || role === "super_admin" || role === "ops_admin";
 
   if (loading) {
     return (

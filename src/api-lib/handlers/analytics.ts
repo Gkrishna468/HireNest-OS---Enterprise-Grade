@@ -1,9 +1,10 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 
 export default async function analyticsHandler(req: any, res: any) {
-  const apiPathMatch = req.path.match(/analytics\/(.*)/);
-  const typeParam = req.query.type;
-  const apiPath = apiPathMatch && apiPathMatch[1] ? apiPathMatch[1].split('?')[0] : (typeParam || req.path.replace(/^\/?analytics\//, '').split('?')[0]);
+  const pathString = req.path || req.url || '';
+  const apiPathMatch = pathString.match(/analytics\/(.*)/);
+  const typeParam = req.query?.type || '';
+  const apiPath = apiPathMatch && apiPathMatch[1] ? apiPathMatch[1].split('?')[0] : (typeParam || pathString.replace(/^\/?analytics\//, '').split('?')[0]);
 
   try {
     if (!adminDb) {
@@ -25,9 +26,11 @@ export default async function analyticsHandler(req: any, res: any) {
       });
     }
 
-    const orgId = req.query.orgId;
-    const userId = req.user?.uid;
-    const userRole = req.user?.role;
+    const orgId = req.query?.orgId || "";
+    const queryUserId = req.query?.userId || "";
+    const queryRole = req.query?.role || "guest";
+    const userId = queryUserId || req.user?.uid || "";
+    const userRole = queryRole !== "guest" ? queryRole : (req.user?.role || "guest");
     let verifiedOrgId = orgId;
     
     // Security check to prevent Analytics Isolation Bypass

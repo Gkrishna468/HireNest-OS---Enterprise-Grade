@@ -25,12 +25,28 @@ export class SystemEventListener {
     
     try {
       const subsSnap = await getDocs(subQ);
-      const subscribedTypes = subsSnap.docs.map(d => d.data().eventType);
+      let subscribedTypes = subsSnap.docs.map(d => d.data().eventType);
 
       if (subscribedTypes.length === 0) {
-        console.log("[SystemEventListener] No remote events subscribed to in system_event_subscriptions. Using fallbacks.");
-        subscribedTypes.push("OPPORTUNITY_WON");
-        subscribedTypes.push("PLACEMENT_CLOSED");
+        console.log("[SystemEventListener] No remote events subscribed to in system_event_subscriptions. Seeding default subscriptions.");
+        
+        const defaultEvents = ["OPPORTUNITY_WON", "PLACEMENT_CLOSED", "CandidateUploaded", "JobPublished", "SubmissionCreated", "DealRoomOpened", "InterviewScheduled", "PlacementCompleted"];
+        
+        try {
+          for (const type of defaultEvents) {
+            await setDoc(doc(collection(db, "system_event_subscriptions")), {
+              consumer: "HireNestOS",
+              enabled: true,
+              eventType: type,
+              createdAt: new Date().toISOString()
+            });
+          }
+          console.log("[SystemEventListener] Successfully seeded default subscriptions.");
+          subscribedTypes = defaultEvents;
+        } catch (seedErr) {
+          console.warn("[SystemEventListener] Failed to seed default subscriptions, using fallback memory types.", seedErr);
+          subscribedTypes = defaultEvents;
+        }
       }
 
       // 2. Listen to system_events
