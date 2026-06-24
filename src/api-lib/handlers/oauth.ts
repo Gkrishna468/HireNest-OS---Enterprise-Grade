@@ -31,6 +31,7 @@ oauthHandler.get('/url', (req, res) => {
 });
 
 oauthHandler.get('/callback', async (req, res) => {
+   console.log("STEP 1 callback reached");
    const code = req.query.code as string;
    const stateStr = req.query.state as string;
 
@@ -39,9 +40,13 @@ oauthHandler.get('/callback', async (req, res) => {
    }
 
    try {
+      console.log("STEP 2 parsing state");
       const state = JSON.parse(stateStr);
+      
+      console.log("STEP 3 exchanging token");
       const { tokens } = await oauth2Client.getToken(code);
       
+      console.log("STEP 4 token received");
       oauth2Client.setCredentials(tokens);
 
       if (!db) {
@@ -49,10 +54,11 @@ oauthHandler.get('/callback', async (req, res) => {
          return res.status(500).send("Database not configured. Check backend environment variables.");
       }
 
+      console.log("STEP 5 firestore write");
       // Store in backend vault securely
       await db.collection('token_vault').doc(state.uid).set({
          accessToken: tokens.access_token,
-         refreshToken: tokens.refresh_token,
+         refreshToken: tokens.refresh_token || null,
          expiryDate: tokens.expiry_date,
          scope: tokens.scope,
          updatedAt: new Date()
@@ -66,10 +72,13 @@ oauthHandler.get('/callback', async (req, res) => {
          metadata: { scope: tokens.scope }
       }).catch(console.error);
 
+      console.log("STEP 6 redirect");
       // Redirect back to application
       res.redirect(state.redirectTo);
 
    } catch (err: any) {
+      console.error("FULL OAUTH ERROR", err);
+      console.error("STACK", err?.stack);
       console.error("OAuth callback error:", err);
       observabilityService.logOAuthEvent({
          provider: "google",
