@@ -1221,6 +1221,54 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // OBSERVABILITY & TELEMETRY
+    // =====================================================
+
+    match /runtime_errors/{docId} {
+      allow read: if isHQ() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /workflow_failures/{docId} {
+      allow read: if isHQ() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /oauth_events/{docId} {
+      allow read: if isHQ() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /system_health/{docId} {
+      allow read: if isHQ() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /security_events/{docId} {
+      allow read: if isHQ() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /vendor_performance/{docId} {
+      allow read: if isHQ() || isSuperAdmin() || isVendorManager();
+      allow write: if false;
+    }
+
+    match /invoices/{docId} {
+      allow read: if isVerified() && (
+        isHQ() || isSuperAdmin() || isSameOrg(resource.data.clientId)
+      );
+      allow write: if isHQ() || isSuperAdmin();
+    }
+
+    match /vendor_payouts/{docId} {
+      allow read: if isVerified() && (
+        isHQ() || isSuperAdmin() || isSameOrg(resource.data.vendorId)
+      );
+      allow write: if isHQ() || isSuperAdmin();
+    }
+
+    // =====================================================
     // SYSTEM EVENTS & EVENT BUS
     // =====================================================
 

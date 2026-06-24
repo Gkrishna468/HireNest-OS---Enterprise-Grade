@@ -158,13 +158,22 @@ export default function AdminOverview() {
               <p className="text-xs text-slate-500">Manage data erasure</p>
             </div>
           </button>
-          <button onClick={() => navigate('/health')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
+          <button onClick={() => navigate('/executive-control-tower')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
             <div className="bg-emerald-50 text-emerald-600 p-3 rounded-lg group-hover:bg-emerald-100 transition-colors">
               <TrendingUp size={20} />
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 text-sm">Operational Intelligence</h4>
-              <p className="text-xs text-slate-500">Executive dashboard & platform funnel</p>
+              <h4 className="font-semibold text-slate-900 text-sm">Executive Tower</h4>
+              <p className="text-xs text-slate-500">Pipeline orchestration</p>
+            </div>
+          </button>
+          <button onClick={() => navigate('/finance-os')} className="bg-white hover:bg-slate-50 transition-colors border border-slate-200 p-4 rounded-xl flex items-center gap-4 group shadow-sm text-left">
+            <div className="bg-emerald-50 text-emerald-600 p-3 rounded-lg group-hover:bg-emerald-100 transition-colors">
+              <DollarSign size={20} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900 text-sm">FinanceOS</h4>
+              <p className="text-xs text-slate-500">Revenue & margins</p>
             </div>
           </button>
         </div>

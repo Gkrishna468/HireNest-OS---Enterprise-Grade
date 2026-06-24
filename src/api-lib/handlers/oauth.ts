@@ -1,6 +1,7 @@
 import { db } from '../../lib/firebase-admin.js';
 import { OAuth2Client } from 'google-auth-library';
 import express from 'express';
+import { observabilityService } from '../services/ObservabilityService.js';
 
 // Use environment variables or rely on user metadata logic if missing
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
@@ -58,11 +59,26 @@ oauthHandler.get('/callback', async (req, res) => {
          updatedAt: new Date()
       }, { merge: true });
 
+      observabilityService.logOAuthEvent({
+         provider: "google",
+         status: "success",
+         severity: "INFO",
+         actorId: state.uid,
+         metadata: { scope: tokens.scope }
+      }).catch(console.error);
+
       // Redirect back to application
       res.redirect(state.redirectTo);
 
    } catch (err: any) {
       console.error("OAuth callback error:", err);
+      observabilityService.logOAuthEvent({
+         provider: "google",
+         status: "failure",
+         severity: "ERROR",
+         metadata: { error: err.message || String(err) }
+      }).catch(console.error);
+
       res.status(500).send("OAuth Authorization Failed.");
    }
 });

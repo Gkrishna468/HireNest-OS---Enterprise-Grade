@@ -52,6 +52,10 @@ import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import Client360Tab from "./views/Client360Tab";
 import Vendor360Tab from "./views/Vendor360Tab";
+import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
+import ExecutiveControlTowerTab from "./views/ExecutiveControlTowerTab";
+import FinanceOSTab from "./views/FinanceOSTab";
+import AICopilotTab from "./views/AICopilotTab";
 import RecruiterPerformanceTab from "./views/RecruiterPerformanceTab";
 import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
@@ -594,6 +598,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/vendor-intelligence"
+                icon={Award}
+                label="Vendor Intelligence"
+                active={location.pathname === "/vendor-intelligence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/recruiter-performance"
                 icon={Award}
                 label="Recruiter Engine"
@@ -629,6 +640,27 @@ const AppContent = () => {
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Enterprise Validation
               </div>
+              <SidebarItem
+                to="/ai-copilot"
+                icon={BrainCircuit}
+                label="AI Copilot"
+                active={location.pathname === "/ai-copilot"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/executive-control-tower"
+                icon={TrendingUp}
+                label="Executive Tower"
+                active={location.pathname === "/executive-control-tower"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/finance-os"
+                icon={DollarSign}
+                label="FinanceOS"
+                active={location.pathname === "/finance-os"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
               <SidebarItem
                 to="/benchmarks"
                 icon={Activity}
@@ -869,6 +901,30 @@ const AppContent = () => {
               <Route
                 path="/vendor-360"
                 element={<Vendor360Tab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/vendor-intelligence"
+                element={<VendorIntelligenceTab />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-copilot"
+                element={<AICopilotTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/executive-control-tower"
+                element={<ExecutiveControlTowerTab />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/finance-os"
+                element={<FinanceOSTab userRole={role || ""} />}
               />
             )}
             {(isAdmin || isRecruiter) && (

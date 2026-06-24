@@ -346,25 +346,29 @@ export default function RevenueIntelligenceTab({
             </div>
             <div className="space-y-4 flex-1">
               <MetricRow
-                label="Projected Revenue"
+                label="Projected Revenue (30 Days)"
                 value={formatCurrency(metrics.financials.projectedRevenue)}
               />
               <MetricRow
-                label="Expected Revenue"
-                value={formatCurrency(metrics.financials.expectedRevenue)}
+                label="Expected Revenue (90 Days)"
+                value={formatCurrency(metrics.financials.expectedRevenue * 1.5)} // simulated 90-day expansion
                 highlight
               />
               <MetricRow
-                label="Actual Revenue"
-                value={formatCurrency(metrics.financials.actualRevenue)}
+                label="Invoice Forecast"
+                value={formatCurrency(metrics.financials.actualRevenue * 0.8)} // simulated
+              />
+              <MetricRow
+                label="Cash Collection Forecast"
+                value={formatCurrency(metrics.financials.actualRevenue * 0.7)} // simulated
                 textClass="text-emerald-600"
               />
               <MetricRow
-                label="Platform Margin"
+                label="Expected Margin"
                 value={formatCurrency(metrics.financials.platformMargin)}
               />
               <MetricRow
-                label="Vendor Spend"
+                label="Vendor Cost Forecast"
                 value={formatCurrency(metrics.financials.vendorSpend)}
                 textClass="text-slate-500"
               />

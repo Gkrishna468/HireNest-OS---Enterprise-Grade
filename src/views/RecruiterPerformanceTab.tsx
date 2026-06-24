@@ -235,7 +235,7 @@ export default function RecruiterPerformanceTab({
                         Recruiter Name
                       </th>
                       <th className="px-6 py-4 text-xs font-black tracking-widest text-slate-400 uppercase text-center">
-                        Matches Reviewed
+                        Reqs Worked
                       </th>
                       <th className="px-6 py-4 text-xs font-black tracking-widest text-slate-400 uppercase text-center">
                         Submissions
@@ -246,13 +246,23 @@ export default function RecruiterPerformanceTab({
                       <th className="px-6 py-4 text-xs font-black tracking-widest text-emerald-500 bg-emerald-50 text-center">
                         Placements
                       </th>
+                      <th className="px-6 py-4 text-xs font-black tracking-widest text-slate-400 uppercase text-center">
+                        Intv Conv
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black tracking-widest text-slate-400 uppercase text-center">
+                        Plc Conv
+                      </th>
                       <th className="px-6 py-4 text-xs font-black tracking-widest text-indigo-500 uppercase text-right">
                         Rev Closed
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {performanceData.map((perf, idx) => (
+                    {performanceData.map((perf, idx) => {
+                      const intvConv = perf.submissions > 0 ? ((perf.interviews / perf.submissions) * 100).toFixed(0) : 0;
+                      const plcConv = perf.interviews > 0 ? ((perf.placements / perf.interviews) * 100).toFixed(0) : 0;
+                      
+                      return (
                       <tr
                         key={perf.recruiter.id}
                         className="hover:bg-slate-50 transition-colors"
@@ -282,11 +292,18 @@ export default function RecruiterPerformanceTab({
                         <td className="px-6 py-4 text-center font-black text-emerald-600 bg-emerald-50/50">
                           {perf.placements}
                         </td>
+                        <td className="px-6 py-4 text-center font-medium text-slate-600">
+                          {intvConv}%
+                        </td>
+                        <td className="px-6 py-4 text-center font-medium text-slate-600">
+                          {plcConv}%
+                        </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
                           {formatCurrency(perf.revenueClosed)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

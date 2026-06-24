@@ -378,6 +378,147 @@
          "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["eventId", "workflowId", "eventType", "fromState", "toState"]
+    },
+    "RuntimeError": {
+      "title": "RuntimeError",
+      "description": "System runtime errors and exceptions",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "traceId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "sourceSystem": { "type": "string" },
+        "actorId": { "type": "string" },
+        "errorHash": { "type": "string" },
+        "message": { "type": "string" },
+        "stackPreview": { "type": "string" },
+        "storageRef": { "type": "string" },
+        "severity": { "type": "string", "enum": ["INFO", "WARN", "ERROR", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "errorHash", "severity", "timestamp"]
+    },
+    "WorkflowFailure": {
+      "title": "WorkflowFailure",
+      "description": "Failures in Temporal workflows or background jobs",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "traceId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "workflowId": { "type": "string" },
+        "workflowType": { "type": "string" },
+        "failureReason": { "type": "string" },
+        "errorHash": { "type": "string" },
+        "severity": { "type": "string", "enum": ["INFO", "WARN", "ERROR", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "workflowId", "workflowType", "failureReason", "errorHash", "severity", "timestamp"]
+    },
+    "OAuthEvent": {
+      "title": "OAuthEvent",
+      "description": "OAuth and authentication flow events",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "traceId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "provider": { "type": "string" },
+        "status": { "type": "string" },
+        "metadata": { "type": "object" },
+        "severity": { "type": "string", "enum": ["INFO", "WARN", "ERROR", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "provider", "status", "severity", "timestamp"]
+    },
+    "SystemHealth": {
+      "title": "SystemHealth",
+      "description": "Aggregated system health metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "oauthFailures": { "type": "number" },
+        "oauthSuccesses": { "type": "number" },
+        "workflowFailures": { "type": "number" },
+        "runtimeErrors": { "type": "number" },
+        "matchEngineRuns": { "type": "number" },
+        "eventBusBacklog": { "type": "number" },
+        "eventBusProcessed": { "type": "number" },
+        "matchOpportunitiesGenerated": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "timestamp"]
+    },
+    "SecurityEvent": {
+      "title": "SecurityEvent",
+      "description": "Security-related events such as RBAC violations",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "traceId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "action": { "type": "string" },
+        "resource": { "type": "string" },
+        "severity": { "type": "string", "enum": ["INFO", "WARN", "ERROR", "CRITICAL"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "action", "resource", "severity", "timestamp"]
+    },
+    "VendorPerformance": {
+      "title": "VendorPerformance",
+      "description": "Aggregated intelligence on vendor performance",
+      "type": "object",
+      "properties": {
+        "vendorId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "requirementsReceived": { "type": "number" },
+        "requirementsWorked": { "type": "number" },
+        "submissions": { "type": "number" },
+        "interviews": { "type": "number" },
+        "placements": { "type": "number" },
+        "fillRatio": { "type": "number" },
+        "responseSLA": { "type": "number" },
+        "averageSubmissionTime": { "type": "number" },
+        "revenueGenerated": { "type": "number" },
+        "trustScore": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vendorId", "tenantId"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Client invoice for placement",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "placementId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["DRAFT", "ISSUED", "PAID", "OVERDUE", "CANCELLED"] },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "paidAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "clientId", "placementId", "amount", "status"]
+    },
+    "VendorPayout": {
+      "title": "VendorPayout",
+      "description": "Payout record for vendor",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "placementId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "PROCESSING", "PAID", "FAILED"] },
+        "scheduledDate": { "type": "string", "format": "date-time" },
+        "paidAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "vendorId", "placementId", "amount", "status"]
     }
   },
   "firestore": {
@@ -403,6 +544,14 @@
     "predictions/{predictionId}": { "schema": { "$ref": "Prediction" }, "description": "High-fidelity operational forecasts" },
     "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" },
     "workflow_instances/{workflowId}": { "schema": { "$ref": "WorkflowInstance" }, "description": "Unified state machine graph for all orchestrations" },
-    "workflow_events/{eventId}": { "schema": { "$ref": "WorkflowEvent" }, "description": "Immutable operational transitions" }
+    "workflow_events/{eventId}": { "schema": { "$ref": "WorkflowEvent" }, "description": "Immutable operational transitions" },
+    "runtime_errors/{errorId}": { "schema": { "$ref": "RuntimeError" }, "description": "System runtime errors and exceptions" },
+    "workflow_failures/{failureId}": { "schema": { "$ref": "WorkflowFailure" }, "description": "Failures in Temporal workflows or background jobs" },
+    "oauth_events/{eventId}": { "schema": { "$ref": "OAuthEvent" }, "description": "OAuth and authentication flow events" },
+    "system_health/{healthId}": { "schema": { "$ref": "SystemHealth" }, "description": "Aggregated system health metrics" },
+    "security_events/{eventId}": { "schema": { "$ref": "SecurityEvent" }, "description": "Security-related events" },
+    "vendor_performance/{vendorId}": { "schema": { "$ref": "VendorPerformance" }, "description": "Vendor intelligence and performance scorecards" },
+    "invoices/{invoiceId}": { "schema": { "$ref": "Invoice" }, "description": "Client invoices" },
+    "vendor_payouts/{payoutId}": { "schema": { "$ref": "VendorPayout" }, "description": "Vendor payouts" }
   }
 }
