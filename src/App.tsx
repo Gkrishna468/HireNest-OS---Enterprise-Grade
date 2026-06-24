@@ -28,6 +28,7 @@ import {
   BrainCircuit,
   Menu,
   X,
+  Zap,
   Target,
   DollarSign,
   FileText,
@@ -41,6 +42,7 @@ import {
   Video,
   Star,
   Award,
+  Terminal,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -51,9 +53,12 @@ import CandidatesTab from "./views/CandidatesTab";
 import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import Client360Tab from "./views/Client360Tab";
+import AutonomousOperationsTab from "./views/AutonomousOperationsTab";
 import Vendor360Tab from "./views/Vendor360Tab";
 import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
-import ExecutiveControlTowerTab from "./views/ExecutiveControlTowerTab";
+import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
+import EnterpriseCommandCenterTab from "./views/EnterpriseCommandCenterTab";
+import AIOpsCenterTab from "./views/AIOpsCenterTab";
 import FinanceOSTab from "./views/FinanceOSTab";
 import AICopilotTab from "./views/AICopilotTab";
 import RecruiterPerformanceTab from "./views/RecruiterPerformanceTab";
@@ -637,9 +642,23 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
 
+              <SidebarItem
+                to="/knowledge-graph"
+                icon={Network}
+                label="Knowledge Graph"
+                active={location.pathname === "/knowledge-graph"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
                 Enterprise Validation
               </div>
+              <SidebarItem
+                to="/ai-ops-center"
+                icon={Terminal}
+                label="AI DevOps"
+                active={location.pathname === "/ai-ops-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
               <SidebarItem
                 to="/ai-copilot"
                 icon={BrainCircuit}
@@ -648,10 +667,17 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/executive-control-tower"
+                to="/autonomous-operations"
+                icon={Zap}
+                label="Autonomous Ops"
+                active={location.pathname === "/autonomous-operations"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/enterprise-command-center"
                 icon={TrendingUp}
-                label="Executive Tower"
-                active={location.pathname === "/executive-control-tower"}
+                label="Command Center"
+                active={location.pathname === "/enterprise-command-center"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -917,8 +943,26 @@ const AppContent = () => {
             )}
             {isAdmin && (
               <Route
-                path="/executive-control-tower"
-                element={<ExecutiveControlTowerTab />}
+                path="/autonomous-operations"
+                element={<AutonomousOperationsTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/knowledge-graph"
+                element={<KnowledgeIntelligenceTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-ops-center"
+                element={<AIOpsCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/enterprise-command-center"
+                element={<EnterpriseCommandCenterTab userRole={role || ""} />}
               />
             )}
             {isAdmin && (

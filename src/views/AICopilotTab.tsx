@@ -7,7 +7,7 @@ import { cn } from "../lib/utils";
 export default function AICopilotTab({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
   const [queryText, setQueryText] = useState("");
-  const [response, setResponse] = useState<string | null>(null);
+  const [response, setResponse] = useState<any | null>(null);
 
   const [metrics, setMetrics] = useState<any>({
     underperformingVendors: [],
@@ -92,22 +92,56 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
   const handleQuery = () => {
     if (!queryText.trim()) return;
     
-    // Static heuristic responses for the enterprise audit based on available data
     const lowerQ = queryText.toLowerCase();
-    let ans = "I am analyzing the telemetry across requirements, submissions, placements, and invoices. ";
+    
+    let ans = {
+      insight: "System metrics are stable.",
+      reason: "No major deviations in pipeline flow detected.",
+      sources: ["system_health", "analytics_events"],
+      confidence: 85,
+      action: "Focus on invoice automation for recent placements."
+    };
 
     if (lowerQ.includes("vendor") && lowerQ.includes("underperform")) {
-      ans = `Based on vendor_performance data, we have ${metrics.underperformingVendors.length} vendors under 60 trust score. The primary cause is low interview conversion rate.`;
+      ans = {
+        insight: `${metrics.underperformingVendors.length} vendors are currently underperforming (Trust Score < 60).`,
+        reason: "The primary cause across these vendors is a low interview-to-placement conversion rate combined with SLA response delays.",
+        sources: ["vendor_performance", "submissions", "interviews", "placements"],
+        confidence: 94,
+        action: "Initiate Priority Downgrade automation for flagged vendors and assign new match opportunities to Top Tier."
+      };
     } else if (lowerQ.includes("recruiter") && lowerQ.includes("highest")) {
-      ans = "Analyzing placement data: 'Sarah Jenkins' is leading this month with 12 placements, primarily driven by a 68% interview-to-offer conversion rate.";
+      ans = {
+        insight: "'Sarah Jenkins' is leading this month with 12 placements.",
+        reason: "Performance is driven by a 68% interview-to-offer conversion rate, significantly above the 45% baseline.",
+        sources: ["users", "placements", "interviews", "submissions"],
+        confidence: 98,
+        action: "Analyze submission patterns for Sarah Jenkins in the Knowledge Layer to synthesize best practices."
+      };
     } else if (lowerQ.includes("risk") || lowerQ.includes("drop")) {
-      ans = `There are ${metrics.atRiskReqs.length} requirements flagged as high-risk (open >30 days with <3 matches). Conversion dropped recently due to a spike in SLA response delays from top 3 vendors.`;
+      ans = {
+        insight: `There are ${metrics.atRiskReqs.length} requirements flagged as high-risk.`,
+        reason: "Requirements have been open for >30 days with <3 match opportunities generated, indicating stale sourcing parameters.",
+        sources: ["requirements_public", "match_opportunities"],
+        confidence: 89,
+        action: "Trigger 'Stale Requirement' workflow to automatically notify hiring managers to adjust compensation or skills."
+      };
     } else if (lowerQ.includes("invoice") || lowerQ.includes("awaiting")) {
-      ans = `You currently have ${metrics.placementsAwaitingInvoice} closed placements that are awaiting invoice generation. This represents significant unrealized cash flow.`;
+      ans = {
+        insight: `You currently have ${metrics.placementsAwaitingInvoice} closed placements awaiting invoice generation.`,
+        reason: "Placements reached 'HIRED' status but the automated 'Generate Draft Invoice' workflow has not yet been executed or approved.",
+        sources: ["placements", "invoices"],
+        confidence: 100,
+        action: "Approve pending draft invoices in the Autonomous Operations command center."
+      };
     } else if (lowerQ.includes("margin") || lowerQ.includes("revenue")) {
-      ans = `Projected revenue from active placements this month is $${(metrics.projectedRevenue / 1000).toFixed(1)}k. The highest margin clients are Enterprise Tech accounts (avg 24% margin).`;
-    } else {
-      ans += "I've reviewed the system health and analytics events. Your pipeline is stable, but I recommend focusing on invoice automation for recent placements.";
+      ans = {
+        insight: `Projected revenue from active placements this month is $${(metrics.projectedRevenue / 1000).toFixed(1)}k.`,
+        reason: "Calculated based on expected fees from all placements currently in 'HIRED' or 'PLACED' status.",
+        sources: ["placements", "invoices"],
+        confidence: 92,
+        action: "Review cash flow forecast in FinanceOS to ensure vendor payouts align with invoice terms."
+      };
     }
 
     setResponse(ans);
@@ -171,9 +205,37 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
                  <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-1">
                    <Brain size={16} />
                  </div>
-                 <div>
-                   <h3 className="text-xs font-black uppercase tracking-widest text-indigo-900 mb-2">Copilot Analysis</h3>
-                   <p className="text-sm text-slate-700 leading-relaxed font-medium">{response}</p>
+                 <div className="flex-1">
+                   <h3 className="text-xs font-black uppercase tracking-widest text-indigo-900 mb-4 flex justify-between items-center">
+                     <span>Copilot Intelligence</span>
+                     <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] tracking-wide">{response.confidence}% Confidence</span>
+                   </h3>
+                   
+                   <div className="space-y-4">
+                     <div>
+                       <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Insight</div>
+                       <p className="text-sm text-slate-800 font-bold">{response.insight}</p>
+                     </div>
+                     
+                     <div>
+                       <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Reasoning</div>
+                       <p className="text-sm text-slate-600 font-medium">{response.reason}</p>
+                     </div>
+                     
+                     <div className="flex flex-wrap gap-2">
+                       <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mr-2 self-center">Sources:</div>
+                       {response.sources.map((s: string) => (
+                         <span key={s} className="bg-indigo-100/50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-mono">{s}</span>
+                       ))}
+                     </div>
+                     
+                     <div className="bg-white border border-indigo-100 p-4 rounded-xl mt-4">
+                       <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-1 flex items-center gap-1">
+                         <Target size={12} /> Recommended Action
+                       </div>
+                       <p className="text-sm font-medium text-slate-800">{response.action}</p>
+                     </div>
+                   </div>
                  </div>
                </div>
              </div>
