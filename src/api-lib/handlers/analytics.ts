@@ -392,9 +392,9 @@ export default async function analyticsHandler(req: any, res: any) {
     return res.status(404).json({ error: "Unknown analytics route" });
 
   } catch (err: any) {
-    console.error("[ANALYTICS CATCH-ALL ERROR]", err);
     if (err.message && (err.message.includes("UNAUTHENTICATED") || err.message.includes("PERMISSION_DENIED"))) {
-      // Fallback for missing admin credentials
+      // Fallback for missing admin credentials (suppress loud error log)
+      console.warn("[ANALYTICS] Using fallback data due to missing admin credentials.");
       return res.status(200).json({
          fallbackRequired: true,
          revenue: 0,

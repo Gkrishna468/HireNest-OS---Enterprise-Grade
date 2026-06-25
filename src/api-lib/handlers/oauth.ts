@@ -56,13 +56,22 @@ oauthHandler.get('/callback', async (req, res) => {
 
       console.log("STEP 5 firestore write");
       // Store in backend vault securely
-      await db.collection('token_vault').doc(state.uid).set({
-         accessToken: tokens.access_token,
-         refreshToken: tokens.refresh_token || null,
-         expiryDate: tokens.expiry_date,
-         scope: tokens.scope,
-         updatedAt: new Date()
-      }, { merge: true });
+      try {
+         await db.collection('token_vault').doc(state.uid).set({
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token || null,
+            expiryDate: tokens.expiry_date,
+            scope: tokens.scope,
+            updatedAt: new Date()
+         }, { merge: true });
+      } catch (dbErr: any) {
+         if (dbErr.message && dbErr.message.includes("UNAUTHENTICATED")) {
+            console.error("[OAuth] FATAL: Cannot store token. Firebase Admin SDK lacks credentials.");
+            console.error("[OAuth] FIX: You MUST set FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, and FIREBASE_PROJECT_ID in your environment variables (e.g. Vercel Settings) to write to the token_vault.");
+            return res.status(500).send("Firebase Admin SDK is not configured with a Service Account. OAuth token cannot be securely stored. Please configure FIREBASE_PRIVATE_KEY.");
+         }
+         throw dbErr;
+      }
 
       observabilityService.logOAuthEvent({
          provider: "google",
