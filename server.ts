@@ -39,6 +39,7 @@ import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
 import interviewsHandler from './src/api-lib/handlers/interviews';
 import integrationsHandler from './src/api-lib/handlers/integrations';
+import copilotHandler from './src/api-lib/handlers/copilot';
 
 import analyticsHandler from './src/api-lib/handlers/analytics';
 
@@ -226,6 +227,9 @@ async function createServer() {
 
         case 'workflows':
           return await workflowsHandler(req, res);
+          
+        case 'copilot':
+          return await copilotHandler(req, res);
           
         case 'analytics':
         case 'analytics/client':

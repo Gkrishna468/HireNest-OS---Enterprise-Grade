@@ -510,11 +510,31 @@ export default function DealRoomsTab() {
           ],
           timestamp: serverTimestamp(),
         });
+        
+        // Auto-generate Invoices for FinanceOS
+        const fee = selectedRoom.expectedFee || 25000;
+        await addDoc(collection(db, "invoices"), {
+            clientId: selectedRoom.clientId || "Client",
+            placementId: selectedRoom.id,
+            amount: fee,
+            status: "ISSUED",
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+            createdAt: serverTimestamp(),
+        });
+        
+        await addDoc(collection(db, "vendor_payouts"), {
+            vendorId: selectedRoom.vendorId || "Direct",
+            placementId: selectedRoom.id,
+            amount: fee * 0.7, // 70% to vendor, 30% margin
+            status: "PENDING",
+            scheduledDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(), // 45 days from now
+            createdAt: serverTimestamp(),
+        });
 
         await addDoc(collection(db, "dealRooms", selectedRoom.id, "messages"), {
           senderRole: "System Admin",
           senderId: "System",
-          text: `🚀 ONBOARDING ENGINE ENGAGED: Handoff protocol initiated. Compliance documentation, BGV, and IT allocation tasks auto-generated in the deployment pipeline.`,
+          text: `🚀 ONBOARDING ENGINE ENGAGED: Handoff protocol initiated. Compliance documentation, BGV, and IT allocation tasks auto-generated in the deployment pipeline. Invoice and Vendor Payout drafted in FinanceOS.`,
           type: "system",
           timestamp: serverTimestamp(),
         });

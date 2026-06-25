@@ -21,8 +21,58 @@ export default function MatchIntelligenceTab() {
   const [matches, setMatches] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<Record<string, any>>({});
   const [candidates, setCandidates] = useState<Record<string, any>>({});
+  const [processingMatch, setProcessingMatch] = useState<string | null>(null);
 
   const [scanProgress, setScanProgress] = useState<string>("");
+
+  const handleCreateDealRoom = async (match: any, req: any, cand: any) => {
+      if (processingMatch) return;
+      setProcessingMatch(match.id);
+      try {
+          const { addDoc, updateDoc, doc } = await import("firebase/firestore");
+          // 1. Create deal room
+          const roomData = {
+              candidateId: match.candidateId,
+              candidateName: cand?.name || cand?.candidateName || match.candidateId,
+              candidateEmail: cand?.email || "",
+              candidatePhone: cand?.phone || "",
+              requirementId: match.requirementId,
+              requirementTitle: req?.title || "Unknown Requirement",
+              clientId: req?.clientId || "",
+              vendorId: cand?.vendorId || match.vendorId || "Direct",
+              status: "submitted",
+              createdAt: new Date().toISOString(),
+              createdBy: userData?.uid || "system",
+              matchScore: match.score || match.matchScore || 0,
+              expectedFee: match.expectedRevenue || 0
+          };
+          
+          await addDoc(collection(db, "dealRooms"), roomData);
+          
+          // 2. Update match status
+          await updateDoc(doc(db, "candidate_matches", match.id), {
+              status: "SUBMITTED"
+          });
+          
+          // 3. Update local state
+          setMatches(prev => prev.map(m => m.id === match.id ? { ...m, status: "SUBMITTED" } : m));
+          
+          // 4. Log AI event
+          await addDoc(collection(db, "agent_executions"), {
+              agentName: "Recruiter Action",
+              agentType: "DEAL_ROOM",
+              status: "success",
+              task: `Created Deal Room for ${roomData.candidateName}`,
+              targetId: match.candidateId,
+              createdAt: new Date(),
+          });
+          
+      } catch (e) {
+          console.error("Failed to create deal room", e);
+      } finally {
+          setProcessingMatch(null);
+      }
+  };
 
   useEffect(() => {
     let active = true;
@@ -334,6 +384,17 @@ export default function MatchIntelligenceTab() {
                                         Mgn: {revenueStr}
                                       </p>
                                     </td>
+                                    <td className="px-4 py-3 text-right w-32">
+                                        {match.status !== 'SUBMITTED' && (
+                                            <button 
+                                                onClick={() => handleCreateDealRoom(match, req, cand)}
+                                                disabled={processingMatch === match.id}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                            >
+                                                {processingMatch === match.id ? 'Creating...' : 'Submit'}
+                                            </button>
+                                        )}
+                                    </td>
                                   </tr>
                                 );
                               })}
@@ -459,6 +520,17 @@ export default function MatchIntelligenceTab() {
                                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                                         Mgn: {revenueStr}
                                       </p>
+                                    </td>
+                                    <td className="px-4 py-3 text-right w-32">
+                                        {match.status !== 'SUBMITTED' && (
+                                            <button 
+                                                onClick={() => handleCreateDealRoom(match, req, cand)}
+                                                disabled={processingMatch === match.id}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                            >
+                                                {processingMatch === match.id ? 'Creating...' : 'Submit'}
+                                            </button>
+                                        )}
                                     </td>
                                   </tr>
                                 );

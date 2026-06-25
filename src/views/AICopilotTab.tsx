@@ -89,62 +89,46 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
     return () => { active = false; };
   }, []);
 
-  const handleQuery = () => {
+  const [isQuerying, setIsQuerying] = useState(false);
+
+  const handleQuery = async () => {
     if (!queryText.trim()) return;
-    
-    const lowerQ = queryText.toLowerCase();
-    
-    let ans = {
-      insight: "System metrics are stable.",
-      reason: "No major deviations in pipeline flow detected.",
-      sources: ["system_health", "analytics_events"],
-      confidence: 85,
-      action: "Focus on invoice automation for recent placements."
-    };
-
-    if (lowerQ.includes("vendor") && lowerQ.includes("underperform")) {
-      ans = {
-        insight: `${metrics.underperformingVendors.length} vendors are currently underperforming (Trust Score < 60).`,
-        reason: "The primary cause across these vendors is a low interview-to-placement conversion rate combined with SLA response delays.",
-        sources: ["vendor_performance", "submissions", "interviews", "placements"],
-        confidence: 94,
-        action: "Initiate Priority Downgrade automation for flagged vendors and assign new match opportunities to Top Tier."
-      };
-    } else if (lowerQ.includes("recruiter") && lowerQ.includes("highest")) {
-      ans = {
-        insight: "'Sarah Jenkins' is leading this month with 12 placements.",
-        reason: "Performance is driven by a 68% interview-to-offer conversion rate, significantly above the 45% baseline.",
-        sources: ["users", "placements", "interviews", "submissions"],
-        confidence: 98,
-        action: "Analyze submission patterns for Sarah Jenkins in the Knowledge Layer to synthesize best practices."
-      };
-    } else if (lowerQ.includes("risk") || lowerQ.includes("drop")) {
-      ans = {
-        insight: `There are ${metrics.atRiskReqs.length} requirements flagged as high-risk.`,
-        reason: "Requirements have been open for >30 days with <3 match opportunities generated, indicating stale sourcing parameters.",
-        sources: ["requirements_public", "match_opportunities"],
-        confidence: 89,
-        action: "Trigger 'Stale Requirement' workflow to automatically notify hiring managers to adjust compensation or skills."
-      };
-    } else if (lowerQ.includes("invoice") || lowerQ.includes("awaiting")) {
-      ans = {
-        insight: `You currently have ${metrics.placementsAwaitingInvoice} closed placements awaiting invoice generation.`,
-        reason: "Placements reached 'HIRED' status but the automated 'Generate Draft Invoice' workflow has not yet been executed or approved.",
-        sources: ["placements", "invoices"],
-        confidence: 100,
-        action: "Approve pending draft invoices in the Autonomous Operations command center."
-      };
-    } else if (lowerQ.includes("margin") || lowerQ.includes("revenue")) {
-      ans = {
-        insight: `Projected revenue from active placements this month is $${(metrics.projectedRevenue / 1000).toFixed(1)}k.`,
-        reason: "Calculated based on expected fees from all placements currently in 'HIRED' or 'PLACED' status.",
-        sources: ["placements", "invoices"],
-        confidence: 92,
-        action: "Review cash flow forecast in FinanceOS to ensure vendor payouts align with invoice terms."
-      };
+    setIsQuerying(true);
+    setResponse(null);
+    try {
+        const { auth } = await import("../lib/firebase");
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch("/api/copilot", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ query: queryText })
+        });
+        
+        if (!res.ok) throw new Error(await res.text());
+        
+        const data = await res.json();
+        setResponse({
+            insight: data.insight,
+            reason: data.reason,
+            sources: data.sources || ["platform_analytics"],
+            confidence: 95,
+            action: data.action
+        });
+    } catch (e: any) {
+        console.error("Query failed", e);
+        setResponse({
+            insight: "I encountered an error querying the system.",
+            reason: e.message || "Unknown error",
+            sources: ["system_health"],
+            confidence: 0,
+            action: "Please try again later."
+        });
+    } finally {
+        setIsQuerying(false);
     }
-
-    setResponse(ans);
   };
 
   if (!isAdmin) {
@@ -193,9 +177,10 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
             />
             <button 
               onClick={handleQuery}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 rounded-2xl font-black tracking-widest uppercase text-xs transition-colors flex items-center gap-2"
+              disabled={isQuerying}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 rounded-2xl font-black tracking-widest uppercase text-xs transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              Analyze <Search size={14} />
+              {isQuerying ? 'Analyzing...' : 'Analyze'} {!isQuerying && <Search size={14} />}
             </button>
           </div>
 
