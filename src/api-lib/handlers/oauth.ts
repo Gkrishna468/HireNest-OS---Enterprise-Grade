@@ -9,7 +9,8 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/oauth/callback";
 
-export const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+export const createOAuthClient = () => new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+export const oauth2Client = createOAuthClient();
 
 const oauthHandler = express.Router();
 
@@ -48,7 +49,8 @@ oauthHandler.get('/callback', async (req, res) => {
       const { tokens } = await oauth2Client.getToken(code);
       
       console.log("STEP 4 token received");
-      oauth2Client.setCredentials(tokens);
+      const userClient = createOAuthClient();
+      userClient.setCredentials(tokens);
 
       if (!db) {
          console.error("[OAuth] Firebase adminDb is null. Cannot store token. Check FIREBASE_PRIVATE_KEY env vars.");
@@ -72,6 +74,54 @@ oauthHandler.get('/callback', async (req, res) => {
             return res.status(500).send("Firebase Admin SDK is not configured with a Service Account. OAuth token cannot be securely stored. Please configure FIREBASE_PRIVATE_KEY.");
          }
          throw dbErr;
+      }
+
+      console.log("STEP 5.1 Verification");
+      try {
+          const gmail = google.gmail({ version: 'v1', auth: userClient });
+          const profile = await gmail.users.getProfile({ userId: 'me' });
+
+          const calendar = google.calendar({ version: 'v3', auth: userClient });
+          const calendars = await calendar.calendarList.list({ maxResults: 1 });
+
+          let watchStatus = false;
+          try {
+             const watchRes = await gmail.users.watch({
+                 userId: "me",
+                 requestBody: {
+                     topicName: "projects/hirenest-os/topics/gmail-events"
+                 }
+             });
+             if (watchRes.data.historyId && watchRes.data.expiration) {
+                 await db.collection('gmail_watch').doc(state.uid).set({
+                     historyId: watchRes.data.historyId,
+                     expiration: Number(watchRes.data.expiration),
+                     updatedAt: Date.now()
+                 });
+                 watchStatus = true;
+             }
+          } catch (watchErr: any) {
+             console.error("[OAuth] Failed to register Gmail watch:", watchErr.message);
+          }
+
+          console.log("STEP 5.2 Update SSOT");
+          await db.collection('workspace_connections').doc(state.uid).set({
+             provider: "google",
+             connected: true,
+             gmail: true,
+             calendar: !!calendars.data.items,
+             emailAddress: profile.data.emailAddress,
+             watchStatus,
+             lastVerified: new Date(),
+             updatedAt: new Date()
+          }, { merge: true });
+
+      } catch (verifyErr: any) {
+          console.error("[OAuth] Workspace verification failed during callback:", verifyErr.message);
+          await db.collection('workspace_connections').doc(state.uid).set({
+              connected: false,
+              error: verifyErr.message
+          }, { merge: true });
       }
 
       observabilityService.logOAuthEvent({

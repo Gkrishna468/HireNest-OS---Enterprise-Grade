@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../../lib/firebase-admin';
-import { oauth2Client } from './oauth';
+import { createOAuthClient } from './oauth';
 import { google } from 'googleapis';
 
 const workspaceHandler = express.Router();
@@ -26,16 +26,17 @@ workspaceHandler.get('/status', async (req, res) => {
           return res.json({ connected: false });
       }
 
-      oauth2Client.setCredentials({
+      const userClient = createOAuthClient();
+      userClient.setCredentials({
           access_token: data.accessToken,
           refresh_token: data.refreshToken
       });
 
-      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      const gmail = google.gmail({ version: 'v1', auth: userClient });
       const profile = await gmail.users.getProfile({ userId: 'me' });
 
       // Ensure calendar is responsive
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      const calendar = google.calendar({ version: 'v3', auth: userClient });
       const calendars = await calendar.calendarList.list({ maxResults: 1 });
 
       let watchStatus = false;
