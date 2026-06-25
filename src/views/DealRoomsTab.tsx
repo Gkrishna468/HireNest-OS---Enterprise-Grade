@@ -705,7 +705,7 @@ export default function DealRoomsTab() {
                     )}
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-mono text-[10px] font-bold text-slate-400">
-                        ID: {room.id.slice(0, 8)}
+                        DEAL ROOM
                       </span>
                       <Badge variant="outline" className="text-[8px] py-0">
                         {room.status}

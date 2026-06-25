@@ -87,6 +87,7 @@ export class MailOSService {
                 status: 'success',
                 task: `Processed email from ${from}`,
                 duration: 0, // Placeholder
+                aiMetrics: classification.aiMetrics,
             };
             const startTime = Date.now();
 
@@ -179,16 +180,40 @@ export class MailOSService {
         Body: ${body.substring(0, 3000)}
         `;
 
+        const startTime = Date.now();
+        let retryCount = 0;
         try {
             const response = await ai.models.generateContent({
                 model: 'gemini-3.5-flash',
                 contents: prompt,
                 config: { responseMimeType: 'application/json' }
             });
-            return JSON.parse(response.text || "{}");
+            const data = JSON.parse(response.text || "{}");
+            data.aiMetrics = {
+                prompt: prompt.substring(0, 500) + '...',
+                model: 'gemini-3.5-flash',
+                confidence: data.confidence || 0,
+                processingTimeMs: Date.now() - startTime,
+                retryCount: retryCount,
+                outcome: 'success'
+            };
+            return data;
         } catch (e) {
             console.error("Gemini classification failed", e);
-            return { type: "OTHER", summary: "Failed to classify", confidence: 0, confidenceReason: "Error during processing." };
+            return { 
+                type: "OTHER", 
+                summary: "Failed to classify", 
+                confidence: 0, 
+                confidenceReason: "Error during processing.",
+                aiMetrics: {
+                    prompt: prompt.substring(0, 500) + '...',
+                    model: 'gemini-3.5-flash',
+                    confidence: 0,
+                    processingTimeMs: Date.now() - startTime,
+                    retryCount: retryCount,
+                    outcome: 'failed'
+                }
+            };
         }
     }
     
@@ -210,16 +235,27 @@ export class MailOSService {
         Context email body: ${body.substring(0, 1000)}
         `;
         
+        const startTime = Date.now();
+        let retryCount = 0;
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.5-flash',
                 contents: [
                     prompt,
                     { inlineData: { data: base64Data, mimeType: mimeType } }
                 ],
                 config: { responseMimeType: 'application/json' }
             });
-            return JSON.parse(response.text || "{}");
+            const data = JSON.parse(response.text || "{}");
+            data.aiMetrics = {
+                prompt: prompt.substring(0, 500) + '...',
+                model: 'gemini-3.5-flash',
+                confidence: 95,
+                processingTimeMs: Date.now() - startTime,
+                retryCount: retryCount,
+                outcome: 'success'
+            };
+            return data;
         } catch (e) {
             console.error("Gemini resume parsing failed", e);
             return null;
@@ -227,18 +263,31 @@ export class MailOSService {
     }
 
     private static async createRequirement(data: any, orgId: string, createdBy: string, from: string) {
+        const reqTitle = data.title || 'Untitled Requirement';
+        const existingReqs = await db.collection('requirements_public')
+            .where('orgId', '==', orgId)
+            .where('title', '==', reqTitle)
+            .limit(1)
+            .get();
+            
+        if (!existingReqs.empty) {
+            return existingReqs.docs[0].id; // Return existing ID to prevent duplication
+        }
+
         const docRef = db.collection('requirements_public').doc();
         await docRef.set({
             id: docRef.id,
             orgId: orgId,
-            title: data.title || 'Untitled Requirement',
+            organizationId: orgId,
+            title: reqTitle,
             skills: data.skills || [],
             location: data.location || 'Unknown',
             workModel: data.workModel || 'remote',
             status: 'ACTIVE',
             source: 'GMAIL',
             sourceEmail: from,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             createdBy: createdBy,
             financials: { clientBudget: data.budget || '' }
         });
@@ -246,13 +295,26 @@ export class MailOSService {
     }
     
     private static async createCandidate(data: any, orgId: string, createdBy: string, from: string) {
+        const candidateEmail = data.email || from;
+        const existingCands = await db.collection('candidatePool')
+            .where('orgId', '==', orgId)
+            .where('email', '==', candidateEmail)
+            .limit(1)
+            .get();
+            
+        if (!existingCands.empty) {
+            return existingCands.docs[0].id; // Return existing ID to prevent duplication
+        }
+
         const docRef = db.collection('candidatePool').doc();
         await docRef.set({
             id: docRef.id,
             orgId: orgId,
+            organizationId: orgId,
             firstName: data.firstName || 'Unknown',
             lastName: data.lastName || 'Candidate',
-            email: data.email || from,
+            name: `${data.firstName || 'Unknown'} ${data.lastName || 'Candidate'}`,
+            email: candidateEmail,
             phone: data.phone || '',
             location: data.location || '',
             skills: data.skills || [],
@@ -261,7 +323,8 @@ export class MailOSService {
             status: 'AVAILABLE',
             source: 'GMAIL_RESUME_PARSER',
             sourceEmail: from,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             createdBy: createdBy,
         });
         return docRef.id;

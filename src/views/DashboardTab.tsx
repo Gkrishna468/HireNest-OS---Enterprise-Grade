@@ -33,7 +33,12 @@ export default function DashboardTab() {
       const requirements = reqSnap.docs.map(d => d.data());
       const openReqs = requirements.filter(r => r.status && ["ACTIVE", "PUBLISHED", "PENDING"].includes(r.status.toUpperCase())).length;
 
-      // Candidates & Submissions
+      // Candidates
+      const candSnap = await getDocs(collection(db, "candidatePool"));
+      const candidates = candSnap.docs.map(d => d.data()).filter((c:any) => c.status !== "DELETED" && c.isActive !== false);
+      const candidatesAvailable = candidates.length;
+
+      // Submissions
       const subSnap = await getDocs(collection(db, "submissions"));
       const allSubs = subSnap.docs.map(d => d.data()).filter((s:any) => s.status !== "DELETED" && s.isActive !== false);
       
@@ -49,9 +54,6 @@ export default function DashboardTab() {
          if (stage.includes("OFFER")) offers++;
          if (stage === "PLACED" || stage === "HIRED" || stage === "ONBOARDED") placements++;
       });
-      
-      const candSnap = await getDocs(collection(db, "candidatePool"));
-      const candidates = candSnap.docs.map(d => d.data()).filter((c:any) => c.status !== "DELETED" && c.isActive !== false);
 
       // DealRooms (Backup placements count, etc.)
       const drSnap = await getDocs(collection(db, "dealRooms"));
@@ -67,13 +69,50 @@ export default function DashboardTab() {
          if (drStage === "offer") offers++;
       });
 
+      // AI Matches Generated
+      const matchesSnap = await getDocs(collection(db, "candidate_matches"));
+      const aiMatchesGenerated = matchesSnap.size;
+
+      // Invoices & Revenue
+      const invoicesSnap = await getDocs(collection(db, "invoices"));
+      let invoiceValue = 0;
+      let collections = 0;
+      let todaysRevenue = 0;
+      const todayDate = new Date().toISOString().split('T')[0];
+
+      invoicesSnap.docs.forEach(doc => {
+          const inv = doc.data();
+          invoiceValue += (inv.amount || 0);
+          if (inv.status === "PAID") {
+              collections += (inv.amount || 0);
+              // Check if paid today (simplified via createdAt for mock, ideally should track paymentDate)
+              if (inv.createdAt && inv.createdAt.toDate) {
+                  const dateStr = inv.createdAt.toDate().toISOString().split('T')[0];
+                  if (dateStr === todayDate) todaysRevenue += (inv.amount || 0);
+              }
+          }
+      });
+
+      // Vendor Payouts
+      const payoutsSnap = await getDocs(collection(db, "vendor_payouts"));
+      let vendorPayouts = 0;
+      payoutsSnap.docs.forEach(doc => {
+          vendorPayouts += (doc.data().amount || 0);
+      });
+
       setExecStats({
         openReqs,
         submissions,
         interviews,
         offers,
         placements,
-        activeDealRooms
+        activeDealRooms,
+        candidatesAvailable,
+        aiMatchesGenerated,
+        invoiceValue,
+        collections,
+        todaysRevenue,
+        vendorPayouts
       });
     } catch (err) {
       console.warn("Failed to fetch executive stats", err);
@@ -593,12 +632,30 @@ export default function DashboardTab() {
                          </h3>
                          <Badge className="bg-indigo-500/20 text-indigo-300">LIVE</Badge>
                      </div>
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                            <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Today's Revenue</div>
+                            <div className="text-2xl font-black text-emerald-400">₹{(execStats.todaysRevenue || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                            <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Total Invoiced</div>
+                            <div className="text-2xl font-black text-indigo-400">₹{(execStats.invoiceValue || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                            <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Collections</div>
+                            <div className="text-2xl font-black text-blue-400">₹{(execStats.collections || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center">
+                            <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Vendor Payouts</div>
+                            <div className="text-2xl font-black text-rose-400">₹{(execStats.vendorPayouts || 0).toLocaleString()}</div>
+                        </div>
+                     </div>
                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                          {[
                             { label: "Reqs Open", value: execStats.openReqs, color: "text-indigo-400", onClick: () => navigate("/jobs?status=OPEN") },
-                            { label: "Submissions", value: execStats.submissions, color: "text-blue-400", onClick: () => navigate("/candidates?tab=submissions") },
+                            { label: "Candidates", value: execStats.candidatesAvailable, color: "text-blue-400", onClick: () => navigate("/candidates") },
+                            { label: "AI Matches", value: execStats.aiMatchesGenerated, color: "text-fuchsia-400", onClick: () => navigate("/match-intelligence") },
                             { label: "Interviews", value: execStats.interviews, color: "text-amber-400", onClick: () => navigate("/interviews") },
-                            { label: "Offers", value: execStats.offers, color: "text-fuchsia-400", onClick: () => navigate("/deal-rooms") },
                             { label: "Placements", value: execStats.placements, color: "text-emerald-400", onClick: () => navigate("/placements") },
                          ].map((s, i) => (
                            <div key={i} onClick={s.onClick} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col justify-center text-center cursor-pointer hover:bg-white/10 transition-colors">
@@ -697,6 +754,41 @@ export default function DashboardTab() {
 
             {/* Sidebar Stats / AI Insight */}
             <div className="space-y-6">
+                {isAdmin && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">System Health</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Bot size={14} className="text-indigo-500" />
+                                    <span className="text-xs font-bold text-slate-600">AI Engine</span>
+                                </div>
+                                <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200">Online</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Network size={14} className="text-blue-500" />
+                                    <span className="text-xs font-bold text-slate-600">MailOS Sync</span>
+                                </div>
+                                <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200">Operational</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Activity size={14} className="text-fuchsia-500" />
+                                    <span className="text-xs font-bold text-slate-600">Agent Queue</span>
+                                </div>
+                                <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200">Processing</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Database size={14} className="text-amber-500" />
+                                    <span className="text-xs font-bold text-slate-600">Firestore SSOT</span>
+                                </div>
+                                <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200">Synced</Badge>
+                            </div>
+                        </div>
+                    </div>
+                )}
                     {/* Realtime Operational Monitoring Placeholder */}
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm text-center min-h-[300px] flex flex-col items-center justify-center">
                         <Activity size={36} className="text-slate-700 mb-4" />

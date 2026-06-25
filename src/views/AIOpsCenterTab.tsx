@@ -234,10 +234,19 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                           {exec.duration !== undefined && <span className="text-[10px] font-mono text-slate-500">{exec.duration}ms</span>}
                         </div>
                         <h4 className="text-sm font-bold text-slate-200">{exec.task || exec.description || 'Routine Task execution'}</h4>
-                        <div className="text-xs text-slate-500 mt-2 flex items-center gap-3">
+                        <div className="text-xs text-slate-500 mt-2 flex items-center gap-3 mb-2">
                            <span className="flex items-center gap-1"><Clock size={12} /> {exec.createdAt ? new Date(exec.createdAt?.seconds * 1000).toLocaleString() : 'Unknown time'}</span>
                            {exec.targetId && <span className="flex items-center gap-1"><ShieldCheck size={12} /> Target: {exec.targetId}</span>}
                         </div>
+                        {exec.aiMetrics && (
+                            <div className="mt-3 bg-slate-950 border border-slate-800 p-3 rounded-lg text-[10px] font-mono grid grid-cols-2 gap-2 text-slate-400">
+                                <div><span className="text-slate-500">Model:</span> {exec.aiMetrics.model}</div>
+                                <div><span className="text-slate-500">Processing Time:</span> {exec.aiMetrics.processingTimeMs}ms</div>
+                                <div><span className="text-slate-500">Confidence:</span> <span className={exec.aiMetrics.confidence >= 90 ? "text-emerald-400" : "text-amber-400"}>{exec.aiMetrics.confidence}%</span></div>
+                                <div><span className="text-slate-500">Outcome:</span> <span className={exec.aiMetrics.outcome === 'success' ? "text-emerald-400" : "text-rose-400"}>{exec.aiMetrics.outcome}</span></div>
+                                <div className="col-span-2 text-slate-500 truncate mt-1">Prompt Snippet: <span className="text-slate-400">{exec.aiMetrics.prompt}</span></div>
+                            </div>
+                        )}
                         {(exec.error || exec.logs) && (
                           <div className="mt-4 bg-slate-950 border border-slate-800 p-4 rounded-xl">
                             {exec.error && <p className="text-xs text-rose-400 font-mono mb-2">{exec.error}</p>}
