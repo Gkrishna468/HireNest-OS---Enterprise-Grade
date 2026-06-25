@@ -49,6 +49,29 @@ workspaceHandler.get('/status', async (req, res) => {
       }
 
       if (!watchStatus) {
+         const pubsub = new (require('@google-cloud/pubsub').PubSub)();
+         const topicName = 'gmail-events';
+         try {
+            const topic = pubsub.topic(topicName);
+            const [exists] = await topic.exists();
+            if (!exists) {
+               await pubsub.createTopic(topicName);
+               console.log(`[PubSub] Topic ${topicName} created.`);
+               
+               const iam = topic.iam;
+               const [policy] = await iam.getPolicy();
+               policy.bindings = policy.bindings || [];
+               policy.bindings.push({
+                  role: 'roles/pubsub.publisher',
+                  members: ['serviceAccount:gmail-api-push@system.gserviceaccount.com']
+               });
+               await iam.setPolicy(policy);
+               console.log(`[PubSub] Granted publisher role to Gmail API.`);
+            }
+         } catch (pubsubErr: any) {
+            console.error("[PubSub] Failed to ensure topic exists:", pubsubErr.message);
+         }
+
          try {
              const watchRes = await gmail.users.watch({
                  userId: "me",
