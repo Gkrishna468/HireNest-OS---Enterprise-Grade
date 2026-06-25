@@ -1,8 +1,7 @@
-import { Type, GoogleGenAI } from "@google/genai";
+import { AIGateway } from "../services/AIGateway.js";
+import { Type } from "@google/genai";
 import { adminDb } from "../../lib/firebase-admin.js";
 import crypto from "crypto";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
 
 const generateAIPayload = async (
   orgId: string,
@@ -11,16 +10,14 @@ const generateAIPayload = async (
   options: any,
 ) => {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: options.responseMimeType,
-        responseSchema: options.responseSchema,
-      },
+    const aiResponse = await AIGateway.analyze({
+        prompt: `${systemInstruction}\n\n${prompt}`,
+        modelPreference: 'accurate',
+        schema: options.responseSchema ? true : false
     });
-    return response.text;
+    
+    if (aiResponse.outcome === 'failed') throw new Error("AIGateway failed");
+    return JSON.stringify(aiResponse.data);
   } catch (err: any) {
     console.error("[AI GATEWAY] Gemini generation error:", err);
     throw err;

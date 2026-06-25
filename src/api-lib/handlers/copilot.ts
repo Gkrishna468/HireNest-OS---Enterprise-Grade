@@ -1,14 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
 import { adminDb } from "../../lib/firebase-admin";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
+import { AIGateway } from "../services/AIGateway.js";
 
 export default async function copilotHandler(req: any, res: any) {
   try {
@@ -44,7 +35,7 @@ export default async function copilotHandler(req: any, res: any) {
         console.error("Failed to gather copilot context", e);
     }
     
-    // 2. Query Gemini
+    // 2. Query AIGateway
     const prompt = `You are the AI Copilot for HireNestOS, an AI Staffing Operating System.
 You help the Managing Director and Admins understand their business metrics, search for entities, and identify risks.
 You have access to the following current system context summary:
@@ -61,18 +52,17 @@ Format your response as a JSON object with the following properties:
 
 JSON format only.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
+    const aiResponse = await AIGateway.analyze({
+        prompt: prompt,
+        modelPreference: 'fast',
+        schema: true
     });
 
-    const text = response.text || "{}";
-    const data = JSON.parse(text);
+    if (aiResponse.outcome === 'failed') {
+        return res.status(500).json({ error: "AI Gateway failed to generate copilot insight." });
+    }
 
-    return res.json(data);
+    return res.json(aiResponse.data);
   } catch (error: any) {
     console.error("Copilot Handler error:", error);
     return res.status(500).json({ error: error.message });

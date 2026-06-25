@@ -1,10 +1,8 @@
 import { google } from 'googleapis';
 import { db } from '../../lib/firebase-admin.js';
 import { decryptText } from '../../lib/encryption.js';
-import { GoogleGenAI } from '@google/genai';
+import { AIGateway } from './AIGateway.js';
 import { createOAuthClient } from '../handlers/oauth.js';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
@@ -180,41 +178,60 @@ export class MailOSService {
         Body: ${body.substring(0, 3000)}
         `;
 
+        const cacheKeyStr = `${subject}-${from}-${body.length}`;
         const startTime = Date.now();
-        let retryCount = 0;
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-            const data = JSON.parse(response.text || "{}");
-            data.aiMetrics = {
-                prompt: prompt.substring(0, 500) + '...',
-                model: 'gemini-3.5-flash',
-                confidence: data.confidence || 0,
-                processingTimeMs: Date.now() - startTime,
-                retryCount: retryCount,
-                outcome: 'success'
-            };
-            return data;
-        } catch (e) {
-            console.error("Gemini classification failed", e);
-            return { 
+        
+        // Define fallback rule engine if primary AI fails
+        const fallbackRuleEngine = (text: string) => {
+            const t = text.toLowerCase();
+            if (t.includes('resume') || t.includes('candidate') || t.includes('cv attached')) return { type: 'RESUME', confidence: 60, summary: 'Fallback: Suspected Candidate Resume' };
+            if (t.includes('requirement') || t.includes('need') || t.includes('hiring') || t.includes('budget')) return { type: 'REQUIREMENT', confidence: 60, summary: 'Fallback: Suspected Requirement' };
+            if (t.includes('invoice') || t.includes('payment') || t.includes('paid')) return { type: 'INVOICE', confidence: 60, summary: 'Fallback: Suspected Invoice/Payment' };
+            if (t.includes('interview') || t.includes('schedule')) return { type: 'INTERVIEW', confidence: 60, summary: 'Fallback: Suspected Interview' };
+            return { type: 'OTHER', confidence: 40, summary: 'Fallback: Unclassified email' };
+        };
+
+        const response = await AIGateway.analyze({
+            prompt: prompt,
+            modelPreference: 'fast',
+            cacheKeyStr: cacheKeyStr,
+            fallbackRuleEngine: fallbackRuleEngine,
+            schema: true // Indicate we expect JSON
+        });
+
+        const data = response.data || {};
+        
+        // Handle failure case gracefully
+        if (response.outcome === 'failed') {
+            return {
                 type: "OTHER", 
-                summary: "Failed to classify", 
+                summary: "Failed to classify email due to AI Gateway failure.", 
                 confidence: 0, 
-                confidenceReason: "Error during processing.",
+                confidenceReason: "Error during processing. All fallback mechanisms exhausted.",
                 aiMetrics: {
                     prompt: prompt.substring(0, 500) + '...',
-                    model: 'gemini-3.5-flash',
+                    model: response.model,
                     confidence: 0,
-                    processingTimeMs: Date.now() - startTime,
-                    retryCount: retryCount,
+                    processingTimeMs: response.latency,
+                    retryCount: response.retryCount,
                     outcome: 'failed'
                 }
             };
         }
+
+        // Map AIGateway response to expected MailOS format
+        data.type = data.type || 'OTHER';
+        data.aiMetrics = {
+            prompt: prompt.substring(0, 500) + '...',
+            model: response.model,
+            confidence: response.confidence,
+            processingTimeMs: response.latency,
+            retryCount: response.retryCount,
+            outcome: response.outcome,
+            cacheHit: response.cacheHit
+        };
+        
+        return data;
     }
     
     private static async parseResumeAttachment(base64Data: string, mimeType: string, subject: string, body: string) {
@@ -235,31 +252,34 @@ export class MailOSService {
         Context email body: ${body.substring(0, 1000)}
         `;
         
+        const cacheKeyStr = `resume-${subject}-${body.length}`;
         const startTime = Date.now();
-        let retryCount = 0;
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
-                contents: [
-                    prompt,
-                    { inlineData: { data: base64Data, mimeType: mimeType } }
-                ],
-                config: { responseMimeType: 'application/json' }
-            });
-            const data = JSON.parse(response.text || "{}");
-            data.aiMetrics = {
-                prompt: prompt.substring(0, 500) + '...',
-                model: 'gemini-3.5-flash',
-                confidence: 95,
-                processingTimeMs: Date.now() - startTime,
-                retryCount: retryCount,
-                outcome: 'success'
-            };
-            return data;
-        } catch (e) {
-            console.error("Gemini resume parsing failed", e);
+        
+        const response = await AIGateway.analyze({
+            prompt: prompt,
+            modelPreference: 'accurate',
+            cacheKeyStr: cacheKeyStr,
+            schema: true,
+            imageParts: [{ inlineData: { data: base64Data, mimeType: mimeType } }]
+        });
+        
+        if (response.outcome === 'failed' || !response.data) {
+            console.warn("AIGateway resume parsing failed", response);
             return null;
         }
+        
+        const data = response.data;
+        data.aiMetrics = {
+            prompt: prompt.substring(0, 500) + '...',
+            model: response.model,
+            confidence: response.confidence,
+            processingTimeMs: response.latency,
+            retryCount: response.retryCount,
+            outcome: response.outcome,
+            cacheHit: response.cacheHit
+        };
+        
+        return data;
     }
 
     private static async createRequirement(data: any, orgId: string, createdBy: string, from: string) {

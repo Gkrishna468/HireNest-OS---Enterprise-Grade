@@ -1,15 +1,16 @@
 import { Type } from "@google/genai";
 import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
+import { AIGateway } from "../services/AIGateway.js";
 
 const generateAIPayload = async (orgId: string, systemInstruction: string, prompt: string, options: any) => {
-   return JSON.stringify({
-      title: "Senior Product Manager",
-      skills: ["Agile", "Scrum", "Product Strategy", "Wireframing"],
-      yearsExperience: 5,
-      location: "Remote",
-      budget: "$120k - $150k"
+   const aiResponse = await AIGateway.analyze({
+       prompt: `${systemInstruction}\n\n${prompt}`,
+       modelPreference: 'fast',
+       schema: true
    });
+   if (aiResponse.outcome === 'failed') throw new Error("AIGateway failed");
+   return JSON.stringify(aiResponse.data);
 };
 
 const generateEmbedding = async (orgId: string, text: string) => {
