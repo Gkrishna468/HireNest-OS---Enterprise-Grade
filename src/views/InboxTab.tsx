@@ -21,7 +21,7 @@ export default function InboxTab() {
        }
        try {
           const token = await user.getIdToken();
-          const res = await fetch('/api/oauth/status', {
+          const res = await fetch('/api/workspace/status', {
              headers: { 'Authorization': `Bearer ${token}` }
           });
           const data = await res.json();
@@ -68,20 +68,6 @@ export default function InboxTab() {
     }
   };
 
-  const handleConnect = async () => {
-     const user = auth.currentUser;
-     if (!user) return;
-     try {
-        const res = await fetch(`/api/oauth/url?uid=${user.uid}&redirectTo=${encodeURIComponent(window.location.href)}`);
-        const data = await res.json();
-        if (data.url) {
-           window.location.href = data.url;
-        }
-     } catch (e) {
-        console.error(e);
-     }
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC]">
       <header className="p-6 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between">
@@ -107,8 +93,7 @@ export default function InboxTab() {
            <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center mt-12 space-y-4">
               <Mail className="mx-auto h-12 w-12 text-slate-300" />
               <h2 className="text-lg font-bold text-slate-800">No Email Integration connected</h2>
-              <p className="text-sm text-slate-500">Connect your work account via OAuth to provision the Workspace scopes securely.</p>
-              <Button onClick={handleConnect} className="w-full bg-indigo-600 hover:bg-indigo-700">Connect Workspace</Button>
+              <p className="text-sm text-slate-500">Connect your Google Workspace in the Integrations settings to enable inbox synchronization.</p>
            </div>
         ) : error ? (
            <div className="max-w-md mx-auto bg-red-50 p-6 rounded-2xl border border-red-200 text-center mt-12 space-y-3">

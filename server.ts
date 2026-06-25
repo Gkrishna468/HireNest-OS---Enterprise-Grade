@@ -32,6 +32,7 @@ import cleanupMatchesHandler from './src/api-lib/handlers/cleanup-matches';
 import matchHealthHandler from './src/api-lib/handlers/match-health';
 import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches';
 import oauthHandler from './src/api-lib/handlers/oauth';
+import workspaceHandler from './src/api-lib/handlers/workspace';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy';
 import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
@@ -116,6 +117,7 @@ async function createServer() {
 
   // Mount OAuth and Google Proxy BEFORE global catch-all
   app.use('/api/oauth', oauthHandler);
+  app.use('/api/workspace', workspaceHandler);
   app.use('/api/google', googleProxyHandler);
 
   // API Route Handler

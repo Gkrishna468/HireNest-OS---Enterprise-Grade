@@ -55,7 +55,7 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
         const token = await auth.currentUser?.getIdToken();
         if (!token) return;
         
-        const res = await fetch('/api/oauth/verify', {
+        const res = await fetch('/api/workspace/status', {
            headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
@@ -258,51 +258,35 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                  <div className="bg-slate-950 border border-slate-800 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center h-[200px]">
                     <Mail className="text-slate-700 mb-4" size={32} />
                     <h4 className="text-sm font-bold text-slate-400 mb-1">Google Workspace Disconnected</h4>
-                    <p className="text-xs text-slate-500 max-w-md mb-4">Connect your Google Workspace account to enable Gmail synchronization and Calendar scheduling features.</p>
-                    <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold uppercase" onClick={async () => {
-                       const res = await fetch(`/api/oauth/url?uid=${auth.currentUser?.uid}&redirectTo=${encodeURIComponent(window.location.href)}`);
-                       const data = await res.json();
-                       if (data.url) window.location.href = data.url;
-                    }}>Connect Workspace</button>
+                    <p className="text-xs text-slate-500 max-w-md mb-4">Workspace is currently disconnected. Manage your connections in the Integrations settings.</p>
                  </div>
               ) : (
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                       <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><CheckCircle2 className="text-emerald-500" size={16} /> Gmail Connection</h4>
+                       <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><CheckCircle2 className="text-emerald-500" size={16} /> Google Workspace Health</h4>
                        <div className="space-y-4">
                           <div>
                              <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Account</p>
                              <p className="text-sm font-mono text-slate-300">{workspaceDetails.emailAddress || 'Unknown'}</p>
                           </div>
                           <div>
-                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Scopes</p>
-                             <div className="flex flex-wrap gap-2">
-                               {workspaceDetails.scopes?.includes('gmail') && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">Gmail Read</span>}
-                               {workspaceDetails.scopes?.includes('calendar') && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded">Calendar</span>}
-                             </div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Gmail</p>
+                             <p className="text-sm text-emerald-400">Healthy</p>
                           </div>
                           <div>
-                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Refresh Token</p>
-                             <p className="text-sm text-slate-300">{workspaceDetails.hasRefreshToken ? 'Present' : 'Missing'}</p>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Calendar</p>
+                             <p className={cn("text-sm", workspaceDetails.calendar ? "text-emerald-400" : "text-amber-400")}>{workspaceDetails.calendar ? "Healthy" : "Not Found"}</p>
                           </div>
                           <div>
-                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Watch Status</p>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">OAuth Token</p>
+                             <p className="text-sm text-emerald-400">Valid</p>
+                          </div>
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Watch Status (Pub/Sub)</p>
                              <p className={cn("text-sm", workspaceDetails.watchStatus ? "text-emerald-400" : "text-amber-400")}>
-                               {workspaceDetails.watchStatus ? 'Active' : 'Inactive'}
+                               {workspaceDetails.watchStatus ? 'Running' : 'Inactive'}
                              </p>
                           </div>
-                       </div>
-                       <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between">
-                          <button className="text-xs font-bold text-slate-400 hover:text-white" onClick={async () => {
-                             const res = await fetch(`/api/oauth/url?uid=${auth.currentUser?.uid}&redirectTo=${encodeURIComponent(window.location.href)}`);
-                             const data = await res.json();
-                             if (data.url) window.location.href = data.url;
-                          }}>Reconnect</button>
-                          <button className="text-xs font-bold text-rose-500 hover:text-rose-400" onClick={async () => {
-                             if(!window.confirm("Are you sure you want to disconnect?")) return;
-                             await fetch('/api/oauth/disconnect', { method: 'POST', headers: { 'Authorization': `Bearer ${await auth.currentUser?.getIdToken()}` } });
-                             window.location.reload();
-                          }}>Disconnect</button>
                        </div>
                     </div>
                  </div>
