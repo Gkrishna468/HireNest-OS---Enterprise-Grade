@@ -1,0 +1,58 @@
+import express from 'express';
+import { db } from '../../lib/firebase-admin.js';
+import { MailOSService } from '../services/MailOSService.js';
+
+const cronHandler = express.Router();
+
+cronHandler.get('/mailos-sync', async (req, res) => {
+    // In production, verify cron auth token here
+    // const authHeader = req.headers.authorization;
+    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    //     return res.status(401).json({ error: 'Unauthorized' });
+    // }
+
+    if (!db) {
+        return res.status(500).json({ error: "Database not initialized" });
+    }
+
+    try {
+        console.log("[CRON] Starting MailOS Sync across workspaces");
+        const connectionsSnap = await db.collection('workspace_connections').where('gmail', '==', true).get();
+        
+        const results = [];
+        for (const doc of connectionsSnap.docs) {
+            const uid = doc.id;
+            // Fetch user's orgId
+            const userDoc = await db.collection('users').doc(uid).get();
+            const orgId = userDoc.data()?.organizationId || userDoc.data()?.orgId;
+            
+            if (orgId) {
+                try {
+                    const processed = await MailOSService.syncInbox(uid, orgId);
+                    results.push({ uid, orgId, processed });
+                    
+                    // Log execution metrics for Executive Dashboard
+                    if (processed.length > 0) {
+                        await db.collection('mailos_executions').add({
+                            uid,
+                            orgId,
+                            timestamp: new Date().toISOString(),
+                            processedCount: processed.length,
+                            details: processed
+                        });
+                    }
+                } catch (e: any) {
+                    console.error(`[CRON] Failed to sync inbox for user ${uid}:`, e.message);
+                    results.push({ uid, orgId, error: e.message });
+                }
+            }
+        }
+
+        res.json({ success: true, executions: results.length, details: results });
+    } catch (e: any) {
+        console.error("[CRON] MailOS Sync failed:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+export default cronHandler;

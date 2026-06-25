@@ -51,6 +51,7 @@ export default async function handler(req: any, res: any) {
     else if (path?.startsWith('oauth'))    targetHandler = (await import('../src/api-lib/handlers/oauth.js')).default;
     else if (path?.startsWith('google'))   targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
     else if (path?.startsWith('workspace')) targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
+    else if (path?.startsWith('cron'))      targetHandler = (await import('../src/api-lib/handlers/cron.js')).default;
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
@@ -67,7 +68,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (targetHandler) {
-      const expressRouters = ['oauth', 'google', 'workspace'];
+      const expressRouters = ['oauth', 'google', 'workspace', 'cron'];
       const matchedRouter = expressRouters.find(r => path?.startsWith(r));
       if (matchedRouter) {
         // Rewrite req.url so the Express Router matches it

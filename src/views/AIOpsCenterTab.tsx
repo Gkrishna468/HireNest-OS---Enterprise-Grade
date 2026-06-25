@@ -149,34 +149,79 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
         {/* Dynamic Content */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 min-h-[400px]">
           
-          {activeTab === 'agents' && (
+          {activeTab === 'agents' && (() => {
+            const agentList = [
+              'Requirement Extraction Agent', 'Resume Parser', 'Vendor Broadcast', 
+              'Matching Engine', 'Interview Agent', 'Finance Agent', 'Mail Sync Agent'
+            ];
+            const groupedAgents = agentList.map(name => {
+              const runs = agentExecutions.filter(a => (a.agentName === name) || (a.agentType === name) || (a.agentName?.includes(name)));
+              const total = runs.length;
+              const success = runs.filter(a => a.status === 'completed' || a.status === 'success').length;
+              const successRate = total > 0 ? Math.round((success / total) * 100) : 0;
+              const avgDuration = total > 0 ? Math.round(runs.reduce((acc, curr) => acc + (curr.duration || 0), 0) / total) : 0;
+              const lastExecution = runs[0];
+              const lastError = runs.find(a => a.status === 'failed' || a.status === 'error');
+              return { name, total, successRate, avgDuration, lastExecution, lastError };
+            });
+
+            return (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Brain className="text-violet-400" /> Autonomous Agent Executions</h3>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Brain className="text-violet-400" /> AI Operations Console</h3>
                 <span className="text-xs font-mono text-slate-500">Auto-refreshing (collection: agent_executions)</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Total Executions</div>
-                    <div className="text-2xl font-black text-white">{agentExecutions.length}</div>
-                 </div>
-                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Success Rate</div>
-                    <div className="text-2xl font-black text-emerald-400">
-                        {agentExecutions.length > 0 ? Math.round((agentExecutions.filter(a => a.status === 'completed' || a.status === 'success').length / agentExecutions.length) * 100) : 0}%
-                    </div>
-                 </div>
-                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Failed Runs</div>
-                    <div className="text-2xl font-black text-rose-400">
-                        {agentExecutions.filter(a => a.status === 'failed' || a.status === 'error').length}
-                    </div>
-                 </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden mb-8">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 border-b border-slate-800">
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agent</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Executions</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Success Rate</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Avg Time</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Run</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {groupedAgents.map(agent => (
+                      <tr key={agent.name} className="hover:bg-slate-800/50">
+                        <td className="py-4 px-6">
+                          <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                             {agent.name}
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-slate-300 font-mono">{agent.total}</td>
+                        <td className="py-4 px-6">
+                           <span className={cn("text-xs font-bold", agent.successRate >= 90 ? "text-emerald-400" : agent.successRate >= 50 ? "text-amber-400" : agent.total === 0 ? "text-slate-500" : "text-rose-400")}>
+                             {agent.total > 0 ? `${agent.successRate}%` : '--'}
+                           </span>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-slate-400 font-mono">{agent.total > 0 ? `${agent.avgDuration}ms` : '--'}</td>
+                        <td className="py-4 px-6 text-xs text-slate-400">
+                          {agent.lastExecution?.createdAt ? new Date(agent.lastExecution.createdAt?.seconds * 1000).toLocaleString() : 'Never'}
+                        </td>
+                        <td className="py-4 px-6">
+                          {agent.total === 0 ? (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-800 text-slate-500">Standby</span>
+                          ) : agent.lastError && (!agent.lastExecution || agent.lastError.id === agent.lastExecution.id) ? (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Failing</span>
+                          ) : (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Healthy</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              
+              <h4 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Recent Executions</h4>
               <div className="divide-y divide-slate-800">
                 {agentExecutions.length === 0 ? (
                     <div className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No agent executions found</div>
-                ) : agentExecutions.map(exec => (
+                ) : agentExecutions.slice(0, 15).map(exec => (
                   <div key={exec.id} className="py-4 flex items-start justify-between">
                     <div className="flex gap-4 w-full">
                       <div className="mt-1">
@@ -186,7 +231,7 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-mono text-xs text-slate-500">{exec.id.substring(0,8)}</span>
                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{exec.agentName || exec.agentType || 'Unknown Agent'}</span>
-                          {exec.duration && <span className="text-[10px] font-mono text-slate-500">{exec.duration}ms</span>}
+                          {exec.duration !== undefined && <span className="text-[10px] font-mono text-slate-500">{exec.duration}ms</span>}
                         </div>
                         <h4 className="text-sm font-bold text-slate-200">{exec.task || exec.description || 'Routine Task execution'}</h4>
                         <div className="text-xs text-slate-500 mt-2 flex items-center gap-3">
@@ -205,7 +250,7 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                 ))}
               </div>
             </div>
-          )}
+          )})()}
 
           {activeTab === 'incidents' && (
             <div className="space-y-6">
