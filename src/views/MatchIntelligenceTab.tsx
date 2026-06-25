@@ -142,16 +142,14 @@ export default function MatchIntelligenceTab() {
         </div>
       </div>
 
-      {matches.length === 0 ? (
+      {Object.keys(requirements).length === 0 ? (
         <div className="bg-white border text-center py-24 rounded-2xl border-slate-200">
           <Zap className="mx-auto mb-4 text-slate-300" size={48} />
           <h2 className="text-xl font-black text-slate-800 mb-2">
-            No Match Intelligence Available Yet
+            No Requirements Found
           </h2>
           <p className="text-sm font-medium text-slate-500 mb-6 max-w-md mx-auto">
-            The Match Engine runs automatically when new candidates are added or
-            new requirements are published. Check back soon for AI-generated
-            opportunities.
+            The Match Engine evaluates opportunities against active requirements. Add requirements to see match intelligence.
           </p>
           {isAdmin && (
             <button
@@ -227,18 +225,9 @@ export default function MatchIntelligenceTab() {
             </div>
             <div className="overflow-x-auto">
               {viewMode === "requirements"
-                ? Object.entries(
-                    matches.reduce(
-                      (acc, match) => {
-                        if (!acc[match.requirementId])
-                          acc[match.requirementId] = [];
-                        acc[match.requirementId].push(match);
-                        return acc;
-                      },
-                      {} as Record<string, any[]>,
-                    ),
-                  ).map(([reqId, groupMatches]: [string, any[]]) => {
+                ? Object.keys(requirements).map((reqId) => {
                     const req = requirements[reqId];
+                    const groupMatches = matches.filter(m => m.requirementId === reqId);
                     return (
                       <div
                         key={reqId}
@@ -257,6 +246,11 @@ export default function MatchIntelligenceTab() {
                             {groupMatches.length} Matches
                           </div>
                         </div>
+                        {groupMatches.length === 0 ? (
+                            <div className="p-6 text-center">
+                               <p className="text-sm font-bold text-slate-400">Waiting for candidates...</p>
+                            </div>
+                        ) : (
                         <table className="w-full">
                           <tbody className="divide-y divide-slate-50">
                             {groupMatches
@@ -345,6 +339,7 @@ export default function MatchIntelligenceTab() {
                               })}
                           </tbody>
                         </table>
+                        )}
                       </div>
                     );
                   })

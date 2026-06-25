@@ -253,4 +253,76 @@ export class MailOSService {
         });
         return docRef.id;
     }
+
+    static async analyzeMessage(uid: string, orgId: string, messageId: string) {
+        if (!db) throw new Error("Database not initialized");
+
+        const tokenDoc = await db.collection('token_vault').doc(uid).get();
+        if (!tokenDoc.exists) throw new Error("No Google workspace connection found");
+
+        const data = tokenDoc.data();
+        if (!data?.accessToken) throw new Error("No access token found");
+
+        const accessToken = decryptText(data.accessToken);
+        const refreshToken = data.refreshToken ? decryptText(data.refreshToken) : undefined;
+
+        const oauth2Client = createOAuthClient();
+        oauth2Client.setCredentials({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expiry_date: data.expiryDate
+        });
+
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+        
+        const msgData = await gmail.users.messages.get({
+            userId: 'me',
+            id: messageId
+        });
+
+        const headers = msgData.data.payload?.headers;
+        const subject = headers?.find(h => h.name === 'Subject')?.value || '';
+        const from = headers?.find(h => h.name === 'From')?.value || '';
+        const to = headers?.find(h => h.name === 'To')?.value || '';
+        const date = headers?.find(h => h.name === 'Date')?.value || '';
+        
+        let body = '';
+        let attachments: any[] = [];
+
+        const processParts = (parts: any[]) => {
+            for (const part of parts) {
+                if (part.mimeType === 'text/plain' && part.body?.data) {
+                    body += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                } else if (part.filename && part.body?.attachmentId) {
+                    attachments.push({
+                        filename: part.filename,
+                        mimeType: part.mimeType,
+                        attachmentId: part.body.attachmentId
+                    });
+                }
+                if (part.parts) {
+                    processParts(part.parts);
+                }
+            }
+        };
+        
+        if (msgData.data.payload?.parts) {
+            processParts(msgData.data.payload.parts);
+        } else if (msgData.data.payload?.body?.data) {
+            body = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
+        }
+
+        const classification = await this.classifyEmail(subject, body, from);
+        
+        return {
+            id: messageId,
+            subject,
+            from,
+            to,
+            date,
+            bodySnippet: body.substring(0, 500),
+            classification,
+            attachments: attachments.map(a => a.filename)
+        };
+    }
 }

@@ -23,6 +23,22 @@ workspaceHandler.post('/mailos/sync', async (req, res) => {
    }
 });
 
+workspaceHandler.post('/mailos/analyze/:messageId', async (req, res) => {
+   const uid = (req as any).user?.uid;
+   const messageId = req.params.messageId;
+   const orgId = (req as any).user?.orgId || (req as any).query?.orgId;
+
+   if (!uid) return res.status(401).json({ error: "Unauthorized" });
+
+   try {
+       const analysis = await MailOSService.analyzeMessage(uid, orgId || 'unknown', messageId);
+       res.json({ success: true, analysis });
+   } catch (e: any) {
+       console.error("MailOS Analyze Error:", e);
+       res.status(500).json({ error: e.message });
+   }
+});
+
 workspaceHandler.get('/status', async (req, res) => {
    const uid = (req as any).user?.uid;
    if (!uid) return res.status(401).json({ error: "Unauthorized" });

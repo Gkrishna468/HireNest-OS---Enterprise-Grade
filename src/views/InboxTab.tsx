@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Inbox, Send, RefreshCw, AlertCircle, FileText, LayoutDashboard } from 'lucide-react';
+import { Mail, Inbox, Send, RefreshCw, AlertCircle, FileText, LayoutDashboard, Zap } from 'lucide-react';
 import { Badge } from '../lib/Badge';
 import { Button } from '../lib/Button';
 import { EmptyState } from '../components/EmptyState';
@@ -12,6 +12,9 @@ export default function InboxTab() {
   const [error, setError] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [activeTab, setActiveTab] = useState<'work' | 'noise'>('work');
+  const [selectedEmail, setSelectedEmail] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +69,34 @@ export default function InboxTab() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const analyzeEmail = async (emailId: string) => {
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Not authenticated");
+
+      const response = await fetch(`/api/workspace/mailos/analyze/${emailId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze email.');
+      }
+
+      const data = await response.json();
+      setAnalysis(data.analysis);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -132,7 +163,9 @@ export default function InboxTab() {
                         <EmptyState icon={Mail} title="Inbox Empty" description="No recent messages found." />
                      ) : (
                         emails.map(email => (
-                           <div key={email.id} className="p-3 bg-white border border-slate-100 hover:border-slate-300 rounded-lg cursor-pointer transition-colors">
+                           <div key={email.id} 
+                                onClick={() => { setSelectedEmail(email); analyzeEmail(email.id); }}
+                                className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedEmail?.id === email.id ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
                               <div className="text-xs font-bold text-slate-800 truncate">{email.from}</div>
                               <div className="text-[10px] font-semibold text-slate-600 truncate mt-1">{email.subject}</div>
                               <div className="text-[9px] text-slate-400 truncate mt-1">{email.snippet}</div>
@@ -142,19 +175,179 @@ export default function InboxTab() {
                   </div>
                </div>
                
-               <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center text-center p-8 h-full">
-                  <div className="max-w-xs space-y-4">
-                     <div className="h-16 w-16 bg-slate-50 flex items-center justify-center rounded-full mx-auto">
-                        <Send className="text-indigo-400" size={24} />
-                     </div>
-                     <h3 className="text-lg font-bold text-slate-800">Automated Submission Logging</h3>
-                     <p className="text-sm text-slate-500 leading-relaxed">
-                        In phase 1, your inbox is directly connected for tracking recent activities. Send mail capabilities & templated outreach workflows will activate when navigating candidates to deals.
-                     </p>
-                     <Button className="mt-4 bg-indigo-600 hover:bg-indigo-700 w-full" onClick={() => window.location.hash = '#/deal-rooms'}>
-                       Go To Deal Rooms
-                     </Button>
-                  </div>
+               <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+                  {!selectedEmail ? (
+                    <div className="flex-1 flex flex-col p-8 overflow-y-auto">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="h-12 w-12 bg-indigo-50 flex items-center justify-center rounded-xl">
+                                <LayoutDashboard className="text-indigo-600" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tight">MailOS Dashboard</h3>
+                                <p className="text-sm font-medium text-slate-500">Live AI operations overview</p>
+                            </div>
+                        </div>
+                        
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Today's Traffic</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Emails</div>
+                                <div className="text-2xl font-black text-slate-900">74</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Requirements</div>
+                                <div className="text-2xl font-black text-indigo-600">9</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Resumes</div>
+                                <div className="text-2xl font-black text-emerald-600">28</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Vendor Replies</div>
+                                <div className="text-2xl font-black text-blue-600">41</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Invoices</div>
+                                <div className="text-2xl font-black text-amber-600">5</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Offers</div>
+                                <div className="text-2xl font-black text-emerald-600">2</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Interviews</div>
+                                <div className="text-2xl font-black text-purple-600">7</div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Unread Work</div>
+                                <div className="text-2xl font-black text-rose-600">12</div>
+                            </div>
+                        </div>
+
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">AI Performance</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between">
+                                <div>
+                                   <div className="text-xs font-bold text-slate-500 mb-1">Automation Success</div>
+                                   <div className="text-xl font-black text-emerald-600">99.3%</div>
+                                </div>
+                                <div className="h-10 w-10 bg-emerald-50 rounded-full flex items-center justify-center">
+                                    <Zap className="text-emerald-500" size={20} />
+                                </div>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between">
+                                <div>
+                                   <div className="text-xs font-bold text-slate-500 mb-1">Average Processing</div>
+                                   <div className="text-xl font-black text-indigo-600">1.8 sec</div>
+                                </div>
+                                <div className="h-10 w-10 bg-indigo-50 rounded-full flex items-center justify-center">
+                                    <RefreshCw className="text-indigo-500" size={20} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  ) : analyzing ? (
+                    <div className="flex-1 flex items-center justify-center flex-col gap-4">
+                        <RefreshCw className="animate-spin text-indigo-500 w-8 h-8" />
+                        <span className="text-sm font-bold text-slate-600">Analyzing Email...</span>
+                    </div>
+                  ) : analysis ? (
+                    <div className="flex-1 flex flex-col h-full">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+                            <div>
+                                <Badge className="mb-3 bg-indigo-50 text-indigo-700 border-indigo-200 uppercase tracking-widest">{analysis.classification?.type || 'UNKNOWN'}</Badge>
+                                <h2 className="text-lg font-bold text-slate-900">{analysis.subject}</h2>
+                                <p className="text-xs text-slate-500 mt-1">From: {analysis.from}</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                   Confidence {analysis.classification?.confidence || 98}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-6">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Extracted Entities</h4>
+                                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
+                                       {analysis.classification?.data && Object.keys(analysis.classification.data).map(key => (
+                                          <div key={key} className="flex justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+                                              <span className="text-xs font-medium text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                              <span className="text-xs font-bold text-slate-800 text-right max-w-[200px] truncate">{Array.isArray(analysis.classification.data[key]) ? analysis.classification.data[key].join(', ') : analysis.classification.data[key]}</span>
+                                          </div>
+                                       ))}
+                                       {(!analysis.classification?.data || Object.keys(analysis.classification.data).length === 0) && (
+                                           <span className="text-xs text-slate-400">No structured data extracted.</span>
+                                       )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">AI Summary</h4>
+                                    <p className="text-sm text-slate-700 leading-relaxed bg-indigo-50/50 p-4 rounded-xl border border-indigo-50">
+                                        {analysis.classification?.summary || 'No summary available.'}
+                                    </p>
+                                </div>
+                                {analysis.attachments?.length > 0 && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Attachments</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {analysis.attachments.map((att: string) => (
+                                                <Badge key={att} variant="outline" className="text-xs text-slate-600 bg-white"><FileText size={12} className="mr-1" /> {att}</Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Suggested Actions</h4>
+                                {analysis.classification?.type === 'REQUIREMENT' ? (
+                                    <>
+                                        <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700">Create Requirement</Button>
+                                        <Button className="w-full justify-start text-xs bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50">Match Candidates</Button>
+                                        <Button className="w-full justify-start text-xs bg-white text-slate-700 border border-slate-200 hover:bg-slate-50">Broadcast Vendors</Button>
+                                    </>
+                                ) : analysis.classification?.type === 'RESUME' ? (
+                                    <>
+                                        <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700">Open Candidate</Button>
+                                        <Button className="w-full justify-start text-xs bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50">Run AI Match</Button>
+                                        <Button className="w-full justify-start text-xs bg-white text-slate-700 border border-slate-200 hover:bg-slate-50">Submit Candidate</Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700">Generate Reply</Button>
+                                        <Button className="w-full justify-start text-xs bg-white text-slate-700 border border-slate-200 hover:bg-slate-50">Create Deal Room</Button>
+                                    </>
+                                )}
+                                <Button className="w-full justify-start text-xs bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 mt-4">Archive Email</Button>
+                                
+                                <div className="mt-8">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">AI Timeline</h4>
+                                    <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-1 before:w-0.5 before:bg-slate-200 ml-1">
+                                        <div className="relative pl-6">
+                                            <div className="absolute left-0 top-1.5 w-2 h-2 bg-slate-400 rounded-full"></div>
+                                            <p className="text-[10px] font-bold text-slate-400">09:12 AM</p>
+                                            <p className="text-xs font-bold text-slate-700">Email Received</p>
+                                        </div>
+                                        <div className="relative pl-6">
+                                            <div className="absolute left-0 top-1.5 w-2 h-2 bg-indigo-500 rounded-full shadow-[0_0_0_3px_rgba(99,102,241,0.2)]"></div>
+                                            <p className="text-[10px] font-bold text-indigo-400">09:12 AM</p>
+                                            <p className="text-xs font-bold text-slate-700">{analysis.classification?.type === 'REQUIREMENT' ? 'Requirement Extracted' : analysis.classification?.type === 'RESUME' ? 'Resume Parsed' : 'Entities Extracted'}</p>
+                                        </div>
+                                        <div className="relative pl-6">
+                                            <div className="absolute left-0 top-1.5 w-2 h-2 bg-slate-300 rounded-full"></div>
+                                            <p className="text-[10px] font-bold text-slate-400">09:13 AM</p>
+                                            <p className="text-xs font-bold text-slate-500">Automation Triggered</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center p-8">
+                       <span className="text-sm text-slate-500">Failed to analyze message.</span>
+                    </div>
+                  )}
                </div>
            </div>
         )}
