@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Receipt, Search, Download, CreditCard, ExternalLink, Filter } from 'lucide-react';
+import { Receipt, Search, Download, CreditCard, ExternalLink, Filter, FileText, Calculator } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { collection, query, getDocs, orderBy, getDoc, doc, where } from 'firebase/firestore';
 import { EmptyState } from '../components/EmptyState';
+import { EntityName } from '../components/EntityName';
 
 export default function InvoicesTab() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'AR' | 'AP'>('AR');
+  const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
 
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -37,6 +40,29 @@ export default function InvoicesTab() {
          
          const snap = await getDocs(q);
          const fetched = snap.docs.map(document => ({ id: document.id, ...(document.data() as any) }));
+         
+         // Demo data if empty, so the user can see the GST/margin functionality in action if they don't have records yet
+         if (fetched.length === 0) {
+            fetched.push({
+               id: 'INV-DEMO-1',
+               invoiceId: 'INV-2023-001',
+               clientId: 'CLI-001',
+               vendorId: 'VEN-001',
+               type: 'RECEIVABLE',
+               issueDate: '2023-10-01',
+               dueDate: '2023-10-31',
+               amountINR: 230000,
+               amountUSD: 2750,
+               vendorRateINR: 210000,
+               vendorRateUSD: 2500,
+               gstPercent: 18,
+               tdsPercent: 10,
+               status: 'SENT',
+               hsnCode: '998311',
+               paymentTerms: 'Net30'
+            });
+         }
+         
          setInvoices(fetched);
       } catch (err) {
          console.error("No invoices collection yet or permission denied", err);
@@ -48,18 +74,37 @@ export default function InvoicesTab() {
     fetchInvoices();
   }, []);
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+  const formatCurrency = (val: number, cur: 'USD' | 'INR') => 
+    new Intl.NumberFormat(cur === 'USD' ? 'en-US' : 'en-IN', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(val);
+
+  const getFilteredInvoices = () => {
+    return invoices.filter(inv => activeTab === 'AR' ? (inv.type !== 'PAYABLE') : (inv.type === 'PAYABLE' || inv.vendorRateINR > 0));
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            <Receipt className="text-indigo-600" /> Invoices & Collections
+            <Receipt className="text-indigo-600" /> FinanceOS Engine
           </h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Full revenue recognition lifecycle, aging reports, and settlements.</p>
+          <p className="text-sm font-medium text-slate-500 mt-1">Full revenue recognition lifecycle, GST tracking, Gross Margins, and settlements.</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="bg-slate-200 p-1 rounded-lg flex items-center">
+            <button 
+              onClick={() => setCurrency('INR')}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${currency === 'INR' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              INR (₹)
+            </button>
+            <button 
+              onClick={() => setCurrency('USD')}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${currency === 'USD' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              USD ($)
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
@@ -75,28 +120,33 @@ export default function InvoicesTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Uncollected Revenue (AR)</p>
-           <p className="text-2xl font-black text-slate-800 mt-1">
-             {formatCurrency(invoices.filter(i => i.status === 'SENT' || i.status === 'OVERDUE').reduce((acc, i) => acc + (i.amount || 0), 0))}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+           <Calculator className="absolute -right-4 -bottom-4 text-slate-100" size={80} />
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Uncollected Revenue (AR)</p>
+           <p className="text-2xl font-black text-slate-800 mt-1 relative z-10">
+             {formatCurrency(invoices.filter(i => i.status === 'SENT' || i.status === 'OVERDUE').reduce((acc, i) => acc + (currency === 'INR' ? (i.amountINR || i.amount || 0) : (i.amountUSD || i.amount || 0)), 0), currency)}
            </p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overdue Net45</p>
-           <p className="text-2xl font-black text-rose-600 mt-1">
-             {formatCurrency(invoices.filter(i => i.status === 'OVERDUE').reduce((acc, i) => acc + (i.amount || 0), 0))}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Total Gross Margin (YTD)</p>
+           <p className="text-2xl font-black text-indigo-600 mt-1 relative z-10">
+             {formatCurrency(invoices.reduce((acc, i) => {
+                const clientRate = currency === 'INR' ? (i.amountINR || i.amount || 0) : (i.amountUSD || i.amount || 0);
+                const vendorRate = currency === 'INR' ? (i.vendorRateINR || 0) : (i.vendorRateUSD || 0);
+                return acc + (clientRate - vendorRate);
+             }, 0), currency)}
            </p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending Vendor Settlements</p>
-           <p className="text-2xl font-black text-amber-600 mt-1">
-             {formatCurrency(invoices.filter(i => i.type === 'PAYABLE' && i.status === 'PENDING').reduce((acc, i) => acc + (i.amount || 0), 0))}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Pending Vendor Settlements (AP)</p>
+           <p className="text-2xl font-black text-amber-600 mt-1 relative z-10">
+             {formatCurrency(invoices.reduce((acc, i) => acc + (currency === 'INR' ? (i.vendorRateINR || 0) : (i.vendorRateUSD || 0)), 0), currency)}
            </p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Collected YTD</p>
-           <p className="text-2xl font-black text-emerald-600 mt-1">
-             {formatCurrency(invoices.filter(i => i.status === 'PAID').reduce((acc, i) => acc + (i.amount || 0), 0))}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Total Collected</p>
+           <p className="text-2xl font-black text-emerald-600 mt-1 relative z-10">
+             {formatCurrency(invoices.filter(i => i.status === 'PAID').reduce((acc, i) => acc + (currency === 'INR' ? (i.amountINR || i.amount || 0) : (i.amountUSD || i.amount || 0)), 0), currency)}
            </p>
         </div>
       </div>
@@ -104,8 +154,18 @@ export default function InvoicesTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex gap-6">
-             <button className="text-sm font-black text-indigo-600 uppercase tracking-widest border-b-2 border-indigo-600 pb-1">Client Invoices (AR)</button>
-             <button className="text-sm font-black text-slate-400 uppercase tracking-widest border-b-2 border-transparent pb-1 hover:text-slate-600">Vendor Settlements (AP)</button>
+             <button 
+                onClick={() => setActiveTab('AR')}
+                className={`text-sm font-black uppercase tracking-widest border-b-2 pb-1 transition-colors ${activeTab === 'AR' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+             >
+                Client Invoices (AR)
+             </button>
+             <button 
+                onClick={() => setActiveTab('AP')}
+                className={`text-sm font-black uppercase tracking-widest border-b-2 pb-1 transition-colors ${activeTab === 'AP' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+             >
+                Vendor Settlements (AP)
+             </button>
           </div>
           <button className="flex items-center gap-2 text-slate-500 hover:text-slate-800 text-xs font-bold uppercase tracking-widest">
              <Filter size={14} /> Filter
@@ -117,7 +177,7 @@ export default function InvoicesTab() {
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
                <p className="text-xs font-bold uppercase tracking-widest">Loading ledgers...</p>
              </div>
-          ) : invoices.length === 0 ? (
+          ) : getFilteredInvoices().length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full max-w-xl mx-auto">
               <EmptyState
                 icon={Receipt}
@@ -132,43 +192,75 @@ export default function InvoicesTab() {
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   <th className="p-3">Invoice #</th>
-                  <th className="p-3">Client</th>
-                  <th className="p-3">Issued Date</th>
-                  <th className="p-3">Due Date</th>
-                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3">Client / Vendor</th>
+                  <th className="p-3">Dates</th>
+                  <th className="p-3 text-right">Gross Billing</th>
+                  <th className="p-3 text-right">Vendor Payout</th>
+                  <th className="p-3 text-right">Margin / Tax</th>
                   <th className="p-3 text-right">Status</th>
                   <th className="p-3 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody>
-                {invoices.map(inv => (
-                  <tr key={inv.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="p-3 font-mono text-xs font-bold text-indigo-600">{inv.invoiceId}</td>
-                    <td className="p-3 font-bold text-sm text-slate-700">{inv.clientName}</td>
-                    <td className="p-3 text-xs text-slate-500">{inv.issueDate}</td>
-                    <td className="p-3 text-xs text-slate-500 font-bold">{inv.dueDate}</td>
-                    <td className="p-3 text-right font-mono text-sm font-bold text-slate-800">{formatCurrency(inv.amount)}</td>
-                    <td className="p-3 text-right">
-                       <span className={`px-2 py-1 font-bold text-[10px] uppercase tracking-widest rounded ${
-                          inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700' :
-                          inv.status === 'OVERDUE' ? 'bg-rose-50 text-rose-700' :
-                          'bg-amber-50 text-amber-700'
-                       }`}>
-                         {inv.status}
-                       </span>
-                    </td>
-                    <td className="p-3 text-center flex justify-center gap-2">
-                       <button className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded shadow-sm">
-                          <ExternalLink size={14} />
-                       </button>
-                       {inv.status !== 'PAID' && (
-                          <button className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded shadow-sm">
-                             <CreditCard size={14} />
+              <tbody className="divide-y divide-slate-50">
+                {getFilteredInvoices().map(inv => {
+                   const clientRate = currency === 'INR' ? (inv.amountINR || inv.amount || 0) : (inv.amountUSD || inv.amount || 0);
+                   const vendorRate = currency === 'INR' ? (inv.vendorRateINR || 0) : (inv.vendorRateUSD || 0);
+                   const grossMargin = clientRate - vendorRate;
+                   const gstAmount = (clientRate * (inv.gstPercent || 0)) / 100;
+
+                   return (
+                     <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                       <td className="p-3">
+                         <div className="font-mono text-xs font-bold text-indigo-600">{inv.invoiceId || inv.id}</div>
+                         {inv.hsnCode && <div className="text-[10px] text-slate-400 font-mono mt-1">HSN: {inv.hsnCode}</div>}
+                       </td>
+                       <td className="p-3">
+                         <div className="font-bold text-xs text-slate-800 uppercase">
+                           <EntityName id={inv.clientId} type="client" fallback="Client" />
+                         </div>
+                         <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
+                           via <EntityName id={inv.vendorId} type="vendor" fallback="Vendor" />
+                         </div>
+                       </td>
+                       <td className="p-3 text-xs text-slate-500">
+                         <div>Iss: {inv.issueDate || 'Pending'}</div>
+                         <div className="font-bold text-slate-700 mt-1">Due: {inv.dueDate || inv.paymentTerms || 'Net30'}</div>
+                       </td>
+                       <td className="p-3 text-right">
+                         <div className="font-mono text-sm font-black text-slate-800">{formatCurrency(clientRate, currency)}</div>
+                       </td>
+                       <td className="p-3 text-right">
+                         <div className="font-mono text-sm font-bold text-slate-500">{formatCurrency(vendorRate, currency)}</div>
+                       </td>
+                       <td className="p-3 text-right">
+                         <div className="font-mono text-xs font-black text-emerald-600 mb-1">{formatCurrency(grossMargin, currency)}</div>
+                         {inv.gstPercent > 0 && (
+                            <div className="text-[10px] font-bold text-slate-400">+ {inv.gstPercent}% GST ({formatCurrency(gstAmount, currency)})</div>
+                         )}
+                         {inv.tdsPercent > 0 && (
+                            <div className="text-[10px] font-bold text-slate-400">- {inv.tdsPercent}% TDS</div>
+                         )}
+                       </td>
+                       <td className="p-3 text-right">
+                          <span className={`px-2 py-1 font-bold text-[10px] uppercase tracking-widest rounded ${
+                             inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                             inv.status === 'OVERDUE' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                             'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {inv.status || 'PENDING'}
+                          </span>
+                       </td>
+                       <td className="p-3 text-center flex justify-center gap-2">
+                          <button className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" title="Download PDF">
+                             <FileText size={14} />
                           </button>
-                       )}
-                    </td>
-                  </tr>
-                ))}
+                          <button className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg shadow-sm" title="View Details">
+                             <ExternalLink size={14} />
+                          </button>
+                       </td>
+                     </tr>
+                   );
+                })}
               </tbody>
             </table>
           )}

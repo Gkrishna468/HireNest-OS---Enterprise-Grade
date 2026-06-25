@@ -157,19 +157,24 @@ export default function MatchIntelligenceTab() {
             <button
               onClick={async () => {
                 setLoading(true);
-                setScanProgress("Scan Started...");
+                setScanProgress("Job Queued. Running AI...");
                 try {
-                  setTimeout(() => setScanProgress("12 Candidates Evaluated..."), 1000);
-                  setTimeout(() => setScanProgress("5 Matches Found..."), 2000);
-                  setTimeout(() => setScanProgress("5 Opportunities Created..."), 3000);
-                  await fetch("/api/admin", {
+                  const response = await fetch("/api/admin", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "rescan-matches" }),
                   });
-                  setTimeout(() => window.location.reload(), 3500);
+                  const data = await response.json();
+                  if (data.success) {
+                    setScanProgress(`${data.matchUpdatesCount} Matches Updated... reloading.`);
+                    setTimeout(() => window.location.reload(), 1500);
+                  } else {
+                    setScanProgress(`Error: ${data.error || 'Failed'}`);
+                    setLoading(false);
+                  }
                 } catch (err) {
                   console.error(err);
+                  setScanProgress("Failed to run match scan.");
                   setLoading(false);
                 }
               }}

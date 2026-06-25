@@ -9,12 +9,13 @@ export function getScopedCandidateUniverse(db: any, collectionName: string, role
 
   const collectionRef = db.collection(collectionName);
 
+  if (!orgId || orgId === "undefined" || orgId === "null") {
+    if (isAdmin) return collectionRef;
+    throw new Error(`orgId is required for scoped queries. collection=${collectionName}, role=${role}`);
+  }
+
   if (isAdmin) {
     return collectionRef;
-  }
-  
-  if (!orgId) {
-    throw new Error(`orgId is required for scoped queries. collection=${collectionName}, role=${role}`);
   }
 
   if (role?.includes("vendor") || role?.includes("recruiter")) {
