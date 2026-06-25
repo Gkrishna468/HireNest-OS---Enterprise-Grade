@@ -79,7 +79,7 @@ export class MailOSService {
 
             if (!body && attachments.length === 0) continue;
 
-            const classification = await this.classifyEmail(subject, body, from);
+            const classification = await this.classifyEmail(subject, body, from, attachments);
             const executionLog: any = {
                 agentName: 'Mail Sync Agent',
                 agentType: 'MAILOS',
@@ -137,45 +137,58 @@ export class MailOSService {
         return processed;
     }
 
-    private static async classifyEmail(subject: string, body: string, from: string) {
+    private static async classifyEmail(subject: string, body: string, from: string, attachments: any[] = []) {
+        const attachmentNames = attachments.map(a => a.filename).join(', ');
         const prompt = `
         Analyze this email for an IT staffing agency. 
         Determine if it is:
         - REQUIREMENT (client looking for talent/sharing a JD)
-        - RESUME (candidate or vendor submitting a resume)
+        - RESUME (candidate or vendor submitting a resume/profile)
         - VENDOR_RESPONSE (vendor replying to a requirement broadcast)
         - INTERVIEW (interview scheduled/confirmed)
         - OFFER (job offer details)
         - INVOICE (invoice for payment)
         - OTHER (general conversation, spam, marketing)
         
-        Extract relevant data based on the type.
+        Extract relevant structured data based on the type (e.g. candidate details, skills, experience, location, budget).
+        
+        Provide suggested actions for the recruiter to take next (e.g., "Create Candidate", "Run Match Engine", "Submit to Requirement").
+        
+        Provide a detailed timeline of events that occurred and should occur for this email in a staffing workflow context.
 
         Respond ONLY with a valid JSON object matching this schema:
         {
           "type": "REQUIREMENT" | "RESUME" | "VENDOR_RESPONSE" | "INTERVIEW" | "OFFER" | "INVOICE" | "OTHER",
           "data": {
-            // Include keys relevant to the type (e.g. title, skills, budget, location for REQUIREMENT)
+            // Detailed extracted entities as key-value pairs (e.g., "Candidate Name": "Deepesh", "Experience": "9 Years")
+            // Keys should be human-readable strings, values should be strings or arrays of strings.
           },
           "confidence": number (0-100),
-          "summary": string (1 sentence summary)
+          "confidenceReason": "string (bullet point style explanation of why this confidence level was chosen based on email content and attachments)",
+          "summary": "string (a concise, professional AI summary of the email's impact/purpose)",
+          "suggestedActions": ["string", "string"],
+          "timeline": [
+              { "time": "string (e.g., 09:12 AM)", "title": "string (e.g., Email Received)" },
+              { "time": "string", "title": "string" }
+          ]
         }
 
         From: ${from}
         Subject: ${subject}
+        Attachments: ${attachmentNames}
         Body: ${body.substring(0, 3000)}
         `;
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.5-flash',
                 contents: prompt,
                 config: { responseMimeType: 'application/json' }
             });
             return JSON.parse(response.text || "{}");
         } catch (e) {
             console.error("Gemini classification failed", e);
-            return { type: "OTHER", summary: "Failed to classify" };
+            return { type: "OTHER", summary: "Failed to classify", confidence: 0, confidenceReason: "Error during processing." };
         }
     }
     
@@ -312,7 +325,54 @@ export class MailOSService {
             body = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
         }
 
-        const classification = await this.classifyEmail(subject, body, from);
+        const classification = await this.classifyEmail(subject, body, from, attachments);
+        
+        let matchingJobs = [];
+        let estimatedRevenue = 0;
+        if (classification.type === 'RESUME' || classification.type === 'CANDIDATE') {
+            try {
+                // Fetch active requirements to match against
+                const reqsSnap = await db.collection('requirements_public').where('status', '==', 'OPEN').limit(10).get();
+                const reqs = reqsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // Do a quick heuristic match based on extracted skills if available
+                const candSkills = Array.isArray(classification.data?.skills) 
+                    ? classification.data.skills.map((s: string) => s.toLowerCase()) 
+                    : [];
+                
+                reqs.forEach((req: any) => {
+                    const reqSkills = Array.isArray(req.skills) ? req.skills.map((s: string) => s.toLowerCase()) : [];
+                    let score = 50; // Base score
+                    let matchedCount = 0;
+                    reqSkills.forEach((rs: string) => {
+                        if (candSkills.some(cs => cs.includes(rs) || rs.includes(cs))) {
+                            score += 15;
+                            matchedCount++;
+                        }
+                    });
+                    
+                    if (matchedCount > 0 || reqSkills.length === 0) {
+                        score = Math.min(score, 98);
+                        const fee = req.financials?.clientBudget ? parseInt(req.financials.clientBudget.toString().replace(/\D/g, '')) * 0.15 : 15000;
+                        matchingJobs.push({
+                            id: req.id,
+                            title: req.title,
+                            client: req.clientId || 'Unknown Client',
+                            score: score,
+                            fee: fee,
+                            location: req.location || 'Remote'
+                        });
+                        estimatedRevenue += fee;
+                    }
+                });
+                
+                // Sort by score
+                matchingJobs.sort((a, b) => b.score - a.score);
+                matchingJobs = matchingJobs.slice(0, 5); // top 5
+            } catch(e) {
+                console.error("Failed to fetch matching jobs", e);
+            }
+        }
         
         return {
             id: messageId,
@@ -322,7 +382,14 @@ export class MailOSService {
             date,
             bodySnippet: body.substring(0, 500),
             classification,
-            attachments: attachments.map(a => a.filename)
+            attachments: attachments.map(a => a.filename),
+            businessImpact: {
+                matchingJobs,
+                estimatedRevenue,
+                priority: matchingJobs.length > 0 ? 'High' : 'Normal',
+                owner: 'System AI',
+                automationReady: true
+            }
         };
     }
 }
