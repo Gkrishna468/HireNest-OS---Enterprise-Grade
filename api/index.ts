@@ -1,7 +1,28 @@
+import { adminAuth } from '../src/lib/firebase-admin.js';
+
 export default async function handler(req: any, res: any) {
   try {
     const { path } = req.query;
     const action = req.query.action || req.body?.action;
+
+    // --- Authentication ---
+    const urlStr = req.url || '';
+    if (path !== 'audit' && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url')) {
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+      }
+      if (adminAuth) {
+         try {
+            const decoded = await adminAuth.verifyIdToken(token);
+            req.user = decoded;
+         } catch (err: any) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+         }
+      } else {
+         req.user = { uid: 'dev-mode' };
+      }
+    }
 
     let targetHandler: any;
 
@@ -21,6 +42,7 @@ export default async function handler(req: any, res: any) {
     else if (path === 'workflows')         targetHandler = (await import('../src/api-lib/handlers/workflows.js')).default;
     else if (path === 'oauth')             targetHandler = (await import('../src/api-lib/handlers/oauth.js')).default;
     else if (path === 'google')            targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
+    else if (path === 'workspace')         targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
@@ -37,24 +59,35 @@ export default async function handler(req: any, res: any) {
     }
 
     if (targetHandler) {
-      if (path === 'oauth' || path === 'google') {
+      const expressRouters = ['oauth', 'google', 'workspace'];
+      if (expressRouters.includes(path)) {
         // Rewrite req.url so the Express Router matches it
-        const originalUrl = req.url;
-        const qs = originalUrl ? originalUrl.split('?')[1] : '';
-        req.url = action ? `/${action}` : '/';
-        if (qs) req.url += `?${qs}`;
+        const originalUrl = req.originalUrl || req.url;
+        req.url = originalUrl.replace(new RegExp(`^/api/${path}`), '') || '/';
         
         return new Promise((resolve, reject) => {
+          let completed = false;
+          const finish = (val?: any) => {
+             if (completed) return;
+             completed = true;
+             resolve(val);
+          };
+          const fail = (err: any) => {
+             if (completed) return;
+             completed = true;
+             reject(err);
+          };
+
           const originalEnd = res.end;
           res.end = function (...args: any[]) {
-            resolve(undefined);
+            finish(undefined);
             return originalEnd.apply(this, args);
           };
 
           targetHandler(req, res, (err: any) => {
             req.url = originalUrl; // Restore just in case
-            if (err) return reject(err);
-            resolve(res.status(404).json({ error: "Route not found in Express Router" }));
+            if (err) return fail(err);
+            finish(res.status(404).json({ error: "Route not found in Express Router" }));
           });
         });
       }
