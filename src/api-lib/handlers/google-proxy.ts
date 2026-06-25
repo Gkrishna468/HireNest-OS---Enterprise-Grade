@@ -37,7 +37,20 @@ async function getClientForUser(uid: string) {
 googleProxyHandler.get('/gmail/messages', async (req, res) => {
    const uid = (req as any).user?.uid;
    if (!uid) return res.status(401).json({ error: "Unauthorized" });
-   const queryStr = req.query.q ? `&q=${encodeURIComponent(req.query.q as string)}` : '';
+   const filterType = req.query.type as string;
+   let baseQuery = '';
+   if (filterType === 'work') {
+      baseQuery = '-category:promotions -category:social -category:updates';
+   } else if (filterType === 'noise') {
+      baseQuery = '{category:promotions category:social category:updates}';
+   }
+
+   let finalQuery = baseQuery;
+   if (req.query.q) {
+      finalQuery = finalQuery ? `${finalQuery} ${req.query.q}` : (req.query.q as string);
+   }
+
+   const queryStr = finalQuery ? `&q=${encodeURIComponent(finalQuery)}` : '';
 
    try {
       const client = await getClientForUser(uid);

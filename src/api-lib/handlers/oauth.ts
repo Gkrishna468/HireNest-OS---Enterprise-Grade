@@ -49,6 +49,7 @@ oauthHandler.get('/callback', async (req, res) => {
       const { tokens } = await oauth2Client.getToken(code);
       
       console.log("STEP 4 token received");
+      console.log("Scopes:", tokens.scope);
       const userClient = createOAuthClient();
       userClient.setCredentials(tokens);
 
@@ -78,54 +79,12 @@ oauthHandler.get('/callback', async (req, res) => {
 
       console.log("STEP 5.1 Verification");
       try {
-          const pubsub = new (require('@google-cloud/pubsub').PubSub)();
-          const topicName = 'gmail-events';
-          try {
-             const topic = pubsub.topic(topicName);
-             const [exists] = await topic.exists();
-             if (!exists) {
-                await pubsub.createTopic(topicName);
-                console.log(`[PubSub] Topic ${topicName} created.`);
-                
-                const iam = topic.iam;
-                const [policy] = await iam.getPolicy();
-                policy.bindings = policy.bindings || [];
-                policy.bindings.push({
-                   role: 'roles/pubsub.publisher',
-                   members: ['serviceAccount:gmail-api-push@system.gserviceaccount.com']
-                });
-                await iam.setPolicy(policy);
-                console.log(`[PubSub] Granted publisher role to Gmail API.`);
-             }
-          } catch (pubsubErr: any) {
-             console.error("[PubSub] Failed to ensure topic exists:", pubsubErr.message);
-          }
-
           const gmail = google.gmail({ version: 'v1', auth: userClient });
           const profile = await gmail.users.getProfile({ userId: 'me' });
+          console.log("Connected Gmail:", profile.data.emailAddress);
 
           const calendar = google.calendar({ version: 'v3', auth: userClient });
           const calendars = await calendar.calendarList.list({ maxResults: 1 });
-
-          let watchStatus = false;
-          try {
-             const watchRes = await gmail.users.watch({
-                 userId: "me",
-                 requestBody: {
-                     topicName: "projects/hirenest-os/topics/gmail-events"
-                 }
-             });
-             if (watchRes.data.historyId && watchRes.data.expiration) {
-                 await db.collection('gmail_watch').doc(state.uid).set({
-                     historyId: watchRes.data.historyId,
-                     expiration: Number(watchRes.data.expiration),
-                     updatedAt: Date.now()
-                 });
-                 watchStatus = true;
-             }
-          } catch (watchErr: any) {
-             console.error("[OAuth] Failed to register Gmail watch:", watchErr.message);
-          }
 
           console.log("STEP 5.2 Update SSOT");
           await db.collection('workspace_connections').doc(state.uid).set({
@@ -134,7 +93,7 @@ oauthHandler.get('/callback', async (req, res) => {
              gmail: true,
              calendar: !!calendars.data.items,
              emailAddress: profile.data.emailAddress,
-             watchStatus,
+             watchStatus: false,
              lastVerified: new Date(),
              updatedAt: new Date()
           }, { merge: true });

@@ -11,6 +11,7 @@ export default function InboxTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<'work' | 'noise'>('work');
 
   useEffect(() => {
     let active = true;
@@ -28,7 +29,7 @@ export default function InboxTab() {
           if (active) {
             setIsConnected(data.connected);
             if (data.connected) {
-               fetchEmails(token);
+               fetchEmails(token, activeTab);
             }
           }
        } catch (e) {
@@ -39,16 +40,16 @@ export default function InboxTab() {
       active = false;
       unsub();
     };
-  }, []);
+  }, [activeTab]);
 
-  const fetchEmails = async (providedToken?: string) => {
+  const fetchEmails = async (providedToken?: string, currentTab: 'work' | 'noise' = 'work') => {
     setLoading(true);
     setError('');
     try {
       const token = providedToken || await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Not authenticated");
 
-      const response = await fetch('/api/google/gmail/messages', {
+      const response = await fetch(`/api/google/gmail/messages?type=${currentTab}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -104,9 +105,25 @@ export default function InboxTab() {
         ) : (
            <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 h-[80vh]">
                <div className="md:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-                  <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-                     <Inbox size={16} className="text-indigo-600" />
-                     <h3 className="text-sm font-bold text-slate-800">Recent Messages</h3>
+                  <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3">
+                     <div className="flex items-center gap-2">
+                        <Inbox size={16} className="text-indigo-600" />
+                        <h3 className="text-sm font-bold text-slate-800">Recent Messages</h3>
+                     </div>
+                     <div className="flex gap-2">
+                        <button 
+                           onClick={() => setActiveTab('work')}
+                           className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex-1 ${activeTab === 'work' ? 'bg-indigo-100 text-indigo-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                           Work
+                        </button>
+                        <button 
+                           onClick={() => setActiveTab('noise')}
+                           className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex-1 ${activeTab === 'noise' ? 'bg-slate-200 text-slate-800' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                           Noise
+                        </button>
+                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-2 space-y-2">
                      {loading && emails.length === 0 ? (

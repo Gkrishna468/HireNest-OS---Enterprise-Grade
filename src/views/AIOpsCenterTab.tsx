@@ -270,11 +270,11 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                              <p className="text-sm font-mono text-slate-300">{workspaceDetails.emailAddress || 'Unknown'}</p>
                           </div>
                           <div>
-                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Gmail</p>
-                             <p className="text-sm text-emerald-400">Healthy</p>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Gmail API</p>
+                             <p className={cn("text-sm", workspaceDetails.gmail ? "text-emerald-400" : "text-rose-400")}>{workspaceDetails.gmail ? "Healthy" : "Failed"}</p>
                           </div>
                           <div>
-                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Calendar</p>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Calendar API</p>
                              <p className={cn("text-sm", workspaceDetails.calendar ? "text-emerald-400" : "text-amber-400")}>{workspaceDetails.calendar ? "Healthy" : "Not Found"}</p>
                           </div>
                           <div>
@@ -283,9 +283,49 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                           </div>
                           <div>
                              <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Watch Status (Pub/Sub)</p>
-                             <p className={cn("text-sm", workspaceDetails.watchStatus ? "text-emerald-400" : "text-amber-400")}>
-                               {workspaceDetails.watchStatus ? 'Running' : 'Inactive'}
+                             {workspaceDetails.watchStatus ? (
+                                <div>
+                                    <p className="text-sm text-emerald-400">Running</p>
+                                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                        <Clock size={12} /> {workspaceDetails.watchRemainingHours} hours remaining
+                                    </p>
+                                </div>
+                             ) : (
+                                <div>
+                                    <p className="text-sm text-rose-400">Failed</p>
+                                    <p className="text-xs text-rose-500/70 mt-1 break-all bg-rose-500/10 p-2 rounded border border-rose-500/20 font-mono">
+                                        {typeof workspaceDetails.watchError === 'object' ? JSON.stringify(workspaceDetails.watchError) : (workspaceDetails.watchError || 'Unknown Error')}
+                                    </p>
+                                </div>
+                             )}
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                       <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Activity className="text-blue-400" size={16} /> Mail Pipeline Diagnostics</h4>
+                       <div className="space-y-4">
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Pipeline Status</p>
+                             <p className={cn("text-sm", workspaceDetails.mailSync?.status === 'healthy' ? "text-emerald-400" : "text-amber-400")}>
+                               {workspaceDetails.mailSync?.status === 'healthy' ? 'Active' : 'Awaiting First Sync'}
                              </p>
+                          </div>
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Last History ID</p>
+                             <p className="text-sm font-mono text-slate-300">{workspaceDetails.mailSync?.lastHistoryId || 'N/A'}</p>
+                          </div>
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Last Pub/Sub Event</p>
+                             <p className="text-sm text-slate-300">{workspaceDetails.mailSync?.lastPubSubMessage ? new Date(workspaceDetails.mailSync.lastPubSubMessage).toLocaleString() : 'N/A'}</p>
+                          </div>
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Last Sync Processing</p>
+                             <p className="text-sm text-slate-300">{workspaceDetails.mailSync?.lastSync ? new Date(workspaceDetails.mailSync.lastSync).toLocaleString() : 'N/A'}</p>
+                          </div>
+                          <div>
+                             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Webhook Health</p>
+                             <p className="text-sm text-emerald-400">Standing By</p>
                           </div>
                        </div>
                     </div>

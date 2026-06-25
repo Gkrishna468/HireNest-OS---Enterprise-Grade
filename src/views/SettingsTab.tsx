@@ -157,8 +157,13 @@ export default function SettingsTab() {
                          </div>
                          <div className="sm:col-span-2 flex items-center justify-between border-t border-slate-100 pt-3 mt-1">
                             <p className="text-[10px] text-slate-500">
-                               Watch expires: {workspaceDetails.watchStatus ? new Date(workspaceDetails.expiresAt).toLocaleString() : 'N/A'}
+                               Watch expires: {workspaceDetails.watchStatus && workspaceDetails.watchExpiration ? new Date(workspaceDetails.watchExpiration).toLocaleString() : 'N/A'}
                             </p>
+                            {workspaceDetails.watchStatus === false && workspaceDetails.watchError && (
+                               <p className="text-[10px] text-rose-500 max-w-sm truncate" title={typeof workspaceDetails.watchError === 'object' ? JSON.stringify(workspaceDetails.watchError) : workspaceDetails.watchError}>
+                                  Watch Error: {typeof workspaceDetails.watchError === 'object' ? 'Permission Denied or Config Error' : workspaceDetails.watchError}
+                               </p>
+                            )}
                             <p className="text-[10px] text-slate-500">
                                Last Sync: {workspaceDetails.lastRefresh ? new Date(workspaceDetails.lastRefresh._seconds ? workspaceDetails.lastRefresh._seconds * 1000 : workspaceDetails.lastRefresh).toLocaleTimeString() : 'N/A'}
                             </p>

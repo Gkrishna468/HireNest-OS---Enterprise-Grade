@@ -10,6 +10,7 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<'work' | 'noise'>('work');
 
   useEffect(() => {
     let active = true;
@@ -27,7 +28,7 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
           if (active) {
             setIsConnected(data.connected);
             if (data.connected) {
-               fetchEmails(token);
+               fetchEmails(token, activeTab);
             }
           }
        } catch (e) {
@@ -38,16 +39,16 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
       active = false;
       unsub();
     };
-  }, []);
+  }, [activeTab]);
 
-  const fetchEmails = async (providedToken?: string) => {
+  const fetchEmails = async (providedToken?: string, currentTab: 'work' | 'noise' = 'work') => {
     setLoading(true);
     setError('');
     try {
       const token = providedToken || await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Not authenticated");
 
-      let url = '/api/google/gmail/messages';
+      let url = `/api/google/gmail/messages?type=${currentTab}`;
       let q = '';
       if (filterDomain && filterDomain.length > 2) {
           q = `from:@${filterDomain} OR to:@${filterDomain}`;
@@ -104,14 +105,30 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[300px]">
-       <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-             <Mail size={16} className="text-indigo-600" />
-             <h3 className="text-sm font-bold text-slate-800">Recent Communications {filterDomain ? `(${filterDomain})` : ''}</h3>
+       <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+             <div className="flex items-center gap-2">
+                <Mail size={16} className="text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-800">Recent Communications {filterDomain ? `(${filterDomain})` : ''}</h3>
+             </div>
+             <Button onClick={() => fetchEmails()} variant="outline" className="h-6 w-6 p-0 rounded-md" disabled={loading}>
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+             </Button>
           </div>
-          <Button onClick={() => fetchEmails()} variant="outline" className="h-6 w-6 p-0 rounded-md" disabled={loading}>
-             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          </Button>
+          <div className="flex gap-2">
+             <button 
+                onClick={() => setActiveTab('work')}
+                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex-1 ${activeTab === 'work' ? 'bg-indigo-100 text-indigo-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+             >
+                Work
+             </button>
+             <button 
+                onClick={() => setActiveTab('noise')}
+                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex-1 ${activeTab === 'noise' ? 'bg-slate-200 text-slate-800' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+             >
+                Noise
+             </button>
+          </div>
        </div>
        <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[300px]">
           {loading && emails.length === 0 ? (

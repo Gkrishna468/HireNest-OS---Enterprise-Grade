@@ -40,23 +40,34 @@ workspaceHandler.get('/status', async (req, res) => {
       const calendars = await calendar.calendarList.list({ maxResults: 1 });
 
       let watchStatus = false;
+      let watchError = null;
+      let watchExpiration: number | null = null;
+      let watchHistoryId: string | null = null;
+      let watchData: any = null;
+
       const watchDoc = await db.collection('gmail_watch').doc(uid).get();
       if (watchDoc.exists) {
-          const watchData = watchDoc.data();
-          if (watchData && watchData.expiration > Date.now()) {
+          watchData = watchDoc.data();
+          // Renew watch if it expires in less than 24 hours
+          if (watchData && watchData.expiration > (Date.now() + 24 * 60 * 60 * 1000)) {
               watchStatus = true;
+              watchExpiration = watchData.expiration;
+              watchHistoryId = watchData.historyId;
           }
       }
 
       if (!watchStatus) {
          const pubsub = new (require('@google-cloud/pubsub').PubSub)();
-         const topicName = 'gmail-events';
+         const pubsubTopicName = process.env.PUBSUB_TOPIC_NAME || 'gmail-events';
+         const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+         const fullyQualifiedTopicName = `projects/${projectId}/topics/${pubsubTopicName}`;
+         
          try {
-            const topic = pubsub.topic(topicName);
+            const topic = pubsub.topic(pubsubTopicName);
             const [exists] = await topic.exists();
             if (!exists) {
-               await pubsub.createTopic(topicName);
-               console.log(`[PubSub] Topic ${topicName} created.`);
+               await pubsub.createTopic(pubsubTopicName);
+               console.log(`[PubSub] Topic ${pubsubTopicName} created.`);
                
                const iam = topic.iam;
                const [policy] = await iam.getPolicy();
@@ -73,23 +84,46 @@ workspaceHandler.get('/status', async (req, res) => {
          }
 
          try {
+             console.log("WATCH TOPIC =", fullyQualifiedTopicName);
              const watchRes = await gmail.users.watch({
                  userId: "me",
                  requestBody: {
-                     topicName: "projects/hirenest-os/topics/gmail-events"
+                     topicName: fullyQualifiedTopicName,
+                     labelIds: ["INBOX"],
+                     labelFilterBehavior: "INCLUDE"
                  }
              });
              if (watchRes.data.historyId && watchRes.data.expiration) {
+                 watchExpiration = Number(watchRes.data.expiration);
+                 watchHistoryId = watchRes.data.historyId;
                  await db.collection('gmail_watch').doc(uid).set({
-                     historyId: watchRes.data.historyId,
-                     expiration: Number(watchRes.data.expiration),
+                     historyId: watchHistoryId,
+                     expiration: watchExpiration,
                      updatedAt: Date.now()
-                 });
+                 }, { merge: true });
                  watchStatus = true;
              }
          } catch (watchErr: any) {
-             console.error("[Workspace] Failed to register Gmail watch:", watchErr.message);
+             console.error("========== GMAIL WATCH FAILED ==========");
+             console.error("MESSAGE:", watchErr.message);
+             console.error("CODE:", watchErr.code);
+
+             if (watchErr.response?.data) {
+                 console.error(
+                     JSON.stringify(watchErr.response.data, null, 2)
+                 );
+             }
+
+             console.error(watchErr.stack);
+
+             watchStatus = false;
+             watchError = watchErr.response?.data || watchErr.message;
          }
+      }
+
+      let watchRemainingHours = 0;
+      if (watchExpiration) {
+          watchRemainingHours = Math.max(0, Math.floor((watchExpiration - Date.now()) / (1000 * 60 * 60)));
       }
 
       const connectionStatus = {
@@ -101,8 +135,18 @@ workspaceHandler.get('/status', async (req, res) => {
          emailAddress: profile.data.emailAddress,
          expiresAt: data.expiryDate,
          watchStatus,
+         watchError,
+         watchExpiration: watchExpiration ? new Date(watchExpiration).toISOString() : null,
+         watchRemainingHours,
+         watchHistoryId,
          scopes: data.scope,
-         lastRefresh: data.updatedAt || new Date()
+         lastRefresh: data.updatedAt || new Date(),
+         mailSync: {
+             lastHistoryId: watchData?.lastHistoryId || watchHistoryId || null,
+             lastPubSubMessage: watchData?.lastPubSubMessage || null,
+             lastSync: watchData?.lastSync || null,
+             status: watchStatus ? "healthy" : "error"
+         }
       };
 
       // Store in SSOT WorkspaceConnectionService collection
