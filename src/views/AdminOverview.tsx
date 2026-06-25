@@ -7,6 +7,7 @@ import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { useNavigate } from "react-router-dom";
+import { EntityName } from "../components/EntityName";
 
 export default function AdminOverview() {
   const [data, setData] = useState<any>({ 
@@ -438,7 +439,9 @@ export default function AdminOverview() {
                                 <span className="h-6 w-6 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center"><Briefcase size={10} /></span>
                                 <div className="flex-1 overflow-hidden">
                                     <div className="truncate font-black text-slate-800 uppercase text-[10px]">{req.title || 'Untitled Req'}</div>
-                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">{req.clientId || 'Unknown Source'}</div>
+                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">
+                                        {req.clientName || <EntityName id={req.clientId} type="client" fallback="Unknown Source" />}
+                                    </div>
                                 </div>
                              </div>
                            ))}
@@ -447,7 +450,9 @@ export default function AdminOverview() {
                                 <span className="h-6 w-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center"><Users size={10} /></span>
                                 <div className="flex-1 overflow-hidden">
                                     <div className="truncate font-black text-slate-800 uppercase text-[10px]">{cand.name || 'Anonymous Profile'}</div>
-                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">{cand.jobTitle || cand.vendorId || 'Raw Upload'}</div>
+                                    <div className="text-[8px] text-slate-400 font-bold uppercase truncate">
+                                        {cand.jobTitle || <EntityName id={cand.vendorId} type="vendor" fallback="Raw Upload" />}
+                                    </div>
                                 </div>
                              </div>
                            ))}
@@ -463,7 +468,9 @@ export default function AdminOverview() {
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                     </span>
-                                    <span className="font-bold text-[10px] text-slate-700 uppercase">{org.companyName || org.id}</span>
+                                    <span className="font-bold text-[10px] text-slate-700 uppercase">
+                                        {org.companyName || <EntityName id={org.id} type={org.type === 'client' ? 'client' : 'vendor'} fallback={org.id} />}
+                                    </span>
                                     <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded text-slate-500 bg-slate-100 font-mono font-black">{org.type}</span>
                                 </div>
                             ))}

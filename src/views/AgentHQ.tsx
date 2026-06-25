@@ -4,6 +4,7 @@ import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import ReactMarkdown from "react-markdown";
 import { RequirementLedgerModal } from "../components/modals/RequirementLedgerModal";
+import { EntityName } from "../components/EntityName";
 
 export default function AgentHQ() {
   const [analysis, setAnalysis] = useState<string>("");
@@ -155,7 +156,9 @@ export default function AgentHQ() {
                                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer rounded-xl border border-slate-100 gap-2 transition-colors">
                                     <div>
                                         <div className="text-xs font-black text-slate-800">{req.title}</div>
-                                        <div className="text-[10px] uppercase font-bold text-slate-500">{req.clientName || req.clientId}</div>
+                                        <div className="text-[10px] uppercase font-bold text-slate-500">
+                                            {req.clientName || <EntityName id={req.clientId} type="client" fallback="Unknown Source" />}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="text-center">

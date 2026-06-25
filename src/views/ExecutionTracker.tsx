@@ -45,6 +45,7 @@ import {
   orderBy,
   limit
 } from "firebase/firestore";
+import { EntityName } from "../components/EntityName";
 import { runawayAgentCheck } from "../services/agentService";
 
 type Category = "daily" | "orchestration" | "economics" | "events" | "trust" | "risk" | "briefing" | "client" | "vendor" | "recruiter" | "candidate" | "partnership" | "product" | "sales" | "review" | "scoreboard" | "rules" | "ceo" | "agents";
@@ -521,11 +522,11 @@ function EventBusView() {
                             </div>
                             <div className="flex-1">
                                 <span className="text-[10px] font-bold text-slate-500 truncate block">
-                                    {event.targetType.toUpperCase()}: {event.targetId} • {event.metadata?.title || "No Title"}
+                                    {event.targetType.toUpperCase()}: <EntityName id={event.targetId} type={event.targetType.toLowerCase().includes('client') ? 'client' : event.targetType.toLowerCase().includes('vendor') ? 'vendor' : event.targetType.toLowerCase().includes('candidate') ? 'candidate' : 'recruiter'} fallback={event.targetId} /> • {event.metadata?.title || "No Title"}
                                 </span>
                             </div>
                             <div className="text-[9px] font-black uppercase text-indigo-600 italic px-2 py-1 bg-indigo-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                Actor: {event.actorType}@{event.actorId.slice(0, 5)}
+                                Actor: {event.actorType}@<EntityName id={event.actorId} type={event.actorType.toLowerCase().includes('client') ? 'client' : event.actorType.toLowerCase().includes('vendor') ? 'vendor' : event.actorType.toLowerCase().includes('candidate') ? 'candidate' : 'recruiter'} fallback={event.actorId.slice(0, 5)} />
                             </div>
                         </div>
                     ))}
@@ -568,7 +569,7 @@ function RiskCenterView() {
                         <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
-                                    {risk.entityType.toUpperCase()} Detected: {risk.entityId}
+                                    {risk.entityType.toUpperCase()} Detected: <EntityName id={risk.entityId} type={risk.entityType.toLowerCase().includes('candidate') ? 'candidate' : risk.entityType.toLowerCase().includes('client') ? 'client' : 'vendor'} fallback={risk.entityId} />
                                 </h3>
                                 <span className={cn(
                                     "px-3 py-1 rounded-full text-[10px] font-black uppercase",
