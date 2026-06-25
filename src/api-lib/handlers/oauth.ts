@@ -2,6 +2,7 @@ import { db } from '../../lib/firebase-admin.js';
 import { google } from 'googleapis';
 import express from 'express';
 import { observabilityService } from '../services/ObservabilityService.js';
+import { encryptText } from '../../lib/encryption.js';
 
 // Use environment variables or rely on user metadata logic if missing
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
@@ -61,8 +62,8 @@ oauthHandler.get('/callback', async (req, res) => {
       // Store in backend vault securely
       try {
          await db.collection('token_vault').doc(state.uid).set({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token || null,
+            accessToken: tokens.access_token ? encryptText(tokens.access_token) : null,
+            refreshToken: tokens.refresh_token ? encryptText(tokens.refresh_token) : null,
             expiryDate: tokens.expiry_date,
             scope: tokens.scope,
             updatedAt: new Date()

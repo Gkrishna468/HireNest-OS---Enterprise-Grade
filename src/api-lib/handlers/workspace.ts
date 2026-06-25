@@ -1,7 +1,8 @@
 import express from 'express';
-import { db } from '../../lib/firebase-admin';
-import { createOAuthClient } from './oauth';
+import { db } from '../../lib/firebase-admin.js';
+import { createOAuthClient } from './oauth.js';
 import { google } from 'googleapis';
+import { encryptText, decryptText } from '../../lib/encryption.js';
 
 const workspaceHandler = express.Router();
 
@@ -30,17 +31,20 @@ workspaceHandler.get('/status', async (req, res) => {
       userClient.on('tokens', (tokens) => {
           if (tokens.access_token) {
               db.collection('token_vault').doc(uid).set({
-                  accessToken: tokens.access_token,
-                  ...(tokens.refresh_token && { refreshToken: tokens.refresh_token }),
+                  accessToken: encryptText(tokens.access_token),
+                  ...(tokens.refresh_token && { refreshToken: encryptText(tokens.refresh_token) }),
                   ...(tokens.expiry_date && { expiryDate: tokens.expiry_date }),
                   updatedAt: new Date()
               }, { merge: true }).catch(err => console.error("[OAuth] Failed to update refreshed token:", err));
           }
       });
 
+      const accessToken = decryptText(data.accessToken);
+      const refreshToken = data.refreshToken ? decryptText(data.refreshToken) : null;
+
       userClient.setCredentials({
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken
+          access_token: accessToken,
+          refresh_token: refreshToken
       });
 
       const gmail = google.gmail({ version: 'v1', auth: userClient });
@@ -121,9 +125,12 @@ workspaceHandler.post('/watch/setup', async (req, res) => {
       if (!data?.accessToken) return res.status(400).json({ error: "No valid token" });
 
       const userClient = createOAuthClient();
+      const accessToken = decryptText(data.accessToken);
+      const refreshToken = data.refreshToken ? decryptText(data.refreshToken) : null;
+      
       userClient.setCredentials({
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken
+          access_token: accessToken,
+          refresh_token: refreshToken
       });
 
       const gmail = google.gmail({ version: 'v1', auth: userClient });

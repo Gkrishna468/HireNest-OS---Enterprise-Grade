@@ -11,7 +11,13 @@ export function getScopedCandidateUniverse(db: any, collectionName: string, role
 
   if (isAdmin) {
     return collectionRef;
-  } else if (role?.includes("vendor") || role?.includes("recruiter")) {
+  }
+  
+  if (!orgId) {
+    throw new Error(`orgId is required for scoped queries. collection=${collectionName}, role=${role}`);
+  }
+
+  if (role?.includes("vendor") || role?.includes("recruiter")) {
     return collectionRef.where("vendorId", "==", orgId);
   } else {
     return collectionRef.where("clientId", "==", orgId);

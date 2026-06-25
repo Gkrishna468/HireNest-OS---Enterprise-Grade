@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../../lib/firebase-admin.js';
 import { google } from 'googleapis';
-import { oauth2Client } from './oauth.js';
+import { encryptText, decryptText } from '../../lib/encryption.js';
 
 const googleProxyHandler = express.Router();
 
@@ -16,16 +16,16 @@ async function getClientForUser(uid: string) {
    );
    
    client.setCredentials({
-      access_token: data?.accessToken,
-      refresh_token: data?.refreshToken,
+      access_token: data?.accessToken ? decryptText(data.accessToken) : null,
+      refresh_token: data?.refreshToken ? decryptText(data.refreshToken) : null,
       expiry_date: data?.expiryDate
    });
 
    // Handle auto-refresh updates
    client.on('tokens', async (tokens) => {
       const updateData: any = {};
-      if (tokens.access_token) updateData.accessToken = tokens.access_token;
-      if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;     
+      if (tokens.access_token) updateData.accessToken = encryptText(tokens.access_token);
+      if (tokens.refresh_token) updateData.refreshToken = encryptText(tokens.refresh_token);     
       if (tokens.expiry_date) updateData.expiryDate = tokens.expiry_date;
       
       await db.collection('token_vault').doc(uid).set(updateData, { merge: true });
