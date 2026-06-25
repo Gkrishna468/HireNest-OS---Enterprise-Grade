@@ -91,6 +91,7 @@ async function createServer() {
     try {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
+        console.error(`[AuthMiddleware] No token provided for path ${req.path}`);
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
       }
 

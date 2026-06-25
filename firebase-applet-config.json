@@ -3,7 +3,7 @@
   "appId": "1:733294346096:web:aff62b8af002186e7e99b5",
   "apiKey": "AIzaSyDX9AgMptq0az4UjCI1DGE2VvGR2YCUIwg",
   "authDomain": "hirenest-os.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-bc0522d4-73db-4bf6-8860-5df422bc15f8",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "hirenest-os.firebasestorage.app",
   "messagingSenderId": "733294346096",
   "measurementId": ""
