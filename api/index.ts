@@ -24,6 +24,14 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    console.log({
+        originalUrl: req.originalUrl,
+        url: req.url,
+        path,
+        action
+    });
+    console.log("Matched API path:", path);
+
     let targetHandler: any;
 
     if (path === 'admin')            targetHandler = (await import('../src/api-lib/handlers/admin.js')).default;
@@ -40,9 +48,9 @@ export default async function handler(req: any, res: any) {
     else if (path === 'analytics')         targetHandler = (await import('../src/api-lib/handlers/analytics.js')).default;
     else if (path === 'user')              targetHandler = (await import('../src/api-lib/handlers/user.js')).default;
     else if (path === 'workflows')         targetHandler = (await import('../src/api-lib/handlers/workflows.js')).default;
-    else if (path === 'oauth')             targetHandler = (await import('../src/api-lib/handlers/oauth.js')).default;
-    else if (path === 'google')            targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
-    else if (path === 'workspace')         targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
+    else if (path?.startsWith('oauth'))    targetHandler = (await import('../src/api-lib/handlers/oauth.js')).default;
+    else if (path?.startsWith('google'))   targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
+    else if (path?.startsWith('workspace')) targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
@@ -60,10 +68,21 @@ export default async function handler(req: any, res: any) {
 
     if (targetHandler) {
       const expressRouters = ['oauth', 'google', 'workspace'];
-      if (expressRouters.includes(path)) {
+      const matchedRouter = expressRouters.find(r => path?.startsWith(r));
+      if (matchedRouter) {
         // Rewrite req.url so the Express Router matches it
         const originalUrl = req.originalUrl || req.url;
-        req.url = originalUrl.replace(new RegExp(`^/api/${path}`), '') || '/';
+        let subPath = path.replace(new RegExp(`^${matchedRouter}`), "");
+        if (!subPath.startsWith('/')) {
+            subPath = '/' + subPath;
+        }
+        if (subPath === '/' && action) {
+           subPath = '/' + action; // Fallback if action is provided but path was just the router name
+        }
+        
+        const qsIndex = originalUrl.indexOf('?');
+        const qs = qsIndex > -1 ? originalUrl.slice(qsIndex) : '';
+        req.url = subPath + (subPath.includes('?') ? '' : qs);
         
         return new Promise((resolve, reject) => {
           let completed = false;
