@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/server.cjs --packages=external",
+    "build": "tsc --noEmit && vite build && esbuild server.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/server.cjs --packages=external",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -28,7 +28,6 @@
     "express-rate-limit": "^8.5.2",
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0",
-    "google-auth-library": "^10.6.2",
     "googleapis": "^173.0.0",
     "helmet": "^8.2.0",
     "lucide-react": "^1.16.0",

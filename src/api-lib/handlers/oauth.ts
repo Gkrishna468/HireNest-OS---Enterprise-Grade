@@ -1,5 +1,4 @@
 import { db } from '../../lib/firebase-admin.js';
-import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import express from 'express';
 import { observabilityService } from '../services/ObservabilityService.js';
@@ -9,7 +8,7 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/oauth/callback";
 
-export const createOAuthClient = () => new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+export const createOAuthClient = () => new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 export const oauth2Client = createOAuthClient();
 
 const oauthHandler = express.Router();
