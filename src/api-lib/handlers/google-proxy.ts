@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../../lib/firebase-admin.js';
-import { OAuth2Client } from 'google-auth-library';
+import { google } from 'googleapis';
 import { oauth2Client } from './oauth.js';
 
 const googleProxyHandler = express.Router();
@@ -10,7 +10,7 @@ async function getClientForUser(uid: string) {
    if (!doc.exists) throw new Error("No OAuth connection found for user.");
    
    const data = doc.data();
-   const client = new OAuth2Client(
+   const client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID",
       process.env.GOOGLE_CLIENT_SECRET || "YOUR_CLIENT_SECRET"
    );
