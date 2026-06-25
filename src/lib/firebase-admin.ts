@@ -69,8 +69,8 @@ try {
     if (credentials) {
       app = initializeApp({ credential: cert(credentials), projectId });
     } else {
-      console.log("[Firebase Admin] Using Application Default Credentials");
-      app = initializeApp({ credential: applicationDefault(), projectId });
+      console.warn("[Firebase Admin] No valid credentials found. Ensure FIREBASE_SERVICE_ACCOUNT is set. Vercel deployments do NOT support applicationDefault() out of the box.");
+      // We will not use applicationDefault() as it fails silently later in Vercel without ADC
     }
   } else {
     app = getApps()[0];
@@ -108,19 +108,7 @@ if (adminDb) {
         if (err.message.includes("UNAUTHENTICATED") || err.message.includes("PERMISSION_DENIED")) {
            console.warn("[Firebase Admin] Invalid credentials detected. Disabling adminDb.");
            
-           // Replace adminDb with a Proxy that throws an authentication error
-           // This prevents 'TypeError: Cannot read properties of null (reading 'collection')'
-           // and allows our try/catch blocks to gracefully fallback
-           adminDb = new Proxy({}, {
-             get: function(target, prop) {
-               if (prop === 'then' || prop === 'catch' || prop === 'finally' || typeof prop === 'symbol') {
-                 return undefined;
-               }
-               return function() {
-                 throw new Error("16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token.");
-               };
-             }
-           }) as any;
+           adminDb = null;
            
            runtimeMode = "CLIENT_FALLBACK";
         }

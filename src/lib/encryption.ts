@@ -20,15 +20,14 @@ function getKey(): Buffer {
          return crypto.scryptSync('insecure-dev-fallback-key', 'salt', 32);
      }
   }
-  
-  // Ensure the key is exactly 32 bytes for AES-256
-  // If it's a hex string of length 64, parse it
-  if (keyStr.length === 64 && /^[0-9a-f]+$/i.test(keyStr)) {
-      return Buffer.from(keyStr, 'hex');
+
+  const encryptionKey = Buffer.from(keyStr, 'hex');
+
+  if (encryptionKey.length !== 32) {
+      throw new Error("ENCRYPTION_KEY must decode to exactly 32 bytes");
   }
-  
-  // Otherwise derive a 32 byte key using scrypt
-  return crypto.scryptSync(keyStr, 'hirenest-salt', 32);
+
+  return encryptionKey;
 }
 
 /**

@@ -2,13 +2,18 @@ import { adminDb } from "../../lib/firebase-admin.js";
 import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 export default async function handler(req: any, res: any) {
-  const role = req.user?.role;
-  const orgId = req.user?.organizationId;
+  const role = req.user?.role || req.query?.role;
+  const orgId = req.user?.organizationId || req.query?.orgId || req.user?.orgId;
   const scan = req.query.scan;
 
   try {
     if (!adminDb) {
       return res.status(200).json({ success: true, candidates: [] });
+    }
+
+    if (!orgId || orgId === "undefined" || orgId === "null") {
+       console.warn("[CANDIDATES_API_WARN] orgId is undefined or missing, cannot execute scoped query.");
+       return res.status(200).json({ success: true, candidates: [] });
     }
 
     const snapshot = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).limit(100).get();
