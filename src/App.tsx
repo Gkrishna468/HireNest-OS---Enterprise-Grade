@@ -44,6 +44,7 @@ import {
   Award,
   Terminal,
   Bot,
+  CheckCircle2
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -55,11 +56,14 @@ import JobsTab from "./views/JobsTab";
 import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
 import Client360Tab from "./views/Client360Tab";
 import AutonomousOperationsTab from "./views/AutonomousOperationsTab";
+import WorkflowStudioTab from "./views/WorkflowStudioTab";
+import HumanApprovalCenterTab from "./views/HumanApprovalCenterTab";
 import Vendor360Tab from "./views/Vendor360Tab";
 import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
 import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
 import EnterpriseCommandCenterTab from "./views/EnterpriseCommandCenterTab";
 import AIOpsCenterTab from "./views/AIOpsCenterTab";
+import { EnterpriseSearchModal } from "./components/EnterpriseSearchModal";
 import AIAgentsTab from "./views/AIAgentsTab";
 import FinanceOSTab from "./views/FinanceOSTab";
 import AICopilotTab from "./views/AICopilotTab";
@@ -152,6 +156,7 @@ const AppContent = () => {
   const { user, userData, loading, showDemo, initialize, closeDemo } =
     useSystemStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   React.useEffect(() => {
     const unsub = initialize();
@@ -159,6 +164,17 @@ const AppContent = () => {
       if (unsub) unsub();
     };
   }, [initialize]);
+
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   if (loading) {
     return (
@@ -683,6 +699,20 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/workflow-studio"
+                icon={Network}
+                label="Workflow Studio"
+                active={location.pathname === "/workflow-studio"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/approval-center"
+                icon={CheckCircle2}
+                label="Approval Center"
+                active={location.pathname === "/approval-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/enterprise-command-center"
                 icon={TrendingUp}
                 label="Command Center"
@@ -803,20 +833,13 @@ const AppContent = () => {
             </div>
 
             {/* Universal Search Bar */}
-            <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 focus-within:w-80 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+            <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 hover:bg-slate-100 transition-all cursor-text" onClick={() => setIsSearchOpen(true)}>
               <Search size={16} className="text-slate-400 shrink-0" />
               <input
                 type="text"
-                placeholder="Search Candidates, Requirements..."
-                className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    // Universal Search handling (placeholder behavior for MVP)
-                    alert(
-                      `Universal Search for: ${e.currentTarget.value}\n(Routing implementation pending)`,
-                    );
-                  }
-                }}
+                placeholder="Search Knowledge Graph..."
+                className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400 pointer-events-none"
+                readOnly
               />
               <div className="ml-2 bg-slate-200 text-slate-500 text-[9px] rounded px-1.5 py-0.5 font-mono opacity-60 pointer-events-none">
                 ⌘K
@@ -958,6 +981,18 @@ const AppContent = () => {
             )}
             {isAdmin && (
               <Route
+                path="/workflow-studio"
+                element={<WorkflowStudioTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/approval-center"
+                element={<HumanApprovalCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
                 path="/knowledge-graph"
                 element={<KnowledgeIntelligenceTab userRole={role || ""} />}
               />
@@ -1074,6 +1109,11 @@ const AppContent = () => {
           </Routes>
         </div>
       </main>
+
+      <EnterpriseSearchModal 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+      />
     </div>
   );
 };

@@ -35,6 +35,7 @@ import oauthHandler from './src/api-lib/handlers/oauth';
 import workspaceHandler from './src/api-lib/handlers/workspace';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy';
 import cronHandler from './src/api-lib/handlers/cron';
+import eventsHandler from './src/api-lib/handlers/events';
 import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
 import interviewsHandler from './src/api-lib/handlers/interviews';
@@ -121,6 +122,7 @@ async function createServer() {
   app.use('/api/oauth', oauthHandler);
   app.use('/api/workspace', workspaceHandler);
   app.use('/api/cron', cronHandler);
+  app.use('/api/events', eventsHandler);
   app.use('/api/google', googleProxyHandler);
 
   // API Route Handler

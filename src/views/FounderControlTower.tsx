@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   FileText,
   Mail,
-  CheckCircle2
+  CheckCircle2,
+  Bot
 } from "lucide-react";
 import { collection, getDocs, query, where, documentId } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -28,58 +29,105 @@ export default function FounderControlTower() {
     // Financial Signals
     revenue: "$0",
     aiCost: "$0",
-    cloudCost: "$0",
     
+    // Agent Runtime Infrastructure
+    runningAgents: 0,
+    queuedJobs: 0,
+    failedJobs: 0,
+    retryJobs: 0,
+    avgRuntime: "0ms",
+
     // Pipeline
-    newJobs: 0,
-    resumesParsed: 0,
-    matchesGenerated: 0,
-    vendorResponses: 0,
-    interviews: 0,
-    offers: 0,
-    joinings: 0,
-    
-    // System Signals
-    incidents: 0,
-    securityAlerts: 0,
-    recommendations: "3 pending actions"
+    requirementsReceived: 0,
+    candidatesProcessed: 0,
+    submissionsSent: 0,
+    interviewsScheduled: 0,
+    offersReleased: 0,
+    emailsProcessed: 0,
   });
 
   useEffect(() => {
     const fetchTowerData = async () => {
        try {
-         // Mocking some of the financial and operational data that would be driven by the event bus
-         // In a fully integrated system, these would read directly from the `agent_executions` and `invoices` collections.
-         
-         // 1. Open Requirements / New Jobs
-         const reqSnap = await getDocs(query(collection(db, "requirements"), where("status", "in", ["OPEN", "SOURCING"])));
-         let openRequirements = reqSnap.size;
+         // Pipeline Metrics
+         const reqSnap = await getDocs(collection(db, "requirements"));
+         const requirementsReceived = reqSnap.size;
 
-         // 2. Marketplace (Candidates, Submissions)
          const candsSnap = await getDocs(collection(db, "candidatePool"));
-         let candidatesAdded = candsSnap.size;
+         const candidatesProcessed = candsSnap.size;
 
          const subsSnap = await getDocs(collection(db, "submissions"));
-         let candidatesPlaced = 0;
+         let interviewsScheduled = 0;
+         let offersReleased = 0;
+         const submissionsSent = subsSnap.size;
          subsSnap.docs.forEach(doc => {
             const s = doc.data();
-            if (s.status === 'HIRED' || s.status === 'PLACED') candidatesPlaced++;
+            if (s.status === 'INTERVIEW_SCHEDULED' || s.status === 'INTERVIEW') interviewsScheduled++;
+            if (s.status === 'OFFER_EXTENDED' || s.status === 'OFFER' || s.status === 'OFFERED') offersReleased++;
+         });
+         
+         const invoicesSnap = await getDocs(collection(db, "invoices"));
+         let revenueAmount = 0;
+         invoicesSnap.docs.forEach(doc => {
+             const data = doc.data();
+             if (data.status === 'PAID') {
+                 revenueAmount += (data.amount || 0);
+             }
+         });
+
+         // Agent Runtime Metrics
+         const agentsSnap = await getDocs(collection(db, "ai_agents"));
+         let runningAgents = 0;
+         agentsSnap.docs.forEach(doc => {
+             if (doc.data().status === 'Running' || doc.data().status === 'Busy') runningAgents++;
+         });
+
+         const queueSnap = await getDocs(collection(db, "agent_queue"));
+         let queuedJobs = 0;
+         let failedJobs = 0;
+         let retryJobs = 0;
+         queueSnap.docs.forEach(doc => {
+             const data = doc.data();
+             if (data.status === 'queued') queuedJobs++;
+             if (data.status === 'failed') failedJobs++;
+             if (data.status === 'retrying' || data.attempts > 1) retryJobs++;
+         });
+
+         const execsSnap = await getDocs(collection(db, "agent_executions"));
+         let aiCostAmount = 0;
+         let totalRuntime = 0;
+         let runCount = 0;
+         execsSnap.docs.forEach(doc => {
+             const data = doc.data();
+             if (data.cost) aiCostAmount += data.cost;
+             if (data.duration) {
+                 totalRuntime += data.duration;
+                 runCount++;
+             }
+         });
+         const avgRuntime = runCount > 0 ? Math.round(totalRuntime / runCount) + "ms" : "0ms";
+
+         // Emails processed (from MailOS)
+         const mailosSnap = await getDocs(collection(db, "mailos_executions"));
+         let emailsProcessed = 0;
+         mailosSnap.docs.forEach(doc => {
+             emailsProcessed += (doc.data().processedCount || 0);
          });
 
          setMetrics({
-            revenue: "$14,500", // Example data
-            aiCost: "$42.50",
-            cloudCost: "$18.20",
-            newJobs: openRequirements || 12,
-            resumesParsed: candidatesAdded || 142,
-            matchesGenerated: 340,
-            vendorResponses: 28,
-            interviews: 4,
-            offers: 2,
-            joinings: candidatesPlaced || 0,
-            incidents: 2,
-            securityAlerts: 0,
-            recommendations: "2 pending actions"
+            revenue: `$${revenueAmount.toLocaleString()}`,
+            aiCost: `$${aiCostAmount.toFixed(2)}`,
+            runningAgents,
+            queuedJobs,
+            failedJobs,
+            retryJobs,
+            avgRuntime,
+            requirementsReceived,
+            candidatesProcessed,
+            submissionsSent,
+            interviewsScheduled,
+            offersReleased,
+            emailsProcessed
          });
 
        } catch (err) {
@@ -114,12 +162,12 @@ export default function FounderControlTower() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Financial Health */}
-        <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 text-white lg:col-span-2">
+        <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 text-white lg:col-span-1">
            <h3 className="font-bold text-slate-100 uppercase tracking-widest text-xs mb-6 border-b border-slate-800 pb-2 flex justify-between">
               Financial Health
               <DollarSign size={16} className="text-emerald-400" />
            </h3>
-           <div className="grid grid-cols-3 gap-4">
+           <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col">
                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">New Revenue</span>
                  <span className="text-2xl font-black text-emerald-400">{metrics.revenue}</span>
@@ -130,32 +178,35 @@ export default function FounderControlTower() {
                  <span className="text-2xl font-black text-slate-200">{metrics.aiCost}</span>
                  <span className="text-xs text-slate-500 mt-2 flex items-center gap-1">14,200 tokens</span>
               </div>
-              <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Cloud Compute</span>
-                 <span className="text-2xl font-black text-slate-200">{metrics.cloudCost}</span>
-                 <span className="text-xs text-slate-500 mt-2 flex items-center gap-1">Vercel & GCP</span>
-              </div>
            </div>
         </div>
 
-        {/* Security & System */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
+        {/* Agent Runtime Infrastructure */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-3">
            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs mb-6 border-b border-slate-100 pb-2 flex justify-between">
-              System Operations
-              <ShieldCheck size={16} className="text-indigo-600" />
+              Agent Runtime Infrastructure
+              <Bot size={16} className="text-indigo-600" />
            </h3>
-           <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
-                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><AlertTriangle size={12} className="text-rose-500"/> Incidents</p>
-                 <p className="text-xl font-black text-rose-700 mt-1">{metrics.incidents}</p>
+           <div className="grid grid-cols-5 gap-4">
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex flex-col items-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">Running</p>
+                 <p className="text-xl font-black text-emerald-700 mt-1">{metrics.runningAgents}</p>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><ShieldCheck size={12} className="text-emerald-500"/> Security</p>
-                 <p className="text-xl font-black text-emerald-800 mt-1">{metrics.securityAlerts} <span className="text-xs font-normal text-emerald-600">Alerts</span></p>
+              <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-col items-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">Queued</p>
+                 <p className="text-xl font-black text-indigo-700 mt-1">{metrics.queuedJobs}</p>
               </div>
-              <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><Activity size={12} className="text-indigo-500"/> AI OS</p>
-                 <p className="text-sm font-black text-indigo-800 mt-2 leading-tight">{metrics.recommendations}</p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-100 flex flex-col items-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">Failed</p>
+                 <p className="text-xl font-black text-rose-700 mt-1">{metrics.failedJobs}</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex flex-col items-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">Retries</p>
+                 <p className="text-xl font-black text-amber-700 mt-1">{metrics.retryJobs}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">Avg Latency</p>
+                 <p className="text-xl font-black text-slate-700 mt-1">{metrics.avgRuntime}</p>
               </div>
            </div>
         </div>
@@ -166,41 +217,36 @@ export default function FounderControlTower() {
               Daily Operating Pipeline
               <Activity size={16} className="text-slate-600" />
            </h3>
-           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-xl items-center text-center">
                  <Briefcase size={20} className="text-slate-400 mb-2" />
-                 <span className="text-2xl font-black text-slate-800">{metrics.newJobs}</span>
-                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">New Jobs</span>
+                 <span className="text-2xl font-black text-slate-800">{metrics.requirementsReceived}</span>
+                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Reqs Received</span>
               </div>
               <div className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-xl items-center text-center">
-                 <FileText size={20} className="text-slate-400 mb-2" />
-                 <span className="text-2xl font-black text-slate-800">{metrics.resumesParsed}</span>
-                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Resumes Parsed</span>
+                 <UserSquare2 size={20} className="text-slate-400 mb-2" />
+                 <span className="text-2xl font-black text-slate-800">{metrics.candidatesProcessed}</span>
+                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Candidates Processed</span>
               </div>
               <div className="flex flex-col p-4 bg-indigo-50 border border-indigo-100 rounded-xl items-center text-center">
                  <Cpu size={20} className="text-indigo-400 mb-2" />
-                 <span className="text-2xl font-black text-indigo-700">{metrics.matchesGenerated}</span>
-                 <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mt-1">Matches</span>
-              </div>
-              <div className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-xl items-center text-center">
-                 <HeartHandshake size={20} className="text-slate-400 mb-2" />
-                 <span className="text-2xl font-black text-slate-800">{metrics.vendorResponses}</span>
-                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Vendor Replies</span>
+                 <span className="text-2xl font-black text-indigo-700">{metrics.submissionsSent}</span>
+                 <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mt-1">Submissions Sent</span>
               </div>
               <div className="flex flex-col p-4 bg-amber-50 border border-amber-100 rounded-xl items-center text-center">
                  <Users size={20} className="text-amber-500 mb-2" />
-                 <span className="text-2xl font-black text-amber-700">{metrics.interviews}</span>
-                 <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-1">Interviews</span>
+                 <span className="text-2xl font-black text-amber-700">{metrics.interviewsScheduled}</span>
+                 <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-1">Interviews Scheduled</span>
               </div>
               <div className="flex flex-col p-4 bg-emerald-50 border border-emerald-100 rounded-xl items-center text-center">
                  <CheckCircle2 size={20} className="text-emerald-500 mb-2" />
-                 <span className="text-2xl font-black text-emerald-700">{metrics.offers}</span>
-                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Offers</span>
+                 <span className="text-2xl font-black text-emerald-700">{metrics.offersReleased}</span>
+                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Offers Released</span>
               </div>
-              <div className="flex flex-col p-4 bg-emerald-100 border border-emerald-200 rounded-xl items-center text-center">
-                 <Target size={20} className="text-emerald-600 mb-2" />
-                 <span className="text-2xl font-black text-emerald-800">{metrics.joinings}</span>
-                 <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mt-1">Joinings</span>
+              <div className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-xl items-center text-center">
+                 <Mail size={20} className="text-slate-400 mb-2" />
+                 <span className="text-2xl font-black text-slate-800">{metrics.emailsProcessed}</span>
+                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Emails Processed</span>
               </div>
            </div>
         </div>

@@ -1,8 +1,37 @@
 import express from 'express';
 import { db } from '../../lib/firebase-admin.js';
 import { MailOSService } from '../services/MailOSService.js';
+import { AgentOrchestrator } from '../services/AgentOrchestrator.js';
 
 const cronHandler = express.Router();
+
+cronHandler.get('/orchestrator/seed', async (req, res) => {
+    try {
+        await AgentOrchestrator.seedCoreAgents();
+        res.json({ success: true, message: 'Core agents seeded' });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.post('/orchestrator/enqueue', async (req, res) => {
+    try {
+        const { agentId } = req.body;
+        const jobId = await AgentOrchestrator.enqueueJob(agentId, { triggeredBy: 'Manual Run', timestamp: new Date().toISOString() });
+        res.json({ success: true, jobId });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.get('/orchestrator/process', async (req, res) => {
+    try {
+        await AgentOrchestrator.processQueue();
+        res.json({ success: true, message: 'Queue processed' });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 cronHandler.get('/mailos-sync', async (req, res) => {
     // In production, verify cron auth token here

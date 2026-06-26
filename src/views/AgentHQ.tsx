@@ -250,19 +250,19 @@ export default function AgentHQ() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
                         <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Fill Rate</div>
-                        <div className="text-2xl font-black text-emerald-400">88%</div>
+                        <div className="text-2xl font-black text-emerald-400">--%</div>
                     </div>
                     <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
                         <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Avg Margin</div>
-                        <div className="text-2xl font-black text-indigo-400">18.2%</div>
+                        <div className="text-2xl font-black text-indigo-400">--%</div>
                     </div>
                     <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
                         <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Vendor Health</div>
-                        <div className="text-2xl font-black text-amber-400">92</div>
+                        <div className="text-2xl font-black text-amber-400">--</div>
                     </div>
                     <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
                         <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Latency</div>
-                        <div className="text-2xl font-black text-slate-200">4h</div>
+                        <div className="text-2xl font-black text-slate-200">--</div>
                     </div>
                 </div>
             </div>

@@ -156,12 +156,9 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                 <span className="text-xs font-mono text-cyan-400 flex items-center gap-2"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span></span> Monitoring Active</span>
               </div>
               <div className="divide-y divide-slate-800">
-                {[
-                  { id: 'INC-904', service: 'Gmail Watch', severity: 'medium', issue: 'Gmail Watch webhook expired', time: '2 mins ago', status: 'investigating', rootCause: '7-day token expiration reached', fix: 'Renew push notification channel via Gmail API', remediation: 'In Progress (Attempt 1)' },
-                  { id: 'INC-903', service: 'Firebase', severity: 'low', issue: 'Firestore quota warning', time: '1 hour ago', status: 'resolved', rootCause: 'Burst traffic from Vendor Broadcast', fix: 'Applied rate limiting and pagination', remediation: 'Completed automatically' },
-                  { id: 'INC-902', service: 'Vercel', severity: 'high', issue: 'Deployment failed', time: '3 hours ago', status: 'investigating', rootCause: 'Missing environment variable OPENAI_API_KEY', fix: 'Add key to Vercel production environment', remediation: 'Requires Human Approval' },
-                  { id: 'INC-901', service: 'AI Provider', severity: 'high', issue: 'Gemini API timeout', time: '5 hours ago', status: 'resolved', rootCause: 'Provider latency spiked > 2000ms', fix: 'Triggered failover to OpenAI', remediation: 'Completed automatically' }
-                ].map((inc) => (
+                {incidents.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No incidents reported</div>
+                ) : incidents.map((inc) => (
                   <div key={inc.id} className="py-4 flex items-start justify-between">
                     <div className="flex gap-4 w-full">
                       <div className="mt-1">
@@ -175,27 +172,27 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                             {inc.severity === 'high' && <span className="text-[10px] font-bold uppercase tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">High Severity</span>}
                             {inc.severity === 'medium' && <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">Medium Severity</span>}
                           </div>
-                          <span className="flex items-center gap-1 text-xs text-slate-500"><Clock size={12} /> {inc.time}</span>
+                          <span className="flex items-center gap-1 text-xs text-slate-500"><Clock size={12} /> {inc.createdAt ? new Date(inc.createdAt.seconds * 1000).toLocaleString() : 'Unknown'}</span>
                         </div>
-                        <h4 className="text-sm font-bold text-slate-200">{inc.issue}</h4>
+                        <h4 className="text-sm font-bold text-slate-200">{inc.issue || inc.message}</h4>
                         {inc.status === 'investigating' && (
                           <div className="mt-4 bg-slate-950 border border-slate-800 p-4 rounded-xl">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Root Cause</span>
-                                    <span className="text-xs text-slate-300">{inc.rootCause}</span>
+                                    <span className="text-xs text-slate-300">{inc.rootCause || 'Under investigation'}</span>
                                 </div>
                                 <div>
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Suggested Fix</span>
-                                    <span className="text-xs text-slate-300">{inc.fix}</span>
+                                    <span className="text-xs text-slate-300">{inc.fix || 'Pending analysis'}</span>
                                 </div>
                                 <div className="col-span-1 md:col-span-2">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Auto-Remediation Status</span>
-                                    <span className={cn("text-xs font-mono", inc.remediation.includes('Progress') ? "text-cyan-400" : inc.remediation.includes('Human') ? "text-amber-400" : "text-emerald-400")}>{inc.remediation}</span>
+                                    <span className={cn("text-xs font-mono", inc.remediation?.includes('Progress') ? "text-cyan-400" : inc.remediation?.includes('Human') ? "text-amber-400" : "text-emerald-400")}>{inc.remediation || 'Not triggered'}</span>
                                 </div>
                             </div>
                             <div className="mt-3 flex gap-2">
-                              {inc.remediation.includes('Human') ? (
+                              {inc.remediation?.includes('Human') ? (
                                 <button className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">Apply Auto-Fix</button>
                               ) : (
                                 <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded-lg transition-colors">Acknowledge</button>
@@ -218,249 +215,36 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
             </div>
           )}
 
-          {activeTab === 'ai-providers' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Activity className="text-fuchsia-400" /> AI Provider Command Center</h3>
-                <span className="text-xs font-mono text-slate-500">Auto-refreshing</span>
-              </div>
-              
-              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden mb-8">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 border-b border-slate-800">
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Provider</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Latency</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Daily Cost</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Quota</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Failover</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    <tr className="hover:bg-slate-800/50">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Gemini</td>
-                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">120 ms</td>
-                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">72%</td>
-                      <td className="py-4 px-6 text-xs text-slate-400">OpenAI</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-200">OpenAI</td>
-                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">90 ms</td>
-                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">₹₹</td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">38%</td>
-                      <td className="py-4 px-6 text-xs text-slate-400">Anthropic</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Anthropic</td>
-                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">180 ms</td>
-                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">₹₹</td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">55%</td>
-                      <td className="py-4 px-6 text-xs text-slate-400">Groq</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Groq</td>
-                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">18 ms</td>
-                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">81%</td>
-                      <td className="py-4 px-6 text-xs text-slate-400">Gemini</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-200">ElevenLabs</td>
-                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1 w-max"><AlertTriangle size={12}/> Degraded</span></td>
-                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">430 ms</td>
-                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
-                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">64%</td>
-                      <td className="py-4 px-6 text-xs text-slate-400">Retry</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                    <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">Provider Failover Matrix</h4>
-                    <p className="text-xs text-slate-500 mb-4">Traffic will automatically route to backup providers if latency exceeds 500ms or 5xx errors are encountered.</p>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                            <span className="text-xs font-bold text-slate-400">Primary Router</span>
-                            <span className="text-xs text-emerald-400 font-mono">Active (Gemini First)</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                            <span className="text-xs font-bold text-slate-400">Fallback Policy</span>
-                            <span className="text-xs text-slate-400 font-mono">Fail-fast (Timeout: 2000ms)</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                    <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">Key Management Vault</h4>
-                    <p className="text-xs text-slate-500 mb-4">Secure environment variables synced from Secret Manager.</p>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                            <span className="text-xs font-bold text-slate-400">GEMINI_API_KEY</span>
-                            <span className="text-xs text-emerald-400 font-mono">Valid (Rotated 12d ago)</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
-                            <span className="text-xs font-bold text-slate-400">OPENAI_API_KEY</span>
-                            <span className="text-xs text-amber-400 font-mono">Valid (Rotates in 3d)</span>
-                        </div>
-                    </div>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {activeTab === 'vercel' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Server className="text-slate-400" /> Vercel MCP</h3>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-700">Disconnected</span>
-              </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-8 text-center h-[300px] flex flex-col justify-center">
-                <Server size={48} className="mx-auto text-slate-700 mb-4" />
-                <h4 className="text-slate-300 font-bold mb-2">Connect Vercel</h4>
-                <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">Integration is pending. Once connected, this panel will display Deployments, Build Status, Runtime Errors, Function Failures, Environment Drift, Deployment Duration, and Production vs Preview parity.</p>
-                <button className="mx-auto px-4 py-2 bg-white text-slate-900 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-100 transition-colors">Connect to Vercel</button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'github' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><GitPullRequest className="text-indigo-400" /> GitHub MCP</h3>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-700">Disconnected</span>
-              </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-8 text-center h-[300px] flex flex-col justify-center">
-                <GitPullRequest size={48} className="mx-auto text-slate-700 mb-4" />
-                <h4 className="text-slate-300 font-bold mb-2">Connect GitHub</h4>
-                <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">Integration is pending. Once connected, this dashboard will monitor Latest Commits, Pull Requests, Security Alerts, Dependabot Alerts, Open Issues, Code Scanning, Branch Protection, Contributors, and Release History.</p>
-                <button className="mx-auto px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition-colors">Connect to GitHub</button>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'firebase' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Database className="text-amber-400" /> Firebase Platform Diagnostics</h3>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Activity className="text-amber-400" /> Firebase Platform Diagnostics</h3>
                 <span className="text-xs font-mono text-emerald-400 flex items-center gap-2"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> System Operational</span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { name: 'Firestore Connectivity', status: 'Healthy', val: '24ms latency' },
-                  { name: 'Authentication', status: 'Healthy', val: '0 failed logins/1h' },
-                  { name: 'Cloud Storage', status: 'Healthy', val: '1.2GB used' },
-                  { name: 'Cloud Functions', status: 'Healthy', val: '99.9% success' },
-                  { name: 'Collections', status: 'Healthy', val: '14 Active' },
-                  { name: 'Indexes', status: 'Healthy', val: '32 Built' },
-                  { name: 'Reads/Writes', status: 'Healthy', val: '1.2k R / 340 W (1h)' },
-                  { name: 'Slow Queries', status: 'Healthy', val: '0 detected' },
-                  { name: 'Failed Writes', status: 'Healthy', val: '0 detected' },
-                  { name: 'Security Rules', status: 'Healthy', val: 'v24 applied' },
-                  { name: 'Service Account', status: 'Healthy', val: 'Valid' },
-                ].map((item, i) => (
-                   <div key={i} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
-                       <div className="flex items-center justify-between">
-                           <span className="text-xs font-bold text-slate-300">{item.name}</span>
-                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">{item.status}</span>
-                       </div>
-                       <span className="text-xs text-slate-500 font-mono mt-1">{item.val}</span>
-                   </div>
-                ))}
-              </div>
+              {!diagnostics ? (
+                <div className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">Loading Diagnostics...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(diagnostics).map(([key, val]: [string, any]) => (
+                     <div key={key} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+                         <div className="flex items-center justify-between">
+                             <span className="text-xs font-bold text-slate-300 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">{val === true ? 'Healthy' : val === false ? 'Degraded' : 'Active'}</span>
+                         </div>
+                         <span className="text-xs text-slate-500 font-mono mt-1">{typeof val === 'boolean' ? (val ? 'Operational' : 'Error') : JSON.stringify(val)}</span>
+                     </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {activeTab === 'workspace' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Mail className="text-blue-400" /> Google Workspace Integration</h3>
-                <span className="text-xs font-mono text-emerald-400 flex items-center gap-2"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Pub/Sub Connected</span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="col-span-1 md:col-span-2 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-900 border-b border-slate-800">
-                                <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Service API</th>
-                                <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Latency</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {[
-                                { name: 'Gmail API', status: 'Connected', latency: '124ms' },
-                                { name: 'Calendar API', status: 'Connected', latency: '185ms' },
-                                { name: 'OAuth Token Vault', status: 'Secure', latency: '<10ms' },
-                                { name: 'Gmail Watch (Push)', status: 'Active', latency: 'N/A' },
-                                { name: 'Pub/Sub Webhook', status: 'Healthy', latency: '45ms' }
-                            ].map((row, i) => (
-                                <tr key={i} className="hover:bg-slate-800/50">
-                                    <td className="py-4 px-6 text-sm font-bold text-slate-300">{row.name}</td>
-                                    <td className="py-4 px-6">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{row.status}</span>
-                                    </td>
-                                    <td className="py-4 px-6 text-sm text-slate-400 font-mono">{row.latency}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="space-y-4">
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4">Mail Processing Queue</h4>
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-medium text-slate-400">Queue Length</span>
-                                <span className="text-sm font-bold text-emerald-400 font-mono">0</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-medium text-slate-400">Processing Latency</span>
-                                <span className="text-sm font-bold text-slate-200 font-mono">312ms avg</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-medium text-slate-400">Failed Emails</span>
-                                <span className="text-sm font-bold text-emerald-400 font-mono">0</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-medium text-slate-400">Last Processed</span>
-                                <span className="text-xs font-bold text-slate-200 font-mono">2 min ago</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4">Quota Utilization</h4>
-                        <div className="space-y-4">
-                            <div>
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-xs font-medium text-slate-400">Gmail Quota</span>
-                                    <span className="text-xs font-bold text-slate-200 font-mono">1.2%</span>
-                                </div>
-                                <div className="w-full bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full w-[1.2%]"></div></div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-xs font-medium text-slate-400">Calendar Quota</span>
-                                    <span className="text-xs font-bold text-slate-200 font-mono">0.4%</span>
-                                </div>
-                                <div className="w-full bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full w-[0.4%]"></div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-              </div>
+          {activeTab !== 'incidents' && activeTab !== 'firebase' && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <AlertTriangle size={48} className="text-slate-700 mb-4" />
+                <h4 className="text-slate-300 font-bold mb-2">Metrics Pending</h4>
+                <p className="text-slate-500 text-sm max-w-md">Live operational data for {activeTab} is not currently reporting to the central bus.</p>
             </div>
           )}
 

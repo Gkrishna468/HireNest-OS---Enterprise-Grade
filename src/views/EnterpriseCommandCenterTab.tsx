@@ -46,14 +46,24 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
         const placements = placementsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         let projectedRev = 0;
         let pipelineRev = 0;
+        const recruiterCounts: Record<string, { name: string, count: number }> = {};
+        
         placements.forEach((p: any) => {
           if (p.status === 'HIRED' || p.status === 'PLACED') {
             projectedRev += (p.expectedFee || p.fee || 25000);
+            const rName = p.recruiterName || p.addedBy || 'Unknown Recruiter';
+            if (!recruiterCounts[rName]) recruiterCounts[rName] = { name: rName, count: 0 };
+            recruiterCounts[rName].count++;
           }
           if (p.status === 'INTERVIEWING' || p.status === 'OFFERED') {
             pipelineRev += (p.expectedFee || p.fee || 25000);
           }
         });
+
+        const topRs = Object.values(recruiterCounts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3)
+          .map(r => ({ name: r.name, placements: r.count, conv: 100 })); // Conv is placeholder or calc from subs
 
         // Invoices & Payouts
         const invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -84,12 +94,6 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
         const vendors = vendorsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const topVs = vendors.sort((a: any, b: any) => (b.trustScore || 0) - (a.trustScore || 0)).slice(0, 3);
 
-        // Recruiters (Simulated from Users, assuming we have performance fields)
-        const topRs = [
-          { name: "Sarah Jenkins", placements: 12, conv: 68 },
-          { name: "David Chen", placements: 9, conv: 54 },
-          { name: "Michael Ross", placements: 7, conv: 49 },
-        ]; // Real implementation would aggregate submissions/interviews per user
 
         setMetrics({
           projectedRevenue: projectedRev,
@@ -100,7 +104,7 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
           pendingPayouts: pendingPay,
           topRecruiters: topRs,
           topVendors: topVs,
-          pendingApprovals: 2, // Simulated from DLQ/Autonomous Operations
+          pendingApprovals: 0, 
           systemHealth: 100,
         });
 
@@ -241,32 +245,14 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center">
                      <Zap className="w-4 h-4 mr-2 text-amber-400" /> Action Required
                    </h3>
-                   <span className="bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-1 rounded">2 PENDING</span>
+                   <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded">0 PENDING</span>
                  </div>
                  <div className="p-0 flex-1 divide-y divide-slate-700/50">
-                   {/* Simulated action items to resolve revenue leaks / approvals */}
-                   <div className="p-5 hover:bg-slate-700/20 transition-colors">
-                     <div className="flex items-start gap-4">
-                       <div className="mt-1"><ShieldAlert className="w-5 h-5 text-rose-400" /></div>
-                       <div>
-                         <div className="text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1">Revenue Leak Detected</div>
-                         <h4 className="text-sm font-bold text-slate-200">Placement PL-8822 lacks generated invoice.</h4>
-                         <p className="text-xs text-slate-400 mt-1">Closed 3 days ago. Click to generate draft invoice automatically.</p>
-                         <button className="mt-3 text-xs font-bold bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg transition-colors">Generate Invoice</button>
-                       </div>
-                     </div>
-                   </div>
-                   <div className="p-5 hover:bg-slate-700/20 transition-colors">
-                     <div className="flex items-start gap-4">
-                       <div className="mt-1"><AlertTriangle className="w-5 h-5 text-amber-400" /></div>
-                       <div>
-                         <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">SLA Escalation</div>
-                         <h4 className="text-sm font-bold text-slate-200">3 Requirements flagged for staleness</h4>
-                         <p className="text-xs text-slate-400 mt-1">Open &gt;30 days with &lt;3 match opportunities. Request recruiter review.</p>
-                         <button className="mt-3 text-xs font-bold bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg transition-colors">Trigger Review</button>
-                       </div>
-                     </div>
-                   </div>
+                    <div className="p-12 flex flex-col items-center justify-center text-center">
+                        <CheckCircle2 size={32} className="text-emerald-500 mb-3" />
+                        <h4 className="text-sm font-bold text-slate-200">No Pending Actions</h4>
+                        <p className="text-xs text-slate-500 max-w-[200px] mt-1">All queues and autonomous approvals are clear.</p>
+                    </div>
                  </div>
                  <div className="p-4 bg-slate-900 border-t border-slate-700 text-center">
                     <button className="text-xs font-bold text-indigo-400 hover:text-indigo-300">Open Command Center →</button>

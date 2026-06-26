@@ -10,6 +10,54 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   );
 
   const [activeTab, setActiveTab] = useState<'rules' | 'approvals' | 'logs'>('approvals');
+  const [automationRules, setAutomationRules] = useState<any[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  const [executionLogs, setExecutionLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Execution logs
+    const unsubLogs = getDocs(query(collection(db, "agent_executions"), limit(50))).then(snap => {
+        setExecutionLogs(snap.docs.map(d => {
+            const data = d.data();
+            return {
+                id: d.id,
+                date: data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Just now',
+                rule: data.agentId || 'Unknown Agent',
+                event: JSON.stringify(data.inputs || {}),
+                status: data.status === 'success' ? 'SUCCESS' : 'FAILED'
+            };
+        }));
+    });
+
+    // Pending Approvals (from queue)
+    const unsubQ = getDocs(query(collection(db, "agent_queue"), limit(50))).then(snap => {
+        setPendingApprovals(snap.docs.map(d => {
+            const data = d.data();
+            return {
+                id: d.id,
+                rule: data.agentId || 'Unknown Agent',
+                desc: JSON.stringify(data.event || {}),
+                date: data.createdAt ? new Date(data.createdAt).toLocaleString() : 'Just now',
+                severity: data.priority === 'high' ? 'high' : 'medium'
+            };
+        }));
+    });
+
+    // Rules
+    const unsubR = getDocs(query(collection(db, "ai_agents"))).then(snap => {
+        setAutomationRules(snap.docs.map(d => {
+            const data = d.data();
+            return {
+                id: d.id,
+                name: data.name,
+                type: data.category,
+                trigger: data.schedule,
+                action: 'Automated Processing',
+                status: data.status === 'Disabled' ? 'DISABLED' : 'ACTIVE'
+            };
+        }));
+    });
+  }, []);
 
   if (!isAdmin) {
     return (
@@ -18,25 +66,6 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
       </div>
     );
   }
-
-  // Simulated operations telemetry for the audit
-  const automationRules = [
-    { id: 'R1', name: 'Invoice Automation', trigger: 'PLACEMENT_CLOSED', action: 'Generate Draft Invoice & Notify Finance', status: 'ACTIVE', type: 'FINANCE' },
-    { id: 'R2', name: 'SLA Escalation', trigger: 'Requirement Open > 48 Hours + 0 Submissions', action: 'Create Escalation & Notify Recruiter Manager', status: 'ACTIVE', type: 'OPERATIONS' },
-    { id: 'R3', name: 'Vendor Priority Adjust', trigger: 'Trust Score Drops < 60', action: 'Flag Vendor & Reduce Priority Ranking', status: 'ACTIVE', type: 'GOVERNANCE' }
-  ];
-
-  const pendingApprovals = [
-    { id: 'PA-101', rule: 'Invoice Automation', desc: 'Approve Draft Invoice INV-8821 for Placement PL-9021', date: '2 mins ago', severity: 'high' },
-    { id: 'PA-102', rule: 'Vendor Priority Adjust', desc: 'Approve Priority Downgrade for Vendor "TechSource Global" (Score 58)', date: '1 hour ago', severity: 'medium' }
-  ];
-
-  const executionLogs = [
-    { id: 'L-505', rule: 'SLA Escalation', event: 'Escalation created for REQ-882 (Open > 48h)', status: 'SUCCESS', date: 'Just now' },
-    { id: 'L-504', rule: 'Invoice Automation', event: 'Draft Invoice generated for PL-112 (Requires Approval)', status: 'PENDING_APPROVAL', date: '5 mins ago' },
-    { id: 'L-503', rule: 'Vendor Priority Adjust', event: 'Trust score evaluated for "Nova Staffing" (Score 92) - No action', status: 'SKIPPED', date: '10 mins ago' },
-    { id: 'L-502', rule: 'SLA Escalation', event: 'Escalation created for REQ-881 (Open > 48h)', status: 'SUCCESS', date: '25 mins ago' }
-  ];
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto">
@@ -79,8 +108,8 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
            
            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Executions (24h)</div>
-                 <div className="text-3xl font-black text-slate-800">1,204</div>
+                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Executions</div>
+                 <div className="text-3xl font-black text-slate-800">{executionLogs.length}</div>
               </div>
               <PlayCircle className="w-8 h-8 text-emerald-100" />
            </div>
@@ -88,7 +117,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Event DLQ</div>
-                 <div className="text-3xl font-black text-emerald-500">0</div>
+                 <div className="text-3xl font-black text-emerald-500">{executionLogs.filter(l => l.status === 'FAILED').length}</div>
               </div>
               <CheckCircle2 className="w-8 h-8 text-emerald-100" />
            </div>
