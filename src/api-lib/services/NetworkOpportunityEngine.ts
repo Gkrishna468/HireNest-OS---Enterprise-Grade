@@ -1,5 +1,5 @@
-import { db } from '../../lib/firebase-admin';
-import { AgentOrchestrator } from './AgentOrchestrator';
+import { db } from '../../lib/firebase-admin.js';
+import { AgentOrchestrator } from './AgentOrchestrator.js';
 
 /**
  * NetworkOpportunityEngine is the primary engine of the Marketplace Office.

@@ -1,4 +1,4 @@
-import { adminDb } from "../../lib/firebase-admin";
+import { adminDb } from "../../lib/firebase-admin.js";
 import { AIGateway } from "../services/AIGateway.js";
 
 export default async function copilotHandler(req: any, res: any) {

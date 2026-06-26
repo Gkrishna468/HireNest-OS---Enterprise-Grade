@@ -1,5 +1,5 @@
-import { db } from '../../lib/firebase-admin';
-import { AgentOrchestrator } from './AgentOrchestrator';
+import { db } from '../../lib/firebase-admin.js';
+import { AgentOrchestrator } from './AgentOrchestrator.js';
 
 /**
  * EnterpriseScheduler coordinates business-hour orchestration across all Offices.
