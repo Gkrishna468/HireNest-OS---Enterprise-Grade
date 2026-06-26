@@ -196,7 +196,7 @@ export default function InboxTab() {
                </div>
                
                {/* Column 2: Conversation List */}
-               <div className="w-[340px] bg-white border-r border-slate-200 flex flex-col shrink-0">
+               <div className="w-[300px] bg-white border-r border-slate-200 flex flex-col shrink-0">
                   <div className="p-3 border-b border-slate-100 bg-white shadow-sm z-10 shrink-0">
                       <input 
                          type="text" 
@@ -255,28 +255,43 @@ export default function InboxTab() {
                          </div>
                          <div className="flex-1 overflow-y-auto p-6 bg-white">
                              <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-wrap">
-                                 {/* Just display snippet or body if we had it. We might need a full body fetch, but we simulate for now */}
-                                 {selectedEmail.snippet}
+                                 {/* Full HTML email mockup */}
+                                 <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                                    <p>Hi,</p>
+                                    <p className="mt-4">Please find my updated resume attached for the React Developer position. Let me know if you need any other details.</p>
+                                    <p className="mt-4">Best regards,<br/>{selectedEmail.from?.split('<')[0]?.trim() || 'Candidate'}</p>
+                                 </div>
                                  
-                                 <br/><br/><br/><br/>
-                                 <div className="border-l-2 border-slate-200 pl-4 text-slate-500 mt-8 text-xs italic">
-                                     On {new Date().toLocaleDateString()}, {selectedEmail.from?.split('<')[0]?.trim()} wrote:<br/>
-                                     We are attaching the requirements document for your reference.
+                                 {/* Thread support mockup */}
+                                 <div className="border-l-2 border-slate-200 pl-4 text-slate-500 mt-8 text-sm">
+                                     <div className="mb-4">
+                                         <div className="flex items-center gap-2 mb-2">
+                                             <div className="font-bold text-slate-700">Gopal (Recruiter)</div>
+                                             <div className="text-xs text-slate-400">Yesterday, 4:30 PM</div>
+                                         </div>
+                                         <div>Hi {selectedEmail.from?.split('<')[0]?.trim()}, Could you please share your updated resume? We have an opening at Microsoft that matches your profile.</div>
+                                     </div>
                                  </div>
                              </div>
                              
                              {analysis?.attachments?.length > 0 && (
                                 <div className="mt-8 border-t border-slate-100 pt-6">
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Attachments ({analysis.attachments.length})</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {analysis.attachments.map((att: string, idx: number) => (
-                                            <div key={idx} className="border border-slate-200 rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-indigo-300 hover:bg-slate-50 transition-colors">
-                                                <div className="h-10 w-10 bg-indigo-50 text-indigo-600 flex items-center justify-center rounded-lg shrink-0">
-                                                    <FileText size={20} />
+                                            <div key={idx} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3 group hover:border-indigo-300 hover:bg-slate-50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 bg-indigo-50 text-indigo-600 flex items-center justify-center rounded-lg shrink-0">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-bold text-slate-700 truncate">{att}</div>
+                                                        <div className="text-[10px] text-slate-400">PDF Document</div>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <div className="text-sm font-bold text-slate-700 truncate">{att}</div>
-                                                    <div className="text-[10px] text-slate-400">PDF Document</div>
+                                                <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button className="h-7 text-[10px] px-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm">Preview</Button>
+                                                    <Button className="h-7 text-[10px] px-3 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 shadow-sm">✨ AI Summary</Button>
                                                 </div>
                                             </div>
                                         ))}
@@ -284,13 +299,26 @@ export default function InboxTab() {
                                 </div>
                              )}
                          </div>
-                         <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
-                             <div className="flex gap-2">
-                                 <Button variant="outline" className="bg-white text-slate-700 hover:bg-slate-100">Reply</Button>
-                                 <Button variant="outline" className="bg-white text-slate-700 hover:bg-slate-100">Reply All</Button>
-                                 <Button variant="outline" className="bg-white text-slate-700 hover:bg-slate-100">Forward</Button>
-                                 <div className="flex-1"></div>
-                                 <Button className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-none shadow-none">✨ AI Draft</Button>
+                         <div className="p-6 border-t border-slate-200 bg-white shrink-0">
+                             <div className="border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 shadow-sm transition-all">
+                                 <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex gap-2">
+                                     <Button variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Templates</Button>
+                                     <Button variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Variables</Button>
+                                     <Button variant="outline" className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100 shadow-sm gap-1">✨ AI Draft</Button>
+                                 </div>
+                                 <textarea 
+                                    className="w-full h-24 p-4 text-sm resize-none outline-none text-slate-700" 
+                                    placeholder="Write your email... (or click AI Draft)"
+                                 ></textarea>
+                                 <div className="px-4 py-3 bg-white flex justify-between items-center border-t border-slate-100">
+                                     <Button variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 border-none shadow-none gap-2">
+                                         <FileText size={14} /> Attach Resume
+                                     </Button>
+                                     <div className="flex gap-2">
+                                         <Button variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Discard</Button>
+                                         <Button className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6">Send</Button>
+                                     </div>
+                                 </div>
                              </div>
                          </div>
                      </div>
@@ -299,7 +327,7 @@ export default function InboxTab() {
 
                {/* Column 4: AI Workspace */}
                {selectedEmail && (
-               <div className="w-[380px] lg:w-[420px] bg-slate-50 border-l border-slate-200 flex flex-col shrink-0 overflow-y-auto">
+               <div className="w-[340px] lg:w-[380px] bg-slate-50 border-l border-slate-200 flex flex-col shrink-0 overflow-y-auto">
                    {analyzing ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4">
                             <RefreshCw className="animate-spin text-indigo-500 w-8 h-8" />
@@ -320,7 +348,98 @@ export default function InboxTab() {
                                 <p className="text-xs text-slate-500 mt-1">Confidence: {analysis.classification?.confidence || 0}%</p>
                             </div>
 
-                            {analysis.classification?.data && Object.keys(analysis.classification.data).length > 0 && (
+                            {analysis.classification?.type === 'RESUME' && (
+                                <div className="bg-white border border-emerald-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-2 bg-emerald-50 rounded-bl-xl border-l border-b border-emerald-100">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Candidate</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0">
+                                            {selectedEmail.from?.charAt(0)?.toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-900 line-clamp-1">{analysis.classification?.data?.Name || selectedEmail.from?.split('<')[0]?.trim()}</h3>
+                                            <p className="text-[10px] text-slate-500 font-medium">Available in {analysis.classification?.data?.['Notice Period'] || '30 Days'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Experience</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Experience || '8 Years'}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Expected CTC</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.['Expected CTC'] || '22 LPA'}</div>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Top Skills</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {(analysis.classification.data?.Skills || analysis.classification.data?.skills || ['React', 'Java', 'AWS']).slice(0, 4).map((skill: string) => (
+                                                    <span key={skill} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">{skill}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {analysis.classification?.type === 'REQUIREMENT' && (
+                                <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-2 bg-blue-50 rounded-bl-xl border-l border-b border-blue-100">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Requirement</span>
+                                    </div>
+                                    <h3 className="font-bold text-slate-900 mb-1 line-clamp-1">{analysis.classification?.data?.Title || 'Senior Software Engineer'}</h3>
+                                    <p className="text-xs text-slate-500 font-medium mb-4">{analysis.classification?.data?.Client || 'Microsoft'} • {analysis.classification?.data?.Location || 'Hyderabad'}</p>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Budget</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Budget || '25 LPA'}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Openings</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Openings || '5'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {analysis.classification?.type === 'INVOICE' && (
+                                <div className="bg-white border border-amber-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-2 bg-amber-50 rounded-bl-xl border-l border-b border-amber-100">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">Invoice</span>
+                                    </div>
+                                    <h3 className="font-bold text-slate-900 mb-1">{analysis.classification?.data?.['Invoice Number'] || 'INV-10023'}</h3>
+                                    <p className="text-2xl font-black text-slate-800 mb-4">{analysis.classification?.data?.Amount || '₹2,75,000'}</p>
+                                    
+                                    <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500">Status</span>
+                                        <Badge className="bg-rose-100 text-rose-700 border-none text-[10px]">Unpaid</Badge>
+                                    </div>
+                                </div>
+                            )}
+
+                            {analysis.classification?.type === 'INTERVIEW' && (
+                                <div className="bg-white border border-purple-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-2 bg-purple-50 rounded-bl-xl border-l border-b border-purple-100">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-purple-600">Interview</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                            <span className="text-lg font-black">24</span>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-900 line-clamp-1">{analysis.classification?.data?.Candidate || 'Deepeshika Sarkar'}</h3>
+                                            <p className="text-xs text-slate-500 font-medium">Tomorrow, 2:00 PM</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs text-slate-600 font-medium flex items-center justify-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Teams Meeting Link
+                                    </div>
+                                </div>
+                            )}
+
+                            {(!['RESUME', 'REQUIREMENT', 'INVOICE', 'INTERVIEW'].includes(analysis.classification?.type)) && analysis.classification?.data && Object.keys(analysis.classification.data).length > 0 && (
                             <div>
                                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Extracted Entities</h4>
                                 <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-sm">
@@ -330,17 +449,6 @@ export default function InboxTab() {
                                           <span className="text-xs font-bold text-slate-800 text-right max-w-[200px] truncate">{Array.isArray(analysis.classification.data[key]) ? analysis.classification.data[key].join(', ') : analysis.classification.data[key]}</span>
                                       </div>
                                    ))}
-                                </div>
-                            </div>
-                            )}
-
-                            {(analysis.classification?.data?.Skills || analysis.classification?.data?.skills) && (
-                            <div>
-                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Skills</h4>
-                                <div className="flex flex-wrap gap-1">
-                                    {(analysis.classification.data.Skills || analysis.classification.data.skills).map((skill: string) => (
-                                        <span key={skill} className="px-2 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-md">{skill}</span>
-                                    ))}
                                 </div>
                             </div>
                             )}
@@ -367,8 +475,16 @@ export default function InboxTab() {
                                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Business Impact</h4>
                                 <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm">
                                     <div className="flex justify-between border-b border-slate-50 pb-2">
-                                        <span className="text-xs font-medium text-slate-500">Revenue Potential</span>
-                                        <span className="text-xs font-black text-emerald-600">₹{analysis.businessImpact.estimatedRevenue?.toLocaleString() || 0}</span>
+                                        <span className="text-xs font-medium text-slate-500">Estimated Placement</span>
+                                        <span className="text-xs font-black text-emerald-600">₹{(analysis.businessImpact.estimatedRevenue/12)?.toLocaleString(undefined, {maximumFractionDigits:0}) || 0} LPM</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-50 pb-2">
+                                        <span className="text-xs font-medium text-slate-500">Estimated Margin</span>
+                                        <span className="text-xs font-black text-slate-800">₹{Math.floor((analysis.businessImpact.estimatedRevenue/12)*0.15).toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-50 pb-2">
+                                        <span className="text-xs font-medium text-slate-500">Probability</span>
+                                        <span className="text-xs font-black text-indigo-600">92%</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-xs font-medium text-slate-500">Priority</span>
@@ -382,33 +498,45 @@ export default function InboxTab() {
                                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Suggested Actions</h4>
                                 <div className="space-y-2">
                                 {analysis.classification?.suggestedActions && analysis.classification.suggestedActions.length > 0 ? (
-                                    analysis.classification.suggestedActions.map((action: string, idx: number) => (
-                                        <Button key={idx} className={cn("w-full justify-start text-xs shadow-sm", idx === 0 ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50")}>{action}</Button>
-                                    ))
+                                    analysis.classification.suggestedActions.map((action: string, idx: number) => {
+                                        let btnClass = "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50";
+                                        const actionLower = action.toLowerCase();
+                                        if (actionLower.includes('submit')) btnClass = "bg-emerald-600 hover:bg-emerald-700 text-white border-none";
+                                        else if (actionLower.includes('match')) btnClass = "bg-blue-600 hover:bg-blue-700 text-white border-none";
+                                        else if (actionLower.includes('deal room')) btnClass = "bg-purple-600 hover:bg-purple-700 text-white border-none";
+                                        else if (actionLower.includes('broadcast')) btnClass = "bg-orange-600 hover:bg-orange-700 text-white border-none";
+                                        else if (actionLower.includes('email') || actionLower.includes('reply')) btnClass = "bg-indigo-600 hover:bg-indigo-700 text-white border-none";
+                                        else if (actionLower.includes('archive')) btnClass = "bg-slate-100 text-slate-700 hover:bg-slate-200 border-none";
+                                        else if (idx === 0) btnClass = "bg-indigo-600 hover:bg-indigo-700 text-white border-none";
+
+                                        return <Button key={idx} className={cn("w-full justify-start text-xs shadow-sm font-bold", btnClass)}>{action}</Button>;
+                                    })
                                 ) : (
-                                    <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">Process Request</Button>
+                                    <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold">Process Request</Button>
                                 )}
                                 </div>
                             </div>
 
                             <div>
                                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Workflow Timeline</h4>
-                                <div className="space-y-3 relative before:absolute before:inset-y-0 before:left-[5px] before:w-[2px] before:bg-slate-200 ml-1">
+                                <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[5px] before:w-[2px] before:bg-slate-200 ml-1">
                                     {analysis.classification?.timeline && analysis.classification.timeline.length > 0 ? (
                                         analysis.classification.timeline.map((event: any, idx: number) => (
-                                            <div key={idx} className="relative pl-5">
-                                                <div className={cn("absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white shadow-sm", idx === analysis.classification.timeline.length - 1 ? "bg-indigo-500" : "bg-slate-400")}></div>
-                                                <div className="flex gap-2 items-baseline">
-                                                    <p className={cn("text-[10px] font-bold", idx === analysis.classification.timeline.length - 1 ? "text-indigo-500" : "text-slate-400 w-10 shrink-0")}>{event.time}</p>
+                                            <div key={idx} className="relative pl-6">
+                                                <div className={cn("absolute left-0 top-0.5 w-3 h-3 rounded-full border-2 border-white shadow-sm", idx === analysis.classification.timeline.length - 1 ? "bg-indigo-500" : "bg-slate-400")}></div>
+                                                <div className="flex flex-col">
+                                                    <p className={cn("text-[10px] font-bold mb-0.5", idx === analysis.classification.timeline.length - 1 ? "text-indigo-500" : "text-slate-400")}>{event.time}</p>
                                                     <p className={cn("text-xs font-bold leading-tight", idx === analysis.classification.timeline.length - 1 ? "text-slate-900" : "text-slate-600")}>{event.title}</p>
                                                 </div>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="relative pl-5">
-                                            <div className="absolute left-0 top-1 w-3 h-3 bg-slate-400 rounded-full border-2 border-white"></div>
-                                            <p className="text-[10px] font-bold text-slate-400">Just now</p>
-                                            <p className="text-xs font-bold text-slate-600">Email Received</p>
+                                        <div className="relative pl-6">
+                                            <div className="absolute left-0 top-0.5 w-3 h-3 bg-slate-400 rounded-full border-2 border-white shadow-sm"></div>
+                                            <div className="flex flex-col">
+                                                <p className="text-[10px] font-bold text-slate-400 mb-0.5">Just now</p>
+                                                <p className="text-xs font-bold text-slate-600">Email Received</p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
