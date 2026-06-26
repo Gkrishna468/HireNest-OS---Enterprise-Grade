@@ -184,11 +184,66 @@ export class MailOSService {
         // Define fallback rule engine if primary AI fails
         const fallbackRuleEngine = (text: string) => {
             const t = text.toLowerCase();
-            if (t.includes('resume') || t.includes('candidate') || t.includes('cv attached')) return { type: 'RESUME', confidence: 60, summary: 'Fallback: Suspected Candidate Resume' };
-            if (t.includes('requirement') || t.includes('need') || t.includes('hiring') || t.includes('budget')) return { type: 'REQUIREMENT', confidence: 60, summary: 'Fallback: Suspected Requirement' };
-            if (t.includes('invoice') || t.includes('payment') || t.includes('paid')) return { type: 'INVOICE', confidence: 60, summary: 'Fallback: Suspected Invoice/Payment' };
-            if (t.includes('interview') || t.includes('schedule')) return { type: 'INTERVIEW', confidence: 60, summary: 'Fallback: Suspected Interview' };
-            return { type: 'OTHER', confidence: 40, summary: 'Fallback: Unclassified email' };
+            let type = 'OTHER';
+            let summary = 'Fallback: Unclassified email';
+            let data: any = {};
+            let suggestedActions: string[] = ['Process Request'];
+            let timeline = [{ time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), title: 'Email Received' }];
+
+            if (t.includes('resume') || t.includes('candidate') || t.includes('cv attached')) {
+                type = 'RESUME';
+                summary = 'Fallback: Suspected Candidate Resume';
+                suggestedActions = ['Submit Candidate', 'Run Match', 'Add to Bench', 'Create Deal Room', 'Send Acknowledgement'];
+                
+                // Deterministic extraction
+                const expMatch = t.match(/(\d+)\+?\s*(years?|yrs?)/i);
+                if (expMatch) data['Experience'] = `${expMatch[1]} Years`;
+                
+                const noticeMatch = t.match(/(\d+)\s*(days?|months?)\s*(notice|np)/i);
+                if (noticeMatch) data['Notice Period'] = `${noticeMatch[1]} ${noticeMatch[2]}`;
+                
+                // Common skills
+                const skills = [];
+                if (t.includes('java')) skills.push('Java');
+                if (t.includes('spring')) skills.push('Spring');
+                if (t.includes('aws')) skills.push('AWS');
+                if (t.includes('react')) skills.push('React');
+                if (t.includes('node')) skills.push('Node.js');
+                if (t.includes('python')) skills.push('Python');
+                if (skills.length > 0) {
+                    data['Skills'] = skills;
+                    data['skills'] = skills; // For analyzeMessage matchingJobs heuristic
+                }
+
+            } else if (t.includes('requirement') || t.includes('need') || t.includes('hiring') || t.includes('budget')) {
+                type = 'REQUIREMENT';
+                summary = 'Fallback: Suspected Requirement';
+                suggestedActions = ['Broadcast Vendors', 'Generate JD', 'Find Candidates', 'Estimate Revenue', 'Create Deal Room'];
+                
+                const budgetMatch = t.match(/(budget|ctc|rate)[\s:-]*([$₹€£]?[\d,]+(\.\d+)?)/i);
+                if (budgetMatch) data['Budget'] = budgetMatch[2];
+                
+            } else if (t.includes('invoice') || t.includes('payment') || t.includes('paid')) {
+                type = 'INVOICE';
+                summary = 'Fallback: Suspected Invoice/Payment';
+                suggestedActions = ['Create Ledger Entry', 'Approve', 'Mark Paid'];
+            } else if (t.includes('interview') || t.includes('schedule')) {
+                type = 'INTERVIEW';
+                summary = 'Fallback: Suspected Interview';
+                suggestedActions = ['Update Interview', 'Notify Candidate', 'Reschedule', 'Generate Feedback'];
+            }
+
+            timeline.push({ time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), title: 'Extracted & Classified (Fallback)' });
+
+            return {
+                type,
+                confidence: 60,
+                summary,
+                data,
+                suggestedActions,
+                timeline,
+                confidenceReason: "Determined deterministically via Regex and Rule Engine fallback."
+            };
         };
 
         const response = await AIGateway.analyze({

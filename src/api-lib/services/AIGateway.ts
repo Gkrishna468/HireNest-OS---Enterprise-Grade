@@ -116,7 +116,16 @@ export class AIGateway {
         } catch (error) {
             console.warn(`Primary AI Provider Failed (Google):`, error);
             
-            // 3. Fallback to Rule Engine
+            // 3. Fallback to Secondary AI Provider (OpenRouter/OpenAI)
+            if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
+                console.log("Attempting secondary AI provider fallback (OpenRouter/OpenAI)...");
+                // TODO: Implement actual secondary provider call here
+                // e.g., const response = await fetch('https://openrouter.ai/api/v1/chat/completions', ...)
+                // If it succeeds, return the parsed response.
+                // If it fails, continue to the rule engine.
+            }
+
+            // 4. Fallback to Deterministic Rule Engine
             if (request.fallbackRuleEngine) {
                 console.log("Using deterministic fallback rule engine");
                 try {
