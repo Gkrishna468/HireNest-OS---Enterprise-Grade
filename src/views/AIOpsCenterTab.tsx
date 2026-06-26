@@ -6,7 +6,7 @@ import { cn } from "../lib/utils";
 
 export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
-  const [activeTab, setActiveTab] = useState<'vercel' | 'github' | 'firebase' | 'workspace' | 'incidents' | 'agents' | 'ai-providers'>('ai-providers');
+  const [activeTab, setActiveTab] = useState<'vercel' | 'github' | 'firebase' | 'workspace' | 'incidents' | 'ai-providers'>('incidents');
   const [loading, setLoading] = useState(true);
   const [workspaceDetails, setWorkspaceDetails] = useState<any>(null);
   const [incidents, setIncidents] = useState<any[]>([]);
@@ -109,12 +109,6 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
         {/* Navigation Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button 
-            onClick={() => setActiveTab('agents')}
-            className={cn("px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap", activeTab === 'agents' ? "bg-violet-500/10 text-violet-400 border border-violet-500/20" : "bg-slate-900 text-slate-500 border border-slate-800 hover:bg-slate-800")}
-          >
-            <Brain size={16} /> Autonomous Agents
-          </button>
-          <button 
             onClick={() => setActiveTab('incidents')}
             className={cn("px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap", activeTab === 'incidents' ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" : "bg-slate-900 text-slate-500 border border-slate-800 hover:bg-slate-800")}
           >
@@ -155,130 +149,6 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
         {/* Dynamic Content */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 min-h-[400px]">
           
-          {activeTab === 'agents' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Brain className="text-violet-400" /> Agent Runtime Engine</h3>
-                <span className="text-xs font-mono text-emerald-400 flex items-center gap-2"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Event Bus Connected</span>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-                          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2"><Activity size={14} className="text-indigo-400"/> Job Queue</h4>
-                          <span className="text-xs font-mono text-slate-300">0 Pending</span>
-                      </div>
-                      <div className="text-center py-6">
-                          <CheckCircle2 size={32} className="mx-auto text-slate-700 mb-2"/>
-                          <p className="text-xs text-slate-500">All jobs processed.</p>
-                      </div>
-                  </div>
-                  
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-                          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2"><RefreshCw size={14} className="text-amber-400"/> Retry Queue</h4>
-                          <span className="text-xs font-mono text-amber-400">1 Retrying</span>
-                      </div>
-                      <div className="space-y-3">
-                          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Resume Parser</span>
-                              <span className="text-xs text-slate-500 font-mono line-clamp-1">Rate limit exceeded</span>
-                              <div className="flex justify-between items-center mt-2">
-                                  <span className="text-[10px] font-bold text-amber-500">Attempt 2/3</span>
-                                  <span className="text-[10px] text-slate-600 font-mono">T-4:12</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-                          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2"><AlertOctagon size={14} className="text-rose-400"/> Dead Letter Queue</h4>
-                          <span className="text-xs font-mono text-slate-300">0 Failed</span>
-                      </div>
-                      <div className="text-center py-6">
-                          <ShieldCheck size={32} className="mx-auto text-slate-700 mb-2"/>
-                          <p className="text-xs text-slate-500">DLQ is empty.</p>
-                      </div>
-                  </div>
-              </div>
-
-              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-                    <h4 className="text-sm font-bold text-slate-200">Background Scheduler</h4>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Running</span>
-                </div>
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 border-b border-slate-800">
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trigger</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agent</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Executions</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Avg Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {[
-                      { schedule: 'Event: EMAIL_RECEIVED', name: 'Mail Sync Agent', status: 'Idle', execs: 412, duration: '1.2s' },
-                      { schedule: 'Event: REQUIREMENT_CREATED', name: 'Matching Engine', status: 'Idle', execs: 341, duration: '4.5s' },
-                      { schedule: 'Event: REQUIREMENT_CREATED', name: 'Vendor Broadcast', status: 'Idle', execs: 94, duration: '850ms' },
-                      { schedule: 'Event: RESUME_UPLOADED', name: 'Resume Parser', status: 'Idle', execs: 856, duration: '2.1s' },
-                      { schedule: 'Cron: Every 30 min', name: 'Interview Agent', status: 'Idle', execs: 42, duration: '400ms' },
-                      { schedule: 'Cron: Every 1 hour', name: 'Incident Agent', status: 'Running', execs: 24, duration: '5.2s' },
-                      { schedule: 'Cron: 6:00 PM', name: 'Founder Report Agent', status: 'Scheduled', execs: 1, duration: '12s' }
-                    ].map((agent, i) => (
-                      <tr key={i} className="hover:bg-slate-800/50">
-                        <td className="py-4 px-6 text-xs text-slate-400 font-mono">{agent.schedule}</td>
-                        <td className="py-4 px-6 text-sm font-bold text-slate-200">{agent.name}</td>
-                        <td className="py-4 px-6">
-                           <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border whitespace-nowrap", agent.status === 'Running' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : agent.status === 'Idle' ? "bg-slate-800 text-slate-400 border-slate-700" : "bg-blue-500/10 text-blue-400 border-blue-500/20")}>
-                             {agent.status}
-                           </span>
-                        </td>
-                        <td className="py-4 px-6 text-xs text-slate-300 font-mono">{agent.execs.toLocaleString()}</td>
-                        <td className="py-4 px-6 text-xs text-slate-400 font-mono">{agent.duration}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              <h4 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Execution History</h4>
-              <div className="divide-y divide-slate-800">
-                {agentExecutions.length === 0 ? (
-                    <div className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No execution history found</div>
-                ) : agentExecutions.slice(0, 15).map(exec => (
-                  <div key={exec.id} className="py-4 flex items-start justify-between">
-                    <div className="flex gap-4 w-full">
-                      <div className="mt-1">
-                        {exec.status === 'running' || exec.status === 'pending' || exec.status === 'RUNNING' ? <Activity className="text-amber-400 animate-pulse" size={20} /> : (exec.status === 'failed' || exec.status === 'error' || exec.status === 'Failed' ? <XCircle className="text-rose-400" size={20} /> : <CheckCircle2 className="text-emerald-400" size={20} />)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-xs text-slate-500">{exec.id.substring(0,8)}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{exec.agentName || exec.agent || exec.agentType || 'Unknown Agent'}</span>
-                          {exec.duration !== undefined && <span className="text-[10px] font-mono text-slate-500">{exec.duration}ms</span>}
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-200">{exec.task || exec.description || 'Routine Task execution'}</h4>
-                        <div className="text-xs text-slate-500 mt-2 flex items-center gap-3 mb-2">
-                           <span className="flex items-center gap-1"><Clock size={12} /> {exec.createdAt ? new Date(exec.createdAt?.seconds * 1000).toLocaleString() : exec.finishedAt ? new Date(exec.finishedAt?.seconds * 1000).toLocaleString() : 'Unknown time'}</span>
-                           {exec.recordsProcessed !== undefined && <span className="flex items-center gap-1"><ShieldCheck size={12} /> Processed: {exec.recordsProcessed}</span>}
-                        </div>
-                        {(exec.error || exec.errorDetails || exec.logs) && (
-                          <div className="mt-4 bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                            {(exec.error || exec.errorDetails) && <p className="text-xs text-rose-400 font-mono mb-2">{exec.error || exec.errorDetails}</p>}
-                            {exec.logs && <p className="text-xs text-slate-400 font-mono line-clamp-3 leading-relaxed">{exec.logs}</p>}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {activeTab === 'incidents' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-6">

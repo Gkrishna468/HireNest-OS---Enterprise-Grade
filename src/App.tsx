@@ -43,6 +43,7 @@ import {
   Star,
   Award,
   Terminal,
+  Bot,
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -59,6 +60,7 @@ import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
 import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
 import EnterpriseCommandCenterTab from "./views/EnterpriseCommandCenterTab";
 import AIOpsCenterTab from "./views/AIOpsCenterTab";
+import AIAgentsTab from "./views/AIAgentsTab";
 import FinanceOSTab from "./views/FinanceOSTab";
 import AICopilotTab from "./views/AICopilotTab";
 import RecruiterPerformanceTab from "./views/RecruiterPerformanceTab";
@@ -653,6 +655,13 @@ const AppContent = () => {
                 Enterprise Validation
               </div>
               <SidebarItem
+                to="/ai-agents"
+                icon={Bot}
+                label="AI Agents"
+                active={location.pathname === "/ai-agents"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/ai-ops-center"
                 icon={Terminal}
                 label="AI DevOps"
@@ -951,6 +960,12 @@ const AppContent = () => {
               <Route
                 path="/knowledge-graph"
                 element={<KnowledgeIntelligenceTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-agents"
+                element={<AIAgentsTab userRole={role || ""} />}
               />
             )}
             {isAdmin && (
