@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { cn } from '../lib/utils';
+import DOMPurify from 'dompurify';
 
 export default function InboxTab() {
   const [emails, setEmails] = useState<any[]>([]);
@@ -71,6 +72,51 @@ export default function InboxTab() {
       const token = providedToken || await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Not authenticated");
 
+      // 1. Check MailOS Status and Last Sync
+      let shouldSync = true;
+      try {
+        const res = await fetch('/api/workspace/status', {
+           headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const statusData = await res.json();
+          setIsConnected(statusData.connected);
+          if (statusData.connected) {
+             const lastSyncStr = statusData.mailSync?.lastSync;
+             if (lastSyncStr) {
+                const lastSyncTime = new Date(lastSyncStr).getTime();
+                const diffMs = Date.now() - lastSyncTime;
+                // If last sync was less than 2 minutes ago, load from Firestore only
+                if (diffMs < 2 * 60 * 1000) {
+                  shouldSync = false;
+                  console.log(`[InboxTab] Synced ${Math.floor(diffMs / 1000)}s ago (under 2m). Skipping sync, loading Firestore directly.`);
+                }
+             }
+          } else {
+             shouldSync = false;
+          }
+        }
+      } catch (statusErr) {
+        console.warn("[InboxTab] Failed to check status, defaulting to fallback load:", statusErr);
+      }
+
+      // 2. Conditionally trigger Incremental Gmail Sync
+      if (shouldSync) {
+        console.log("[InboxTab] Syncing latest Gmail messages into MailOS...");
+        try {
+          await fetch('/api/workspace/mailos/sync', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          });
+        } catch (syncErr) {
+          console.error("[InboxTab] Incremental sync error:", syncErr);
+        }
+      }
+
+      // 3. Load immutable Firestore messages
       const response = await fetch(`/api/google/gmail/messages`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -139,11 +185,11 @@ export default function InboxTab() {
          {isConnected && (
             <div className="flex items-center gap-6">
                 <div className="hidden md:flex gap-4 text-xs font-medium text-slate-500">
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">18</span> Unread</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">32</span> Parsed Today</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">7</span> Requirements</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">18</span> Resumes</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">3</span> Invoices</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.length}</span> Ingested</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type === 'REQUIREMENT').length}</span> Requirements</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type === 'RESUME' || e.classification?.type === 'CANDIDATE').length}</span> Candidates</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type === 'INVOICE').length}</span> Invoices</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type === 'INTERVIEW').length}</span> Interviews</div>
                 </div>
                 <div className="flex flex-col items-end">
                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
@@ -277,15 +323,30 @@ export default function InboxTab() {
                              </div>
                          </div>
                          <div className="flex-1 overflow-y-auto p-6 bg-white">
-                             <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-wrap">
-                                 {/* Full HTML email mockup */}
+                             <div className="prose prose-sm max-w-none text-slate-700">
+                                 {analyzing ? (
+                                      <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
+                                          <RefreshCw className="animate-spin h-8 w-8 text-indigo-500" />
+                                          <div className="text-xs font-medium">Extracting business entities and sanitizing content...</div>
+                                      </div>
+                                  ) : analysis?.html ? (
+                                      <div 
+                                          className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6 overflow-x-auto max-w-full"
+                                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(analysis.html) }}
+                                      />
+                                  ) : (
+                                      <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6 whitespace-pre-wrap leading-relaxed text-sm">
+                                          {analysis?.plainText || analysis?.body || selectedEmail.snippet || "No body content available."}
+                                      </div>
+                                  )}
+                                  {/* Full HTML email mockup */}
                                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
                                     <p>Hi,</p>
                                     <p className="mt-4">Please find my updated resume attached for the React Developer position. Let me know if you need any other details.</p>
                                     <p className="mt-4">Best regards,<br/>{selectedEmail.from?.split('<')[0]?.trim() || 'Candidate'}</p>
                                  </div>
                                  
-                                 {/* Thread support mockup */}
+                                  {/* Thread support mockup
                                  <div className="border-l-2 border-slate-200 pl-4 text-slate-500 mt-8 text-sm">
                                      <div className="mb-4">
                                          <div className="flex items-center gap-2 mb-2">
@@ -294,7 +355,7 @@ export default function InboxTab() {
                                          </div>
                                          <div>Hi {selectedEmail.from?.split('<')[0]?.trim()}, Could you please share your updated resume? We have an opening at Microsoft that matches your profile.</div>
                                      </div>
-                                 </div>
+                                 </div> */}
                              </div>
                              
                              {analysis?.attachments?.length > 0 && (

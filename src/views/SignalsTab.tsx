@@ -52,7 +52,8 @@ export default function SignalsTab() {
 
         // Candidate Signals (Get recent high-match candidates)
         try {
-           const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("matchScore", ">=", 85), limit(10)));
+           let matchesQuery = query(collection(db, "candidate_matches"), where("matchScore", ">=", 85), limit(10));
+           const matchesSnap = await getDocs(matchesQuery);
            matchesSnap.docs.forEach(match => {
                const mData = match.data();
                loadedSignals.push({
@@ -64,7 +65,7 @@ export default function SignalsTab() {
                  icon: Target
                });
            });
-        } catch(e) { console.error(e); }
+        } catch(e) { console.warn("Failed to load candidate matches signals (expected for non-admins)"); }
 
         // Vendor Signals (Calculate ratio for vendors)
         const vendorStats: Record<string, { subs: number, interviews: number, placements: number }> = {};

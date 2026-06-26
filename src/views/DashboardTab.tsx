@@ -388,30 +388,42 @@ export default function DashboardTab() {
                            let candsCount = 0;
                            let readyForSubmit = 0;
                            try {
-                               const candQuery = isVendor 
-                                  ? query(collection(db, "candidatePool"), where("vendorId", "==", orgId))
-                                  : query(collection(db, "candidatePool"), where("clientId", "==", orgId));
-                               const candsSnap = await getDocs(candQuery);
-                               candsCount = candsSnap.docs.length;
-                               candsSnap.docs.forEach((d: any) => {
-                                  const data = d.data();
-                                  if (data.status !== "DELETED" && data.isActive !== false) {
-                                     const stage = (data.pipelineStage || '').toUpperCase();
-                                     if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
-                                         readyForSubmit++;
-                                     }
-                                  }
-                               });
+                               if (orgId) {
+                                   let candQuery;
+                                   if (isAdmin || session.user.role === 'hq') {
+                                       candQuery = query(collection(db, "candidatePool"));
+                                   } else if (isVendor) {
+                                       candQuery = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
+                                   } else {
+                                       candQuery = query(collection(db, "candidatePool"), where("clientId", "==", orgId));
+                                   }
+                                   const candsSnap = await getDocs(candQuery);
+                                   candsCount = candsSnap.docs.length;
+                                   candsSnap.docs.forEach((d: any) => {
+                                      const data = d.data();
+                                      if (data.status !== "DELETED" && data.isActive !== false) {
+                                         const stage = (data.pipelineStage || '').toUpperCase();
+                                         if (stage === 'MATCHED' || stage === 'READY' || stage === 'AVAILABLE' || stage === '') {
+                                             readyForSubmit++;
+                                         }
+                                      }
+                                   });
+                               }
                            } catch(e: any) { console.error("candidatePool query failed:", e.message); }
 
                            let matchesCount = 0;
                            try {
-                               if (isVendor) {
-                                   const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
-                                   matchesCount = matchesSnap.docs.length;
-                               } else {
-                                   const matchesClientSnap = await getDocs(query(collection(db, "candidate_matches"), where("clientId", "==", orgId)));
-                                   matchesCount = matchesClientSnap.docs.length;
+                               if (orgId) {
+                                   if (isAdmin || session.user.role === 'hq') {
+                                       const matchesSnap = await getDocs(query(collection(db, "candidate_matches")));
+                                       matchesCount = matchesSnap.docs.length;
+                                   } else if (isVendor) {
+                                       const matchesSnap = await getDocs(query(collection(db, "candidate_matches"), where("vendorId", "==", orgId)));
+                                       matchesCount = matchesSnap.docs.length;
+                                   } else {
+                                       const matchesClientSnap = await getDocs(query(collection(db, "candidate_matches"), where("clientId", "==", orgId)));
+                                       matchesCount = matchesClientSnap.docs.length;
+                                   }
                                }
                            } catch(e: any) { console.error("candidate_matches query failed:", e.message); }
 
@@ -420,21 +432,28 @@ export default function DashboardTab() {
                            let placements = 0;
                            let pendingReview = 0;
                            try {
-                               const subsQuery = isVendor
-                                 ? query(collection(db, "submissions"), where("vendorId", "==", orgId))
-                                 : query(collection(db, "submissions"), where("clientId", "==", orgId));
-                               const subsSnap = await getDocs(subsQuery);
-                               subsSnap.docs.forEach((d: any) => {
-                                  const data = d.data();
-                                  if (data.status === "DELETED" || data.isActive === false) return;
-                                  const status = (data.status || '').toUpperCase();
-                                  if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
-                                  if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
-                                  if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
-                                     placements++;
-                                     revenue += Number(data.vendorPayout || data.financials?.vendorPayout || data.financials?.clientBudget || data.budget?.amount) || 0;
-                                  }
-                               });
+                               if (orgId) {
+                                   let subsQuery;
+                                   if (isAdmin || session.user.role === 'hq') {
+                                       subsQuery = query(collection(db, "submissions"));
+                                   } else if (isVendor) {
+                                       subsQuery = query(collection(db, "submissions"), where("vendorId", "==", orgId));
+                                   } else {
+                                       subsQuery = query(collection(db, "submissions"), where("clientId", "==", orgId));
+                                   }
+                                   const subsSnap = await getDocs(subsQuery);
+                                   subsSnap.docs.forEach((d: any) => {
+                                      const data = d.data();
+                                      if (data.status === "DELETED" || data.isActive === false) return;
+                                      const status = (data.status || '').toUpperCase();
+                                      if (status === 'SUBMITTED' || status === 'REVIEW_PENDING' || status === 'PENDING') pendingReview++;
+                                      if (status.includes('INTERVIEW') || status === 'SHORTLISTED') interviews++;
+                                      if (['OFFER_RELEASED', 'OFFER_ACCEPTED', 'ONBOARDED', 'HIRED', 'PLACED'].includes(status)) {
+                                         placements++;
+                                         revenue += Number(data.vendorPayout || data.financials?.vendorPayout || data.financials?.clientBudget || data.budget?.amount) || 0;
+                                      }
+                                   });
+                               }
                            } catch(e: any) { console.error("submissions query failed:", e.message); }
                            
                            setMetrics({

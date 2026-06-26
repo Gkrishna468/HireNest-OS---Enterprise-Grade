@@ -5,17 +5,14 @@ import { google } from 'googleapis';
 import { encryptText, decryptText } from '../../lib/encryption.js';
 
 import { MailOSService } from '../services/MailOSService.js';
+import { WorkspaceResolver } from '../services/WorkspaceResolver.js';
 
 const workspaceHandler = express.Router();
 
 workspaceHandler.post('/mailos/sync', async (req, res) => {
-   const uid = (req as any).user?.uid;
-   const orgId = (req as any).user?.orgId || (req as any).query?.orgId;
-   
-   if (!uid || !orgId) return res.status(401).json({ error: "Unauthorized. Missing uid or orgId." });
-
    try {
-       const results = await MailOSService.syncInbox(uid, orgId);
+       const workspace = await WorkspaceResolver.resolve(req);
+       const results = await MailOSService.syncInbox(workspace.uid, workspace.orgId);
        res.json({ success: true, processed: results });
    } catch (e: any) {
        console.error("MailOS Sync Error:", e);
@@ -24,14 +21,11 @@ workspaceHandler.post('/mailos/sync', async (req, res) => {
 });
 
 workspaceHandler.post('/mailos/analyze/:messageId', async (req, res) => {
-   const uid = (req as any).user?.uid;
    const messageId = req.params.messageId;
-   const orgId = (req as any).user?.orgId || (req as any).query?.orgId;
-
-   if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
    try {
-       const analysis = await MailOSService.analyzeMessage(uid, orgId || 'unknown', messageId);
+       const workspace = await WorkspaceResolver.resolve(req);
+       const analysis = await MailOSService.analyzeMessage(workspace.uid, workspace.orgId, messageId);
        res.json({ success: true, analysis });
    } catch (e: any) {
        console.error("MailOS Analyze Error:", e);

@@ -48,6 +48,60 @@ cronHandler.get('/orchestrator/process', async (req, res) => {
     }
 });
 
+// OS Engine Endpoints
+import { EnterpriseScheduler } from '../services/EnterpriseScheduler.js';
+import { ContinuousMatchingEngine } from '../services/ContinuousMatchingEngine.js';
+import { ContinuousImprovementEngine } from '../services/ContinuousImprovementEngine.js';
+import { NetworkOpportunityEngine } from '../services/NetworkOpportunityEngine.js';
+import { AICOO } from '../services/AICOO.js';
+
+cronHandler.get('/os/enterprise-scheduler', async (req, res) => {
+    try {
+        await EnterpriseScheduler.triggerScheduledRoutines();
+        res.json({ success: true, message: 'Enterprise Scheduler triggered routines' });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.get('/os/continuous-matching', async (req, res) => {
+    try {
+        const result = await ContinuousMatchingEngine.executeNetworkMatchCycle();
+        res.json({ success: true, result });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.get('/os/continuous-improvement', async (req, res) => {
+    try {
+        const workspaceId = req.query.workspaceId as string || 'default-workspace';
+        const result = await ContinuousImprovementEngine.executeNightlyAnalysis(workspaceId);
+        res.json({ success: true, result });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.get('/os/network-opportunities', async (req, res) => {
+    try {
+        const result = await NetworkOpportunityEngine.searchForOpportunities();
+        res.json({ success: true, result });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+cronHandler.get('/os/coo-review', async (req, res) => {
+    try {
+        const workspaceId = req.query.workspaceId as string || 'default-workspace';
+        const result = await AICOO.reviewEnterpriseQueues(workspaceId);
+        res.json({ success: true, result });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 cronHandler.get('/mailos-sync', async (req, res) => {
     // In production, verify cron auth token here
     // const authHeader = req.headers.authorization;

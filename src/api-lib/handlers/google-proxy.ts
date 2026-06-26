@@ -2,6 +2,7 @@ import express from 'express';
 import { db } from '../../lib/firebase-admin.js';
 import { google } from 'googleapis';
 import { encryptText, decryptText } from '../../lib/encryption.js';
+import { WorkspaceResolver } from '../services/WorkspaceResolver.js';
 
 const googleProxyHandler = express.Router();
 
@@ -35,15 +36,12 @@ async function getClientForUser(uid: string) {
 }
 
 googleProxyHandler.get('/gmail/messages', async (req, res) => {
-   const uid = (req as any).user?.uid;
-   const orgId = (req as any).user?.orgId || (req as any).query?.orgId;
-
-   if (!uid) return res.status(401).json({ error: "Unauthorized" });
-   
    try {
+       const workspace = await WorkspaceResolver.resolve(req);
+       
        let query = db.collection('mail_messages');
-       if (orgId) {
-           query = query.where('workspaceId', '==', orgId);
+       if (workspace.orgId) {
+           query = query.where('workspaceId', '==', workspace.orgId);
        }
        const snapshot = await query.orderBy('createdAt', 'desc').limit(25).get();
        

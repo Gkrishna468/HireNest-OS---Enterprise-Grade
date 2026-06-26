@@ -56,6 +56,14 @@
       ]
     },
     {
+      "collectionGroup": "mail_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "event_ledger",
       "queryScope": "COLLECTION",
       "fields": [

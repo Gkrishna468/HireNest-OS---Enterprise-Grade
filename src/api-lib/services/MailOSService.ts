@@ -49,13 +49,16 @@ export class MailOSService {
             const subject = headers?.find(h => h.name === 'Subject')?.value || '';
             const from = headers?.find(h => h.name === 'From')?.value || '';
             
-            let body = '';
+            let plainText = '';
+            let htmlBody = '';
             let attachments: any[] = [];
 
             const processParts = (parts: any[]) => {
                 for (const part of parts) {
                     if (part.mimeType === 'text/plain' && part.body?.data) {
-                        body += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                        plainText += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                    } else if (part.mimeType === 'text/html' && part.body?.data) {
+                        htmlBody += Buffer.from(part.body.data, 'base64').toString('utf-8');
                     } else if (part.filename && part.body?.attachmentId) {
                         attachments.push({
                             filename: part.filename,
@@ -72,8 +75,15 @@ export class MailOSService {
             if (msgData.data.payload?.parts) {
                 processParts(msgData.data.payload.parts);
             } else if (msgData.data.payload?.body?.data) {
-                body = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
+                const topBody = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
+                if (msgData.data.payload.mimeType === 'text/html') {
+                    htmlBody = topBody;
+                } else {
+                    plainText = topBody;
+                }
             }
+
+            const body = plainText || htmlBody || msgData.data.snippet || '';
 
             if (!body && attachments.length === 0) continue;
 
@@ -145,6 +155,37 @@ export class MailOSService {
                 });
             }
 
+            // Create lifecycle trace events in mail_events
+            await db.collection('mail_events').add({
+                messageId: msg.id,
+                workspaceId: orgId,
+                eventType: 'EMAIL_RECEIVED',
+                title: 'Email Received',
+                description: `Email received from ${from}`,
+                timestamp: new Date()
+            });
+
+            await db.collection('mail_events').add({
+                messageId: msg.id,
+                workspaceId: orgId,
+                eventType: 'EMAIL_CLASSIFIED',
+                title: 'Email Classified',
+                description: `Email classified as ${classification.type} with ${classification.confidence || 0}% confidence`,
+                timestamp: new Date()
+            });
+
+            if (primaryEntityId) {
+                await db.collection('mail_events').add({
+                    messageId: msg.id,
+                    workspaceId: orgId,
+                    eventType: 'ENTITY_CREATED',
+                    title: 'Entity Created',
+                    description: `Staffing business entity (${classification.type}) automatically extracted and registered: ${primaryEntityId}`,
+                    timestamp: new Date()
+                });
+            }
+
+            // Save trace and state in the mail message doc
             await db.collection('mail_messages').doc(msg.id).set({
                 gmailMessageId: msg.id,
                 gmailThreadId: msgData.data.threadId || '',
@@ -153,7 +194,25 @@ export class MailOSService {
                 entityId: primaryEntityId,
                 entityType: classification.type,
                 status: 'PROCESSED',
-                rawPayload: { subject, from, date: headers?.find(h => h.name === 'Date')?.value || '', snippet: msgData.data.snippet },
+                processingState: primaryEntityId ? 'ENTITY_CREATED' : 'CLASSIFIED',
+                rawPayload: { 
+                    subject, 
+                    from, 
+                    date: headers?.find(h => h.name === 'Date')?.value || '', 
+                    snippet: msgData.data.snippet,
+                    plainText: plainText,
+                    html: htmlBody,
+                    body: body
+                },
+                classification: {
+                    type: classification.type,
+                    confidence: classification.confidence || 0,
+                    confidenceReason: classification.confidenceReason || '',
+                    summary: classification.summary || '',
+                    suggestedActions: classification.suggestedActions || [],
+                    timeline: classification.timeline || [],
+                    data: classification.data || {}
+                },
                 createdAt: new Date()
             });
 
@@ -447,9 +506,9 @@ export class MailOSService {
         if (!messageDoc.exists) throw new Error("Message not found in MailOS database");
         
         const data = messageDoc.data();
-        let entityData: any = {};
+        let entityData: any = data?.classification?.data || {};
         
-        if (data?.entityId) {
+        if (data?.entityId && (!entityData || Object.keys(entityData).length === 0)) {
             let collectionName = '';
             if (data.entityType === 'REQUIREMENT') collectionName = 'requirements_public';
             if (data.entityType === 'RESUME' || data.entityType === 'CANDIDATE') collectionName = 'candidatePool';
@@ -472,21 +531,26 @@ export class MailOSService {
             });
         }
 
+        const dateVal = data?.rawPayload?.date || (data?.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt.seconds * 1000).toISOString()) : new Date().toISOString());
+
         return {
             id: messageId,
             subject: data?.rawPayload?.subject || '(No Subject)',
             from: data?.rawPayload?.from || '(Unknown Sender)',
             to: '(Unknown To)',
-            date: data?.rawPayload?.date || new Date(data?.createdAt?.seconds * 1000).toISOString(),
+            date: dateVal,
             bodySnippet: data?.rawPayload?.snippet || '',
+            body: data?.rawPayload?.body || data?.rawPayload?.plainText || data?.rawPayload?.html || '',
+            plainText: data?.rawPayload?.plainText || '',
+            html: data?.rawPayload?.html || '',
             classification: {
-                type: data?.entityType || 'OTHER',
+                type: data?.entityType || data?.classification?.type || 'OTHER',
                 data: entityData,
-                summary: "Extracted via immutable MailOS parser.",
-                confidence: 99,
-                suggestedActions: ["View Entity", "Acknowledge Receipt"],
-                timeline: [
-                    { time: new Date(data?.createdAt?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), title: 'Ingested by MailOS' }
+                summary: data?.classification?.summary || "Extracted via immutable MailOS parser.",
+                confidence: data?.classification?.confidence || 99,
+                suggestedActions: data?.classification?.suggestedActions || ["View Entity", "Acknowledge Receipt"],
+                timeline: data?.classification?.timeline || [
+                    { time: data?.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt.seconds * 1000)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), title: 'Ingested by MailOS' }
                 ]
             },
             attachments: [],

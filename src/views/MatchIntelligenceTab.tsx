@@ -87,8 +87,14 @@ export default function MatchIntelligenceTab() {
         const orgId = userData?.organizationId;
 
         let q;
-        if (isAdmin || isClient) {
+        if (isAdmin) {
           q = query(collection(db, "candidate_matches"), limit(100));
+        } else if (isClient && orgId) {
+          q = query(
+            collection(db, "candidate_matches"),
+            where("clientId", "==", orgId),
+            limit(100),
+          );
         } else if (isVendor && orgId) {
           q = query(
             collection(db, "candidate_matches"),

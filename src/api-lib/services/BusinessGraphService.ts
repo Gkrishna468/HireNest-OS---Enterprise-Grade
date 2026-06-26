@@ -10,9 +10,60 @@ export interface BusinessGraphNode {
     }[];
 }
 
+export interface WorkspaceScope {
+    userId: string;
+    orgId: string;
+    role: string;
+    isVendor: boolean;
+    isClient: boolean;
+    isAdmin: boolean;
+}
+
+export class GraphRepository {
+    private scope: WorkspaceScope;
+
+    constructor(scope: WorkspaceScope) {
+        this.scope = scope;
+    }
+
+    async query(collectionName: string, additionalConstraints: any[] = []) {
+        if (!db) return [];
+        
+        let q: FirebaseFirestore.Query = db.collection(collectionName);
+        
+        // Automatic security filtering based on scope
+        if (!this.scope.isAdmin && this.scope.role !== 'hq') {
+            if (this.scope.isVendor) {
+                // If it's the users collection, we query by orgId, else vendorId
+                if (collectionName === 'users') {
+                    q = q.where('organizationId', '==', this.scope.orgId);
+                } else if (collectionName === 'candidate_matches') {
+                    q = q.where('vendorId', '==', this.scope.orgId);
+                } else {
+                    q = q.where('vendorId', '==', this.scope.orgId);
+                }
+            } else if (this.scope.isClient) {
+                 if (collectionName === 'users') {
+                    q = q.where('organizationId', '==', this.scope.orgId);
+                } else if (collectionName === 'candidate_matches') {
+                    q = q.where('clientId', '==', this.scope.orgId);
+                } else {
+                    q = q.where('clientId', '==', this.scope.orgId);
+                }
+            }
+        }
+        
+        // We'd add the additional constraints here in a real implementation
+        
+        const snap = await q.get();
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+}
+
 /**
  * The BusinessGraphService is the SSOT for resolving relationships between any entities in HireNestOS.
  * It replaces independent, fragmented queries with a unified traversal interface.
+
  * 
  * It answers questions like:
  * - Which client owns this requirement?

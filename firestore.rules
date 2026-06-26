@@ -78,6 +78,7 @@ service cloud.firestore {
           'platform_authority',
           'hq_admin',
           'ceo',
+          'ops_admin',
 
           // CLIENT
           'client_admin',
