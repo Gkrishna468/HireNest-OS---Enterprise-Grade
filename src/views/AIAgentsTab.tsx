@@ -14,7 +14,10 @@ import {
   Clock,
   ShieldAlert,
   Brain,
-  Network
+  Network,
+  Target,
+  TrendingUp,
+  ArrowRight
 } from "lucide-react";
 import { collection, getDocs, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -263,14 +266,167 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                       <p className="text-sm text-slate-400">All agents are operating normally.</p>
                                   </div>
                               </div>
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4">Enterprise Maturity Roadmap</h4>
+                                  <div className="space-y-4 text-sm">
+                                      <div className="flex items-start gap-4">
+                                          <div className="w-24 font-mono text-xs text-indigo-400 mt-1">HN-011</div>
+                                          <div>
+                                              <div className="text-slate-300 font-bold mb-1">Enterprise Runtime <span className="ml-2 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded uppercase">Current Phase</span></div>
+                                              <div className="text-slate-400 text-xs">AI COO, Enterprise Scheduler, Agent Runtime Engine, Queues, Observability.</div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-start gap-4">
+                                          <div className="w-24 font-mono text-xs text-slate-500 mt-1">HN-012</div>
+                                          <div>
+                                              <div className="text-slate-300 font-bold mb-1 text-slate-400">Office Memory</div>
+                                              <div className="text-slate-500 text-xs">Long-term memory, Working memory, KPI history, Vendor/Candidate history.</div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-start gap-4">
+                                          <div className="w-24 font-mono text-xs text-slate-500 mt-1">HN-013</div>
+                                          <div>
+                                              <div className="text-slate-300 font-bold mb-1 text-slate-400">Business Engine</div>
+                                              <div className="text-slate-500 text-xs">Cross-office automation, end-to-end loops from requirement to placement to coaching.</div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-start gap-4">
+                                          <div className="w-24 font-mono text-xs text-slate-500 mt-1">HN-014</div>
+                                          <div>
+                                              <div className="text-slate-300 font-bold mb-1 text-slate-400">Revenue Intelligence</div>
+                                              <div className="text-slate-500 text-xs">Executive insights, profit prediction, recruiter/vendor ranking, risk forecasting.</div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-start gap-4">
+                                          <div className="w-24 font-mono text-xs text-slate-500 mt-1">HN-015</div>
+                                          <div>
+                                              <div className="text-slate-300 font-bold mb-1 text-slate-400">Enterprise Learning</div>
+                                              <div className="text-slate-500 text-xs">Continuous optimization of the entire organization, higher placement/revenue automatically.</div>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      ) : activeCategory === 'Chief Operating Office' ? (
+                          <div className="space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 col-span-3">
+                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Target size={14} /> Mission: OS Conductor</h4>
+                                      <p className="text-sm text-slate-300 italic mb-4">
+                                          Monitor every Office, balance workloads, detect bottlenecks, escalate failures, reassign work, and optimize AI/Infrastructure costs across the entire workforce.
+                                      </p>
+                                      
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                                          <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                              <div className="text-slate-400 text-xs font-bold uppercase mb-1">Global Queue</div>
+                                              <div className="text-2xl font-mono text-white">{queueCount.toLocaleString()}</div>
+                                          </div>
+                                          <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                              <div className="text-slate-400 text-xs font-bold uppercase mb-1">Blocked Workflows</div>
+                                              <div className="text-2xl font-mono text-rose-400">{failedCount.toLocaleString()}</div>
+                                          </div>
+                                          <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                              <div className="text-slate-400 text-xs font-bold uppercase mb-1">Active Offices</div>
+                                              <div className="text-2xl font-mono text-emerald-400">7 / 7</div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-center">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Activity size={14} /> System Health</h4>
+                                      <div className="flex flex-col gap-4">
+                                          <div className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-400">Runtime</span>
+                                              <span className="text-emerald-400 font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Stable</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-400">Event Bus</span>
+                                              <span className="text-emerald-400 font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Synced</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-400">Cost Engine</span>
+                                              <span className="text-indigo-400 font-bold">Optimized</span>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-between">
+                                      Real-Time Observability
+                                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-mono">15m refresh loop</span>
+                                  </h4>
+                                  <div className="overflow-x-auto">
+                                      <table className="w-full text-left text-sm text-slate-400">
+                                          <thead className="text-xs text-slate-500 uppercase bg-slate-900/50 border-b border-slate-800">
+                                              <tr>
+                                                  <th className="px-4 py-3">Office</th>
+                                                  <th className="px-4 py-3">Status</th>
+                                                  <th className="px-4 py-3">Capacity</th>
+                                                  <th className="px-4 py-3">SLA Health</th>
+                                                  <th className="px-4 py-3">AI Spend (24h)</th>
+                                                  <th className="px-4 py-3">Action</th>
+                                              </tr>
+                                          </thead>
+                                          <tbody>
+                                              <tr className="border-b border-slate-800/50">
+                                                  <td className="px-4 py-3 font-bold text-slate-300">Recruitment Office</td>
+                                                  <td className="px-4 py-3 text-emerald-400">Active</td>
+                                                  <td className="px-4 py-3">85%</td>
+                                                  <td className="px-4 py-3 text-emerald-400">92%</td>
+                                                  <td className="px-4 py-3 font-mono">$12.40</td>
+                                                  <td className="px-4 py-3"><button className="text-xs text-indigo-400 hover:text-indigo-300">Rebalance</button></td>
+                                              </tr>
+                                              <tr className="border-b border-slate-800/50">
+                                                  <td className="px-4 py-3 font-bold text-slate-300">Vendor Office</td>
+                                                  <td className="px-4 py-3 text-emerald-400">Active</td>
+                                                  <td className="px-4 py-3">45%</td>
+                                                  <td className="px-4 py-3 text-emerald-400">98%</td>
+                                                  <td className="px-4 py-3 font-mono">$4.20</td>
+                                                  <td className="px-4 py-3"><button className="text-xs text-indigo-400 hover:text-indigo-300">Rebalance</button></td>
+                                              </tr>
+                                              <tr className="border-b border-slate-800/50">
+                                                  <td className="px-4 py-3 font-bold text-slate-300">GTM Office</td>
+                                                  <td className="px-4 py-3 text-amber-400">Spiking</td>
+                                                  <td className="px-4 py-3">94%</td>
+                                                  <td className="px-4 py-3 text-amber-400">76%</td>
+                                                  <td className="px-4 py-3 font-mono">$24.80</td>
+                                                  <td className="px-4 py-3"><button className="text-xs text-indigo-400 hover:text-indigo-300">Scale Up</button></td>
+                                              </tr>
+                                              <tr className="border-b border-slate-800/50">
+                                                  <td className="px-4 py-3 font-bold text-slate-300">Client Office</td>
+                                                  <td className="px-4 py-3 text-emerald-400">Active</td>
+                                                  <td className="px-4 py-3">60%</td>
+                                                  <td className="px-4 py-3 text-emerald-400">99%</td>
+                                                  <td className="px-4 py-3 font-mono">$8.15</td>
+                                                  <td className="px-4 py-3"><button className="text-xs text-indigo-400 hover:text-indigo-300">Rebalance</button></td>
+                                              </tr>
+                                          </tbody>
+                                      </table>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-between">
+                                      Decision Engine Loop
+                                  </h4>
+                                  <div className="flex items-center text-xs text-slate-400 font-mono overflow-x-auto pb-2 space-x-2">
+                                      <span className="text-indigo-400">Monitor</span> <span className="text-slate-600">→</span>
+                                      <span className="text-slate-300">Is Blocked?</span> <span className="text-slate-600">→</span>
+                                      <span className="text-amber-400">Can Unblock?</span> <span className="text-slate-600">→</span>
+                                      <span className="text-slate-300">Delegate</span> <span className="text-slate-600">→</span>
+                                      <span className="text-rose-400">Approval Required?</span> <span className="text-slate-600">→</span>
+                                      <span className="text-emerald-400">Improve Workflow</span>
+                                  </div>
+                              </div>
                           </div>
                       ) : activeCategory.includes('Office') ? (
                           <div className="space-y-6">
                               {/* Office Dashboard Sections */}
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 col-span-2">
-                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">1. Mission</h4>
-                                      <p className="text-sm text-slate-300 italic">
+                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Target size={14} /> 1. Mission & Objectives</h4>
+                                      <p className="text-sm text-slate-300 italic mb-4">
                                           {activeCategory === 'Recruitment Office' && 'Deliver the best candidates to clients as quickly as possible while continuously improving placement success.'}
                                           {activeCategory === 'GTM Office' && 'Generate predictable revenue pipeline through targeted outreach and lead conversion.'}
                                           {activeCategory === 'Vendor Office' && 'Maximize vendor success, improve submission quality, and maintain high engagement.'}
@@ -279,42 +435,83 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                           {activeCategory === 'Platform Office' && 'Ensure 99.99% uptime, zero queue failures, and optimal latency across the OS.'}
                                           {activeCategory === 'Chief Operating Office' && 'Monitor every Office, balance workloads, detect bottlenecks, and generate operational reports.'}
                                       </p>
-                                  </div>
-                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-center items-center text-center">
-                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Digital Twin</h4>
-                                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-lg">
-                                          <Activity size={20} /> Healthy
+                                      
+                                      <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                                          <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Current OKRs</h5>
+                                          <div className="space-y-2">
+                                              <div className="flex justify-between items-center text-xs">
+                                                  <span className="text-slate-300">Objective: Accelerate Q3 Outcomes</span>
+                                                  <span className="text-emerald-400 font-bold">On Track</span>
+                                              </div>
+                                              <div className="w-full bg-slate-800 rounded-full h-1.5">
+                                                  <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '75%' }}></div>
+                                              </div>
+                                          </div>
                                       </div>
-                                      <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Capacity: 72%</span>
+                                  </div>
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Activity size={14} /> Digital Twin</h4>
+                                      <div className="flex-1 flex flex-col justify-between">
+                                          <div className="flex justify-between items-center mb-2 text-sm">
+                                              <span className="text-slate-400">Health</span>
+                                              <span className="text-emerald-400 font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Healthy</span>
+                                          </div>
+                                          <div className="flex justify-between items-center mb-2 text-sm">
+                                              <span className="text-slate-400">Capacity</span>
+                                              <span className="text-slate-300 font-mono">72%</span>
+                                          </div>
+                                          <div className="flex justify-between items-center mb-2 text-sm">
+                                              <span className="text-slate-400">AI Confidence</span>
+                                              <span className="text-indigo-400 font-bold font-mono">91%</span>
+                                          </div>
+                                          <div className="flex justify-between items-center mb-2 text-sm">
+                                              <span className="text-slate-400">Queue</span>
+                                              <span className="text-amber-400 font-mono">16 items</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-sm border-t border-slate-800 pt-2 mt-2">
+                                              <span className="text-slate-400">Est. Completion</span>
+                                              <span className="text-slate-300 font-mono">4:35 PM</span>
+                                          </div>
+                                      </div>
                                   </div>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">2. Key Performance Indicators</h4>
+                                      <div className="flex justify-between items-center mb-4">
+                                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><TrendingUp size={14}/> 2. Office Scorecard</h4>
+                                          <span className="bg-indigo-900/50 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-bold border border-indigo-800">SCORE: 91%</span>
+                                      </div>
                                       <ul className="space-y-3">
                                           <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Active Workflows</span>
-                                              <span className="font-mono text-indigo-400 font-bold">124</span>
+                                              <span className="text-slate-300">Quality Index</span>
+                                              <span className="font-mono text-emerald-400 font-bold">95%</span>
                                           </li>
                                           <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Success Rate</span>
-                                              <span className="font-mono text-emerald-400 font-bold">98.2%</span>
+                                              <span className="text-slate-300">Velocity (SLA)</span>
+                                              <span className="font-mono text-amber-400 font-bold">89%</span>
                                           </li>
                                           <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Daily Objective</span>
-                                              <span className="font-mono text-slate-400">78 / 120 (On Track)</span>
+                                              <span className="text-slate-300">Predictive Success</span>
+                                              <span className="font-mono text-emerald-400 font-bold">92%</span>
+                                          </li>
+                                          <li className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-300">Daily Target</span>
+                                              <span className="font-mono text-slate-400">78 / 120</span>
                                           </li>
                                       </ul>
                                   </div>
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">3. Office Memory (Learning)</h4>
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Brain size={14}/> 3. Office Memory (Learning)</h4>
                                       <ul className="space-y-2 text-xs text-slate-400 list-disc list-inside">
                                           <li>Identified 3 top-performing vendors for technical roles.</li>
                                           <li>Detected interview failure patterns in recent submissions.</li>
                                           <li>Learned successful keywords matching recent JD patterns.</li>
                                           <li>Adjusted SLA expectations based on historical turnaround.</li>
                                       </ul>
+                                      <button className="mt-4 text-[10px] font-bold text-indigo-400 uppercase tracking-widest hover:text-indigo-300 flex items-center gap-1 transition-colors">
+                                          View Knowledge Graph <ArrowRight size={10} />
+                                      </button>
                                   </div>
                               </div>
 
@@ -338,6 +535,50 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                       <span className="text-emerald-400">Learning</span> <span className="text-slate-600">→</span>
                                       <span className="text-blue-400">Memory Saved</span> <span className="text-slate-600">→</span>
                                       <span className="text-rose-400">KPI Updated</span>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-between">
+                                      6. Office Contract
+                                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-mono">v1.2.0</span>
+                                  </h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                      <div>
+                                          <h5 className="font-bold text-slate-300 mb-2">Inputs</h5>
+                                          <ul className="list-disc list-inside text-slate-400 space-y-1">
+                                              <li>Requirements</li>
+                                              <li>Candidate Resumes</li>
+                                              <li>Vendor Resumes</li>
+                                              <li>Interview Feedback</li>
+                                          </ul>
+                                      </div>
+                                      <div>
+                                          <h5 className="font-bold text-slate-300 mb-2">Outputs</h5>
+                                          <ul className="list-disc list-inside text-slate-400 space-y-1">
+                                              <li>Matches</li>
+                                              <li>Submissions</li>
+                                              <li>Interview Schedules</li>
+                                              <li>Candidate Coaching</li>
+                                          </ul>
+                                      </div>
+                                      <div>
+                                          <h5 className="font-bold text-slate-300 mb-2 mt-2">Events Published</h5>
+                                          <ul className="list-disc list-inside text-indigo-400 space-y-1 font-mono">
+                                              <li>CandidateMatched</li>
+                                              <li>CandidateSubmitted</li>
+                                              <li>InterviewScheduled</li>
+                                              <li>CandidateRejected</li>
+                                          </ul>
+                                      </div>
+                                      <div>
+                                          <h5 className="font-bold text-slate-300 mb-2 mt-2">Events Consumed</h5>
+                                          <ul className="list-disc list-inside text-emerald-400 space-y-1 font-mono">
+                                              <li>RequirementCreated</li>
+                                              <li>VendorUploadedResume</li>
+                                              <li>InterviewFeedbackReceived</li>
+                                          </ul>
+                                      </div>
                                   </div>
                               </div>
                           </div>
