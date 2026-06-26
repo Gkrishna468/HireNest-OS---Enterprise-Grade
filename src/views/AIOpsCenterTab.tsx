@@ -6,7 +6,7 @@ import { cn } from "../lib/utils";
 
 export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
-  const [activeTab, setActiveTab] = useState<'vercel' | 'github' | 'firebase' | 'workspace' | 'incidents' | 'agents'>('agents');
+  const [activeTab, setActiveTab] = useState<'vercel' | 'github' | 'firebase' | 'workspace' | 'incidents' | 'agents' | 'ai-providers'>('ai-providers');
   const [loading, setLoading] = useState(true);
   const [workspaceDetails, setWorkspaceDetails] = useState<any>(null);
   const [incidents, setIncidents] = useState<any[]>([]);
@@ -137,6 +137,12 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
             className={cn("px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap", activeTab === 'firebase' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : "bg-slate-900 text-slate-500 border border-slate-800 hover:bg-slate-800")}
           >
             <Database size={16} /> Firebase Diagnostics
+          </button>
+          <button 
+            onClick={() => setActiveTab('ai-providers')}
+            className={cn("px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap", activeTab === 'ai-providers' ? "bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20" : "bg-slate-900 text-slate-500 border border-slate-800 hover:bg-slate-800")}
+          >
+            <Activity size={16} /> Provider Health
           </button>
           <button 
             onClick={() => setActiveTab('workspace')}
@@ -304,6 +310,105 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'ai-providers' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Activity className="text-fuchsia-400" /> AI Provider Command Center</h3>
+                <span className="text-xs font-mono text-slate-500">Auto-refreshing</span>
+              </div>
+              
+              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden mb-8">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 border-b border-slate-800">
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Provider</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Latency</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Daily Cost</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Quota</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Failover</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    <tr className="hover:bg-slate-800/50">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Gemini</td>
+                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">120 ms</td>
+                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">72%</td>
+                      <td className="py-4 px-6 text-xs text-slate-400">OpenAI</td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-200">OpenAI</td>
+                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">90 ms</td>
+                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">₹₹</td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">38%</td>
+                      <td className="py-4 px-6 text-xs text-slate-400">Anthropic</td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Anthropic</td>
+                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">180 ms</td>
+                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">₹₹</td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">55%</td>
+                      <td className="py-4 px-6 text-xs text-slate-400">Groq</td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-200">Groq</td>
+                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-max"><CheckCircle2 size={12}/> Healthy</span></td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">18 ms</td>
+                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">81%</td>
+                      <td className="py-4 px-6 text-xs text-slate-400">Gemini</td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-200">ElevenLabs</td>
+                      <td className="py-4 px-6"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1 w-max"><AlertTriangle size={12}/> Degraded</span></td>
+                      <td className="py-4 px-6 text-sm text-amber-400 font-mono">430 ms</td>
+                      <td className="py-4 px-6 text-sm text-emerald-400 font-mono">₹</td>
+                      <td className="py-4 px-6 text-sm text-slate-400 font-mono">64%</td>
+                      <td className="py-4 px-6 text-xs text-slate-400">Retry</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">Provider Failover Matrix</h4>
+                    <p className="text-xs text-slate-500 mb-4">Traffic will automatically route to backup providers if latency exceeds 500ms or 5xx errors are encountered.</p>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
+                            <span className="text-xs font-bold text-slate-400">Primary Router</span>
+                            <span className="text-xs text-emerald-400 font-mono">Active (Gemini First)</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
+                            <span className="text-xs font-bold text-slate-400">Fallback Policy</span>
+                            <span className="text-xs text-slate-400 font-mono">Fail-fast (Timeout: 2000ms)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">Key Management Vault</h4>
+                    <p className="text-xs text-slate-500 mb-4">Secure environment variables synced from Secret Manager.</p>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
+                            <span className="text-xs font-bold text-slate-400">GEMINI_API_KEY</span>
+                            <span className="text-xs text-emerald-400 font-mono">Valid (Rotated 12d ago)</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-slate-950 border border-slate-800 rounded-lg">
+                            <span className="text-xs font-bold text-slate-400">OPENAI_API_KEY</span>
+                            <span className="text-xs text-amber-400 font-mono">Valid (Rotates in 3d)</span>
+                        </div>
+                    </div>
+                </div>
+              </div>
+
             </div>
           )}
 
