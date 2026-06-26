@@ -1,3 +1,4 @@
+import { checkIsAdmin, checkIsClient, checkIsVendor, checkIsRecruiter, checkIsIndependent } from "./lib/permissions";
 import React, { useState } from "react";
 import {
   BrowserRouter as Router,
@@ -203,24 +204,11 @@ const AppContent = () => {
   }
 
   const role = userData?.role || "guest";
-  const isAdmin =
-    role === "admin" || role === "super_admin" || role === "ops_admin";
-  const isClient =
-    role === "client" ||
-    role === "client_admin" ||
-    role === "client_hm" ||
-    role === "client_finance" ||
-    role === "client_recruiter";
-  const isVendor =
-    role === "vendor" || role === "vendor_admin" || role === "vendor_recruiter";
-  const isRecruiter =
-    role === "recruiter" ||
-    role === "independent_recruiter" ||
-    role === "freelancer_recruiter";
-  const isIndependent =
-    role === "independent" ||
-    role === "independent_vendor" ||
-    role === "independent_consultant";
+  const isAdmin = checkIsAdmin(role);
+  const isClient = checkIsClient(role);
+  const isVendor = checkIsVendor(role);
+  const isRecruiter = checkIsRecruiter(role);
+  const isIndependent = checkIsIndependent(role);
 
   const hasCompletedOnboarding =
     userData?.onboardingCompleted === true ||

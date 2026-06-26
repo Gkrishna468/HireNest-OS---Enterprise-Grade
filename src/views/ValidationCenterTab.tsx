@@ -13,6 +13,7 @@ import {
   Play
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { checkIsAdmin } from "../lib/permissions";
 
 export default function ValidationCenterTab({ userRole }: { userRole: string }) {
   const [activePhase, setActivePhase] = useState(1);
@@ -81,7 +82,7 @@ export default function ValidationCenterTab({ userRole }: { userRole: string }) 
     }
   ];
 
-  if (userRole !== 'admin') {
+  if (!checkIsAdmin(userRole)) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
         Unauthorized Access

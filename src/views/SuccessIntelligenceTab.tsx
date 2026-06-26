@@ -12,6 +12,7 @@ import {
   Zap
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { checkIsAdmin } from "../lib/permissions";
 
 export default function SuccessIntelligenceTab({ userRole }: { userRole: string }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -35,7 +36,7 @@ export default function SuccessIntelligenceTab({ userRole }: { userRole: string 
       ]
   };
 
-  if (userRole !== 'admin') {
+  if (!checkIsAdmin(userRole)) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
         Unauthorized Access

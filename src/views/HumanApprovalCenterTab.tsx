@@ -14,6 +14,7 @@ import {
 import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import { checkIsAdmin } from "../lib/permissions";
 
 export default function HumanApprovalCenterTab({ userRole }: { userRole: string }) {
   const [activeTab, setActiveTab] = useState('pending');
@@ -25,7 +26,7 @@ export default function HumanApprovalCenterTab({ userRole }: { userRole: string 
       { id: 'app-4', type: 'ESCALATION', title: 'Requirement Escalation: Senior PM', desc: 'Open > 30 days, requesting 20% margin increase', requester: 'Ops Agent', time: '5 hours ago', risk: 'high' }
   ];
 
-  if (userRole !== 'admin') {
+  if (!checkIsAdmin(userRole)) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
         Unauthorized Access

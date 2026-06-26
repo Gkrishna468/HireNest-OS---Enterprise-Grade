@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Activity, ShieldCheck, Database, FileBox, Crosshair, Users, HardHat, TrendingUp, AlertTriangle } from "lucide-react";
 import { cn } from "../lib/utils";
+import { checkIsAdmin } from "../lib/permissions";
 
 export default function OperationalIntelligenceTab({ userRole, orgId, userId }: { userRole: string, orgId: string, userId: string }) {
   const [healthData, setHealthData] = useState<any>(null);
@@ -12,7 +13,7 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
   useEffect(() => {
     if (!userId) return;
     
-    if (userRole !== 'admin' && userRole !== 'hq_admin' && userRole !== 'super_admin' && userRole !== 'ops_admin') {
+    if (!checkIsAdmin(userRole)) {
       setLoading(false);
       return;
     }
@@ -89,7 +90,7 @@ export default function OperationalIntelligenceTab({ userRole, orgId, userId }: 
     fetchAllData();
   }, [userRole, orgId, userId]);
 
-  const isAdmin = ['admin', 'super_admin', 'hq_admin', 'ops_admin'].includes(userRole);
+  const isAdmin = checkIsAdmin(userRole);
 
   if (!isAdmin) {
     return (

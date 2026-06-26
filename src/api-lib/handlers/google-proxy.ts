@@ -36,50 +36,32 @@ async function getClientForUser(uid: string) {
 
 googleProxyHandler.get('/gmail/messages', async (req, res) => {
    const uid = (req as any).user?.uid;
+   const orgId = (req as any).user?.orgId || (req as any).query?.orgId;
+
    if (!uid) return res.status(401).json({ error: "Unauthorized" });
-   const filterType = req.query.type as string;
-   let baseQuery = '';
-   if (filterType === 'work') {
-      baseQuery = '-category:promotions -category:social -category:updates';
-   } else if (filterType === 'noise') {
-      baseQuery = '{category:promotions category:social category:updates}';
-   }
-
-   let finalQuery = baseQuery;
-   if (req.query.q) {
-      finalQuery = finalQuery ? `${finalQuery} ${req.query.q}` : (req.query.q as string);
-   }
-
-   const queryStr = finalQuery ? `&q=${encodeURIComponent(finalQuery)}` : '';
-
+   
    try {
-      const client = await getClientForUser(uid);
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15${queryStr}`;
-      const response = await client.request({ url });
-      
-      const data: any = response.data;
-      if (data.messages && data.messages.length > 0) {
-         const fullMessages = await Promise.all(data.messages.map(async (msg: any) => {
-            const dResp = await client.request({ 
-               url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From` 
-            });
-            const detailData: any = dResp.data;
-            const subjectHeader = detailData.payload?.headers?.find((h: any) => h.name === 'Subject');
-            const fromHeader = detailData.payload?.headers?.find((h: any) => h.name === 'From');
-            return {
-               id: msg.id,
-               snippet: detailData.snippet,
-               subject: subjectHeader?.value || '(No Subject)',
-               from: fromHeader?.value || '(Unknown Sender)'
-            };
-         }));
-         res.json({ messages: fullMessages });
-      } else {
-         res.json({ messages: [] });
-      }
+       let query = db.collection('mail_messages');
+       if (orgId) {
+           query = query.where('workspaceId', '==', orgId);
+       }
+       const snapshot = await query.orderBy('createdAt', 'desc').limit(25).get();
+       
+       const fullMessages = snapshot.docs.map(doc => {
+           const d = doc.data();
+           return {
+               id: d.gmailMessageId,
+               snippet: d.rawPayload?.snippet,
+               subject: d.rawPayload?.subject || '(No Subject)',
+               from: d.rawPayload?.from || '(Unknown Sender)',
+               classification: { type: d.entityType }
+           };
+       });
+       
+       res.json({ messages: fullMessages });
    } catch (e: any) {
-      console.error(e);
-      res.status(e.response?.status || 500).json({ error: e.message || "Failed to fetch Gmail" });
+       console.error(e);
+       res.status(500).json({ error: e.message || "Failed to fetch Gmail from MailOS" });
    }
 });
 

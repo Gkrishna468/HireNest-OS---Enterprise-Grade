@@ -15,6 +15,7 @@ import {
 import { collection, getDocs, onSnapshot, query } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import { checkIsAdmin } from "../lib/permissions";
 
 export default function WorkflowStudioTab({ userRole }: { userRole: string }) {
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -47,7 +48,7 @@ export default function WorkflowStudioTab({ userRole }: { userRole: string }) {
     }
   ];
 
-  if (userRole !== 'admin') {
+  if (!checkIsAdmin(userRole)) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
         Unauthorized Access

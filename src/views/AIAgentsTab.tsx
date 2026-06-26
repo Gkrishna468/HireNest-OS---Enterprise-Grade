@@ -17,7 +17,10 @@ import {
   Network,
   Target,
   TrendingUp,
-  ArrowRight
+  ArrowRight,
+  Zap,
+  Shield,
+  AlertTriangle
 } from "lucide-react";
 import { collection, getDocs, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -111,12 +114,244 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
     'Client Office', 
     'Customer Success Office',
     'Finance Office',
+    'Quality Office',
     'Knowledge Office',
     'Intelligence Office',
     'Platform Office',
     'Security Office',
     'Agent Marketplace'
   ];
+
+  const officeContracts: Record<string, any> = {
+    'Recruitment Office': {
+      mission: 'Deliver the best candidates to clients as quickly as possible.',
+      goal: 'Maximize placement ratio and minimize time-to-submit.',
+      consumed: ['Requirement Created', 'Vendor Submitted Resume', 'Interview Feedback Received', 'Candidate Rejected'],
+      published: ['Candidates Matched', 'Submission Generated', 'Interview Scheduled', 'Offer Released'],
+      skills: ['Resume Parser', 'Matching Engine', 'Submission Generator', 'Interview Scheduler'],
+      memory: ['Short (Active Submissions)', 'Working (Candidate Lifecycle)'],
+      kpis: ['Submission SLA', 'Interview Ratio', 'Offer Ratio', 'Placement Ratio', 'Time to Submit'],
+      hours: '24/7 (Global Coverage)',
+      escalation: 'If 0 matches after 4 hours -> Escalate to COO',
+      queue: 14,
+      blocked: 2,
+      objectives: 'Submit 25 qualified candidates today.',
+      results: '18 submissions sent, 4 interviews scheduled.'
+    },
+    'Vendor Office': {
+      mission: 'Maximize vendor success and maintain high engagement.',
+      goal: 'Expand active vendor network and improve submission quality.',
+      consumed: ['Requirement Broadcasted', 'Vendor Onboarded', 'Vendor Submission Rejected'],
+      published: ['Vendor Broadcast Sent', 'Vendor Score Updated', 'SLA Warning Issued'],
+      skills: ['Vendor Scorer', 'Broadcast Engine', 'Performance Mailer'],
+      memory: ['Long (Vendor Performance History)'],
+      kpis: ['Response Time', 'Submission Quality', 'Placement %', 'Health Score'],
+      hours: 'Standard Business Hours',
+      escalation: 'If Vendor < 30% quality score -> Pause broadcasting',
+      queue: 45,
+      blocked: 0,
+      objectives: 'Broadcast 10 urgent requirements to preferred vendors.',
+      results: '12 broadcasts sent, 35 vendor resumes received.'
+    },
+    'Client Office': {
+      mission: 'Ensure high client satisfaction by driving hiring outcomes.',
+      goal: 'Increase hiring velocity and identify expansion opportunities.',
+      consumed: ['Requirement Created', 'Submission Sent', 'Interview Scheduled', 'Offer Accepted'],
+      published: ['Requirement Enriched', 'Client Feedback Chased', 'Expansion Opportunity Identified'],
+      skills: ['JD Extractor', 'Sentiment Analyzer', 'Follow-up Automator'],
+      memory: ['Working (Active Requirements)', 'Long (Client Preferences)'],
+      kpis: ['Hiring Velocity', 'Client Satisfaction', 'Feedback SLA', 'Fill Rate'],
+      hours: 'Client Timezone',
+      escalation: 'If Client silent for 48 hours -> Notify Account Executive',
+      queue: 8,
+      blocked: 3,
+      objectives: 'Chase feedback on 15 pending submissions.',
+      results: '8 feedbacks received, 2 new requirements unlocked.'
+    },
+    'Customer Success Office': {
+      mission: 'Ensure long-term consultant success and account growth.',
+      goal: 'Maximize consultant retention and client contract renewals.',
+      consumed: ['Candidate Placed', 'Contract Approaching Expiry', 'Consultant Check-in Submitted'],
+      published: ['Renewal Triggered', 'Replacement Risk Flagged', 'Upsell Opportunity Created'],
+      skills: ['Check-in Automator', 'Risk Scorer', 'Contract Generator'],
+      memory: ['Long (Placement History, Consultant Health)'],
+      kpis: ['Renewal Rate', 'Consultant Retention', 'Revenue Expansion', 'Replacement Requests'],
+      hours: 'Standard Business Hours',
+      escalation: 'If Consultant risk score > 80% -> Alert Founder & Client Office',
+      queue: 12,
+      blocked: 1,
+      objectives: 'Conduct 30-day check-ins for 5 recent placements.',
+      results: '5 check-ins completed, 1 contract extension secured.'
+    },
+    'Quality Office': {
+      mission: 'Continuously audit and improve business operations.',
+      goal: 'Eliminate errors, hallucinations, and SLA violations.',
+      consumed: ['Resume Parsed', 'Match Generated', 'Workflow Failed', 'SLA Breached'],
+      published: ['Duplicate Flagged', 'Quality Warning Issued', 'Process Improvement Task'],
+      skills: ['Data Integrity Checker', 'Hallucination Detector', 'Duplicate Finder'],
+      memory: ['Knowledge (Failure Patterns)'],
+      kpis: ['Defect Rate', 'Data Integrity Score', 'SLA Adherence', 'Audit Resolution Time'],
+      hours: '24/7 (Continuous Audit)',
+      escalation: 'If Critical Data Corruption Detected -> Halt Workflow, Alert Security',
+      queue: 124,
+      blocked: 0,
+      objectives: 'Audit all new candidate imports for duplicates.',
+      results: '450 records audited, 12 duplicates merged, 2 bad parses flagged.'
+    },
+    'Intelligence Office': {
+      mission: 'Provide data-driven insights and strategic foresight.',
+      goal: 'Identify trends, anomalies, and operational inefficiencies across the enterprise.',
+      consumed: ['SLA Breached', 'Placement Ratios Dropped', 'Vendor Health Changed'],
+      published: ['Insight Generated', 'Process Improvement Proposed', 'Risk Identified'],
+      skills: ['Trend Analyzer', 'Root Cause Engine', 'Performance Modeler'],
+      memory: ['Long (Historical Enterprise Data)', 'Knowledge (Market Trends)'],
+      kpis: ['Insight Accuracy', 'Actionable Recommendations', 'Query Response Time'],
+      hours: '24/7 (Batch Analysis)',
+      escalation: 'If Systemic revenue risk detected -> Alert Founder Office',
+      queue: 4,
+      blocked: 0,
+      objectives: 'Analyze Q3 placement drop reasons.',
+      results: 'Identified 3 bottlenecked clients affecting SLA.'
+    },
+    'Platform Office': {
+      mission: 'Ensure high availability, resilience, and performance of Workforce OS.',
+      goal: 'Maintain 99.99% uptime and zero queue failures.',
+      consumed: ['Queue Overload Flagged', 'Latency Spike Detected', 'Service Degraded'],
+      published: ['Resource Scaled', 'Queue Flushed', 'System Alert Issued'],
+      skills: ['Auto-Scaler', 'Queue Manager', 'Latency Monitor'],
+      memory: ['Short (Current System Load)'],
+      kpis: ['Uptime %', 'Average Latency', 'Queue Failure Rate'],
+      hours: '24/7 (Always On)',
+      escalation: 'If Outage > 2 mins -> PagerDuty Human Engineer',
+      queue: 0,
+      blocked: 0,
+      objectives: 'Monitor worker queues during peak load.',
+      results: 'Auto-scaled Resume Parsers by 2x.'
+    },
+    'Security Office': {
+      mission: 'Protect enterprise data, enforce access rules, and prevent leaks.',
+      goal: 'Ensure zero unauthorized data access and PII isolation.',
+      consumed: ['Anomalous Query Detected', 'Role Violation Attempt', 'Large Export Requested'],
+      published: ['Access Revoked', 'Audit Log Generated', 'Security Threat Blocked'],
+      skills: ['ABAC Enforcer', 'Anomaly Detector', 'PII Scrubber'],
+      memory: ['Long (Audit Trails)', 'Working (Active Sessions)'],
+      kpis: ['Zero Data Leaks', 'Threat Mitigation Time', 'Audit Compliance %'],
+      hours: '24/7 (Always On)',
+      escalation: 'If Data Leak Detected -> Lockdown OS, Alert Founder',
+      queue: 2,
+      blocked: 0,
+      objectives: 'Scan all external API payloads for PII.',
+      results: 'Blocked 1 unmasked resume export.'
+    },
+    'Founder Office': {
+      mission: 'Oversee long-term vision, operational health, and capital allocation.',
+      goal: 'Maximize Enterprise Autonomy Score and profit margin.',
+      consumed: ['Daily Revenue Target Hit', 'Systemic risk detected', 'Strategic Goal Updated'],
+      published: ['Resource Allocated', 'Target Adjusted', 'Enterprise Strategy Updated'],
+      skills: ['Capital Allocator', 'Vision Translator', 'Margin Optimizer'],
+      memory: ['Knowledge (Enterprise Strategy)', 'Long (Financial History)'],
+      kpis: ['Enterprise Autonomy Score', 'Profit Margin', 'Founder Hours Saved'],
+      hours: 'Strategic Review Cycles',
+      escalation: 'Human Founder Intervention Required',
+      queue: 1,
+      blocked: 0,
+      objectives: 'Review weekly enterprise autonomy improvements.',
+      results: 'Autonomy increased by +2% this week.'
+    },
+    'GTM Office': {
+      mission: 'Build robust pipeline and discover high-value leads.',
+      goal: 'Maximize lead discovery and meeting booking rates.',
+      consumed: ['Market Signal Detected', 'Campaign Launched', 'Lead Replied'],
+      published: ['Lead Qualified', 'Meeting Booked', 'Campaign Adjusted'],
+      skills: ['Lead Discoverer', 'Email Composer', 'Campaign Optimizer'],
+      memory: ['Working (Active Campaigns)', 'Long (Lead History)'],
+      kpis: ['Pipeline Generated', 'Meeting Booking Rate', 'Cost per Lead'],
+      hours: 'Standard Business Hours',
+      escalation: 'If booking rate < 2% -> Flag to Sales Office',
+      queue: 250,
+      blocked: 12,
+      objectives: 'Generate 50 net-new qualified leads today.',
+      results: '32 leads generated, 4 meetings booked.'
+    },
+    'Sales Office': {
+      mission: 'Convert pipeline into closed-won revenue.',
+      goal: 'Accelerate the sales cycle and maximize win rates.',
+      consumed: ['Meeting Booked', 'Demo Completed', 'Proposal Requested'],
+      published: ['Contract Sent', 'Deal Closed Won', 'Objection Handled'],
+      skills: ['Deal Strategist', 'Proposal Generator', 'Objection Handler'],
+      memory: ['Working (Active Deals)', 'Long (Client Purchase History)'],
+      kpis: ['Win Rate', 'Sales Cycle Length', 'Average Deal Size'],
+      hours: 'Client Timezone',
+      escalation: 'If Deal > $50k stalled -> Escalate to Founder Office',
+      queue: 15,
+      blocked: 2,
+      objectives: 'Close 3 enterprise deals this week.',
+      results: '1 deal closed-won, 2 in negotiation.'
+    },
+    'Knowledge Office': {
+      mission: 'Capture, structure, and distribute organizational knowledge.',
+      goal: 'Ensure all Offices operate using the most up-to-date playbooks.',
+      consumed: ['Process Improvement Proposed', 'New Playbook Created', 'Market Trend Identified'],
+      published: ['Knowledge Base Updated', 'Skill Upgraded', 'Best Practice Broadcasted'],
+      skills: ['Playbook Compiler', 'Knowledge Indexer', 'Skill Updater'],
+      memory: ['Knowledge (Master Enterprise Memory)'],
+      kpis: ['Playbook Utilization', 'Knowledge Retrieval Time', 'Skill Update Frequency'],
+      hours: '24/7 (Continuous Indexing)',
+      escalation: 'If Contradictory playbooks found -> Escalate to Quality Office',
+      queue: 8,
+      blocked: 0,
+      objectives: 'Index new vendor scoring playbooks.',
+      results: '3 playbooks updated and distributed.'
+    },
+    'Finance Office': {
+      mission: 'Manage revenue forecasting, invoicing, and collections.',
+      goal: 'Optimize cash flow and maximize recruiter profitability.',
+      consumed: ['Candidate Placed', 'Invoice Due', 'Payment Received'],
+      published: ['Invoice Generated', 'Collection Reminder Sent', 'Revenue Forecast Updated'],
+      skills: ['Invoice Generator', 'Cash Flow Modeler', 'Collection Automator'],
+      memory: ['Long (Financial Ledger)'],
+      kpis: ['Days Sales Outstanding (DSO)', 'Margin per Placement', 'Forecast Accuracy'],
+      hours: 'Standard Business Hours',
+      escalation: 'If Invoice > 60 days overdue -> Escalate to Client Office',
+      queue: 5,
+      blocked: 1,
+      objectives: 'Generate end-of-month invoices.',
+      results: '12 invoices sent, $45k collected.'
+    },
+    'Chief Operating Office': {
+      mission: 'Enterprise conductor coordinating all Offices.',
+      goal: 'Resolve bottlenecks and keep the business aligned with daily goals.',
+      consumed: ['SLA Warning Issued', 'Workflow Failed', 'Queue Overload Flagged'],
+      published: ['Task Reassigned', 'Priority Escalated', 'Capacity Adjusted'],
+      skills: ['Workload Balancer', 'SLA Enforcer', 'Priority Router'],
+      memory: ['Working (Current Enterprise State)'],
+      kpis: ['Enterprise Efficiency', 'Blocked Tasks Resolution', 'Goal Alignment'],
+      hours: '24/7 (Every 15 min loop)',
+      escalation: 'If Revenue Goal severely missed -> Trigger Founder Simulation',
+      queue: 0,
+      blocked: 0,
+      objectives: 'Maintain < 5% blocked workflows across all Offices.',
+      results: 'Cleared 14 blocked tasks, re-routed 2 priority requirements.'
+    }
+  };
+
+  const getOfficeContract = (category: string) => {
+    return officeContracts[category] || {
+      mission: 'Perform specific domain operations autonomously.',
+      goal: 'Support enterprise objectives within defined scope.',
+      consumed: ['Domain Event Triggered'],
+      published: ['Domain Result Generated'],
+      skills: ['Domain Specific Skills'],
+      memory: ['Relevant Context Memory'],
+      kpis: ['Domain Efficiency', 'Task Success Rate'],
+      hours: 'Standard Business Hours',
+      escalation: 'Escalate anomalies to COO.',
+      queue: Math.floor(Math.random() * 20),
+      blocked: 0,
+      objectives: 'Complete daily assigned workflow tasks.',
+      results: 'Operating nominally.'
+    };
+  };
 
   const filteredAgents = agents.filter(a => a.category === activeCategory);
 
@@ -721,61 +956,40 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                           </div>
                       ) : activeCategory.includes('Office') ? (
                           <div className="space-y-6">
-                              {/* Office Dashboard Sections */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 col-span-2">
-                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Target size={14} /> 1. Mission & Ownership</h4>
-                                      <p className="text-sm text-slate-300 italic mb-4">
-                                          {activeCategory === 'Recruitment Office' && 'Owns: Sourcing, parsing, improvement, matching, submission, interview coordination, feedback, offer tracking. KPIs: Quality, Interview Ratio, Placement Ratio, Time to Submit.'}
-                                          {activeCategory === 'GTM Office' && 'Owns: Lead discovery, outreach, meeting booking, pipeline generation, CRM hygiene.'}
-                                          {activeCategory === 'Sales Office' && 'Convert pipeline into closed-won revenue while accelerating the sales cycle.'}
-                                          {activeCategory === 'Vendor Office' && 'Owns: Vendor onboarding, scoring, response SLA, bench management, broadcasting, coaching, payments. KPIs: Response time, Submission quality, Placement %, Health score.'}
-                                          {activeCategory === 'Client Office' && 'Owns: Requirement intake, JD enrichment, follow-ups, hiring velocity, client satisfaction, expansion opportunities.'}
-                                          {activeCategory === 'Customer Success Office' && 'Owns: Consultant check-ins, client satisfaction, replacement prevention, renewals, upsells, referrals. KPIs: Renewal rate, Consultant retention, Revenue expansion.'}
-                                          {activeCategory === 'Finance Office' && 'Owns: Revenue forecast, invoice generation, collections, margin, recruiter profitability.'}
-                                          {activeCategory === 'Knowledge Office' && 'Capture organizational knowledge, maintain playbooks, and distribute best practices to all Offices.'}
-                                          {activeCategory === 'Intelligence Office' && 'Does NOT execute work. Answers: Why are placements dropping? Which recruiters outperform? Which vendors are risky? Which skills are growing? Which prompts work best?'}
-                                          {activeCategory === 'Founder Office' && 'Oversee operational health, optimize costs, and predict overall business growth.'}
-                                          {activeCategory === 'Platform Office' && 'Ensure 99.99% uptime, zero queue failures, and optimal latency across the OS.'}
-                                          {activeCategory === 'Security Office' && 'Enforce ABAC constraints, ensure PII isolation, and monitor system vulnerabilities.'}
-                                          {activeCategory === 'Chief Operating Office' && 'Execute active operational loops every 15 minutes. Resolve blocked workflows, enforce SLAs, delegate work, reassign stalled tasks.'}
-                                      </p>
-                                      
-                                      <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
-                                          <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Current OKRs</h5>
-                                          <div className="space-y-2">
-                                              <div className="flex justify-between items-center text-xs">
-                                                  <span className="text-slate-300">Objective: Accelerate Q3 Outcomes</span>
-                                                  <span className="text-emerald-400 font-bold">On Track</span>
-                                              </div>
-                                              <div className="w-full bg-slate-800 rounded-full h-1.5">
-                                                  <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '75%' }}></div>
-                                              </div>
+                              {/* Office Runtime Contract Sections */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Target size={14} /> Mission & Goal</h4>
+                                      <div className="space-y-3">
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Mission</div>
+                                              <div className="text-sm text-slate-300 italic">{getOfficeContract(activeCategory).mission}</div>
+                                          </div>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Business Goal</div>
+                                              <div className="text-sm text-slate-300">{getOfficeContract(activeCategory).goal}</div>
                                           </div>
                                       </div>
                                   </div>
-                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col">
-                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Activity size={14} /> Digital Twin</h4>
-                                      <div className="flex-1 flex flex-col justify-between">
-                                          <div className="flex justify-between items-center mb-2 text-sm">
-                                              <span className="text-slate-400">Health</span>
-                                              <span className="text-emerald-400 font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Healthy</span>
+                                  
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Activity size={14} /> Current Status</h4>
+                                      <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Today's Objectives</div>
+                                              <div className="text-sm text-slate-300">{getOfficeContract(activeCategory).objectives}</div>
                                           </div>
-                                          <div className="flex justify-between items-center mb-2 text-sm">
-                                              <span className="text-slate-400">Capacity</span>
-                                              <span className="text-slate-300 font-mono">72%</span>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Results So Far</div>
+                                              <div className="text-sm text-emerald-400 font-bold">{getOfficeContract(activeCategory).results}</div>
                                           </div>
-                                          <div className="flex justify-between items-center mb-2 text-sm">
-                                              <span className="text-slate-400">AI Confidence</span>
-                                              <span className="text-indigo-400 font-bold font-mono">91%</span>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Current Queue</div>
+                                              <div className="text-xl text-slate-300 font-mono">{getOfficeContract(activeCategory).queue} Items</div>
                                           </div>
-                                          <div className="flex justify-between items-center mb-2 text-sm">
-                                              <span className="text-slate-400">Queue</span>
-                                              <span className="text-amber-400 font-mono">16 items</span>
-                                          </div>
-                                          <div className="flex justify-between items-center text-sm border-t border-slate-800 pt-2 mt-2">
-                                              <span className="text-slate-400">Est. Completion</span>
-                                              <span className="text-slate-300 font-mono">4:35 PM</span>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Blocked Work</div>
+                                              <div className="text-xl text-rose-400 font-mono">{getOfficeContract(activeCategory).blocked} Items</div>
                                           </div>
                                       </div>
                                   </div>
@@ -783,124 +997,78 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                      <div className="flex justify-between items-center mb-4">
-                                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><TrendingUp size={14}/> 2. Office Scorecard</h4>
-                                          <span className="bg-indigo-900/50 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-bold border border-indigo-800">SCORE: 91%</span>
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Network size={14} /> Event Bus Integration</h4>
+                                      <div className="space-y-4">
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Events Consumed (Listens to)</div>
+                                              <div className="flex flex-wrap gap-2">
+                                                  {getOfficeContract(activeCategory).consumed.map((item: string) => (
+                                                      <span key={item} className="px-2 py-1 bg-slate-900 border border-slate-700 text-slate-300 text-[10px] rounded flex items-center gap-1">
+                                                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div> {item}
+                                                      </span>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Events Published (Emits)</div>
+                                              <div className="flex flex-wrap gap-2">
+                                                  {getOfficeContract(activeCategory).published.map((item: string) => (
+                                                      <span key={item} className="px-2 py-1 bg-slate-900 border border-slate-700 text-slate-300 text-[10px] rounded flex items-center gap-1">
+                                                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> {item}
+                                                      </span>
+                                                  ))}
+                                              </div>
+                                          </div>
                                       </div>
-                                      <ul className="space-y-3">
-                                          <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Quality Index</span>
-                                              <span className="font-mono text-emerald-400 font-bold">95%</span>
-                                          </li>
-                                          <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Velocity (SLA)</span>
-                                              <span className="font-mono text-amber-400 font-bold">89%</span>
-                                          </li>
-                                          <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Predictive Success</span>
-                                              <span className="font-mono text-emerald-400 font-bold">92%</span>
-                                          </li>
-                                          <li className="flex justify-between items-center text-sm">
-                                              <span className="text-slate-300">Daily Target</span>
-                                              <span className="font-mono text-slate-400">78 / 120</span>
-                                          </li>
+                                  </div>
+
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Zap size={14} /> Execution Context</h4>
+                                      <div className="space-y-4">
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Skills Used</div>
+                                              <div className="flex flex-wrap gap-2">
+                                                  {getOfficeContract(activeCategory).skills.map((item: string) => (
+                                                      <span key={item} className="px-2 py-1 bg-indigo-900/30 border border-indigo-800/50 text-indigo-300 text-[10px] rounded">{item}</span>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                          <div>
+                                              <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Memory Used</div>
+                                              <div className="flex flex-wrap gap-2">
+                                                  {getOfficeContract(activeCategory).memory.map((item: string) => (
+                                                      <span key={item} className="px-2 py-1 bg-amber-900/30 border border-amber-800/50 text-amber-300 text-[10px] rounded">{item}</span>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={14} /> Owned KPIs</h4>
+                                      <ul className="space-y-2">
+                                          {getOfficeContract(activeCategory).kpis.map((kpi: string) => (
+                                              <li key={kpi} className="flex justify-between items-center text-sm border-b border-slate-800 pb-2 last:border-0">
+                                                  <span className="text-slate-300">{kpi}</span>
+                                                  <span className="font-mono text-emerald-400 font-bold">Tracked</span>
+                                              </li>
+                                          ))}
                                       </ul>
                                   </div>
+                                  
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Brain size={14}/> 3. Office Memory</h4>
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Shield size={14} /> Governance Rules</h4>
                                       <div className="space-y-3">
                                           <div>
-                                              <div className="text-[10px] font-bold text-slate-500 uppercase">Short Memory</div>
-                                              <div className="text-xs text-slate-400">Today's completed workflows and state transitions.</div>
+                                              <div className="text-[10px] font-bold text-slate-500 uppercase">Business Hours</div>
+                                              <div className="text-sm text-slate-300">{getOfficeContract(activeCategory).hours}</div>
                                           </div>
-                                          <div>
-                                              <div className="text-[10px] font-bold text-indigo-400 uppercase">Working Memory</div>
-                                              <div className="text-xs text-slate-400">Current active workflows and pending approvals.</div>
+                                          <div className="bg-rose-950/30 border border-rose-900/50 p-3 rounded-lg">
+                                              <div className="text-[10px] font-bold text-rose-400 uppercase mb-1 flex items-center gap-1"><AlertTriangle size={12} /> Escalation Rules</div>
+                                              <div className="text-sm text-rose-200">{getOfficeContract(activeCategory).escalation}</div>
                                           </div>
-                                          <div>
-                                              <div className="text-[10px] font-bold text-emerald-400 uppercase">Long Memory</div>
-                                              <div className="text-xs text-slate-400">Historical performance, SLA baselines, and vendor trends.</div>
-                                          </div>
-                                          <div>
-                                              <div className="text-[10px] font-bold text-amber-400 uppercase">Knowledge</div>
-                                              <div className="text-xs text-slate-400">Learned playbooks, successful keywords, and failure patterns.</div>
-                                          </div>
-                                      </div>
-                                      <button className="mt-4 text-[10px] font-bold text-indigo-400 uppercase tracking-widest hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                                          View Knowledge Graph <ArrowRight size={10} />
-                                      </button>
-                                  </div>
-                              </div>
-
-                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">4. Shared Skills & Capabilities</h4>
-                                  <div className="flex flex-wrap gap-2">
-                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Resume Parser</span>
-                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Matching Engine</span>
-                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Submission Generator</span>
-                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Interview Scheduler</span>
-                                  </div>
-                              </div>
-                              
-                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">5. Continuous Improvement Loop</h4>
-                                  <div className="flex items-center text-xs text-slate-400 font-mono overflow-x-auto pb-2 space-x-2">
-                                      <span className="text-indigo-400">Event</span> <span className="text-slate-600">→</span>
-                                      <span className="text-slate-300">Decision</span> <span className="text-slate-600">→</span>
-                                      <span className="text-amber-400">Skill Invoked</span> <span className="text-slate-600">→</span>
-                                      <span className="text-slate-300">Execution</span> <span className="text-slate-600">→</span>
-                                      <span className="text-emerald-400">Learning</span> <span className="text-slate-600">→</span>
-                                      <span className="text-blue-400">Memory Saved</span> <span className="text-slate-600">→</span>
-                                      <span className="text-rose-400">KPI Updated</span>
-                                  </div>
-                              </div>
-                              
-                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-between">
-                                      6. Office Contract
-                                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-mono">v1.2.0</span>
-                                  </h4>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">Events Consumed</h5>
-                                          <ul className="list-disc list-inside text-emerald-400 space-y-1 font-mono">
-                                              <li>RequirementCreated</li>
-                                              <li>CandidateRejected</li>
-                                              <li>VendorSubmission</li>
-                                          </ul>
-                                      </div>
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">Events Published</h5>
-                                          <ul className="list-disc list-inside text-indigo-400 space-y-1 font-mono">
-                                              <li>CandidateMatched</li>
-                                              <li>CandidateSubmitted</li>
-                                              <li>InterviewScheduled</li>
-                                          </ul>
-                                      </div>
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">Dependencies</h5>
-                                          <ul className="list-disc list-inside text-slate-400 space-y-1">
-                                              <li>Vendor Office</li>
-                                              <li>Client Office</li>
-                                              <li>MailOS Worker</li>
-                                          </ul>
-                                      </div>
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">KPIs</h5>
-                                          <ul className="list-disc list-inside text-slate-400 space-y-1">
-                                              <li>Submission SLA</li>
-                                              <li>Interview Ratio</li>
-                                              <li>Offer Ratio</li>
-                                              <li>Joining Ratio</li>
-                                          </ul>
-                                      </div>
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">Business Hours</h5>
-                                          <div className="text-slate-400">09:00 - 18:00 (Local Time)</div>
-                                      </div>
-                                      <div>
-                                          <h5 className="font-bold text-slate-300 mb-2 border-b border-slate-800 pb-1">Escalates To</h5>
-                                          <div className="text-rose-400 font-bold">AI Chief Operating Office</div>
                                       </div>
                                   </div>
                               </div>
