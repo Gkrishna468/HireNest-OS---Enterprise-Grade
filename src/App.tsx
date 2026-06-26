@@ -58,6 +58,8 @@ import Client360Tab from "./views/Client360Tab";
 import AutonomousOperationsTab from "./views/AutonomousOperationsTab";
 import WorkflowStudioTab from "./views/WorkflowStudioTab";
 import HumanApprovalCenterTab from "./views/HumanApprovalCenterTab";
+import ValidationCenterTab from "./views/ValidationCenterTab";
+import SuccessIntelligenceTab from "./views/SuccessIntelligenceTab";
 import Vendor360Tab from "./views/Vendor360Tab";
 import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
 import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
@@ -713,6 +715,20 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/validation-center"
+                icon={ShieldCheck}
+                label="Validation Center"
+                active={location.pathname === "/validation-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/success-intelligence"
+                icon={Brain}
+                label="Success Intelligence"
+                active={location.pathname === "/success-intelligence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/enterprise-command-center"
                 icon={TrendingUp}
                 label="Command Center"
@@ -989,6 +1005,18 @@ const AppContent = () => {
               <Route
                 path="/approval-center"
                 element={<HumanApprovalCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/validation-center"
+                element={<ValidationCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/success-intelligence"
+                element={<SuccessIntelligenceTab userRole={role || ""} />}
               />
             )}
             {isAdmin && (

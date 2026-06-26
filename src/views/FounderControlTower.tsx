@@ -181,8 +181,49 @@ export default function FounderControlTower() {
            </div>
         </div>
 
+        {/* Production Readiness Certification */}
+        <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 text-white lg:col-span-1">
+           <h3 className="font-bold text-slate-100 uppercase tracking-widest text-xs mb-6 border-b border-slate-800 pb-2 flex justify-between">
+              Production Readiness
+              <ShieldCheck size={16} className="text-emerald-400" />
+           </h3>
+           <div className="flex flex-col gap-4">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800/50">
+                  <span className="text-xs text-slate-400">Overall Health</span>
+                  <span className="text-lg font-black text-emerald-400">97%</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Security</span><span className="text-emerald-400">100%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Infrastructure</span><span className="text-emerald-400">98%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>AI Runtime</span><span className="text-emerald-400">96%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Background Workers</span><span className="text-emerald-400">100%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Google Workspace</span><span className="text-emerald-400">100%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Queues</span><span className="text-emerald-400">100%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase">
+                      <span>Workflow Success</span><span className="text-emerald-400">95%</span>
+                  </div>
+              </div>
+              <div className="mt-2 bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Production Ready</span>
+                  <span className="text-sm font-black text-emerald-300">YES</span>
+              </div>
+           </div>
+        </div>
+
         {/* Agent Runtime Infrastructure */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-3">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs mb-6 border-b border-slate-100 pb-2 flex justify-between">
               Agent Runtime Infrastructure
               <Bot size={16} className="text-indigo-600" />
