@@ -119,6 +119,11 @@ export default function InboxTab() {
     }
   };
 
+  const handleAction = async (action: string) => {
+    console.log(`Executing action: ${action}`);
+    // Simulate action for now. Will be wired up to real endpoints in the future.
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#F8FAFC] overflow-hidden">
       <header className="p-4 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between shrink-0">
@@ -132,10 +137,28 @@ export default function InboxTab() {
              </div>
          </div>
          {isConnected && (
-            <Button onClick={() => fetchEmails()} variant="outline" className="gap-2" disabled={loading}>
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-              Sync Inbox
-            </Button>
+            <div className="flex items-center gap-6">
+                <div className="hidden md:flex gap-4 text-xs font-medium text-slate-500">
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">18</span> Unread</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">32</span> Parsed Today</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">7</span> Requirements</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">18</span> Resumes</div>
+                    <div className="flex flex-col"><span className="text-slate-800 font-bold">3</span> Invoices</div>
+                </div>
+                <div className="flex flex-col items-end">
+                   <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
+                       <span className="relative flex h-2 w-2">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                       </span>
+                       Connected • Watching
+                   </div>
+                   <div className="text-[10px] text-slate-400 font-medium">Synced {loading ? 'just now' : '11 sec ago'}</div>
+                </div>
+                <Button onClick={() => fetchEmails()} variant="outline" className="gap-2 h-9 text-xs ml-2" disabled={loading}>
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                </Button>
+            </div>
          )}
       </header>
 
@@ -302,21 +325,21 @@ export default function InboxTab() {
                          <div className="p-6 border-t border-slate-200 bg-white shrink-0">
                              <div className="border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 shadow-sm transition-all">
                                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex gap-2">
-                                     <Button variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Templates</Button>
-                                     <Button variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Variables</Button>
-                                     <Button variant="outline" className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100 shadow-sm gap-1">✨ AI Draft</Button>
+                                     <Button onClick={() => handleAction('Open Templates')} variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Templates</Button>
+                                     <Button onClick={() => handleAction('Insert Variables')} variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Variables</Button>
+                                     <Button onClick={() => handleAction('Generate AI Draft')} variant="outline" className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100 shadow-sm gap-1">✨ AI Draft</Button>
                                  </div>
                                  <textarea 
                                     className="w-full h-24 p-4 text-sm resize-none outline-none text-slate-700" 
                                     placeholder="Write your email... (or click AI Draft)"
                                  ></textarea>
                                  <div className="px-4 py-3 bg-white flex justify-between items-center border-t border-slate-100">
-                                     <Button variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 border-none shadow-none gap-2">
+                                     <Button onClick={() => handleAction('Attach Document')} variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 border-none shadow-none gap-2">
                                          <FileText size={14} /> Attach Resume
                                      </Button>
                                      <div className="flex gap-2">
-                                         <Button variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Discard</Button>
-                                         <Button className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6">Send</Button>
+                                         <Button onClick={() => handleAction('Discard Draft')} variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Discard</Button>
+                                         <Button onClick={() => handleAction('Send Email')} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6">Send</Button>
                                      </div>
                                  </div>
                              </div>
@@ -365,18 +388,22 @@ export default function InboxTab() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Experience</div>
-                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Experience || '8 Years'}</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Experience || 'Not Detected'}</div>
                                         </div>
                                         <div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Expected CTC</div>
-                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.['Expected CTC'] || '22 LPA'}</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.['Expected CTC'] || 'Not Available'}</div>
                                         </div>
                                         <div className="col-span-2">
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Top Skills</div>
                                             <div className="flex flex-wrap gap-1">
-                                                {(analysis.classification.data?.Skills || analysis.classification.data?.skills || ['React', 'Java', 'AWS']).slice(0, 4).map((skill: string) => (
-                                                    <span key={skill} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">{skill}</span>
-                                                ))}
+                                                {(analysis.classification.data?.Skills || analysis.classification.data?.skills || []).length > 0 ? (
+                                                    (analysis.classification.data?.Skills || analysis.classification.data?.skills).slice(0, 4).map((skill: string) => (
+                                                        <span key={skill} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">{skill}</span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-slate-500">None detected</span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -388,17 +415,17 @@ export default function InboxTab() {
                                     <div className="absolute top-0 right-0 p-2 bg-blue-50 rounded-bl-xl border-l border-b border-blue-100">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Requirement</span>
                                     </div>
-                                    <h3 className="font-bold text-slate-900 mb-1 line-clamp-1">{analysis.classification?.data?.Title || 'Senior Software Engineer'}</h3>
-                                    <p className="text-xs text-slate-500 font-medium mb-4">{analysis.classification?.data?.Client || 'Microsoft'} • {analysis.classification?.data?.Location || 'Hyderabad'}</p>
+                                    <h3 className="font-bold text-slate-900 mb-1 line-clamp-1">{analysis.classification?.data?.Title || 'Unknown Title'}</h3>
+                                    <p className="text-xs text-slate-500 font-medium mb-4">{analysis.classification?.data?.Client || 'Unknown Client'} • {analysis.classification?.data?.Location || 'Unknown Location'}</p>
                                     
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Budget</div>
-                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Budget || '25 LPA'}</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Budget || 'Not Specified'}</div>
                                         </div>
                                         <div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Openings</div>
-                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Openings || '5'}</div>
+                                            <div className="text-sm font-semibold text-slate-800">{analysis.classification?.data?.Openings || 'Not Specified'}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -409,8 +436,8 @@ export default function InboxTab() {
                                     <div className="absolute top-0 right-0 p-2 bg-amber-50 rounded-bl-xl border-l border-b border-amber-100">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">Invoice</span>
                                     </div>
-                                    <h3 className="font-bold text-slate-900 mb-1">{analysis.classification?.data?.['Invoice Number'] || 'INV-10023'}</h3>
-                                    <p className="text-2xl font-black text-slate-800 mb-4">{analysis.classification?.data?.Amount || '₹2,75,000'}</p>
+                                    <h3 className="font-bold text-slate-900 mb-1">{analysis.classification?.data?.['Invoice Number'] || 'Unknown ID'}</h3>
+                                    <p className="text-2xl font-black text-slate-800 mb-4">{analysis.classification?.data?.Amount || 'Unknown Amount'}</p>
                                     
                                     <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                                         <span className="text-xs font-bold text-slate-500">Status</span>
@@ -426,11 +453,11 @@ export default function InboxTab() {
                                     </div>
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                                            <span className="text-lg font-black">24</span>
+                                            <span className="text-lg font-black">?</span>
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-slate-900 line-clamp-1">{analysis.classification?.data?.Candidate || 'Deepeshika Sarkar'}</h3>
-                                            <p className="text-xs text-slate-500 font-medium">Tomorrow, 2:00 PM</p>
+                                            <h3 className="font-bold text-slate-900 line-clamp-1">{analysis.classification?.data?.Candidate || 'Unknown Candidate'}</h3>
+                                            <p className="text-xs text-slate-500 font-medium">Pending Confirmation</p>
                                         </div>
                                     </div>
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs text-slate-600 font-medium flex items-center justify-center gap-2">
@@ -484,11 +511,11 @@ export default function InboxTab() {
                                     </div>
                                     <div className="flex justify-between border-b border-slate-50 pb-2">
                                         <span className="text-xs font-medium text-slate-500">Probability</span>
-                                        <span className="text-xs font-black text-indigo-600">92%</span>
+                                        <span className="text-xs font-black text-indigo-600">Pending Match</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-xs font-medium text-slate-500">Priority</span>
-                                        <span className="text-xs font-black text-amber-600">{analysis.businessImpact.priority || 'Medium'}</span>
+                                        <span className="text-xs font-black text-amber-600">{analysis.businessImpact.priority || 'Pending'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -509,10 +536,10 @@ export default function InboxTab() {
                                         else if (actionLower.includes('archive')) btnClass = "bg-slate-100 text-slate-700 hover:bg-slate-200 border-none";
                                         else if (idx === 0) btnClass = "bg-indigo-600 hover:bg-indigo-700 text-white border-none";
 
-                                        return <Button key={idx} className={cn("w-full justify-start text-xs shadow-sm font-bold", btnClass)}>{action}</Button>;
+                                        return <Button key={idx} onClick={() => handleAction(action)} className={cn("w-full justify-start text-xs shadow-sm font-bold", btnClass)}>{action}</Button>;
                                     })
                                 ) : (
-                                    <Button className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold">Process Request</Button>
+                                    <Button onClick={() => handleAction('Process Request')} className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold">Process Request</Button>
                                 )}
                                 </div>
                             </div>
