@@ -675,7 +675,7 @@ const AppContent = () => {
               <SidebarItem
                 to="/ai-agents"
                 icon={Bot}
-                label="AI Agents"
+                label="Workforce OS"
                 active={location.pathname === "/ai-agents"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
