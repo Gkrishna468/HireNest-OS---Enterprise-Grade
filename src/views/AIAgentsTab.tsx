@@ -21,7 +21,7 @@ import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
 
 export default function AIAgentsTab({ userRole }: { userRole: string }) {
-  const [activeCategory, setActiveCategory] = useState('Overview');
+  const [activeCategory, setActiveCategory] = useState('Workforce Overview');
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [executions, setExecutions] = useState<any[]>([]);
@@ -52,6 +52,14 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
   const handleInitialize = async () => {
     try {
       await fetch('/api/cron/orchestrator/seed');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await fetch('/api/cron/orchestrator/reset');
     } catch (e) {
       console.error(e);
     }
@@ -90,19 +98,14 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
   }, [selectedAgent]);
 
   const categories = [
-    'Overview', 
+    'Workforce Overview', 
+    'Chief Operating Office',
     'Founder Office', 
-    'GTM Office', 
-    'Sales Office', 
-    'Marketing Office', 
     'Recruitment Office', 
-    'Finance Office', 
-    'Security Office', 
+    'GTM Office', 
+    'Vendor Office', 
+    'Client Office', 
     'Platform Office',
-    'Schedules',
-    'Queue Manager',
-    'Execution History',
-    'Agent Memory',
     'Agent Marketplace'
   ];
 
@@ -126,13 +129,18 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
             AI Agents
           </h1>
           <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-            <Bot size={14} className="text-indigo-900" /> Business Automation Engine
+            <Bot size={14} className="text-indigo-900" /> Business Automation Engine (Vercel Eve Runtime)
           </p>
         </div>
         <div className="flex items-center gap-3">
             {agents.length === 0 && (
                 <button onClick={handleInitialize} className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-amber-600 transition-colors flex items-center gap-2">
                     <Activity size={16} /> Initialize Engine
+                </button>
+            )}
+            {agents.length > 0 && (
+                <button onClick={handleReset} className="bg-rose-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-rose-800 transition-colors flex items-center gap-2">
+                    <RefreshCw size={16} /> Reset DB
                 </button>
             )}
             <button onClick={async () => {
@@ -185,7 +193,7 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1 space-y-2">
               {categories.map(cat => {
-                  const isAgentCategory = cat.includes('Office');
+                  const isAgentCategory = cat.includes('Layer');
                   const count = isAgentCategory ? agents.filter(a => a.category === cat).length : null;
                   
                   return (
@@ -213,7 +221,7 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 min-h-[500px]">
                       <h3 className="text-lg font-bold text-white mb-6 border-b border-slate-800 pb-4">{activeCategory}</h3>
                       
-                      {activeCategory === 'Overview' ? (
+                      {activeCategory === 'Workforce Overview' ? (
                           <div className="space-y-8">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
@@ -257,6 +265,83 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                               </div>
                           </div>
                       ) : activeCategory.includes('Office') ? (
+                          <div className="space-y-6">
+                              {/* Office Dashboard Sections */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 col-span-2">
+                                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">1. Mission</h4>
+                                      <p className="text-sm text-slate-300 italic">
+                                          {activeCategory === 'Recruitment Office' && 'Deliver the best candidates to clients as quickly as possible while continuously improving placement success.'}
+                                          {activeCategory === 'GTM Office' && 'Generate predictable revenue pipeline through targeted outreach and lead conversion.'}
+                                          {activeCategory === 'Vendor Office' && 'Maximize vendor success, improve submission quality, and maintain high engagement.'}
+                                          {activeCategory === 'Client Office' && 'Ensure high client satisfaction by driving hiring outcomes and requirement fulfillment.'}
+                                          {activeCategory === 'Founder Office' && 'Oversee operational health, optimize costs, and predict overall business growth.'}
+                                          {activeCategory === 'Platform Office' && 'Ensure 99.99% uptime, zero queue failures, and optimal latency across the OS.'}
+                                          {activeCategory === 'Chief Operating Office' && 'Monitor every Office, balance workloads, detect bottlenecks, and generate operational reports.'}
+                                      </p>
+                                  </div>
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-center items-center text-center">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Digital Twin</h4>
+                                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-lg">
+                                          <Activity size={20} /> Healthy
+                                      </div>
+                                      <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Capacity: 72%</span>
+                                  </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">2. Key Performance Indicators</h4>
+                                      <ul className="space-y-3">
+                                          <li className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-300">Active Workflows</span>
+                                              <span className="font-mono text-indigo-400 font-bold">124</span>
+                                          </li>
+                                          <li className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-300">Success Rate</span>
+                                              <span className="font-mono text-emerald-400 font-bold">98.2%</span>
+                                          </li>
+                                          <li className="flex justify-between items-center text-sm">
+                                              <span className="text-slate-300">Daily Objective</span>
+                                              <span className="font-mono text-slate-400">78 / 120 (On Track)</span>
+                                          </li>
+                                      </ul>
+                                  </div>
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">3. Office Memory (Learning)</h4>
+                                      <ul className="space-y-2 text-xs text-slate-400 list-disc list-inside">
+                                          <li>Identified 3 top-performing vendors for technical roles.</li>
+                                          <li>Detected interview failure patterns in recent submissions.</li>
+                                          <li>Learned successful keywords matching recent JD patterns.</li>
+                                          <li>Adjusted SLA expectations based on historical turnaround.</li>
+                                      </ul>
+                                  </div>
+                              </div>
+
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">4. Shared Skills & Capabilities</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Resume Parser</span>
+                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Matching Engine</span>
+                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Submission Generator</span>
+                                      <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">Interview Scheduler</span>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">5. Continuous Improvement Loop</h4>
+                                  <div className="flex items-center text-xs text-slate-400 font-mono overflow-x-auto pb-2 space-x-2">
+                                      <span className="text-indigo-400">Event</span> <span className="text-slate-600">→</span>
+                                      <span className="text-slate-300">Decision</span> <span className="text-slate-600">→</span>
+                                      <span className="text-amber-400">Skill Invoked</span> <span className="text-slate-600">→</span>
+                                      <span className="text-slate-300">Execution</span> <span className="text-slate-600">→</span>
+                                      <span className="text-emerald-400">Learning</span> <span className="text-slate-600">→</span>
+                                      <span className="text-blue-400">Memory Saved</span> <span className="text-slate-600">→</span>
+                                      <span className="text-rose-400">KPI Updated</span>
+                                  </div>
+                              </div>
+                          </div>
+                      ) : activeCategory.includes('Layer') ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {filteredAgents.map(agent => (
                                   <div 
@@ -285,6 +370,117 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                       </div>
                                   </div>
                               ))}
+                          </div>
+                      ) : activeCategory === 'Operations Calendar' ? (
+                          <div className="space-y-6">
+                              <p className="text-sm text-slate-400 mb-6">The Operations Calendar is the scheduled heartbeat of the AI Workforce OS.</p>
+                              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                                  <table className="w-full text-left border-collapse">
+                                      <thead>
+                                          <tr className="border-b border-slate-800 bg-slate-900/50">
+                                              <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time</th>
+                                              <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Office</th>
+                                              <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Task</th>
+                                              <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-800/50 text-sm">
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">08:30 AM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Founder</span></td>
+                                              <td className="py-3 px-4">Overnight business briefing</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> OK</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">09:00 AM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">GTM</span></td>
+                                              <td className="py-3 px-4">Find new leads</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> OK</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">09:05 AM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Sales</span></td>
+                                              <td className="py-3 px-4">Follow up opportunities</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> OK</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">09:10 AM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Recruitment</span></td>
+                                              <td className="py-3 px-4">Parse resumes</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> OK</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">09:15 AM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Vendor</span></td>
+                                              <td className="py-3 px-4">Collect bench profiles</td>
+                                              <td className="py-3 px-4 text-slate-500 text-xs font-mono flex items-center gap-1">PENDING</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">Every 5 min</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">MailOS</span></td>
+                                              <td className="py-3 px-4">Gmail sync</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> RUNNING</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">Every 10 min</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Matching</span></td>
+                                              <td className="py-3 px-4">Candidate matching</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> RUNNING</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">Every 15 min</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Client</span></td>
+                                              <td className="py-3 px-4">Requirement updates</td>
+                                              <td className="py-3 px-4 text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle2 size={12}/> RUNNING</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">Every hour</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Finance</span></td>
+                                              <td className="py-3 px-4">Invoice reconciliation</td>
+                                              <td className="py-3 px-4 text-slate-500 text-xs font-mono flex items-center gap-1">PENDING</td>
+                                          </tr>
+                                          <tr className="hover:bg-slate-800/30 text-slate-300">
+                                              <td className="py-3 px-4 font-mono text-indigo-400">06:00 PM</td>
+                                              <td className="py-3 px-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-xs">Founder</span></td>
+                                              <td className="py-3 px-4">End-of-day report</td>
+                                              <td className="py-3 px-4 text-slate-500 text-xs font-mono flex items-center gap-1">PENDING</td>
+                                          </tr>
+                                      </tbody>
+                                  </table>
+                              </div>
+                          </div>
+                      ) : activeCategory === 'Office Memory' ? (
+                          <div className="space-y-6">
+                              <p className="text-sm text-slate-400 mb-6">Offices run, learn, store memory, and improve tomorrow.</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Bot size={16} className="text-indigo-400"/> Recruitment Office Memory</h4>
+                                      <ul className="space-y-2 text-xs text-slate-400">
+                                          <li className="flex gap-2"><span className="text-indigo-500">•</span> Learns: Top vendors for backend roles</li>
+                                          <li className="flex gap-2"><span className="text-indigo-500">•</span> Learns: Best recruiters by conversion</li>
+                                          <li className="flex gap-2"><span className="text-indigo-500">•</span> Learns: Successful keywords matching JD</li>
+                                          <li className="flex gap-2"><span className="text-indigo-500">•</span> Learns: Interview failure patterns</li>
+                                      </ul>
+                                  </div>
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Bot size={16} className="text-emerald-400"/> GTM Office Memory</h4>
+                                      <ul className="space-y-2 text-xs text-slate-400">
+                                          <li className="flex gap-2"><span className="text-emerald-500">•</span> Learns: Campaign open rates</li>
+                                          <li className="flex gap-2"><span className="text-emerald-500">•</span> Learns: Best performing outreach messaging</li>
+                                          <li className="flex gap-2"><span className="text-emerald-500">•</span> Learns: ICPs that respond fastest</li>
+                                          <li className="flex gap-2"><span className="text-emerald-500">•</span> Learns: Campaign conversion history</li>
+                                      </ul>
+                                  </div>
+                                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                                      <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Bot size={16} className="text-amber-400"/> Founder Office Memory</h4>
+                                      <ul className="space-y-2 text-xs text-slate-400">
+                                          <li className="flex gap-2"><span className="text-amber-500">•</span> Learns: Revenue history trends</li>
+                                          <li className="flex gap-2"><span className="text-amber-500">•</span> Learns: Hiring velocity per client</li>
+                                          <li className="flex gap-2"><span className="text-amber-500">•</span> Learns: Month-over-month growth patterns</li>
+                                          <li className="flex gap-2"><span className="text-amber-500">•</span> Learns: Forecast accuracy deviations</li>
+                                      </ul>
+                                  </div>
+                              </div>
                           </div>
                       ) : (
                           <div className="flex flex-col items-center justify-center py-20 text-center">

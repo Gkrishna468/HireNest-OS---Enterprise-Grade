@@ -5,6 +5,21 @@ import { AgentOrchestrator } from '../services/AgentOrchestrator.js';
 
 const cronHandler = express.Router();
 
+cronHandler.get('/orchestrator/reset', async (req, res) => {
+    try {
+        if (!db) throw new Error("Database not initialized");
+        const snapshot = await db.collection('ai_agents').get();
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        res.json({ success: true, message: 'Agents collection reset' });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 cronHandler.get('/orchestrator/seed', async (req, res) => {
     try {
         await AgentOrchestrator.seedCoreAgents();

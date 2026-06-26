@@ -23,12 +23,23 @@ export class AgentOrchestrator {
         if (!db) return;
         
         const coreAgents = [
-            { id: 'resume-parser', name: 'Resume Parser', category: 'Recruitment Office', triggerType: 'EVENT', triggerEvent: 'RESUME_UPLOADED', schedule: 'On Resume Uploaded', status: 'Healthy', enabled: true },
-            { id: 'matching-engine', name: 'Matching Engine', category: 'Recruitment Office', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_CREATED', schedule: 'On Requirement Created', status: 'Healthy', enabled: true },
-            { id: 'vendor-broadcast', name: 'Vendor Broadcast', category: 'Recruitment Office', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_CREATED', schedule: 'On Requirement Created', status: 'Healthy', enabled: true },
-            { id: 'lead-discovery', name: 'Lead Discovery', category: 'GTM Office', triggerType: 'CRON', schedule: 'Hourly', status: 'Healthy', enabled: true },
-            { id: 'mailos-agent', name: 'MailOS Agent', category: 'Platform Office', triggerType: 'CRON', schedule: 'Every 5 min', status: 'Healthy', enabled: true },
-            { id: 'audit-logger', name: 'Audit Agent', category: 'Security Office', triggerType: 'EVENT', triggerEvent: 'ANY_EVENT', schedule: 'Event-driven', status: 'Healthy', enabled: true },
+            // Layer 1: Office Agents
+            { id: 'founder-office', name: 'Founder Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: 'Twice Daily (8:30 AM, 6:00 PM)', status: 'Healthy', enabled: true, core: true, desc: 'Owns overall business outcomes, overnight briefings, and EOD reports.' },
+            { id: 'gtm-office', name: 'GTM Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: '9:00 AM Daily', status: 'Healthy', enabled: true, core: true, desc: 'Generates demand, runs outbound campaigns, finds new leads.' },
+            { id: 'recruitment-office', name: 'Recruitment Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_CREATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Delivers talent, manages resume parsing, matching, and submissions.' },
+            { id: 'vendor-office', name: 'Vendor Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: '9:15 AM Daily', status: 'Healthy', enabled: true, core: true, desc: 'Improves partner success, collects bench profiles, coaches vendors.' },
+            { id: 'client-office', name: 'Client Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_UPDATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Drives hiring outcomes, sends market insights, monitors SLA.' },
+            
+            // Layer 2: Shared Skills
+            { id: 'resume-parser', name: 'Resume Parser', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Extracts entities and skills from resumes.' },
+            { id: 'matching-engine', name: 'Matching Engine', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Calculates match scores between candidates and requirements.' },
+            { id: 'vendor-broadcast', name: 'Vendor Broadcast', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Notifies vendors about new requirements.' },
+            { id: 'lead-discovery', name: 'Lead Finder', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Scrapes LinkedIn and web for prospects.' },
+            
+            // Layer 3: Background Workers
+            { id: 'mailos-agent', name: 'MailOS Agent', category: 'Layer 3: Background Workers', triggerType: 'CRON', schedule: 'Every 5 min', status: 'Healthy', enabled: true, core: true, desc: 'Syncs emails from Workspace, triggers requirement parsing.' },
+            { id: 'audit-logger', name: 'Audit Agent', category: 'Layer 3: Background Workers', triggerType: 'EVENT', triggerEvent: 'ANY_EVENT', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Logs compliance and security events to Firestore.' },
+            { id: 'queue-processor', name: 'Queue Processor', category: 'Layer 3: Background Workers', triggerType: 'CRON', schedule: 'Every 1 min', status: 'Healthy', enabled: true, core: true, desc: 'Maintains system queues and retry logic.' },
         ];
         
         for (const agent of coreAgents) {
