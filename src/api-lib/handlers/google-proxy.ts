@@ -43,9 +43,31 @@ googleProxyHandler.get('/gmail/messages', async (req, res) => {
        if (workspace.orgId) {
            query = query.where('workspaceId', '==', workspace.orgId);
        }
-       const snapshot = await query.orderBy('createdAt', 'desc').limit(25).get();
        
-       const fullMessages = snapshot.docs.map(doc => {
+       let docs: any[] = [];
+       try {
+           const snapshot = await query.orderBy('createdAt', 'desc').limit(25).get();
+           docs = snapshot.docs;
+       } catch (err: any) {
+           const errMsg = err.message || String(err);
+           if (errMsg.includes('index') || errMsg.includes('FAILED_PRECONDITION') || errMsg.includes('INDEX_REQUISITE') || errMsg.includes('requires an index')) {
+               console.warn("[googleProxyHandler] Missing composite index for mail_messages query. Performing resilient in-memory sort fallback:", err);
+               // Fallback: fetch without order and sort in-memory
+               const rawSnapshot = await query.get();
+               const sortedDocs = rawSnapshot.docs.sort((a, b) => {
+                   const dataA = a.data();
+                   const dataB = b.data();
+                   const timeA = dataA.createdAt ? (dataA.createdAt.toDate ? dataA.createdAt.toDate().getTime() : new Date(dataA.createdAt).getTime()) : 0;
+                   const timeB = dataB.createdAt ? (dataB.createdAt.toDate ? dataB.createdAt.toDate().getTime() : new Date(dataB.createdAt).getTime()) : 0;
+                   return timeB - timeA; // Descending
+               });
+               docs = sortedDocs.slice(0, 25);
+           } else {
+               throw err;
+           }
+       }
+       
+       const fullMessages = docs.map(doc => {
            const d = doc.data();
            return {
                id: d.gmailMessageId,

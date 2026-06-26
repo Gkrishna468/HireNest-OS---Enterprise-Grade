@@ -3,6 +3,7 @@ import { db } from '../../lib/firebase-admin.js';
 import { decryptText } from '../../lib/encryption.js';
 import { AIGateway } from './AIGateway.js';
 import { createOAuthClient } from '../handlers/oauth.js';
+import { EventBus } from './EventBus.js';
 
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
@@ -28,10 +29,11 @@ export class MailOSService {
 
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
+        // Retrieve the latest 30 messages to check for new ones.
+        // This is extremely safe and avoids the need to mark messages as read (which requires gmail.modify scopes).
         const response = await gmail.users.messages.list({
             userId: 'me',
-            q: 'is:unread',
-            maxResults: 10
+            maxResults: 30
         });
 
         const messages = response.data.messages || [];
@@ -40,191 +42,149 @@ export class MailOSService {
         for (const msg of messages) {
             if (!msg.id) continue;
 
-            const msgData = await gmail.users.messages.get({
-                userId: 'me',
-                id: msg.id
-            });
+            try {
+                // Check if already exists in mail_messages
+                const existingMsg = await db.collection('mail_messages').doc(msg.id).get();
+                if (existingMsg.exists) continue;
 
-            const headers = msgData.data.payload?.headers;
-            const subject = headers?.find(h => h.name === 'Subject')?.value || '';
-            const from = headers?.find(h => h.name === 'From')?.value || '';
-            
-            let plainText = '';
-            let htmlBody = '';
-            let attachments: any[] = [];
+                const msgData = await gmail.users.messages.get({
+                    userId: 'me',
+                    id: msg.id
+                });
 
-            const processParts = (parts: any[]) => {
-                for (const part of parts) {
-                    if (part.mimeType === 'text/plain' && part.body?.data) {
-                        plainText += Buffer.from(part.body.data, 'base64').toString('utf-8');
-                    } else if (part.mimeType === 'text/html' && part.body?.data) {
-                        htmlBody += Buffer.from(part.body.data, 'base64').toString('utf-8');
-                    } else if (part.filename && part.body?.attachmentId) {
-                        attachments.push({
-                            filename: part.filename,
-                            mimeType: part.mimeType,
-                            attachmentId: part.body.attachmentId
-                        });
-                    }
-                    if (part.parts) {
-                        processParts(part.parts);
-                    }
-                }
-            };
-            
-            if (msgData.data.payload?.parts) {
-                processParts(msgData.data.payload.parts);
-            } else if (msgData.data.payload?.body?.data) {
-                const topBody = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
-                if (msgData.data.payload.mimeType === 'text/html') {
-                    htmlBody = topBody;
-                } else {
-                    plainText = topBody;
-                }
-            }
+                const headers = msgData.data.payload?.headers;
+                const subject = headers?.find(h => h.name === 'Subject')?.value || '';
+                const from = headers?.find(h => h.name === 'From')?.value || '';
+                
+                let plainText = '';
+                let htmlBody = '';
+                let attachments: any[] = [];
 
-            const body = plainText || htmlBody || msgData.data.snippet || '';
-
-            if (!body && attachments.length === 0) continue;
-
-            const existingMsg = await db.collection('mail_messages').doc(msg.id).get();
-            if (existingMsg.exists) continue;
-
-            const classification = await this.classifyEmail(subject, body, from, attachments);
-            const executionLog: any = {
-                agentName: 'Mail Sync Agent',
-                agentType: 'MAILOS',
-                createdAt: new Date(),
-                status: 'success',
-                task: `Processed email from ${from}`,
-                duration: 0, // Placeholder
-                aiMetrics: classification.aiMetrics,
-            };
-            const startTime = Date.now();
-            let primaryEntityId = '';
-
-            if (classification.type === 'REQUIREMENT') {
-                const reqId = await this.createRequirement(classification.data, orgId, uid, from);
-                primaryEntityId = reqId;
-                processed.push({ type: 'REQUIREMENT', id: reqId, subject, summary: classification.summary });
-                executionLog.agentName = 'Requirement Extraction Agent';
-                executionLog.task = `Extracted requirement from ${from}`;
-            } else if (classification.type === 'RESUME') {
-                executionLog.agentName = 'Resume Parser';
-                executionLog.task = `Parsed resume from ${from}`;
-                // Process resume attachments
-                for (const att of attachments) {
-                    if (att.mimeType === 'application/pdf' || att.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                        const attData = await gmail.users.messages.attachments.get({
-                            userId: 'me',
-                            messageId: msg.id,
-                            id: att.attachmentId
-                        });
-                        
-                        if (attData.data.data) {
-                            const parsedCandidate = await this.parseResumeAttachment(attData.data.data, att.mimeType, subject, body);
-                            if (parsedCandidate) {
-                                const candId = await this.createCandidate(parsedCandidate, orgId, uid, from);
-                                if (!primaryEntityId) primaryEntityId = candId;
-                                await db.collection('mail_entities').add({
-                                    messageId: msg.id,
-                                    entityId: candId,
-                                    entityType: 'CANDIDATE',
-                                    workspaceId: orgId,
-                                    createdAt: new Date()
-                                });
-                                processed.push({ type: 'RESUME', id: candId, subject, summary: `Processed resume: ${att.filename}` });
-                            }
+                const processParts = (parts: any[]) => {
+                    for (const part of parts) {
+                        if (part.mimeType === 'text/plain' && part.body?.data) {
+                            plainText += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                        } else if (part.mimeType === 'text/html' && part.body?.data) {
+                            htmlBody += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                        } else if (part.filename && part.body?.attachmentId) {
+                            attachments.push({
+                                filename: part.filename,
+                                mimeType: part.mimeType,
+                                attachmentId: part.body.attachmentId
+                            });
+                        }
+                        if (part.parts) {
+                            processParts(part.parts);
                         }
                     }
+                };
+                
+                if (msgData.data.payload?.parts) {
+                    processParts(msgData.data.payload.parts);
+                } else if (msgData.data.payload?.body?.data) {
+                    const topBody = Buffer.from(msgData.data.payload.body.data, 'base64').toString('utf-8');
+                    if (msgData.data.payload.mimeType === 'text/html') {
+                        htmlBody = topBody;
+                    } else {
+                        plainText = topBody;
+                    }
                 }
-                if (processed.length === 0 || !processed.find(p => p.type === 'RESUME')) {
-                    processed.push({ type: 'RESUME_NO_ATTACHMENT', subject });
-                }
-            } else {
-                processed.push({ type: classification.type || 'IGNORED', subject, summary: classification.summary });
-            }
 
-            if (classification.type === 'REQUIREMENT' && primaryEntityId) {
-                await db.collection('mail_entities').add({
-                    messageId: msg.id,
-                    entityId: primaryEntityId,
-                    entityType: 'REQUIREMENT',
+                const body = plainText || htmlBody || msgData.data.snippet || '';
+                if (!body && attachments.length === 0) continue;
+
+                // Save trace and state in the mail message doc as RECEIVED.
+                // Downstream processing (Gemini extraction, candidates, requirements) will run asynchronously or on-demand!
+                await db.collection('mail_messages').doc(msg.id).set({
+                    gmailMessageId: msg.id,
+                    gmailThreadId: msgData.data.threadId || '',
+                    historyId: msgData.data.historyId || '',
                     workspaceId: orgId,
+                    status: 'RECEIVED',
+                    processingState: 'RECEIVED',
+                    rawPayload: { 
+                        subject, 
+                        from, 
+                        date: headers?.find(h => h.name === 'Date')?.value || '', 
+                        snippet: msgData.data.snippet,
+                        plainText: plainText,
+                        html: htmlBody,
+                        body: body,
+                        attachments: attachments
+                    },
                     createdAt: new Date()
                 });
-            }
 
-            // Create lifecycle trace events in mail_events
-            await db.collection('mail_events').add({
-                messageId: msg.id,
-                workspaceId: orgId,
-                eventType: 'EMAIL_RECEIVED',
-                title: 'Email Received',
-                description: `Email received from ${from}`,
-                timestamp: new Date()
-            });
-
-            await db.collection('mail_events').add({
-                messageId: msg.id,
-                workspaceId: orgId,
-                eventType: 'EMAIL_CLASSIFIED',
-                title: 'Email Classified',
-                description: `Email classified as ${classification.type} with ${classification.confidence || 0}% confidence`,
-                timestamp: new Date()
-            });
-
-            if (primaryEntityId) {
+                // Create initial lifecycle RECEIVED trace in mail_events
                 await db.collection('mail_events').add({
                     messageId: msg.id,
                     workspaceId: orgId,
-                    eventType: 'ENTITY_CREATED',
-                    title: 'Entity Created',
-                    description: `Staffing business entity (${classification.type}) automatically extracted and registered: ${primaryEntityId}`,
+                    eventType: 'EMAIL_RECEIVED',
+                    title: 'Email Received',
+                    description: `Email successfully ingested from ${from}. Ready for classification.`,
                     timestamp: new Date()
                 });
+
+                // Publish EMAIL_RECEIVED event to the EventBus for decoupled async background processing
+                try {
+                    await EventBus.publish('EMAIL_RECEIVED', {
+                        messageId: msg.id,
+                        subject,
+                        from,
+                        workspaceId: orgId
+                    }, 'MAILOS_SYNC', orgId);
+                } catch (busErr) {
+                    console.error(`[MailOS] Failed to publish EMAIL_RECEIVED event to EventBus for message ${msg.id}:`, busErr);
+                }
+
+                // Optional/best-effort try to modify read status (will safely handle 403 insufficient scopes)
+                try {
+                    await gmail.users.messages.modify({
+                        userId: 'me',
+                        id: msg.id,
+                        requestBody: { removeLabelIds: ['UNREAD'] }
+                    });
+                } catch (modifyErr: any) {
+                    console.warn(`[MailOS] Best-effort mark-as-read on Gmail server skipped for ${msg.id} (read-only token is expected).`);
+                }
+
+                processed.push({ type: 'RECEIVED', id: msg.id, subject, summary: 'Ingested raw email successfully.' });
+
+            } catch (msgErr: any) {
+                // If a single email fails, we log it, write a FAILED state to the DB (acting as a Dead Letter Queue / DLQ), and CONTINUE syncing other messages!
+                console.error(`[MailOS] Resilient Sync caught error processing email ${msg.id}:`, msgErr);
+                try {
+                    await db.collection('mail_messages').doc(msg.id).set({
+                        gmailMessageId: msg.id,
+                        workspaceId: orgId,
+                        status: 'FAILED',
+                        processingState: 'FAILED',
+                        error: msgErr?.message || String(msgErr),
+                        createdAt: new Date()
+                    }, { merge: true });
+
+                    await db.collection('mail_events').add({
+                        messageId: msg.id,
+                        workspaceId: orgId,
+                        eventType: 'SYNC_FAILED',
+                        title: 'Sync Failed',
+                        description: `Error during processing: ${msgErr?.message || String(msgErr)}`,
+                        timestamp: new Date()
+                    });
+                } catch (dlqErr) {
+                    console.error("[MailOS] Failed to write DLQ failure state to Firestore:", dlqErr);
+                }
             }
+        }
 
-            // Save trace and state in the mail message doc
-            await db.collection('mail_messages').doc(msg.id).set({
-                gmailMessageId: msg.id,
-                gmailThreadId: msgData.data.threadId || '',
-                historyId: msgData.data.historyId || '',
-                workspaceId: orgId,
-                entityId: primaryEntityId,
-                entityType: classification.type,
-                status: 'PROCESSED',
-                processingState: primaryEntityId ? 'ENTITY_CREATED' : 'CLASSIFIED',
-                rawPayload: { 
-                    subject, 
-                    from, 
-                    date: headers?.find(h => h.name === 'Date')?.value || '', 
-                    snippet: msgData.data.snippet,
-                    plainText: plainText,
-                    html: htmlBody,
-                    body: body
-                },
-                classification: {
-                    type: classification.type,
-                    confidence: classification.confidence || 0,
-                    confidenceReason: classification.confidenceReason || '',
-                    summary: classification.summary || '',
-                    suggestedActions: classification.suggestedActions || [],
-                    timeline: classification.timeline || [],
-                    data: classification.data || {}
-                },
-                createdAt: new Date()
-            });
-
-            executionLog.duration = Date.now() - startTime;
-            await db.collection('agent_executions').add(executionLog);
-
-            // Remove UNREAD label to mark as processed
-            await gmail.users.messages.modify({
-                userId: 'me',
-                id: msg.id,
-                requestBody: { removeLabelIds: ['UNREAD'] }
-            });
+        // Update lastSync timestamp in gmail_watch to enable client-side quota protection caching (< 2 minutes)
+        try {
+            await db.collection('gmail_watch').doc(uid).set({
+                lastSync: new Date().toISOString(),
+                updatedAt: new Date()
+            }, { merge: true });
+        } catch (watchErr) {
+            console.error("[MailOS] Failed to update lastSync timestamp:", watchErr);
         }
 
         return processed;
@@ -505,16 +465,135 @@ export class MailOSService {
         const messageDoc = await db.collection('mail_messages').doc(messageId).get();
         if (!messageDoc.exists) throw new Error("Message not found in MailOS database");
         
-        const data = messageDoc.data();
+        let data = messageDoc.data() || {};
+        let entityType = data.entityType;
+        let entityId = data.entityId;
+        let classification = data.classification;
+        let status = data.status || 'RECEIVED';
+
+        // Perform on-demand classification if not yet processed
+        if (status === 'RECEIVED' || status === 'FAILED' || !classification || !classification.type) {
+            console.log(`[MailOS] On-demand classification triggered for message ${messageId}`);
+            
+            const raw = data.rawPayload || {};
+            const subject = raw.subject || '';
+            const body = raw.body || raw.plainText || raw.html || '';
+            const from = raw.from || '';
+            const attachments = raw.attachments || [];
+
+            // 1. Classify via AIGateway (fully resilient, supports rule fallback)
+            classification = await this.classifyEmail(subject, body, from, attachments);
+            entityType = classification.type;
+
+            // 2. Extract specific entities
+            let primaryEntityId = '';
+            if (entityType === 'REQUIREMENT') {
+                try {
+                    primaryEntityId = await this.createRequirement(classification.data, orgId, uid, from);
+                } catch (reqErr) {
+                    console.error("[MailOS] On-demand requirement extraction failed:", reqErr);
+                }
+            } else if (entityType === 'RESUME') {
+                for (const att of attachments) {
+                    if (att.mimeType === 'application/pdf' || att.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                        try {
+                            const tokenDoc = await db.collection('token_vault').doc(uid).get();
+                            if (tokenDoc.exists) {
+                                const vaultData = tokenDoc.data();
+                                if (vaultData?.accessToken) {
+                                    const oauth2Client = createOAuthClient();
+                                    oauth2Client.setCredentials({
+                                        access_token: decryptText(vaultData.accessToken),
+                                        refresh_token: vaultData.refreshToken ? decryptText(vaultData.refreshToken) : undefined,
+                                        expiry_date: vaultData.expiryDate
+                                    });
+                                    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+                                    const attData = await gmail.users.messages.attachments.get({
+                                        userId: 'me',
+                                        messageId: messageId,
+                                        id: att.attachmentId
+                                    });
+                                    if (attData.data.data) {
+                                        const parsedCandidate = await this.parseResumeAttachment(attData.data.data, att.mimeType, subject, body);
+                                        if (parsedCandidate) {
+                                            const candId = await this.createCandidate(parsedCandidate, orgId, uid, from);
+                                            primaryEntityId = candId;
+                                            
+                                            await db.collection('mail_entities').add({
+                                                messageId,
+                                                entityId: candId,
+                                                entityType: 'CANDIDATE',
+                                                workspaceId: orgId,
+                                                createdAt: new Date()
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (attErr) {
+                            console.error(`[MailOS] Failed to fetch/parse attachment ${att.filename}:`, attErr);
+                        }
+                    }
+                }
+            }
+
+            entityId = primaryEntityId;
+            status = 'PROCESSED';
+
+            // Save trace events
+            await db.collection('mail_events').add({
+                messageId: messageId,
+                workspaceId: orgId,
+                eventType: 'EMAIL_CLASSIFIED',
+                title: 'Email Classified (On-Demand)',
+                description: `Email classified as ${entityType} with ${classification.confidence || 0}% confidence (On-demand UI flow)`,
+                timestamp: new Date()
+            });
+
+            if (primaryEntityId) {
+                await db.collection('mail_events').add({
+                    messageId: messageId,
+                    workspaceId: orgId,
+                    eventType: 'ENTITY_CREATED',
+                    title: 'Entity Created (On-Demand)',
+                    description: `Staffing business entity (${entityType}) automatically extracted: ${primaryEntityId}`,
+                    timestamp: new Date()
+                });
+            }
+
+            // Update the document in Firestore
+            const updatePayload = {
+                status: 'PROCESSED',
+                processingState: primaryEntityId ? 'ENTITY_CREATED' : 'CLASSIFIED',
+                entityId: primaryEntityId,
+                entityType,
+                classification: {
+                    type: classification.type,
+                    confidence: classification.confidence || 0,
+                    confidenceReason: classification.confidenceReason || '',
+                    summary: classification.summary || '',
+                    suggestedActions: classification.suggestedActions || [],
+                    timeline: classification.timeline || [],
+                    data: classification.data || {}
+                }
+            };
+            await db.collection('mail_messages').doc(messageId).set(updatePayload, { merge: true });
+
+            // Reload fresh data
+            data = {
+                ...data,
+                ...updatePayload
+            };
+        }
+
         let entityData: any = data?.classification?.data || {};
-        
-        if (data?.entityId && (!entityData || Object.keys(entityData).length === 0)) {
+        if (entityId && (!entityData || Object.keys(entityData).length === 0)) {
             let collectionName = '';
-            if (data.entityType === 'REQUIREMENT') collectionName = 'requirements_public';
-            if (data.entityType === 'RESUME' || data.entityType === 'CANDIDATE') collectionName = 'candidatePool';
+            if (entityType === 'REQUIREMENT') collectionName = 'requirements_public';
+            if (entityType === 'RESUME' || entityType === 'CANDIDATE') collectionName = 'candidatePool';
             
             if (collectionName) {
-                const entityDoc = await db.collection(collectionName).doc(data.entityId).get();
+                const entityDoc = await db.collection(collectionName).doc(entityId).get();
                 if (entityDoc.exists) {
                     entityData = entityDoc.data();
                 }
@@ -522,9 +601,9 @@ export class MailOSService {
         }
         
         // Construct analysis object that InboxTab expects
-        let matchingJobs = [];
+        let matchingJobs: any[] = [];
         
-        if (data?.entityType === 'RESUME' && entityData?.skills) {
+        if (entityType === 'RESUME' && entityData?.skills) {
             const reqsSnap = await db.collection('requirements_public').where('status', '==', 'OPEN').limit(5).get();
             reqsSnap.forEach(r => {
                 matchingJobs.push({ id: r.id, title: r.data().title, score: 85, client: r.data().clientId || 'Unknown' });
@@ -544,16 +623,16 @@ export class MailOSService {
             plainText: data?.rawPayload?.plainText || '',
             html: data?.rawPayload?.html || '',
             classification: {
-                type: data?.entityType || data?.classification?.type || 'OTHER',
+                type: entityType || 'OTHER',
                 data: entityData,
-                summary: data?.classification?.summary || "Extracted via immutable MailOS parser.",
-                confidence: data?.classification?.confidence || 99,
-                suggestedActions: data?.classification?.suggestedActions || ["View Entity", "Acknowledge Receipt"],
-                timeline: data?.classification?.timeline || [
+                summary: classification?.summary || "Extracted via immutable MailOS parser.",
+                confidence: classification?.confidence || 99,
+                suggestedActions: classification?.suggestedActions || ["View Entity", "Acknowledge Receipt"],
+                timeline: classification?.timeline || [
                     { time: data?.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt.seconds * 1000)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), title: 'Ingested by MailOS' }
                 ]
             },
-            attachments: [],
+            attachments: data?.rawPayload?.attachments || [],
             businessImpact: {
                 matchingJobs,
                 estimatedRevenue: 15000,

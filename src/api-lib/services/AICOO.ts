@@ -1,5 +1,5 @@
-import { db } from '../../lib/firebase-admin';
-import { OfficeRuntimeService } from './OfficeRuntimeService';
+import { db } from '../../lib/firebase-admin.js';
+import { OfficeRuntimeService } from './OfficeRuntimeService.js';
 
 export class AICOO {
     
@@ -8,11 +8,10 @@ export class AICOO {
      * The AI COO never executes business work directly. 
      * 
      * Responsibilities:
-     * - Monitor every Office
+     * - Monitor every Office via metrics & generic queues
      * - Detect blocked workflows
      * - Balance workloads
-     * - Escalate issues
-     * - Reprioritize queues
+     * - Escalate SLA breaches
      * - Coordinate Offices
      */
     static async reviewEnterpriseQueues(workspaceId: string) {
@@ -20,44 +19,49 @@ export class AICOO {
         
         console.log(`[AI COO] Reviewing enterprise queues for ${workspaceId}`);
         
-        // 1. Gather stats from all offices
-        const recruitmentOffice = await OfficeRuntimeService.getOfficeRuntime(workspaceId, 'RECRUITMENT');
-        const vendorOffice = await OfficeRuntimeService.getOfficeRuntime(workspaceId, 'VENDOR');
-        const clientOffice = await OfficeRuntimeService.getOfficeRuntime(workspaceId, 'CLIENT');
+        let allItems: any[] = [];
         
-        // 2. Identify blocked items or SLA breaches
-        const allInboxes = [
-            ...(recruitmentOffice?.inbox || []),
-            ...(vendorOffice?.inbox || []),
-            ...(clientOffice?.inbox || [])
-        ];
+        // 1. Query the generic work_items collection directly (Saves memory, extremely fast!)
+        try {
+            const snap = await db.collection('work_items')
+                .where('workspaceId', '==', workspaceId)
+                .get();
+                
+            snap.forEach(doc => {
+                allItems.push(doc.data());
+            });
+        } catch (e) {
+            console.error('[AI COO] Error querying work_items collection directly:', e);
+        }
         
         const now = new Date();
-        const slaBreached = allInboxes.filter(item => item.status === 'PENDING' && new Date(item.dueAt) < now);
-        const highPriority = allInboxes.filter(item => item.priority === 'HIGH' && item.status === 'PENDING');
-        const blockedItems = allInboxes.filter(item => item.status === 'BLOCKED');
         
-        // 3. Delegate instructions or escalate
+        // 2. Identify blocked items or SLA breaches from the unified queue
+        const pendingItems = allItems.filter(item => item.state === 'PENDING');
+        const slaBreached = pendingItems.filter(item => item.dueAt && new Date(item.dueAt) < now);
+        const highPriority = pendingItems.filter(item => item.priority === 'HIGH');
+        const blockedItems = allItems.filter(item => item.state === 'BLOCKED');
+        
+        // 3. Delegate and coordinate
         if (slaBreached.length > 0) {
-            // E.g. trigger an escalation event
-            console.log(`[AI COO] Found ${slaBreached.length} SLA breaches. Escalating.`);
+            console.log(`[AI COO] Found ${slaBreached.length} SLA breaches. Escalating to appropriate Office Managers.`);
         }
         
         if (blockedItems.length > 0) {
-            console.log(`[AI COO] Found ${blockedItems.length} blocked workflows. Investigating dependencies.`);
-            // Reprioritize queues, notify Founder if critical
+            console.log(`[AI COO] Found ${blockedItems.length} blocked workflows. Investigating blockers and routing overrides.`);
         }
         
         if (highPriority.length > 0) {
-            console.log(`[AI COO] Found ${highPriority.length} high priority items waiting.`);
+            console.log(`[AI COO] Found ${highPriority.length} high priority work items. Balancing dispatcher resources.`);
         }
         
-        // Publish a summary event to the EventBus
+        // 4. Return unified metrics
         return {
             slaBreaches: slaBreached.length,
             highPriority: highPriority.length,
             blockedWorkflows: blockedItems.length,
-            totalPending: allInboxes.filter(i => i.status === 'PENDING').length
+            totalPending: pendingItems.length,
+            totalWorkItems: allItems.length
         };
     }
 }
