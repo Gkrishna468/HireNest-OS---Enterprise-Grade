@@ -92,9 +92,9 @@ export abstract class BaseOffice {
         await EnterpriseRuntimeKernel.event.publish('OFFICE_HEARTBEAT', heartbeat);
     }
 
-    protected async getExperience(): Promise<any[]> {
-        // Retrieve experience memory specific to this office
-        return [];
+    protected async getExperience(orgId: string, targetId: string): Promise<any[]> {
+        // Retrieve experience memory specific to this target and office
+        return await EnterpriseRuntimeKernel.improvement.getExperiencesForTarget(orgId, targetId);
     }
 
     protected async getKnowledge(): Promise<any[]> {
