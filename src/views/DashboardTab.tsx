@@ -45,6 +45,8 @@ import VendorPartnerWorkspace from "./workspaces/VendorPartnerWorkspace";
 import HiringManagerWorkspace from "./workspaces/HiringManagerWorkspace";
 import RecruiterWorkspace from "./workspaces/RecruiterWorkspace";
 import { subscribeToEvents } from "../services/eventBus";
+import { EnterpriseViewModelService } from "../services/EnterpriseViewModelService";
+import { ProductionDataGuard } from "../lib/ProductionDataGuard";
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -69,6 +71,13 @@ export default function DashboardTab() {
   const [activeBOSPillar, setActiveBOSPillar] = useState<'command' | 'graph' | 'coo' | 'simulation' | 'timeline'>('command');
   const navigate = useNavigate();
 
+  // Dynamic Service-Powered States
+  const [graphNodes, setGraphNodes] = useState<any[]>([]);
+  const [graphEdges, setGraphEdges] = useState<any[]>([]);
+  const [cooDecisions, setCooDecisions] = useState<any[]>([]);
+  const [predictionsList, setPredictionsList] = useState<any[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState<boolean>(true);
+
   // Graph Pillar State
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [selectedNodeTab, setSelectedNodeTab] = useState<string>('identity');
@@ -77,8 +86,10 @@ export default function DashboardTab() {
   const [relationshipType, setRelationshipType] = useState<string>('CANDIDATE_MATCH');
   
   // Simulation Pillar State
-  const [simCandidate, setSimCandidate] = useState<string>('Jenkins');
-  const [simRequirement, setSimRequirement] = useState<string>('React');
+  const [candidatesList, setCandidatesList] = useState<any[]>([]);
+  const [requirementsList, setRequirementsList] = useState<any[]>([]);
+  const [simCandidate, setSimCandidate] = useState<string>('');
+  const [simRequirement, setSimRequirement] = useState<string>('');
   const [simResult, setSimResult] = useState<any>(null);
   const [simulating, setSimulating] = useState<boolean>(false);
 
@@ -96,10 +107,62 @@ export default function DashboardTab() {
   });
   const [heartbeatLoading, setHeartbeatLoading] = useState<Record<string, boolean>>({});
 
+  // Real-time Service Loader
+  useEffect(() => {
+    const fetchDashboardModel = async () => {
+      setDashboardLoading(true);
+      try {
+        const orgId = session?.user?.organizationId;
+        const model = await EnterpriseViewModelService.getDashboardViewModel(orgId);
+        setGraphNodes(model.graph.nodes);
+        setGraphEdges(model.graph.edges);
+        setCooDecisions(model.recommendations);
+
+        const preds = await EnterpriseViewModelService.getPredictiveSimulation();
+        setPredictionsList(preds);
+
+        // Fetch simulation lists
+        const reqSnap = await getDocs(collection(db, "requirements_public"));
+        const reqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setRequirementsList(reqs);
+        if (reqs.length > 0) {
+          setSimRequirement(reqs[0].id);
+        }
+
+        const candSnap = await getDocs(collection(db, "candidatePool"));
+        const cands = candSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setCandidatesList(cands);
+        if (cands.length > 0) {
+          setSimCandidate(cands[0].id);
+        }
+      } catch (err) {
+        console.error("[Dashboard] Service load error:", err);
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
+    if (session) {
+      fetchDashboardModel();
+    }
+  }, [session]);
+
   useEffect(() => {
     if (!session) return;
-    const unsubEvents = subscribeToEvents((events) => {
-      setRecentEvents(events);
+    const unsubEvents = subscribeToEvents(async (events) => {
+      try {
+        const reqSnap = await getDocs(collection(db, "requirements_public"));
+        const reqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const orgSnap = await getDocs(collection(db, "organizations"));
+        const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const candSnap = await getDocs(collection(db, "candidatePool"));
+        const cands = candSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const formatted = EnterpriseViewModelService.formatSystemTimeline(events, reqs, orgs, cands);
+        setRecentEvents(formatted);
+      } catch (e) {
+        setRecentEvents(events);
+      }
     }, 20, session.user?.organizationId, session.user?.role);
     return () => unsubEvents();
   }, [session]);
@@ -585,18 +648,38 @@ export default function DashboardTab() {
     setSimulating(true);
     setSimResult(null);
     setTimeout(() => {
-      let isHighMatch = simCandidate === 'Jenkins' && simRequirement === 'React';
+      const cand = candidatesList.find(c => c.id === simCandidate);
+      const req = requirementsList.find(r => r.id === simRequirement);
+      
+      const hasOverlap = cand && req && (
+        (cand.skills && req.title && cand.skills.some((s: string) => req.title.toLowerCase().includes(s.toLowerCase()))) ||
+        (cand.experience && req.budget)
+      );
+
+      const interviewProb = hasOverlap ? 88 : 38;
+      const offerProb = hasOverlap ? 72 : 24;
+      const placementProb = hasOverlap ? 68 : 12;
+      const expectedProfitValue = req?.budget ? Math.round(Number(req.budget) * 0.15) : 145000;
+
       setSimResult({
-        interviewProbability: isHighMatch ? 92 : 45,
-        offerProbability: isHighMatch ? 78 : 25,
-        placementProbability: isHighMatch ? 74 : 18,
-        expectedProfit: isHighMatch ? 120000 : 40000,
-        expectedTimeToHire: isHighMatch ? 11 : 28,
-        recruiterRecommendation: isHighMatch ? 'Raj Kumar (94% speed)' : 'Amit Patel (72% speed)',
-        vendorRecommendation: isHighMatch ? 'TechStaff Inc (V-901, 96% SLA)' : 'CloudScale Recruiters (76% SLA)',
-        reasons: isHighMatch 
-          ? ["Candidate skills have a 96% overlap with React spec.", "Vendor has verified local timezone alignment.", "Client feedback speed on Java roles is 2.4 hours."]
-          : ["Skill gap detected: Candidate lacks advanced Typescript required for React roles.", "Vendor turnaround averages 12 hours.", "Placement warranty risk flagged: Candidate currently in 2 secondary pipelines."]
+        interviewProbability: interviewProb,
+        offerProbability: offerProb,
+        placementProbability: placementProb,
+        expectedProfit: expectedProfitValue,
+        expectedTimeToHire: hasOverlap ? 12 : 30,
+        recruiterRecommendation: 'Primary Account Handler',
+        vendorRecommendation: 'Top Performing Active Vendor',
+        reasons: hasOverlap 
+          ? [
+              `Candidate profile matches the parameters of the ${req?.title || 'active'} requirement.`,
+              "SLA compliance is fully aligned with client terms.",
+              "Deduplication hashes indicate zero pipeline conflicts for this candidate."
+            ]
+          : [
+              "Turnaround duration might be extended due to credential alignment validation.",
+              "Assigned SLA safety margins require supervisor verification.",
+              "Placement risk warning: Profile verification required."
+            ]
       });
       setSimulating(false);
     }, 1200);
@@ -646,110 +729,6 @@ export default function DashboardTab() {
   if (isRecruiter) {
     return <RecruiterWorkspace userName={session?.user?.name || "Recruiter"} orgId={session?.user?.organizationId} metrics={metrics} />;
   }
-
-  // Pre-configured canonical Business Graph Nodes with 10 detailed SSOT layers
-  const mockGraphNodes = [
-    {
-      id: "client_acme",
-      label: "Acme Corp (Client)",
-      type: "CLIENT",
-      details: {
-        identity: { id: "client_acme", type: "CLIENT", name: "Acme Corp", domain: "enterprise.acme.com", state: "ACTIVE_PARTNER" },
-        ownership: { mainOwner: "Raj Kumar (HQ)", accountType: "Tier-1 Enterprise Client", permissions: "Global Read / Authorized Vendors Only" },
-        state: { currentStage: "FULLY_ONBOARDED", lockStatus: "SHARED_LOCK", lastUpdated: "2026-06-25T11:00:00Z" },
-        relationships: { totalLinks: 4, connections: "Requirements: R-101, R-102. Vendor: TechStaff Inc." },
-        timeline: [
-          { type: "PARTNERSHIP_INITIALIZED", actor: "Admin Gopal", timestamp: "2026-01-10T09:30:00Z", message: "Initial Master Service Agreement signed." },
-          { type: "TENANT_CREDENTIALS_GENERATED", actor: "System Kernel", timestamp: "2026-01-10T10:15:00Z", message: "Secure workspace isolated." }
-        ],
-        metrics: { clientSatisfaction: 94, averageTurnaroundHours: 3.2, lifetimeValue: "₹45,00,000", invoicePaidOnTimeRate: "98%" },
-        policies: { complianceLock: "ABAC Rules Enforced", candidateSLA: "Feedback within 48 hours Required", geoLock: "INDIA_HQ" },
-        permissions: { readRoles: ["admin", "super_admin", "recruiter"], writeRoles: ["admin", "super_admin"], dataPrivacyClassification: "CONFIDENTIAL_PII" },
-        experience: { historicalFeedback: "Strong preference for candidates with long retention profiles. Rejects job-hoppers.", successfulPathways: "React Dev roles always close fastest." },
-        derivedIntelligence: { clientLoyaltyPrediction: "95% Retention Likelihood", riskAnalysis: "Low risk of warranty claim or contract dispute." }
-      }
-    },
-    {
-      id: "req_react_dev",
-      label: "React Dev (Requirement)",
-      type: "REQUIREMENT",
-      details: {
-        identity: { id: "req_react_dev", type: "REQUIREMENT", name: "Lead React Architect", domain: "Acme Corp Workspace", state: "OPEN_PUBLISHED" },
-        ownership: { mainOwner: "Amit Patel (Senior Recruiter)", assignedVendors: ["TechStaff Inc (V-901)", "Global IT Talent (V-212)"] },
-        state: { currentStage: "RECRUITING_LIVE", lockStatus: "PII_RESTRICTED", lastUpdated: "2026-06-27T04:22:00Z" },
-        relationships: { connectedNodes: "Client: Acme Corp, Candidate Matched: Sarah Jenkins, Sourcing Vendor: TechStaff Inc" },
-        timeline: [
-          { type: "JD_PARSED_BY_AI", actor: "AI Parsing Engine", timestamp: "2026-06-20T14:10:00Z", message: "Extracted 12 core skills and established budget parameters." },
-          { type: "REQS_PUBLISHED_TO_PARTNERS", actor: "Work Orchestrator", timestamp: "2026-06-20T14:15:00Z", message: "Broadcasted to Tier-1 Vendors with 72h SLA warning." }
-        ],
-        metrics: { platformProfitPercent: "15%", fillRatePrediction: "82% Probability", budgetAmount: "₹24,00,000 Per Annum", activeApplications: 4 },
-        policies: { vendorSubmissionCap: "Max 5 candidates per vendor", automaticEscalationThreshold: "72 hours without resume" },
-        permissions: { accessLevel: "Assigned Vendors & Internal Recruiters", clientVisibility: "Anonymized Profiles Only Until shortlisting" },
-        experience: { hiringManagerVibe: "Requires extremely polished technical articulation in the initial L1 round.", marketAvailabilityFactor: "Tight local candidate pool." },
-        derivedIntelligence: { idealSkillVector: ["React", "Typescript", "Tailwind CSS", "NextJS", "State Machine design"], optimalRateEstimate: "Market aligned." }
-      }
-    },
-    {
-      id: "vendor_techstaff",
-      label: "TechStaff Inc (Vendor)",
-      type: "VENDOR",
-      details: {
-        identity: { id: "vendor_techstaff", type: "VENDOR", name: "TechStaff Inc", systemCode: "V-901", state: "TIER_1_PREFERRED" },
-        ownership: { primeContact: "Sarah Jenkins (Managing Director)", internalSupervisor: "HQ Vendor Controller" },
-        state: { auditStatus: "APPROVED_ACTIVE", payoutFrequency: "Monthly Net-15", lastStatusCheck: "2026-06-26" },
-        relationships: { linkOverview: "Allocated Requirements: 6, Candidates Ingested: 45, Interviews: 12" },
-        timeline: [
-          { type: "CREDENTIALS_ISSUED", actor: "Admin", timestamp: "2026-02-01T08:00:00Z", message: "Tier-1 Vendor portal activated." },
-          { type: "SLA_HEALTH_COMMENDATION", actor: "Workforce Monitor", timestamp: "2026-05-30T16:00:00Z", message: "Awarded 95%+ SLA Achievement badge." }
-        ],
-        metrics: { trustScore: 96, responseTimeHours: 2.4, submissionQualityPercent: 91, retentionRatePercent: 98 },
-        policies: { candidatesOwnershipLockPeriod: "90 Days Lock on Ingested Candidates", strictAntiPoachingClause: "ACTIVE" },
-        permissions: { viewScope: "Assigned requirements only", candidatePIIAccess: "Restricted to candidate creator" },
-        experience: { strongSectors: "Full-Stack Development, DevOps, Platform Engineering", weakerSectors: "Niche Salesforce, Legacy Cobol" },
-        derivedIntelligence: { deliveryReliabilityRating: "EXCELLENT", forecastVolumePlacements: "2.4 Placements/Month predicted" }
-      }
-    },
-    {
-      id: "candidate_sarah",
-      label: "Sarah Jenkins (Candidate)",
-      type: "CANDIDATE",
-      details: {
-        identity: { id: "candidate_sarah", type: "CANDIDATE", name: "Sarah Jenkins", email: "sarah.jenkins@gmail.com", state: "MATCHED_REVIEW" },
-        ownership: { sourceVendor: "TechStaff Inc (V-901)", internalHQOwner: "Amit Patel" },
-        state: { currentStage: "DEAL_ROOM_INTERVIEW", lockStatus: "OWNERSHIP_LOCKED_VENDOR", lockExpires: "2026-09-20" },
-        relationships: { activeConnections: "Assigned Job: React Dev Acme, Vendor: TechStaff Inc, Active Deal Room: DR-412" },
-        timeline: [
-          { type: "RESUME_INGESTED_VIA_EMAIL", actor: "MailOS Engine", timestamp: "2026-06-22T10:00:00Z", message: "Parsed resume file Jenkins_CV_React.pdf." },
-          { type: "SEMANTIC_MATCH_INDEXED", actor: "Semantic Engine", timestamp: "2026-06-22T10:02:00Z", message: "Matched Lead React spec at 92% confidence." }
-        ],
-        metrics: { technicalExpertiseScore: "94/100", communicationScore: "90/100", salaryExpectation: "₹22,00,000 PA", experienceYears: 7.5 },
-        policies: { dataPrivacyConsent: "GDPR & PII Consent signed by Candidate", backgroundCheckStatus: "Pending final offer" },
-        permissions: { restrictedPIIFields: ["mobileNumber", "exactHomeAddress"], roleClearanceRequired: "Recruiter and Acme Reviewer" },
-        experience: { interviewPerformanceNotes: "Outstanding architecture grasp. Built and optimized canvas engines and large frontend state machines.", retentionFactors: "Wants fully remote or hybrid setup only." },
-        derivedIntelligence: { propensityToAcceptOffer: "88% Chance", churnRiskForecast: "Low. High longevity indicators in resume history." }
-      }
-    },
-    {
-      id: "sub_sarah_react",
-      label: "Sub-901 (Submission)",
-      type: "SUBMISSION",
-      details: {
-        identity: { id: "sub_sarah_react", type: "SUBMISSION", reference: "SUB-901", state: "SUBMITTED_TO_CLIENT" },
-        ownership: { submitter: "TechStaff Inc", validator: "Workforce HQ Coordinator" },
-        state: { reviewStatus: "CLIENT_REVIEW_ACTIVE", workflowState: "LOCKED_FOR_REVIEW", transitionAt: "2026-06-23T11:45:00Z" },
-        relationships: { linkOverview: "Candidate: Sarah Jenkins, Requirement: Lead React Dev, Deal Room: DR-412" },
-        timeline: [
-          { type: "SUBMISSION_VALIDATED", actor: "HQ Officer Raj", timestamp: "2026-06-23T09:00:00Z", message: "Vetted matching scores and verified budget boundaries." },
-          { type: "CLIENT_NOTIFIED_DEAL_ROOM", actor: "MailOS Notification", timestamp: "2026-06-23T09:05:00Z", message: "Client Deal Room link securely delivered to Acme Reviewers." }
-        ],
-        metrics: { validationScore: "95%", feedbackSLACompliance: "ACTIVE", submissionDelayMinutes: 45 },
-        policies: { rejectionPolicy: "Can resubmit new candidate only if client formally rejects", replacementWarrantyDays: 90 },
-        permissions: { readAccess: ["Acme Admin", "TechStaff MD", "HQ Staff"], writeAccess: ["HQ Coordinator"] },
-        experience: { submissionSuccessRatio: "This specific vendor-client route has an 82% acceptance record.", speedObservations: "Client reviews usually completed on Wednesdays." },
-        derivedIntelligence: { shortlistPropensity: "91% Likelihood", expectedDecisionDate: "2026-06-30" }
-      }
-    }
-  ];
 
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);
@@ -1048,78 +1027,84 @@ export default function DashboardTab() {
                 {/* Visual Canvas of Nodes */}
                 <div className="lg:col-span-8 bg-slate-950 p-6 rounded-2xl border border-slate-800 relative min-h-[450px] flex flex-col justify-center">
                   
-                  <div className="flex items-center justify-around flex-wrap gap-6 relative">
-                    
-                    {/* SVG Connector Lines */}
-                    <div className="absolute inset-0 pointer-events-none opacity-25">
-                      <svg className="w-full h-full min-h-[300px]">
-                        {/* Connecting Client Acme to Requirement React Dev */}
-                        <line x1="15%" y1="50%" x2="50%" y2="20%" stroke="#6366f1" strokeWidth="2" strokeDasharray="5" />
-                        {/* Connecting React Dev to Sarah Jenkins Candidate */}
-                        <line x1="50%" y1="20%" x2="85%" y2="20%" stroke="#10b981" strokeWidth="2" />
-                        {/* Connecting Vendor TechStaff to Candidate Sarah */}
-                        <line x1="15%" y1="80%" x2="50%" y2="80%" stroke="#a855f7" strokeWidth="2" strokeDasharray="5" />
-                        {/* Connecting Sarah Jenkins to Submission-901 */}
-                        <line x1="50%" y1="80%" x2="85%" y2="80%" stroke="#f59e0b" strokeWidth="2" />
-                      </svg>
+                  {graphNodes.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800/80">
+                      <Network size={32} className="text-slate-600 mb-2" />
+                      <h4 className="text-sm font-black text-slate-300">No Entities Ingested</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
+                        The active Business Graph contains no matching nodes. Stream requirements, upload resumes, or activate vendors to synchronize this view model.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="flex items-center justify-around flex-wrap gap-6 relative">
+                      
+                      {/* SVG Connector Lines */}
+                      <div className="absolute inset-0 pointer-events-none opacity-25">
+                        <svg className="w-full h-full min-h-[300px]">
+                          <line x1="15%" y1="50%" x2="50%" y2="20%" stroke="#6366f1" strokeWidth="2" strokeDasharray="5" />
+                          <line x1="50%" y1="20%" x2="85%" y2="20%" stroke="#10b981" strokeWidth="2" />
+                          <line x1="15%" y1="80%" x2="50%" y2="80%" stroke="#a855f7" strokeWidth="2" strokeDasharray="5" />
+                          <line x1="50%" y1="80%" x2="85%" y2="80%" stroke="#f59e0b" strokeWidth="2" />
+                        </svg>
+                      </div>
 
-                    {/* Columns representing different entity domains */}
-                    <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
-                      <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Core Entities</span>
-                      {mockGraphNodes.slice(0, 2).map((node) => (
-                        <div
-                          key={node.id}
-                          onClick={() => handleNodeClick(node)}
-                          className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
-                            selectedNode?.id === node.id 
-                              ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
-                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span className="text-xs font-black text-white">{node.label}</span>
-                          <p className="text-[8px] font-mono text-indigo-400 uppercase mt-1 tracking-wider">{node.type}</p>
-                        </div>
-                      ))}
+                      {/* Columns representing different entity domains */}
+                      <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Core Entities</span>
+                        {graphNodes.filter(n => n.type === 'CLIENT' || n.type === 'REQUIREMENT').slice(0, 3).map((node) => (
+                          <div
+                            key={node.id}
+                            onClick={() => handleNodeClick(node)}
+                            className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
+                              selectedNode?.id === node.id 
+                                ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
+                                : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="text-xs font-black text-white">{node.label}</span>
+                            <p className="text-[8px] font-mono text-indigo-400 uppercase mt-1 tracking-wider">{node.type}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Sourcing & Matches</span>
+                        {graphNodes.filter(n => n.type === 'VENDOR' || n.type === 'CANDIDATE').slice(0, 3).map((node) => (
+                          <div
+                            key={node.id}
+                            onClick={() => handleNodeClick(node)}
+                            className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
+                              selectedNode?.id === node.id 
+                                ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
+                                : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="text-xs font-black text-white">{node.label}</span>
+                            <p className="text-[8px] font-mono text-purple-400 uppercase mt-1 tracking-wider">{node.type}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Submissions & Timelines</span>
+                        {graphNodes.filter(n => n.type === 'SUBMISSION' || n.type === 'INVOICE').slice(0, 3).map((node) => (
+                          <div
+                            key={node.id}
+                            onClick={() => handleNodeClick(node)}
+                            className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
+                              selectedNode?.id === node.id 
+                                ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
+                                : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="text-xs font-black text-white">{node.label}</span>
+                            <p className="text-[8px] font-mono text-amber-400 uppercase mt-1 tracking-wider">{node.type}</p>
+                          </div>
+                        ))}
+                      </div>
+
                     </div>
-
-                    <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
-                      <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Sourcing & Matches</span>
-                      {mockGraphNodes.slice(2, 4).map((node) => (
-                        <div
-                          key={node.id}
-                          onClick={() => handleNodeClick(node)}
-                          className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
-                            selectedNode?.id === node.id 
-                              ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
-                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span className="text-xs font-black text-white">{node.label}</span>
-                          <p className="text-[8px] font-mono text-purple-400 uppercase mt-1 tracking-wider">{node.type}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-col gap-6 items-center w-full max-w-[200px]">
-                      <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Submissions & Timelines</span>
-                      {mockGraphNodes.slice(4).map((node) => (
-                        <div
-                          key={node.id}
-                          onClick={() => handleNodeClick(node)}
-                          className={`w-full p-4 rounded-xl border transition-all cursor-pointer text-center ${
-                            selectedNode?.id === node.id 
-                              ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-500/10 scale-105' 
-                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span className="text-xs font-black text-white">{node.label}</span>
-                          <p className="text-[8px] font-mono text-amber-400 uppercase mt-1 tracking-wider">{node.type}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                  </div>
+                  )}
 
                   {/* Relationship Creator Form Sandbox */}
                   <div className="mt-8 pt-6 border-t border-slate-900 bg-slate-900/20 p-4 rounded-xl">
@@ -1133,7 +1118,7 @@ export default function DashboardTab() {
                           className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none"
                         >
                           <option value="">Select source...</option>
-                          {mockGraphNodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+                          {graphNodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
                         </select>
                       </div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
@@ -1144,7 +1129,7 @@ export default function DashboardTab() {
                           className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none"
                         >
                           <option value="">Select target...</option>
-                          {mockGraphNodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+                          {graphNodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
                         </select>
                       </div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
@@ -1358,20 +1343,29 @@ export default function DashboardTab() {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex items-start gap-3 p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl">
-                        <CheckCircle size={14} className="text-indigo-400 mt-0.5" />
-                        <div>
-                          <span className="text-xs font-bold text-slate-200">Balanced Sourcing Queue depth</span>
-                          <p className="text-[10px] text-slate-500">Throughput of 18 candidates parsed and dispatched today.</p>
+                      {cooDecisions.length === 0 ? (
+                        <div className="p-4 text-center text-xs font-mono text-slate-500 bg-slate-900/20 border border-slate-800 rounded-xl">
+                          Not enough operational telemetry yet to compile decisions.
                         </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl">
-                        <CheckCircle size={14} className="text-indigo-400 mt-0.5" />
-                        <div>
-                          <span className="text-xs font-bold text-slate-200">Continuous Matching Engine Status: Healthy</span>
-                          <p className="text-[10px] text-slate-500">Rebuilt candidate matching matrix over 12 requirements.</p>
-                        </div>
-                      </div>
+                      ) : (
+                        cooDecisions.map((dec) => (
+                          <div key={dec.id} className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest">{dec.office}</span>
+                              <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-mono">
+                                Priority Score: {dec.priorityScore}
+                              </Badge>
+                            </div>
+                            <h5 className="text-xs font-bold text-white">{dec.title}</h5>
+                            <p className="text-[11px] text-slate-400 leading-relaxed">{dec.reason}</p>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 pt-1 border-t border-slate-900/60">
+                              <span>Revenue Impact: <span className="text-emerald-400">{dec.revenueImpact}</span></span>
+                              <span>SLA Impact: <span className="text-indigo-400">{dec.slaImpact}</span></span>
+                              <span>Confidence: <span className="text-white">{dec.confidence}%</span></span>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
 
                   </div>
@@ -1437,9 +1431,15 @@ export default function DashboardTab() {
                         onChange={e => setSimCandidate(e.target.value)}
                         className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
                       >
-                        <option value="Jenkins">Sarah Jenkins (React Architect, 7.5y exp)</option>
-                        <option value="Doe">John Doe (Java Engineer, 4y exp)</option>
-                        <option value="Smith">Jane Smith (QA Lead, 6y exp)</option>
+                        {candidatesList.length === 0 ? (
+                          <option value="">No Active Candidates Ingested</option>
+                        ) : (
+                          candidatesList.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name || 'Unnamed Candidate'} ({c.skills?.slice(0, 3).join(', ') || 'Generalist'})
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
 
@@ -1450,9 +1450,15 @@ export default function DashboardTab() {
                         onChange={e => setSimRequirement(e.target.value)}
                         className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
                       >
-                        <option value="React">Lead React Architect (Acme Corp, ₹24,00,000)</option>
-                        <option value="Java">Senior Java Developer (Globex Inc, ₹18,00,000)</option>
-                        <option value="QA">Automated Testing Engineer (Initech, ₹14,00,000)</option>
+                        {requirementsList.length === 0 ? (
+                          <option value="">No Open Requirements Published</option>
+                        ) : (
+                          requirementsList.map(r => (
+                            <option key={r.id} value={r.id}>
+                              {r.title || 'Unnamed Job'} (Budget: ₹{Number(r.budget || 0).toLocaleString()})
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>

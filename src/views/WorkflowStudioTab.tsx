@@ -12,41 +12,71 @@ import {
   GitBranch,
   CheckCircle2
 } from "lucide-react";
-import { collection, getDocs, onSnapshot, query } from "firebase/firestore";
+import { collection, getDocs, onSnapshot, query, addDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { checkIsAdmin } from "../lib/permissions";
+import { assertNoMockData } from "../lib/ProductionDataGuard";
 
 export default function WorkflowStudioTab({ userRole }: { userRole: string }) {
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
 
-  // Mock data for initial view
-  const demoWorkflows = [
-    {
-        id: 'wf-1',
+  useEffect(() => {
+    const q = query(collection(db, "workflow_definitions"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setWorkflows(list);
+      setLoading(false);
+      assertNoMockData(list, "workflow_definitions");
+    }, (error) => {
+      console.error("Error loading workflows:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleInitializeDefaultWorkflows = async () => {
+    setIsInitializing(true);
+    const defaults = [
+      {
         name: 'End-to-End Requirement Fulfillment',
         trigger: 'REQUIREMENT_CREATED',
         status: 'ACTIVE',
         steps: [
-            { id: 's1', type: 'AGENT', agentId: 'matching-engine', name: 'AI Matches Candidates' },
-            { id: 's2', type: 'AGENT', agentId: 'vendor-broadcast', name: 'Notify Vendors' },
-            { id: 's3', type: 'APPROVAL', name: 'Human Reviews Submissions' },
-            { id: 's4', type: 'AGENT', agentId: 'interview-scheduler', name: 'Schedule Interviews' }
+          { id: 's1', type: 'AGENT', agentId: 'matching-engine', name: 'AI Matches Candidates' },
+          { id: 's2', type: 'AGENT', agentId: 'vendor-broadcast', name: 'Notify Vendors' },
+          { id: 's3', type: 'APPROVAL', name: 'Human Reviews Submissions' },
+          { id: 's4', type: 'AGENT', agentId: 'interview-scheduler', name: 'Schedule Interviews' }
         ]
-    },
-    {
-        id: 'wf-2',
+      },
+      {
         name: 'Vendor Onboarding',
         trigger: 'VENDOR_REGISTERED',
         status: 'DRAFT',
         steps: [
-            { id: 's1', type: 'AGENT', agentId: 'compliance-checker', name: 'Check Compliance' },
-            { id: 's2', type: 'APPROVAL', name: 'Approval Required' },
-            { id: 's3', type: 'AGENT', agentId: 'welcome-email', name: 'Send Welcome Packet' }
+          { id: 's1', type: 'AGENT', agentId: 'compliance-checker', name: 'Check Compliance' },
+          { id: 's2', type: 'APPROVAL', name: 'Approval Required' },
+          { id: 's3', type: 'AGENT', agentId: 'welcome-email', name: 'Send Welcome Packet' }
         ]
+      }
+    ];
+
+    try {
+      for (const wf of defaults) {
+        await addDoc(collection(db, "workflow_definitions"), wf);
+      }
+    } catch (err) {
+      console.error("Failed to initialize workflows:", err);
+    } finally {
+      setIsInitializing(false);
     }
-  ];
+  };
 
   if (!checkIsAdmin(userRole)) {
     return (
@@ -67,36 +97,50 @@ export default function WorkflowStudioTab({ userRole }: { userRole: string }) {
               <p className="text-xs text-slate-500 mt-1">Design & Automate Standard Operating Procedures</p>
           </div>
           <div className="p-4 border-b border-slate-200">
-              <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors">
-                  <Plus size={16} /> New Workflow
+              <button 
+                onClick={handleInitializeDefaultWorkflows}
+                disabled={isInitializing}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                  <Plus size={16} /> {isInitializing ? 'Initializing...' : 'Initialize Default SOPs'}
               </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {demoWorkflows.map(wf => (
-                  <button 
-                    key={wf.id}
-                    onClick={() => setSelectedWorkflow(wf)}
-                    className={cn(
-                        "w-full text-left p-4 rounded-xl border transition-all duration-200",
-                        selectedWorkflow?.id === wf.id 
-                            ? "bg-indigo-50 border-indigo-200 shadow-sm" 
-                            : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm"
-                    )}
-                  >
-                      <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-bold text-slate-800 text-sm leading-tight">{wf.name}</h4>
-                          <span className={cn(
-                              "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border",
-                              wf.status === 'ACTIVE' ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
-                          )}>
-                              {wf.status}
-                          </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                          <Zap size={10} className="text-amber-500" /> On: {wf.trigger}
-                      </div>
-                  </button>
-              ))}
+              {loading ? (
+                  <div className="text-center text-xs text-slate-400 p-4 animate-pulse">
+                      Loading workflows...
+                  </div>
+              ) : workflows.length === 0 ? (
+                  <div className="text-center text-xs text-slate-400 p-4 border border-dashed border-slate-200 rounded-xl">
+                      No workflows found. Click "Initialize Default SOPs" to seed standard templates.
+                  </div>
+              ) : (
+                  workflows.map(wf => (
+                      <button 
+                        key={wf.id}
+                        onClick={() => setSelectedWorkflow(wf)}
+                        className={cn(
+                            "w-full text-left p-4 rounded-xl border transition-all duration-200",
+                            selectedWorkflow?.id === wf.id 
+                                ? "bg-indigo-50 border-indigo-200 shadow-sm" 
+                                : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm"
+                        )}
+                      >
+                          <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-bold text-slate-800 text-sm leading-tight">{wf.name}</h4>
+                              <span className={cn(
+                                  "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border",
+                                  wf.status === 'ACTIVE' ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
+                              )}>
+                                  {wf.status}
+                              </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                              <Zap size={10} className="text-amber-500" /> On: {wf.trigger}
+                          </div>
+                      </button>
+                  ))
+              )}
           </div>
       </div>
 

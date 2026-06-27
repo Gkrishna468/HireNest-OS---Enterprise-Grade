@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { TrendingUp, AlertTriangle, ShieldAlert, Cpu, Users, Building2, Receipt, DollarSign, Activity, CheckCircle2, PlayCircle, Zap } from "lucide-react";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import { EnterpriseViewModelService } from "../services/EnterpriseViewModelService";
+import { ProductionDataGuard } from "../lib/ProductionDataGuard";
 
 export default function EnterpriseCommandCenterTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<any>({
     projectedRevenue: 0,
     revenueAtRisk: 0,
@@ -16,7 +17,7 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
     pendingPayouts: 0,
     topRecruiters: [],
     topVendors: [],
-    pendingApprovals: 2,
+    pendingApprovals: 0,
     systemHealth: 100,
   });
 
@@ -24,94 +25,22 @@ export default function EnterpriseCommandCenterTab({ userRole }: { userRole: str
     let active = true;
     const fetchTelemetry = async () => {
       try {
-        const [
-          vendorsSnap,
-          usersSnap,
-          placementsSnap,
-          reqsSnap,
-          invoicesSnap,
-          payoutsSnap
-        ] = await Promise.all([
-          getDocs(collection(db, "vendor_performance")),
-          getDocs(collection(db, "users")),
-          getDocs(collection(db, "placements")),
-          getDocs(collection(db, "requirements_public")),
-          getDocs(collection(db, "invoices")),
-          getDocs(collection(db, "vendor_payouts")),
-        ]);
-
-        if (!active) return;
-
-        // Placements & Revenue
-        const placements = placementsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        let projectedRev = 0;
-        let pipelineRev = 0;
-        const recruiterCounts: Record<string, { name: string, count: number }> = {};
+        setLoading(true);
+        setError(null);
+        const data = await EnterpriseViewModelService.getEnterpriseCommandCenterMetrics();
+        ProductionDataGuard.validate(data, "Command Center Telemetry", "HQ Analytics");
         
-        placements.forEach((p: any) => {
-          if (p.status === 'HIRED' || p.status === 'PLACED') {
-            projectedRev += (p.expectedFee || p.fee || 25000);
-            const rName = p.recruiterName || p.addedBy || 'Unknown Recruiter';
-            if (!recruiterCounts[rName]) recruiterCounts[rName] = { name: rName, count: 0 };
-            recruiterCounts[rName].count++;
-          }
-          if (p.status === 'INTERVIEWING' || p.status === 'OFFERED') {
-            pipelineRev += (p.expectedFee || p.fee || 25000);
-          }
-        });
-
-        const topRs = Object.values(recruiterCounts)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 3)
-          .map(r => ({ name: r.name, placements: r.count, conv: 100 })); // Conv is placeholder or calc from subs
-
-        // Invoices & Payouts
-        const invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const payouts = payoutsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        let outstandingInv = 0;
-        invoices.forEach((i: any) => {
-          if (i.status === 'ISSUED' || i.status === 'OVERDUE') outstandingInv += (i.amount || 0);
-        });
-
-        let pendingPay = 0;
-        payouts.forEach((p: any) => {
-          if (p.status === 'PENDING' || p.status === 'PROCESSING') pendingPay += (p.amount || 0);
-        });
-
-        // Reqs & Revenue at Risk
-        const reqs = reqsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        let reqsRisk = 0;
-        let revRisk = 0;
-        reqs.forEach((r: any) => {
-          if (r.status === 'OPEN' && (r.matchCount || 0) < 3) {
-            reqsRisk++;
-            revRisk += (r.budget || 20000) * 0.2; // roughly 20% margin
-          }
-        });
-
-        // Vendors
-        const vendors = vendorsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const topVs = vendors.sort((a: any, b: any) => (b.trustScore || 0) - (a.trustScore || 0)).slice(0, 3);
-
-
-        setMetrics({
-          projectedRevenue: projectedRev,
-          revenueAtRisk: revRisk,
-          reqsAtRisk: reqsRisk,
-          placementPipeline: pipelineRev,
-          outstandingInvoices: outstandingInv,
-          pendingPayouts: pendingPay,
-          topRecruiters: topRs,
-          topVendors: topVs,
-          pendingApprovals: 0, 
-          systemHealth: 100,
-        });
-
-      } catch (err) {
+        if (active) {
+          setMetrics(data);
+        }
+      } catch (err: any) {
         console.error("Telemetry fetch failed:", err);
+        if (active) {
+          setError(err?.message || "Failed to aggregate operational metrics from live Business Graph.");
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchTelemetry();
