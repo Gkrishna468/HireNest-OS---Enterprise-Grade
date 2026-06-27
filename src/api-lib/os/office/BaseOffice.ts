@@ -57,7 +57,20 @@ export abstract class BaseOffice {
     protected abstract decision(plan: any): Promise<any>;
     protected abstract worker(decision: any): Promise<any>;
     protected abstract reviewer(result: any): Promise<any>;
-    protected abstract learner(result: any): Promise<void>;
+    /**
+     * Learner routes all experience/knowledge updates to the ContinuousImprovementEngine.
+     */
+    protected async learner(result: any): Promise<void> {
+        await EnterpriseRuntimeKernel.improvement.updateExperience(
+            result.orgId || 'GLOBAL', 
+            this.name, 
+            {
+                result: result,
+                timestamp: new Date().toISOString()
+            }
+        );
+    }
+
     protected abstract outbox(result: any): Promise<void>;
 
     protected async emitHeartbeat(): Promise<void> {

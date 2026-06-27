@@ -37,7 +37,21 @@ export class ObjectivesEngine {
             priorityList: ['SAP', 'AWS', 'Java']
         };
 
+        // Persist to Business Graph
+        await db.collection('daily_objectives').doc(orgId).set({
+            ...objectives,
+            timestamp: new Date().toISOString()
+        });
+
         await EnterpriseRuntimeKernel.event.publish('OBJECTIVES_GENERATED', { orgId, objectives });
         return objectives;
+    }
+
+    async getDailyObjectives(orgId: string): Promise<DailyObjectives> {
+        const doc = await db.collection('daily_objectives').doc(orgId).get();
+        if (!doc.exists) {
+            return await this.calculateDailyObjectives(orgId);
+        }
+        return doc.data() as DailyObjectives;
     }
 }

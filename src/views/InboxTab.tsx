@@ -8,6 +8,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import DOMPurify from 'dompurify';
 
+import { ErrorBoundary } from '../components/ErrorBoundary';
+
 export default function InboxTab() {
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -362,15 +364,15 @@ export default function InboxTab() {
                                 <div className="mt-8 border-t border-slate-100 pt-6">
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Attachments ({analysis.attachments.length})</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {analysis.attachments.map((att: string, idx: number) => (
+                                        {analysis.attachments.map((att: any, idx: number) => (
                                             <div key={idx} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3 group hover:border-indigo-300 hover:bg-slate-50 transition-colors">
                                                 <div className="flex items-center gap-3">
                                                     <div className="h-10 w-10 bg-indigo-50 text-indigo-600 flex items-center justify-center rounded-lg shrink-0">
                                                         <FileText size={20} />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <div className="text-sm font-bold text-slate-700 truncate">{att}</div>
-                                                        <div className="text-[10px] text-slate-400">PDF Document</div>
+                                                        <div className="text-sm font-bold text-slate-700 truncate">{typeof att === 'object' ? att.filename : att}</div>
+                                                        <div className="text-[10px] text-slate-400">{typeof att === 'object' ? (att.mimeType || 'Document') : 'Document'}</div>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">

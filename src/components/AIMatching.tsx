@@ -165,7 +165,9 @@ export const AIMatching: React.FC<AIMatchingProps> = ({ result, candidateName, o
                 </p>
                 <div className="mt-3 pt-3 border-t border-indigo-800 flex items-center justify-between">
                   <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest">Protocol Recommendation</div>
-                  <div className="text-[10px] font-black bg-indigo-500 px-2 py-0.5 rounded">{result.nextSteps}</div>
+                  <div className="text-[10px] font-black bg-indigo-500 px-2 py-0.5 rounded">
+                    {typeof result.nextSteps === 'object' ? JSON.stringify(result.nextSteps) : result.nextSteps}
+                  </div>
                 </div>
               </div>
             </div>

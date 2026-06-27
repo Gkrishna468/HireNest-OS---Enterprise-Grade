@@ -145,6 +145,24 @@
       "fields": [
         { "fieldPath": "primaryEmailHash", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "business_graph",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "metadata.email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "business_graph",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "metadata.title", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

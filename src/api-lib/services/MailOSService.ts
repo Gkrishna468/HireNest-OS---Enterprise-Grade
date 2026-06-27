@@ -5,6 +5,8 @@ import { AIGateway } from './AIGateway.js';
 import { createOAuthClient } from '../handlers/oauth.js';
 import { EventBus } from './EventBus.js';
 
+import { GraphRepository } from './GraphRepository.js';
+
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
         if (!db) {
@@ -392,71 +394,34 @@ export class MailOSService {
     }
 
     private static async createRequirement(data: any, orgId: string, createdBy: string, from: string) {
-        const reqTitle = data.title || 'Untitled Requirement';
-        const existingReqs = await db.collection('requirements_public')
-            .where('orgId', '==', orgId)
-            .where('title', '==', reqTitle)
-            .limit(1)
-            .get();
-            
-        if (!existingReqs.empty) {
-            return existingReqs.docs[0].id; // Return existing ID to prevent duplication
-        }
-
-        const docRef = db.collection('requirements_public').doc();
-        await docRef.set({
-            id: docRef.id,
-            orgId: orgId,
-            organizationId: orgId,
-            title: reqTitle,
+        const node = await GraphRepository.createRequirement(orgId, {
+            title: data.title || 'Untitled Requirement',
             skills: data.skills || [],
             location: data.location || 'Unknown',
             workModel: data.workModel || 'remote',
-            status: 'ACTIVE',
             source: 'GMAIL',
             sourceEmail: from,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            createdBy: createdBy,
             financials: { clientBudget: data.budget || '' }
-        });
-        return docRef.id;
+        }, createdBy);
+        
+        return node.id;
     }
     
     private static async createCandidate(data: any, orgId: string, createdBy: string, from: string) {
-        const candidateEmail = data.email || from;
-        const existingCands = await db.collection('candidatePool')
-            .where('orgId', '==', orgId)
-            .where('email', '==', candidateEmail)
-            .limit(1)
-            .get();
-            
-        if (!existingCands.empty) {
-            return existingCands.docs[0].id; // Return existing ID to prevent duplication
-        }
-
-        const docRef = db.collection('candidatePool').doc();
-        await docRef.set({
-            id: docRef.id,
-            orgId: orgId,
-            organizationId: orgId,
+        const node = await GraphRepository.createCandidate(orgId, {
             firstName: data.firstName || 'Unknown',
             lastName: data.lastName || 'Candidate',
-            name: `${data.firstName || 'Unknown'} ${data.lastName || 'Candidate'}`,
-            email: candidateEmail,
+            email: data.email || from,
             phone: data.phone || '',
             location: data.location || '',
             skills: data.skills || [],
             experienceYears: data.experienceYears || 0,
             summary: data.summary || '',
-            status: 'AVAILABLE',
             source: 'GMAIL_RESUME_PARSER',
             sourceEmail: from,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            createdBy: createdBy,
-        });
-        return docRef.id;
+        }, createdBy);
+
+        return node.id;
     }
 
     static async analyzeMessage(uid: string, orgId: string, messageId: string) {
@@ -604,9 +569,9 @@ export class MailOSService {
         let matchingJobs: any[] = [];
         
         if (entityType === 'RESUME' && entityData?.skills) {
-            const reqsSnap = await db.collection('requirements_public').where('status', '==', 'OPEN').limit(5).get();
-            reqsSnap.forEach(r => {
-                matchingJobs.push({ id: r.id, title: r.data().title, score: 85, client: r.data().clientId || 'Unknown' });
+            const reqs = await GraphRepository.getNodesByType(orgId, 'REQUIREMENT', 'ACTIVE');
+            reqs.slice(0, 5).forEach(r => {
+                matchingJobs.push({ id: r.id, title: r.metadata.title, score: 85, client: r.metadata.client || 'Unknown' });
             });
         }
 
