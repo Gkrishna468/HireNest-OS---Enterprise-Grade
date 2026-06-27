@@ -39,6 +39,7 @@ import eventsHandler from './src/api-lib/handlers/events';
 import clientCandidateHandler from './src/api-lib/handlers/client-candidate';
 import clientSubmissionsHandler from './src/api-lib/handlers/client-submissions';
 import interviewsHandler from './src/api-lib/handlers/interviews';
+import submissionsHandler from './src/api-lib/handlers/submissions';
 import integrationsHandler from './src/api-lib/handlers/integrations';
 import copilotHandler from './src/api-lib/handlers/copilot';
 
@@ -178,6 +179,10 @@ async function createServer() {
 
         case 'client-submissions':
           return await clientSubmissionsHandler(req, res);
+
+        case 'submissions/transition':
+        case 'submissions':
+          return await submissionsHandler(req, res);
 
         case 'interviews':
           return await interviewsHandler(req, res);
