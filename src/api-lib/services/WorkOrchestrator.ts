@@ -19,6 +19,12 @@ export interface WorkItem {
     attempts: number;
     maxAttempts: number;
     error?: string;
+    
+    // Distributed Tracing
+    traceId?: string;
+    correlationId?: string;
+    parentCorrelationId?: string;
+    causationId?: string;
 }
 
 export class WorkOrchestrator {
@@ -26,7 +32,16 @@ export class WorkOrchestrator {
      * Accepts a published event and orchestrates creating and routing appropriate work items
      * to the subscriber offices/skills.
      */
-    static async orchestrateWork(event: { eventId: string; type: string; payload: any; orgId?: string }, subscription: { subscriber: string; priority: number }) {
+    static async orchestrateWork(event: { 
+        eventId: string; 
+        type: string; 
+        payload: any; 
+        orgId?: string;
+        traceId?: string;
+        correlationId?: string;
+        parentCorrelationId?: string;
+        causationId?: string;
+    }, subscription: { subscriber: string; priority: number }) {
         if (!db) return;
 
         console.log(`[WorkOrchestrator] Orchestrating event ${event.type} for subscriber ${subscription.subscriber}`);
@@ -97,7 +112,13 @@ export class WorkOrchestrator {
             payload: event.payload,
             dedupKey,
             attempts: 0,
-            maxAttempts: 3
+            maxAttempts: 3,
+            
+            // Distributed Tracing context
+            traceId: event.traceId || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            parentCorrelationId: event.correlationId || "",
+            causationId: event.eventId,
+            correlationId: `WK-${Date.now()}-${Math.floor(Math.random() * 1000)}`
         };
 
         await db.collection('work_items').doc(workItemId).set(workItem);

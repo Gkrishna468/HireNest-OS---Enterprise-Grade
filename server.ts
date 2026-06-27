@@ -44,6 +44,7 @@ import integrationsHandler from './src/api-lib/handlers/integrations';
 import copilotHandler from './src/api-lib/handlers/copilot';
 
 import analyticsHandler from './src/api-lib/handlers/analytics';
+import opsHandler from './src/api-lib/handlers/ops';
 
 const __dirname = process.cwd();
 
@@ -245,6 +246,13 @@ async function createServer() {
         case 'analytics/hq':
         case 'analytics/hq-production-health':
           return await analyticsHandler(req, res);
+
+        case 'ops/heartbeats':
+        case 'ops/heartbeats/publish':
+        case 'ops/queue':
+        case 'ops/timeline':
+        case 'ops/trends':
+          return await opsHandler(req, res);
 
         case 'integrations/events':
         case 'integrations/sync/resolve':

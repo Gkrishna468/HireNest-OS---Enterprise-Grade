@@ -1073,6 +1073,15 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // OFFICE HEARTBEATS
+    // =====================================================
+
+    match /office_heartbeats/{officeId} {
+      allow read: if isVerified();
+      allow write: if isVerified();
+    }
+
+    // =====================================================
     // CANDIDATE MATCHES
     // =====================================================
 

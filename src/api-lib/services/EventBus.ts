@@ -9,6 +9,10 @@ export interface BusinessEvent {
     source: string; // 'UI', 'Webhook', 'Cron'
     createdAt: string;
     orgId?: string;
+    traceId?: string;
+    correlationId?: string;
+    parentCorrelationId?: string;
+    causationId?: string;
 }
 
 export class EventBus {
@@ -42,16 +46,31 @@ export class EventBus {
     }
 
     // Register business events and route to appropriate agents
-    static async publish(type: string, payload: any, source: string = 'SYSTEM', orgId?: string) {
+    static async publish(type: string, payload: any, source: string = 'SYSTEM', orgId?: string, traceContext?: {
+        traceId?: string;
+        correlationId?: string;
+        parentCorrelationId?: string;
+        causationId?: string;
+    }) {
         if (!db) return;
 
+        const eventId = `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const traceId = traceContext?.traceId || payload?.traceId || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const parentCorrelationId = traceContext?.parentCorrelationId || payload?.correlationId || "";
+        const causationId = traceContext?.causationId || payload?.eventId || "";
+        const correlationId = traceContext?.correlationId || `EV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
         const event: BusinessEvent = {
-            eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            eventId,
             type,
             payload,
             source,
             createdAt: new Date().toISOString(),
-            orgId
+            orgId,
+            traceId,
+            correlationId,
+            parentCorrelationId,
+            causationId
         };
 
         // 1. Record the event in the events collection
