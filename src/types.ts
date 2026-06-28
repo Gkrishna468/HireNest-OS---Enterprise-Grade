@@ -35,10 +35,16 @@ export interface CandidateMatch {
   matchInference: string;
   status: "matched" | "submitted" | "shortlisted" | "interview" | "offer" | "joined";
   createdAt: string;
-  confidence: number;
-  reason: string;
-  matchedBy: "RULE_ENGINE" | "GEMINI" | "HYBRID";
-  reviewed: boolean;
+}
+
+export interface HybridMatchResult {
+  matchScore: number;
+  matchInference: string;
+  skillsMatch?: string[];
+  skillsMissing?: string[];
+  missingSkills?: string[];
+  experienceMatch?: boolean;
+  explanation?: string;
 }
 
 export interface BusinessEvent {
@@ -63,41 +69,4 @@ export interface SystemMetrics {
   reconciliationRate: number;
   continuousMode: boolean;
   lastHeartbeat?: string;
-  // Live Telemetry
-  requirementsWaiting?: number;
-  candidatesWaiting?: number;
-  broadcastsPending?: number;
-  failedJobs?: number;
-  averageProcessingSpeed?: number; // in seconds
-  currentWorkload?: number; // percentage
-  cooRecommendation?: string;
 }
-
-export interface ReconciliationJob {
-  jobId: string;
-  status: "running" | "completed" | "failed";
-  startedAt: string;
-  completedAt?: string;
-  requirementsProcessed: number;
-  candidatesProcessed: number;
-  vendorsProcessed: number;
-  matchesGenerated: number;
-  lastRequirementId?: string;
-  lastCandidateId?: string;
-  errors: string[];
-}
-
-export interface AgentRun {
-  runId: string;
-  office: string;
-  started: string;
-  completed: string;
-  duration: number; // ms
-  itemsProcessed: number;
-  success: boolean;
-  failed: boolean;
-  retryCount: number;
-  cost: number;
-  traceId: string;
-}
-

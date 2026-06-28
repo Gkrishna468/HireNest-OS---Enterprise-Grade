@@ -1,6 +1,12 @@
 {
-  "name": "Workforce Controller",
-  "description": "Enterprise staffing operating system bootstrap reconciliation engine with live event-driven matching.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "HireNestOS",
+  "description": "Enterprise AI-Native Staffing Operating System with robust diagnostic and control dashboards.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
