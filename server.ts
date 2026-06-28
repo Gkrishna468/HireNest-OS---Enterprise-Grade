@@ -5,7 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { WorkforceBootstrapEngine } from "./src/api-lib/services/WorkforceBootstrapEngine.ts";
 import { EventBus } from "./src/api-lib/services/EventBus.ts";
 import { db, collection, getDocs, doc, setDoc, updateDoc } from "./src/lib/firebase.ts";
-import { calculateSemanticMatch } from "./src/api-lib/services/AIGateway.ts";
+import { capabilityBrokerRouting } from "./src/api-lib/services/AIGateway.ts";
 import { Candidate, Requirement, CandidateMatch } from "./src/types.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +24,7 @@ async function startServer() {
   // Setup EventBus listener for live-matching continuous mode
   EventBus.getInstance().subscribe(async (event) => {
     console.log(`[Server Event Listener] Received event: ${event.type}`);
+    const traceId = `tr_live_${Date.now()}`;
     if (event.type === "REQUIREMENT_CREATED") {
       const req = event.payload as Requirement;
       console.log(`[Server] Live Mode: Processing newly created requirement: ${req.title}`);
@@ -31,14 +32,7 @@ async function startServer() {
       const candSnap = await getDocs(collection(db, "candidates"));
       for (const candDoc of candSnap.docs) {
         const cand = candDoc.data() as Candidate;
-        const result = await calculateSemanticMatch(
-          cand.name,
-          cand.skills,
-          cand.experience,
-          req.title,
-          req.description,
-          req.skillsRequired
-        );
+        const result = await capabilityBrokerRouting(cand, req, traceId);
 
         if (result.matchScore >= 50) {
           const matchId = `${req.id}_${cand.id}`;
@@ -52,6 +46,10 @@ async function startServer() {
             matchInference: result.matchInference,
             status: "matched",
             createdAt: new Date().toISOString(),
+            confidence: result.confidence,
+            reason: result.reason,
+            matchedBy: result.matchedBy,
+            reviewed: result.reviewed,
           };
           await setDoc(doc(db, "candidate_matches", matchId), match);
           console.log(`[Server] Created live candidate_match: ${matchId} with score ${result.matchScore}%`);
@@ -65,14 +63,7 @@ async function startServer() {
       const reqsSnap = await getDocs(collection(db, "requirements"));
       for (const reqDoc of reqsSnap.docs) {
         const req = reqDoc.data() as Requirement;
-        const result = await calculateSemanticMatch(
-          cand.name,
-          cand.skills,
-          cand.experience,
-          req.title,
-          req.description,
-          req.skillsRequired
-        );
+        const result = await capabilityBrokerRouting(cand, req, traceId);
 
         if (result.matchScore >= 50) {
           const matchId = `${req.id}_${cand.id}`;
@@ -86,6 +77,10 @@ async function startServer() {
             matchInference: result.matchInference,
             status: "matched",
             createdAt: new Date().toISOString(),
+            confidence: result.confidence,
+            reason: result.reason,
+            matchedBy: result.matchedBy,
+            reviewed: result.reviewed,
           };
           await setDoc(doc(db, "candidate_matches", matchId), match);
           console.log(`[Server] Created live candidate_match: ${matchId} with score ${result.matchScore}%`);
@@ -157,6 +152,20 @@ async function startServer() {
       const snap = await getDocs(collection(db, "candidate_matches"));
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // API - Toggle Match Review State
+  app.post("/api/matches/review", async (req, res, next) => {
+    try {
+      const { matchId, reviewed } = req.body;
+      await updateDoc(doc(db, "candidate_matches", matchId), {
+        reviewed: !!reviewed,
+        reviewedAt: new Date().toISOString()
+      });
+      res.json({ success: true, matchId, reviewed });
     } catch (err) {
       next(err);
     }
