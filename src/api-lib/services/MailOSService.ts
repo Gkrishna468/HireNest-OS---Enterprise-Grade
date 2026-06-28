@@ -5,6 +5,8 @@ import { AIGateway } from './AIGateway.js';
 import { createOAuthClient } from '../handlers/oauth.js';
 import { EventBus } from './EventBus.js';
 import { GraphRepository } from './GraphRepository.js';
+import { EventDispatcher } from '../../events/EventDispatcher.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
@@ -687,6 +689,22 @@ export class MailOSService {
                         experience: classification.data?.experience || rules.experience
                     };
                     primaryEntityId = await this.createRequirement(enrichedData, orgId, uid, from);
+                    
+                    // Publish REQUIREMENT_CREATED event
+                    try {
+                        EventDispatcher.getInstance().publish({
+                            type: EventTypes.REQUIREMENT_CREATED,
+                            payload: {
+                                id: primaryEntityId,
+                                orgId: orgId,
+                                title: enrichedData.title,
+                                source: 'MAILOS'
+                            },
+                            tenantId: orgId
+                        });
+                    } catch (e) {
+                        console.error("[MailOS] Failed to publish REQUIREMENT_CREATED", e);
+                    }
                 } catch (reqErr) {
                     console.error("[MailOS] Requirement extraction failed:", reqErr);
                 }
@@ -715,6 +733,22 @@ export class MailOSService {
                                          if (parsedCandidate) {
                                              const candId = await this.createCandidate(parsedCandidate, orgId, uid, from);
                                              primaryEntityId = candId;
+                                             
+                                             // Publish CANDIDATE_UPLOADED event
+                                             try {
+                                                EventDispatcher.getInstance().publish({
+                                                    type: EventTypes.CANDIDATE_UPLOADED,
+                                                    payload: {
+                                                        candidateId: candId,
+                                                        orgId: orgId,
+                                                        email: parsedCandidate.email,
+                                                        source: 'MAILOS'
+                                                    },
+                                                    tenantId: orgId
+                                                });
+                                             } catch (e) {
+                                                console.error("[MailOS] Failed to publish CANDIDATE_UPLOADED", e);
+                                             }
                                              
                                              await db.collection('mail_entities').add({
                                                  messageId,

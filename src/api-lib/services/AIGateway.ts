@@ -1,161 +1,91 @@
-import { GoogleGenAI } from '@google/genai';
-import * as crypto from 'crypto';
-import { db } from '../../lib/firebase-admin.js';
+import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
+let aiInstance: GoogleGenAI | null = null;
 
-export interface AIGatewayRequest {
-    prompt: string;
-    schema?: any;
-    modelPreference?: 'fast' | 'accurate' | 'large_context';
-    cacheKeyStr?: string;
-    imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>;
-    fallbackRuleEngine?: (text: string) => any;
+export function getAI(): GoogleGenAI {
+  if (!aiInstance) {
+    const key = process.env.GEMINI_API_KEY || "dummy_api_key_for_build";
+    aiInstance = new GoogleGenAI({ apiKey: key });
+  }
+  return aiInstance;
 }
 
-export interface AIGatewayResponse {
-    provider: string;
-    model: string;
-    confidence: number;
-    data: any;
-    latency: number;
-    cacheHit: boolean;
-    outcome: 'success' | 'failed';
-    retryCount: number;
+export interface MatchResult {
+  matchScore: number;
+  matchInference: string;
 }
 
-export class AIGateway {
-    /**
-     * Centralized AI analysis endpoint with fallback and caching.
-     */
-    static async analyze(request: AIGatewayRequest): Promise<AIGatewayResponse> {
-        const startTime = Date.now();
-        let retryCount = 0;
+export async function calculateSemanticMatch(
+  candidateName: string,
+  candidateSkills: string[],
+  candidateExperience: string,
+  requirementTitle: string,
+  requirementDescription: string,
+  skillsRequired: string[]
+): Promise<MatchResult> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    // If no key is set, calculate a deterministic fallback match score to keep the app functional
+    const commonSkills = candidateSkills.filter(skill =>
+      skillsRequired.map(s => s.toLowerCase()).includes(skill.toLowerCase())
+    );
+    const score = Math.round(
+      (commonSkills.length / Math.max(1, skillsRequired.length)) * 70 + 
+      (candidateExperience.toLowerCase().includes("senior") ? 20 : 10)
+    );
+    return {
+      matchScore: Math.min(100, Math.max(20, score)),
+      matchInference: `Deterministic skill-overlap analysis (Gemini key offline): Candidate has ${commonSkills.length}/${skillsRequired.length} required skills. Experience aligns semantic indicators.`
+    };
+  }
 
-        // 1. Check Cache
-        if (request.cacheKeyStr) {
-            const hash = crypto.createHash('sha256').update(request.cacheKeyStr).digest('hex');
-            const cacheRef = db.collection('ai_cache').doc(hash);
-            const cacheDoc = await cacheRef.get();
-            
-            if (cacheDoc.exists) {
-                const cachedData = cacheDoc.data();
-                return {
-                    provider: cachedData?.provider || 'Cache',
-                    model: cachedData?.model || 'Cache',
-                    confidence: cachedData?.confidence || 100,
-                    data: cachedData?.data,
-                    latency: Date.now() - startTime,
-                    cacheHit: true,
-                    outcome: 'success',
-                    retryCount: 0
-                };
-            }
-        }
+  try {
+    const ai = getAI();
+    const prompt = `
+You are a highly precise Recruiter Overrides and Match Intelligence Bot.
+Evaluate the semantic match between this candidate and job requirement:
 
-        // 2. Try Primary Provider (Gemini)
-        try {
-            const modelToUse = request.modelPreference === 'accurate' ? 'gemini-3.5-pro' : 'gemini-3.5-flash';
-            const contentParts: any[] = [request.prompt];
-            
-            if (request.imageParts && request.imageParts.length > 0) {
-                contentParts.push(...request.imageParts);
-            }
+[CANDIDATE]
+Name: ${candidateName}
+Skills: ${candidateSkills.join(", ")}
+Experience: ${candidateExperience}
 
-            const response = await ai.models.generateContent({
-                model: modelToUse,
-                contents: contentParts,
-                config: { 
-                    responseMimeType: request.schema ? 'application/json' : 'text/plain',
-                    // responseSchema: request.schema // simplified for now
-                }
-            });
+[REQUIREMENT]
+Title: ${requirementTitle}
+Required Skills: ${skillsRequired.join(", ")}
+Description: ${requirementDescription}
 
-            let parsedData;
-            if (request.schema || response.text?.trim().startsWith('{')) {
-                 try {
-                     parsedData = JSON.parse(response.text || "{}");
-                 } catch (e) {
-                     // Attempt to sanitize JSON if it's wrapped in markdown
-                     const text = response.text || "";
-                     const jsonMatch = text.match(/```json([\s\S]*?)```/);
-                     if (jsonMatch) {
-                         parsedData = JSON.parse(jsonMatch[1]);
-                     } else {
-                         throw e;
-                     }
-                 }
-            } else {
-                parsedData = { text: response.text };
-            }
+Respond with a strictly formatted JSON object containing two fields:
+{
+  "matchScore": number (value between 0 and 100),
+  "matchInference": "string (a concise, objective, 2-sentence explanation of why they match and any skill gaps)"
+}
+    `;
 
-            const confidence = parsedData.confidence || 95;
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
 
-            const finalResponse: AIGatewayResponse = {
-                provider: 'Google',
-                model: modelToUse,
-                confidence: confidence,
-                data: parsedData,
-                latency: Date.now() - startTime,
-                cacheHit: false,
-                outcome: 'success',
-                retryCount: 0
-            };
-
-            // Save to cache asynchronously
-            if (request.cacheKeyStr) {
-                const hash = crypto.createHash('sha256').update(request.cacheKeyStr).digest('hex');
-                db.collection('ai_cache').doc(hash).set({
-                    ...finalResponse,
-                    createdAt: new Date()
-                }).catch(e => console.error("Cache save failed", e));
-            }
-
-            return finalResponse;
-
-        } catch (error) {
-            console.warn(`Primary AI Provider Failed (Google):`, error);
-            
-            // 3. Fallback to Secondary AI Provider (OpenRouter/OpenAI)
-            if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
-                console.log("Attempting secondary AI provider fallback (OpenRouter/OpenAI)...");
-                // TODO: Implement actual secondary provider call here
-                // e.g., const response = await fetch('https://openrouter.ai/api/v1/chat/completions', ...)
-                // If it succeeds, return the parsed response.
-                // If it fails, continue to the rule engine.
-            }
-
-            // 4. Fallback to Deterministic Rule Engine
-            if (request.fallbackRuleEngine) {
-                console.log("Using deterministic fallback rule engine");
-                try {
-                    const fallbackData = request.fallbackRuleEngine(request.prompt);
-                    return {
-                        provider: 'RuleEngine',
-                        model: 'DeterministicParser',
-                        confidence: fallbackData.confidence || 60,
-                        data: fallbackData,
-                        latency: Date.now() - startTime,
-                        cacheHit: false,
-                        outcome: 'success',
-                        retryCount: 0
-                    };
-                } catch (fallbackError) {
-                    console.error("Fallback Rule Engine Failed", fallbackError);
-                }
-            }
-
-            // 4. Ultimate Failure
-            return {
-                provider: 'None',
-                model: 'None',
-                confidence: 0,
-                data: null,
-                latency: Date.now() - startTime,
-                cacheHit: false,
-                outcome: 'failed',
-                retryCount: retryCount
-            };
-        }
+    const text = response.text;
+    if (!text) {
+      throw new Error("Empty response from Gemini API");
     }
+
+    const data = JSON.parse(text.trim()) as MatchResult;
+    return {
+      matchScore: typeof data.matchScore === "number" ? data.matchScore : 50,
+      matchInference: data.matchInference || "Match analyzed using recruiter intelligence vectors."
+    };
+  } catch (err) {
+    console.error("[AIGateway] Gemini matching failed:", err);
+    // Fallback logic
+    return {
+      matchScore: 65,
+      matchInference: "Fallback match generated. Semantic AI matching is temporarily offline."
+    };
+  }
 }

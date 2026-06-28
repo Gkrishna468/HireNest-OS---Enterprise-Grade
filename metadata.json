@@ -1,11 +1,6 @@
 {
-  "name": "HireNestOS",
-  "description": "Business Operating System (BOS) for AI-Native Workforce Staffing & SLA Governance",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "name": "Workforce Controller",
+  "description": "Enterprise staffing operating system bootstrap reconciliation engine with live event-driven matching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

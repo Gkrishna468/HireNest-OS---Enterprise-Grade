@@ -1,215 +1,62 @@
-// src/types.ts
-
-export enum OrgType {
-  ADMIN = 'admin',
-  CLIENT = 'client',
-  VENDOR = 'vendor',
-  PARTNER = 'partner',
-  INTERNAL = 'internal'
-}
-
-export type RecruiterType = 'internal' | 'vendor' | 'freelance' | 'contract';
-
-export interface User {
-  id: string; // Map to uid
-  email: string;
-  orgId: string;
-  role: 'admin' | 'client_hm' | 'client_finance' | 'client_recruiter' | 'recruiter';
-  recruiterType?: RecruiterType; // Only applicable if role === 'recruiter'
-  permissions: string[];
-  status: 'active' | 'inactive' | 'pending';
-}
-
-export interface Organization {
+export interface Candidate {
   id: string;
   name: string;
-  type: OrgType;
-  status: 'active' | 'suspended' | 'pending';
-  createdAt: Date | any;
-}
-
-export interface Candidate {
-  candidateId: string;
-  fullName: string;
-  primaryEmail?: string;
-  phoneHash?: string;
+  email: string;
+  phone: string;
   skills: string[];
-  experience: any; // Could be detailed json
-  canonicalProfile: boolean;
-  visibilityScopes: string[];
-  sourceOrganizations: string[];
-  createdBy: string;
-  dedupeFingerprint?: string;
-  matchScore?: number; // Optional for view layers
+  experience: string;
+  status: string;
+  processingVersion: number;
+  lastMatchedAt?: string;
+  lastAgentRun?: string;
 }
 
-export enum CandidateLifecycleStatus {
-  SUBMITTED = 'SUBMITTED',
-  CLIENT_REVIEW = 'CLIENT_REVIEW',
-  SHORTLISTED = 'SHORTLISTED',
-  
-  // Interview OS
-  INTERVIEW_REQUESTED = 'INTERVIEW_REQUESTED',
-  INTERVIEW_SCHEDULED = 'INTERVIEW_SCHEDULED',
-  INTERVIEW_IN_PROGRESS = 'INTERVIEW_IN_PROGRESS',
-  INTERVIEW_COMPLETED = 'INTERVIEW_COMPLETED',
-  INTERVIEW_PASSED = 'INTERVIEW_PASSED',
-  INTERVIEW_FAILED = 'INTERVIEW_FAILED',
-  INTERVIEW_ROUND_1 = 'INTERVIEW_ROUND_1', // legacy
-  INTERVIEW_ROUND_2 = 'INTERVIEW_ROUND_2', // legacy
-  FINAL_INTERVIEW = 'FINAL_INTERVIEW', // legacy
-  
-  // Offer OS
-  SELECTED = 'SELECTED', // legacy
-  OFFER_DRAFTED = 'OFFER_DRAFTED',
-  OFFER_RELEASED = 'OFFER_RELEASED',
-  OFFER_ACCEPTED = 'OFFER_ACCEPTED',
-  OFFER_DECLINED = 'OFFER_DECLINED',
-  
-  // Placement/Revenue
-  NOTICE_PERIOD = 'NOTICE_PERIOD',
-  JOINING_CONFIRMED = 'JOINING_CONFIRMED',
-  ONBOARDING = 'ONBOARDING',
-  JOINED = 'JOINED',
-  PLACED = 'PLACED',
-  
-  INVOICE_GENERATED = 'INVOICE_GENERATED',
-  PAYMENT_RECEIVED = 'PAYMENT_RECEIVED',
-
-  REJECTED = 'REJECTED',
-  WITHDRAWN = 'WITHDRAWN'
-}
-
-export interface Submission {
-  submissionId: string;
-  candidateId: string;
-  requirementId: string;
-  submittedBy: string;
-  vendorOrgId?: string;
-  clientOrgId?: string;
-  status: CandidateLifecycleStatus | string;
-  timeline: any[];
-}
-
-export interface InterviewFeedback {
-  technical: number; // 1-5
-  communication: number; // 1-5
-  domain: number; // 1-5
-  decision: 'Proceed' | 'Hold' | 'Reject';
-  notes?: string;
-  submittedAt?: string;
-}
-
-export interface Interview {
-  interviewId: string;
-  submissionId: string;
-  candidateId: string;
-  requirementId: string;
-  round: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM
-  meetingLink?: string;
-  calendarEventId?: string;
-  interviewer?: string;
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
-  feedback?: InterviewFeedback;
-  createdBy: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export enum DealStatus {
-  MATCHED = 'MATCHED',
-  IDENTITY_REVEALED = 'IDENTITY_REVEALED',
-  ACTIVE_NEGOTIATION = 'ACTIVE_NEGOTIATION',
-  CLOSED_WON = 'CLOSED_WON',
-  CLOSED_LOST = 'CLOSED_LOST'
-}
-
-export interface MatchBreakdown {
-  skillsScore?: number;
-  experienceScore?: number;
-  domainScore: number;
-  locationScore?: number;
-  bonusScore?: number;
-  totalScore?: number;
-  semanticScore?: number;
-  careerTrajectoryScore?: number;
-  authenticityScore?: number;
-}
-
-export interface MarginConfig {
-  type: 'FIXED' | 'PERCENTAGE' | 'TIERED' | 'DYNAMIC';
-  value: number;
-  fixedAmount?: number;
-  percentage?: number;
-}
-
-export interface Financials {
-  clientBudget: number;
-  clientCurrency: string;
-  adminMargin: number;
-  vendorPayout: number;
-  platformProfit: number;
-  marginConfig: MarginConfig;
-}
-
-export interface HybridMatchResult {
-  candidateId: string;
-  requirementId: string;
-  score: number;
-  breakdown: MatchBreakdown;
-  summary: string;
-  strengths: string[];
-  gaps: string[];
-  missingSkills?: string[];
-  recruiterAssessment: string;
-  recommendation: 'STRONG_FIT' | 'CONSIDER' | 'NOT_SUITABLE';
-  nextSteps: string;
-}
-
-export interface VendorScore {
-  orgId: string;
-  rating: number; // 0-100
-  tier: 'GOLD' | 'SILVER' | 'BRONZE' | 'NEW';
-  placements: number;
-  qualityScore: number;
-}
-
-export interface Deal {
+export interface Requirement {
   id: string;
-  requirementId: string;
+  title: string;
+  description: string;
+  clientName: string;
+  skillsRequired: string[];
+  status: string;
+  processingVersion: number;
+  lastMatchedAt?: string;
+  lastBroadcastAt?: string;
+  lastAgentRun?: string;
+  graphVersion?: number;
+}
+
+export interface CandidateMatch {
+  id: string;
   candidateId: string;
-  submissionId?: string;
-  vendorId?: string;
-  clientId: string;
-  status: DealStatus;
-  commercials: {
-    clientBudget: number;
-    currency: string;
-    finalPlacementSalary?: number;
-    vendorPayout: number;
-    platformMargin: number;
-    splits: CommissionSplit[];
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CommissionSplit {
-  beneficiaryId: string; // The OrgId or UserId receiving the split
-  role: 'PLATFORM' | 'VENDOR_ORG' | 'VENDOR_RECRUITER' | 'CLIENT_ACCOUNT_MANAGER';
-  percentage: number;
-  expectedAmount: number;
-}
-
-export interface Commission {
+  candidateName: string;
   requirementId: string;
-  dealId: string;
-  amount: number;
-  currency: string;
-  status: 'PENDING' | 'PAID' | 'DISPUTED';
-  type: 'FIXED' | 'PERCENTAGE';
-  splits?: CommissionSplit[];
+  requirementTitle: string;
+  matchScore: number;
+  matchInference: string;
+  status: "matched" | "submitted" | "shortlisted" | "interview" | "offer" | "joined";
+  createdAt: string;
 }
 
+export interface BusinessEvent {
+  eventId: string;
+  type: string;
+  createdAt: string;
+  payload: any;
+}
+
+export interface BootstrapStage {
+  id: number;
+  name: string;
+  status: "idle" | "running" | "completed" | "failed";
+  progress: number;
+  details: string;
+}
+
+export interface SystemMetrics {
+  totalRequirements: number;
+  totalCandidates: number;
+  totalMatches: number;
+  reconciliationRate: number;
+  continuousMode: boolean;
+  lastHeartbeat?: string;
+}
