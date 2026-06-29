@@ -33,8 +33,8 @@ import {
   query,
   onSnapshot,
   doc,
-  setDoc,
-  updateDoc,
+  setDoc as firebaseSetDoc,
+  updateDoc as firebaseUpdateDoc,
   getDoc,
   getDocs,
   serverTimestamp,
@@ -48,6 +48,54 @@ import {
 } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
+
+const setDoc = async (ref: any, data: any, options?: any) => {
+  const result = await firebaseSetDoc(ref, data, options);
+  try {
+    const path = ref.path || "";
+    if (path.startsWith("requirements_public/")) {
+      const requirementId = path.split("/")[1];
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "REQUIREMENT_CREATED",
+          payload: { requirementId, id: requirementId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.clientId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on setDoc", e));
+    }
+  } catch (e) {
+    console.warn("Event publishing failed on setDoc wrapper", e);
+  }
+  return result;
+};
+
+const updateDoc = async (ref: any, data: any) => {
+  const result = await firebaseUpdateDoc(ref, data);
+  try {
+    const path = ref.path || "";
+    if (path.startsWith("requirements_public/")) {
+      const requirementId = path.split("/")[1];
+      const isClosed = data.status === "CLOSED" || data.status === "ARCHIVED";
+      const eventType = isClosed ? "REQUIREMENT_CLOSED" : "REQUIREMENT_UPDATED";
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: eventType,
+          payload: { requirementId, id: requirementId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.clientId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on updateDoc", e));
+    }
+  } catch (e) {
+    console.warn("Event publishing failed on updateDoc wrapper", e);
+  }
+  return result;
+};
 import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import { HybridMatchResult } from "../types";

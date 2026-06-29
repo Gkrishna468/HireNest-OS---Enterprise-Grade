@@ -15,7 +15,6 @@ const dispatchWorkflowEvent = async (db: any, payload: any) => {
      await docRef.set({
        ...payload,
        type: payload.eventType || payload.type,
-       status: payload.status || "PENDING",
        id: docRef.id,
        createdAt: new Date().toISOString()
      });
@@ -383,21 +382,13 @@ export default async function handler(req: any, res: any) {
              ["FINANCIAL_APPRAISAL", "INDEX_VECTOR_SEARCH", "BROADCAST_TO_VENDORS", "NOTIFY_CLIENT"]
           );
 
-          // IMPORTANT: Emit JOB_PUBLISHED and REQUIREMENT_UPDATED event for Office Workflows
+          // IMPORTANT: Emit JOB_PUBLISHED event for Vendor Workflow
           await dispatchWorkflowEvent(adminDb, {
             eventType: "JOB_PUBLISHED",
             eventVersion: "v2",
             producer: "api/admin",
-            status: "PENDING",
+            status: "QUEUED",
             payload: { jobId: targetId, marginValue, vendorPayout, timestamp: new Date().toISOString() }
-          });
-
-          await dispatchWorkflowEvent(adminDb, {
-            eventType: "REQUIREMENT_UPDATED",
-            eventVersion: "v1",
-            producer: "api/admin",
-            status: "PENDING",
-            payload: { id: targetId, status: "PUBLISHED", timestamp: new Date().toISOString() }
           });
           
           import('./rescan-matches.js').then(({ runMatchIntelligenceEngine }) => {

@@ -5,6 +5,7 @@ import { NetworkOpportunityEngine } from './NetworkOpportunityEngine.js';
 import { ContinuousMatchingEngine } from './ContinuousMatchingEngine.js';
 import { ContinuousImprovementEngine } from './ContinuousImprovementEngine.js';
 import { OfficeRuntimeService } from './OfficeRuntimeService.js';
+import { MatchingOffice } from './MatchingOffice.js';
 
 export interface AgentJob {
     jobId: string;
@@ -35,6 +36,7 @@ export class AgentOrchestrator {
             { id: 'vendor-office', name: 'Vendor Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: '9:15 AM Daily', status: 'Healthy', enabled: true, core: true, desc: 'Improves partner success, collects bench profiles, coaches vendors.' },
             { id: 'client-office', name: 'Client Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_UPDATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Drives hiring outcomes, sends market insights, monitors SLA.' },
             { id: 'marketplace-office', name: 'Marketplace Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: 'Every 15 min', status: 'Healthy', enabled: true, core: true, desc: 'Optimizes entire ecosystem, detects idle bench, drives cross-workspace matches.' },
+            { id: 'matching-office', name: 'Matching Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_CREATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Maintains candidate-requirement relationships and updates candidate_matches.' },
             
             // Layer 2: Shared Skills
             { id: 'resume-parser', name: 'Resume Parser', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Extracts entities and skills from resumes.' },
@@ -114,6 +116,10 @@ export class AgentOrchestrator {
             case 'REQUIREMENT_IMPROVEMENT_AGENT':
                 console.log(`[REQUIREMENT_IMPROVEMENT] Processing requirement ${payload.requirementId}`);
                 return { success: true, output: { status: 'Requirement Improvement Loop Triggered', requirementId: payload.requirementId }, tokens: 2500, model: 'gemini-1.5-pro' };
+            case 'matching-office':
+                console.log(`[MATCHING_OFFICE] Running Event-Driven Match Routine for event type: ${payload.eventType || 'UNKNOWN'}`);
+                await MatchingOffice.handleEvent(payload.eventType, payload.payload, payload.orgId);
+                return { success: true, output: { status: 'Match Loop Completed Successfully' }, tokens: 3500, model: 'gemini-3.5-flash' };
             default:
                 return { success: true, output: { status: 'processed' }, tokens: 450, model: 'gemini-1.5-flash' };
         }

@@ -37,14 +37,14 @@ import {
   query,
   onSnapshot,
   doc,
-  setDoc,
+  setDoc as firebaseSetDoc,
   addDoc,
   getDoc,
   getDocs,
   serverTimestamp,
   where,
-  updateDoc,
-  deleteDoc,
+  updateDoc as firebaseUpdateDoc,
+  deleteDoc as firebaseDeleteDoc,
   limit,
   arrayUnion,
   orderBy,
@@ -53,6 +53,75 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 import { publishEvent } from "../lib/eventEngine";
 import { emitEvent } from "../services/eventBus";
+
+const setDoc = async (ref: any, data: any, options?: any) => {
+  const result = await firebaseSetDoc(ref, data, options);
+  try {
+    const path = ref.path || "";
+    if (path.startsWith("candidatePool/")) {
+      const candidateId = path.split("/")[1];
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "CANDIDATE_CREATED",
+          payload: { candidateId, id: candidateId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.vendorId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on setDoc", e));
+    }
+  } catch (e) {
+    console.warn("Event publishing failed on setDoc wrapper", e);
+  }
+  return result;
+};
+
+const updateDoc = async (ref: any, data: any) => {
+  const result = await firebaseUpdateDoc(ref, data);
+  try {
+    const path = ref.path || "";
+    if (path.startsWith("candidatePool/")) {
+      const candidateId = path.split("/")[1];
+      const isWithdrawn = data.status === "WITHDRAWN" || data.status === "ARCHIVED";
+      const eventType = isWithdrawn ? "CANDIDATE_WITHDRAWN" : "CANDIDATE_UPDATED";
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: eventType,
+          payload: { candidateId, id: candidateId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.vendorId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on updateDoc", e));
+    }
+  } catch (e) {
+    console.warn("Event publishing failed on updateDoc wrapper", e);
+  }
+  return result;
+};
+
+const deleteDoc = async (ref: any) => {
+  try {
+    const path = ref.path || "";
+    if (path.startsWith("candidatePool/")) {
+      const candidateId = path.split("/")[1];
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "CANDIDATE_WITHDRAWN",
+          payload: { candidateId, id: candidateId },
+          source: "UI"
+        })
+      }).catch((e) => console.warn("Failed event publish on deleteDoc", e));
+    }
+  } catch (e) {
+    console.warn("Event publishing failed on deleteDoc wrapper", e);
+  }
+  return firebaseDeleteDoc(ref);
+};
 
 import CandidateSubmissionModal from "../components/CandidateSubmissionModal";
 import { EmptyState } from "../components/EmptyState";

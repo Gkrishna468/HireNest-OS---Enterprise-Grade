@@ -1,507 +1,1143 @@
-import React, { useState, useEffect } from "react";
-import { 
-  Activity, 
-  Database, 
-  Send, 
-  Cpu, 
-  Mail, 
-  Terminal, 
-  Play, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle,
-  Sparkles,
+import { checkIsAdmin, checkIsClient, checkIsVendor, checkIsRecruiter, checkIsIndependent } from "./lib/permissions";
+import React, { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  Briefcase,
+  MessageSquare,
+  Settings,
+  ShieldCheck,
+  Brain,
+  Bell,
+  LogOut,
+  ChevronRight,
+  Activity,
+  Network,
+  UserCheck,
+  Fingerprint,
+  Cpu,
+  Database,
+  BrainCircuit,
+  Menu,
+  X,
+  Zap,
+  Target,
+  DollarSign,
+  FileText,
+  Clock,
+  Receipt,
+  BookOpen,
+  Search,
   TrendingUp,
-  Clock
+  ShieldAlert,
+  Globe2,
+  Video,
+  Star,
+  Award,
+  Terminal,
+  Bot,
+  CheckCircle2
 } from "lucide-react";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
-} from "recharts";
+import { cn } from "./lib/utils";
 
-interface SystemHealth {
-  server: string;
-  firestore: string;
-  runtimeKernel: string;
-  eventBus: string;
-  mailOS: string;
-  aiGateway: string;
-  uptime: number;
-  version: string;
-  timestamp: string;
-}
+// Import views
+import DashboardTab from "./views/DashboardTab";
+import AgentHQ from "./views/AgentHQ";
+import CandidatesTab from "./views/CandidatesTab";
+import JobsTab from "./views/JobsTab";
+import NetworkDirectoryTab from "./views/NetworkDirectoryTab";
+import Client360Tab from "./views/Client360Tab";
+import AutonomousOperationsTab from "./views/AutonomousOperationsTab";
+import WorkflowStudioTab from "./views/WorkflowStudioTab";
+import HumanApprovalCenterTab from "./views/HumanApprovalCenterTab";
+import ValidationCenterTab from "./views/ValidationCenterTab";
+import SuccessIntelligenceTab from "./views/SuccessIntelligenceTab";
+import Vendor360Tab from "./views/Vendor360Tab";
+import VendorIntelligenceTab from "./views/VendorIntelligenceTab";
+import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
+import EnterpriseCommandCenterTab from "./views/EnterpriseCommandCenterTab";
+import AIOpsCenterTab from "./views/AIOpsCenterTab";
+import { EnterpriseSearchModal } from "./components/EnterpriseSearchModal";
+import AIAgentsTab from "./views/AIAgentsTab";
+import FinanceOSTab from "./views/FinanceOSTab";
+import AICopilotTab from "./views/AICopilotTab";
+import RecruiterPerformanceTab from "./views/RecruiterPerformanceTab";
+import RagIntelligenceTab from "./views/RagIntelligenceTab";
+import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
+import DealRoomsTab from "./views/DealRoomsTab";
+import InterviewsTab from "./views/InterviewsTab";
+import { PlacementsTab } from "./views/PlacementsTab";
+import InboxTab from "./views/InboxTab";
 
-const mockChartData = [
-  { name: "00:00", requests: 120, latency: 15 },
-  { name: "04:00", requests: 80, latency: 12 },
-  { name: "08:00", requests: 340, latency: 45 },
-  { name: "12:00", requests: 450, latency: 50 },
-  { name: "16:00", requests: 380, latency: 38 },
-  { name: "20:00", requests: 290, latency: 22 },
-  { name: "24:00", requests: 180, latency: 18 }
-];
+import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
+import OperationalHealthTab from "./views/OperationalHealthTab";
+import FinancialsTab from "./views/FinancialsTab";
+import RevenueIntelligenceTab from "./views/RevenueIntelligenceTab";
+import TrustEngineTab from "./views/TrustEngineTab";
+import NotificationsTab from "./views/NotificationsTab";
+import Onboarding from "./views/Onboarding";
+import MatchIntelligenceTab from "./views/MatchIntelligenceTab";
+import AdminOverview from "./views/AdminOverview";
+import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
+import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
+import AdminOpsDashboard from "./views/AdminOpsDashboard";
+import AdminUsersManager from "./views/AdminUsersManager";
+import TraceView from "./views/TraceView";
+import MemoryMapView from "./views/MemoryMapView";
+import TenantUsageDashboard from "./views/TenantUsageDashboard";
+import WelcomeDemo from "./components/WelcomeDemo";
+import SLAIntelligenceTab from "./views/SLAIntelligenceTab";
+import ContractsTab from "./views/ContractsTab";
+import TimesheetsTab from "./views/TimesheetsTab";
+import InvoicesTab from "./views/InvoicesTab";
+import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
+import { OnboardingGuide } from "./components/OnboardingGuide";
+import { LiveToaster } from "./components/LiveToaster";
+import SignalsTab from "./views/SignalsTab";
+import { NotificationCenter } from "./components/NotificationCenter";
 
-export default function App() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState<string>("");
-  const [aiResult, setAiResult] = useState<string>("");
-  const [aiLoading, setAiLoading] = useState<boolean>(false);
-  const [logs, setLogs] = useState<Array<{ id: string; time: string; text: string; type: "info" | "success" | "warn" }>>([]);
-  const [emailTo, setEmailTo] = useState<string>("");
-  const [emailSent, setEmailSent] = useState<boolean>(false);
+import { auth } from "./lib/firebase";
+import { signOut } from "firebase/auth";
+import { useSystemStore } from "./stores/SystemStore";
 
-  const addLog = (text: string, type: "info" | "success" | "warn" = "info") => {
-    const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [{ id: Math.random().toString(), time, text, type }, ...prev].slice(0, 50));
-  };
+import SettingsTab from "./views/SettingsTab";
 
-  const fetchHealth = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/health");
-      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-      const data = await res.json();
-      setHealth(data);
-      setError(null);
-      addLog("System health parameters fetched successfully.", "success");
-    } catch (err: any) {
-      setError(err.message || "Failed to reach backend services");
-      addLog(`Failed to sync health status: ${err.message}`, "warn");
-    } finally {
-      setLoading(false);
-    }
-  };
+import BenchmarkDashboard from "./views/BenchmarkDashboard";
+import CustomerSuccessDashboard from "./views/CustomerSuccessDashboard";
+import AILearningLoopTab from "./views/AILearningLoopTab";
+import EvidenceDashboard from "./views/EvidenceDashboard";
+import FounderControlTower from "./views/FounderControlTower";
 
-  useEffect(() => {
-    fetchHealth();
-    addLog("HireNestOS Diagnostic Control Center initialized.", "info");
+const SidebarItem = ({
+  to,
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  id,
+}: {
+  to: string;
+  icon: any;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  id?: string;
+}) => (
+  <Link
+    to={to}
+    id={id}
+    onClick={onClick}
+    className={cn(
+      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-sm font-bold uppercase tracking-wider",
+      active
+        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+        : "text-slate-400 hover:bg-slate-50 hover:text-slate-900",
+    )}
+  >
+    <Icon
+      size={18}
+      className={cn(
+        active ? "text-white" : "text-slate-400 group-hover:text-indigo-600",
+      )}
+    />
+    <span>{label}</span>
+    {active && <ChevronRight size={14} className="ml-auto" />}
+  </Link>
+);
 
-    const interval = setInterval(() => {
-      fetchHealth();
-    }, 15000); // refresh health every 15s
+const AppContent = () => {
+  const location = useLocation();
+  const { user, userData, loading, showDemo, initialize, closeDemo } =
+    useSystemStore();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    return () => clearInterval(interval);
+  React.useEffect(() => {
+    const unsub = initialize();
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [initialize]);
+
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  const triggerEvent = (name: string) => {
-    addLog(`Published internal event: [EventBus::${name}]`, "info");
-    // Mock successful publish
-    setTimeout(() => {
-      addLog(`Event [${name}] successfully processed by Runtime Kernel subscribers.`, "success");
-    }, 800);
-  };
-
-  const handleTestAI = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
-    setAiLoading(true);
-    setAiResult("");
-    addLog(`Dispatching AI analysis request to Gemini API proxy...`, "info");
-    try {
-      const res = await fetch("/api/ai/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiPrompt })
-      });
-      if (!res.ok) throw new Error(`AI Gateway Error ${res.status}`);
-      const data = await res.json();
-      setAiResult(data.response);
-      addLog("AI generation task finished successfully.", "success");
-    } catch (err: any) {
-      setAiResult(`Error: ${err.message}`);
-      addLog(`AI task failed: ${err.message}`, "warn");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const handleSendTestEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailTo.trim()) return;
-    addLog(`Instructing MailOS to send notification sequence to: ${emailTo}`, "info");
-    setEmailSent(true);
-    setTimeout(() => {
-      addLog(`MailOS notification dispatch acknowledged by SMTP gateways.`, "success");
-      setEmailTo("");
-      setEmailSent(false);
-    }, 1500);
-  };
-
-  const renderStatus = (status: string | undefined) => {
-    if (status === "running" || status === "connected" || status === "healthy" || status === "ready") {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
-          <CheckCircle className="w-3.5 h-3.5" />
-          ACTIVE
-        </span>
-      );
-    }
+  if (loading) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-full">
-        <XCircle className="w-3.5 h-3.5" />
-        OFFLINE
-      </span>
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+            Syncing Node Identity...
+          </p>
+        </div>
+      </div>
     );
+  }
+
+  if (!user) {
+    return (
+      <Onboarding
+        onComplete={async () => {
+          await auth.currentUser?.getIdToken(true);
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  const role = userData?.role || "guest";
+  const isAdmin = checkIsAdmin(role);
+  const isClient = checkIsClient(role);
+  const isVendor = checkIsVendor(role);
+  const isRecruiter = checkIsRecruiter(role);
+  const isIndependent = checkIsIndependent(role);
+
+  const hasCompletedOnboarding =
+    userData?.onboardingCompleted === true ||
+    (userData?.role &&
+      userData?.role !== "PENDING_VERIFICATION" &&
+      userData?.status === "ACTIVE" &&
+      userData?.organizationId);
+
+  const handleCloseDemo = async () => {
+    await closeDemo();
   };
+
+  if (user && !hasCompletedOnboarding && !isAdmin) {
+    return (
+      <Onboarding
+        onComplete={async () => {
+          await auth.currentUser?.getIdToken(true);
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
   return (
-    <div className="min-h-screen bg-[#080b11] text-slate-100 flex flex-col font-sans">
-      {/* Header */}
-      <header className="border-b border-slate-800 bg-[#0c101b] px-6 py-4 sticky top-0 z-10 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2.5 rounded-lg shadow-lg shadow-blue-500/20 text-white flex items-center justify-center">
-            <Cpu className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-white font-display">HireNestOS</h1>
-              <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold px-1.5 py-0.5 rounded font-mono">
-                v{health?.version || "1.0.1"}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 m-0">Enterprise Recruitment Staffing Operating System - Diagnostic Panel</p>
-          </div>
-        </div>
+    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans">
+      <LiveToaster orgId={userData?.organizationId} userRole={userData?.role} />
+      {hasCompletedOnboarding && showDemo && (
+        <WelcomeDemo
+          type={isAdmin || isClient ? "client" : "vendor"}
+          onClose={handleCloseDemo}
+        />
+      )}
 
-        <div className="flex items-center gap-4">
-          <button 
-            id="refresh-btn"
-            onClick={fetchHealth} 
-            disabled={loading}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-300 hover:text-white px-3.5 py-2 rounded-lg text-sm font-medium transition duration-200 border border-slate-700 disabled:opacity-50"
+      {hasCompletedOnboarding && <OnboardingGuide role={role} />}
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50 fixed lg:relative h-full transition-transform duration-300 ease-in-out",
+          isMobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
+        )}
+      >
+        <div className="flex items-center justify-between mb-10 px-2">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-slate-900 tracking-tighter">
+                HireNest<span className="text-indigo-600">OS</span>
+              </h1>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Enterprise Core
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-slate-900"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh State
+            <X size={24} />
           </button>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Columns - Stats, Service Grid, Diagnostics */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          
-          {/* Top Info Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-5 flex items-center gap-4">
-              <div className="bg-blue-500/10 text-blue-400 p-3 rounded-lg border border-blue-500/20">
-                <Clock className="w-5 h-5" />
+        <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
+          {/* RECRUITER NAVIGATION */}
+          {isRecruiter && !isAdmin && (
+            <>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
+                Workspace
               </div>
-              <div>
-                <span className="text-xs text-slate-400 font-medium">SYS UPTIME</span>
-                <p className="text-lg font-bold font-mono text-white">
-                  {health ? `${health.uptime}s` : "---"}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-5 flex items-center gap-4">
-              <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-lg border border-emerald-500/20">
-                <CheckCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs text-slate-400 font-medium">SYS HEALTH</span>
-                <p className="text-lg font-bold text-emerald-400">
-                  {error ? "COMPROMISED" : "OPTIMAL"}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-5 flex items-center gap-4">
-              <div className="bg-indigo-500/10 text-indigo-400 p-3 rounded-lg border border-indigo-500/20">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs text-slate-400 font-medium">API STATUS</span>
-                <p className="text-lg font-bold text-indigo-400">
-                  {loading ? "CHECKING..." : "ONLINE"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Service Grid Card */}
-          <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-500" />
-              System Service Microkernel Registry
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
-              {/* Web Server */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-500/10 text-blue-400 p-2.5 rounded-lg border border-blue-500/15">
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Express Web Server</h3>
-                    <p className="text-xs text-slate-400">Port 3000 Ingress Routing</p>
-                  </div>
-                </div>
-                {renderStatus(health?.server || "healthy")}
-              </div>
-
-              {/* Firestore */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg border border-amber-500/15">
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Firestore Cloud DB</h3>
-                    <p className="text-xs text-slate-400">Multi-tenant Persistence</p>
-                  </div>
-                </div>
-                {renderStatus(health?.firestore)}
-              </div>
-
-              {/* Runtime Kernel */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-indigo-500/10 text-indigo-400 p-2.5 rounded-lg border border-indigo-500/15">
-                    <Activity className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Runtime Kernel</h3>
-                    <p className="text-xs text-slate-400">Async Background Services</p>
-                  </div>
-                </div>
-                {renderStatus(health?.runtimeKernel)}
-              </div>
-
-              {/* Event Bus */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg border border-purple-500/15">
-                    <Terminal className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">System Event Bus</h3>
-                    <p className="text-xs text-slate-400">Publisher-Subscriber Matrix</p>
-                  </div>
-                </div>
-                {renderStatus(health?.eventBus)}
-              </div>
-
-              {/* MailOS */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-pink-500/10 text-pink-400 p-2.5 rounded-lg border border-pink-500/15">
-                    <Mail className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">MailOS Outbound</h3>
-                    <p className="text-xs text-slate-400">Staffing Communications</p>
-                  </div>
-                </div>
-                {renderStatus(health?.mailOS)}
-              </div>
-
-              {/* AI Gateway */}
-              <div className="bg-[#121826] border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-cyan-500/10 text-cyan-400 p-2.5 rounded-lg border border-cyan-500/15">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">AI Gateway (Gemini)</h3>
-                    <p className="text-xs text-slate-400">Grounded Intelligence</p>
-                  </div>
-                </div>
-                {renderStatus(health?.aiGateway)}
-              </div>
-
-            </div>
-          </div>
-
-          {/* Metrics Performance Chart */}
-          <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-500" />
-              Strategic Routing & System Latency Analytics
-            </h2>
-
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155" }} />
-                  <Area type="monotone" dataKey="requests" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorRequests)" name="API Vol" />
-                  <Area type="monotone" dataKey="latency" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorLatency)" name="Latency (ms)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right Columns - Diagnostics, Prompting, Event Testing */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          
-          {/* Quick Diagnostics Actions */}
-          <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-purple-500" />
-              Trigger Event Bus Broadcasts
-            </h2>
-            <div className="flex flex-col gap-2.5">
-              <button 
-                id="event-reconcile-btn"
-                onClick={() => triggerEvent("SYSTEM_RECONCILIATION")}
-                className="w-full flex items-center justify-between text-left px-4 py-3 bg-[#121826] hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg text-sm transition duration-150"
-              >
-                <span className="font-semibold text-xs">RECONCILE DATABASE COLLECTIONS</span>
-                <Play className="w-3.5 h-3.5 text-blue-500" />
-              </button>
-              <button 
-                id="event-metrics-btn"
-                onClick={() => triggerEvent("METRICS_REBUILD")}
-                className="w-full flex items-center justify-between text-left px-4 py-3 bg-[#121826] hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg text-sm transition duration-150"
-              >
-                <span className="font-semibold text-xs">REBUILD PERFORMANCE SHARDS</span>
-                <Play className="w-3.5 h-3.5 text-blue-500" />
-              </button>
-              <button 
-                id="event-sync-btn"
-                onClick={() => triggerEvent("BOOTSTRAP_SYNC_SCAN")}
-                className="w-full flex items-center justify-between text-left px-4 py-3 bg-[#121826] hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg text-sm transition duration-150"
-              >
-                <span className="font-semibold text-xs">TRIGGER COMPLIANCE AUDIT</span>
-                <Play className="w-3.5 h-3.5 text-blue-500" />
-              </button>
-            </div>
-          </div>
-
-          {/* AI Generation Sandbox */}
-          <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" />
-              AI Gateway Prompt Playground
-            </h2>
-            <p className="text-xs text-slate-400 mb-4">Test grounded staffing predictions securely through our Gemini API proxy.</p>
-
-            <form onSubmit={handleTestAI} className="space-y-4">
-              <textarea 
-                id="ai-prompt-input"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Ask Gemini to draft recruitment criteria or JD summaries..."
-                rows={3}
-                className="w-full bg-[#121826] text-slate-100 border border-slate-800 rounded-lg p-3 text-sm placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              <SidebarItem
+                to="/"
+                icon={LayoutDashboard}
+                label="Dashboard"
+                active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
-              <button 
-                id="ai-submit-btn"
-                type="submit" 
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg text-sm transition duration-200 shadow-md shadow-blue-500/15"
-              >
-                {aiLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Analyzing Prompt...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Query Gemini
-                  </>
-                )}
-              </button>
-            </form>
+              <SidebarItem
+                id="tour-requirements"
+                to="/jobs"
+                icon={Briefcase}
+                label="Requirements"
+                active={location.pathname === "/jobs"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-candidates"
+                to="/candidates"
+                icon={Users}
+                label="Candidates"
+                active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Intelligence"
+                active={location.pathname === "/matches"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-submissions"
+                to="/deal-rooms"
+                icon={MessageSquare}
+                label="Submissions"
+                active={location.pathname === "/deal-rooms"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-interviews"
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/network"
+                icon={Building2}
+                label="Vendors"
+                active={location.pathname === "/network"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-reports"
+                to="/financials"
+                icon={FileText}
+                label="Reports"
+                active={location.pathname === "/financials"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/emails"
+                icon={MessageSquare}
+                label="Work Email"
+                active={location.pathname === "/emails"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+            </>
+          )}
 
-            {aiResult && (
-              <div className="mt-4 p-3.5 bg-[#121826] border border-slate-800 rounded-lg">
-                <span className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider font-mono">Gemini Response:</span>
-                <p className="text-xs text-slate-200 leading-relaxed font-mono whitespace-pre-wrap">{aiResult}</p>
+          {/* VENDOR NAVIGATION */}
+          {isVendor && !isAdmin && (
+            <>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
+                Workspace
               </div>
+              <SidebarItem
+                to="/"
+                icon={LayoutDashboard}
+                label="Dashboard"
+                active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-requirements"
+                to="/jobs"
+                icon={Briefcase}
+                label="Open Requirements"
+                active={location.pathname === "/jobs"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-candidates"
+                to="/candidates"
+                icon={Users}
+                label="Candidates"
+                active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Intelligence"
+                active={location.pathname === "/matches"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-submissions"
+                to="/deal-rooms"
+                icon={MessageSquare}
+                label="Submissions"
+                active={location.pathname === "/deal-rooms"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/emails"
+                icon={MessageSquare}
+                label="Work Email"
+                active={location.pathname === "/emails"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/trust-sla"
+                icon={Target}
+                label="Performance"
+                active={location.pathname === "/trust-sla"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+            </>
+          )}
+
+          {/* CLIENT NAVIGATION */}
+          {isClient && !isAdmin && (
+            <>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
+                Workspace
+              </div>
+              <SidebarItem
+                to="/"
+                icon={LayoutDashboard}
+                label="Dashboard"
+                active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-requirements"
+                to="/jobs"
+                icon={Briefcase}
+                label="Requirements"
+                active={location.pathname === "/jobs"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-candidates"
+                to="/candidates"
+                icon={Users}
+                label="Candidates"
+                active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-interviews"
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                id="tour-submissions"
+                to="/placements"
+                icon={Target}
+                label="Placements"
+                active={location.pathname === "/placements"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+            </>
+          )}
+
+          {/* INDEPENDENT OR GUEST (Fallback) */}
+          {!isAdmin && !isRecruiter && !isVendor && !isClient && (
+            <>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">
+                Workspace
+              </div>
+              <SidebarItem
+                to="/"
+                icon={LayoutDashboard}
+                label="Dashboard"
+                active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/jobs"
+                icon={Briefcase}
+                label="Requirements"
+                active={location.pathname === "/jobs"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/candidates"
+                icon={Users}
+                label="Candidates"
+                active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+            </>
+          )}
+
+          {/* EXECUTIVE ADMIN NAVIGATION */}
+          {isAdmin && (
+            <>
+              <SidebarItem
+                to="/"
+                icon={LayoutDashboard}
+                label="Home"
+                active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Work
+              </div>
+              <SidebarItem
+                to="/signals"
+                icon={Activity}
+                label="Signals Center"
+                active={location.pathname === "/signals"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/jobs"
+                icon={Briefcase}
+                label="Requirements"
+                active={location.pathname === "/jobs"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/candidates"
+                icon={Users}
+                label="Candidates"
+                active={location.pathname === "/candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/matches"
+                icon={Star}
+                label="Match Opportunities"
+                active={location.pathname === "/matches"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/deal-rooms"
+                icon={MessageSquare}
+                label="Submissions"
+                active={location.pathname === "/deal-rooms"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/interviews"
+                icon={Video}
+                label="Interviews"
+                active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/emails"
+                icon={Activity}
+                label="Work Email"
+                active={location.pathname === "/emails"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Network
+              </div>
+              <SidebarItem
+                to="/network?type=vendor"
+                icon={Building2}
+                label="Vendors"
+                active={
+                  location.pathname === "/network" &&
+                  location.search.includes("type=vendor")
+                }
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/network?type=client"
+                icon={Users}
+                label="Clients"
+                active={
+                  location.pathname === "/network" &&
+                  location.search.includes("type=client")
+                }
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/client-360"
+                icon={Building2}
+                label="Client 360"
+                active={location.pathname === "/client-360"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/vendor-360"
+                icon={Building2}
+                label="Vendor 360"
+                active={location.pathname === "/vendor-360"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/vendor-intelligence"
+                icon={Award}
+                label="Vendor Intelligence"
+                active={location.pathname === "/vendor-intelligence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/recruiter-performance"
+                icon={Award}
+                label="Recruiter Engine"
+                active={location.pathname === "/recruiter-performance"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Finance
+              </div>
+              <SidebarItem
+                to="/invoices"
+                icon={Receipt}
+                label="Invoices"
+                active={location.pathname === "/invoices"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/financials"
+                icon={DollarSign}
+                label="Finance Ledger"
+                active={location.pathname === "/financials"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/revenue-intelligence"
+                icon={Activity}
+                label="Revenue Intel"
+                active={location.pathname === "/revenue-intelligence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <SidebarItem
+                to="/knowledge-graph"
+                icon={Network}
+                label="Knowledge Graph (Audit)"
+                active={location.pathname === "/knowledge-graph"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Enterprise Validation
+              </div>
+              <SidebarItem
+                to="/ai-agents"
+                icon={Bot}
+                label="Workforce OS"
+                active={location.pathname === "/ai-agents"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/ai-ops-center"
+                icon={Terminal}
+                label="AI DevOps"
+                active={location.pathname === "/ai-ops-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/ai-copilot"
+                icon={BrainCircuit}
+                label="AI Copilot"
+                active={location.pathname === "/ai-copilot"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/autonomous-operations"
+                icon={Zap}
+                label="Autonomous Ops"
+                active={location.pathname === "/autonomous-operations"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/workflow-studio"
+                icon={Network}
+                label="Workflow Studio"
+                active={location.pathname === "/workflow-studio"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/approval-center"
+                icon={CheckCircle2}
+                label="Approval Center"
+                active={location.pathname === "/approval-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/validation-center"
+                icon={ShieldCheck}
+                label="Validation Center"
+                active={location.pathname === "/validation-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/success-intelligence"
+                icon={Brain}
+                label="Success Intelligence"
+                active={location.pathname === "/success-intelligence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/enterprise-command-center"
+                icon={TrendingUp}
+                label="Command Center"
+                active={location.pathname === "/enterprise-command-center"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/finance-os"
+                icon={DollarSign}
+                label="FinanceOS"
+                active={location.pathname === "/finance-os"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/benchmarks"
+                icon={Activity}
+                label="Benchmarks"
+                active={location.pathname === "/benchmarks"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/adoption"
+                icon={TrendingUp}
+                label="Customer Success"
+                active={location.pathname === "/adoption"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/ai-learning"
+                icon={Cpu}
+                label="AI Learning Loop"
+                active={location.pathname === "/ai-learning"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/evidence"
+                icon={ShieldAlert}
+                label="Evidence Dashboard"
+                active={location.pathname === "/evidence"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
+                Administration
+              </div>
+              <SidebarItem
+                to="/founder-tower"
+                icon={Globe2}
+                label="Founder Tower"
+                active={location.pathname === "/founder-tower"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/health"
+                icon={TrendingUp}
+                label="Operational Intelligence"
+                active={location.pathname === "/health"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/governance"
+                icon={ShieldCheck}
+                label="Governance"
+                active={location.pathname === "/governance"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/users"
+                icon={Users}
+                label="Users"
+                active={location.pathname === "/users"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/settings"
+                icon={Settings}
+                label="Settings"
+                active={location.pathname === "/settings"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+            </>
+          )}
+        </nav>
+
+        <div className="mt-auto pt-6 border-t border-slate-100 space-y-2">
+          <button
+            onClick={() => signOut(auth)}
+            className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-bold uppercase tracking-wider cursor-pointer"
+          >
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative overflow-hidden w-full lg:w-auto">
+        {/* Global Navigation Hub */}
+        <header className="h-16 bg-white border-b border-slate-100 px-4 md:px-8 flex items-center justify-between shrink-0 z-40">
+          <div className="flex items-center gap-3 md:gap-6">
+            <button
+              onClick={toggleMobileMenu}
+              className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-50"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic hidden sm:block">
+              Node:{" "}
+              {isAdmin
+                ? "Global HQ"
+                : isClient
+                  ? "Client Workspace"
+                  : isVendor
+                    ? "Vendor Workspace"
+                    : isRecruiter
+                      ? "Recruiter Workspace"
+                      : "User Workspace"}
+            </div>
+
+            {/* Universal Search Bar */}
+            <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 hover:bg-slate-100 transition-all cursor-text" onClick={() => setIsSearchOpen(true)}>
+              <Search size={16} className="text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Search Knowledge Graph..."
+                className="bg-transparent border-none outline-none text-xs font-medium w-full ml-2 text-slate-700 placeholder-slate-400 pointer-events-none"
+                readOnly
+              />
+              <div className="ml-2 bg-slate-200 text-slate-500 text-[9px] rounded px-1.5 py-0.5 font-mono opacity-60 pointer-events-none">
+                ⌘K
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 hidden lg:flex">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Protocol Active
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="hidden md:flex items-center bg-slate-50 rounded-2xl px-4 py-2 border border-slate-100 gap-3">
+              <ShieldCheck size={14} className="text-indigo-600" />
+              <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">
+                Authority: {userData?.role?.replace("_", " ") || "User"}
+              </span>
+            </div>
+            {isAdmin && (
+              <Link
+                to="/users"
+                className="hidden sm:flex bg-slate-900 text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-200 items-center gap-2"
+              >
+                <Users size={14} />
+                Onboard Nodes
+              </Link>
             )}
+            <NotificationCenter userRole={userData?.role} />
           </div>
+        </header>
 
-          {/* MailOS Test Form */}
-          <div className="bg-[#0c101b] border border-slate-800 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-              <Mail className="w-4 h-4 text-pink-500" />
-              MailOS Email Diagnostic
-            </h2>
-            <p className="text-xs text-slate-400 mb-4">Validate that outbound transactional SMTP mail routing is functional.</p>
-
-            <form onSubmit={handleSendTestEmail} className="space-y-4">
-              <input 
-                id="email-input"
-                type="email"
-                required
-                value={emailTo}
-                onChange={(e) => setEmailTo(e.target.value)}
-                placeholder="recipient@domain.com"
-                className="w-full bg-[#121826] text-slate-100 border border-slate-800 rounded-lg p-3 text-sm placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        <div className="flex-1 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<DashboardTab />} />
+            {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
+            {isAdmin && <Route path="/signals" element={<SignalsTab />} />}
+            {isAdmin && (
+              <Route path="/rag-intel" element={<RagIntelligenceTab />} />
+            )}
+            {isAdmin && (
+              <Route
+                path="/predictive"
+                element={
+                  <PredictiveIntelligenceTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
               />
-              <button 
-                id="email-submit-btn"
-                type="submit" 
-                disabled={emailSent}
-                className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 font-medium py-2 px-4 rounded-lg text-sm transition duration-200"
-              >
-                {emailSent ? "Dispatching..." : "Send Test Dispatch"}
-              </button>
-            </form>
-          </div>
-
+            )}
+            <Route path="/candidates" element={<CandidatesTab />} />
+            <Route path="/matches" element={<MatchIntelligenceTab />} />
+            <Route path="/jobs" element={<JobsTab />} />
+            <Route path="/pipeline" element={<CandidatesTab />} />
+            {(isAdmin || isRecruiter) && (
+              <Route path="/network" element={<NetworkDirectoryTab />} />
+            )}
+            {isAdmin && (
+              <Route path="/benchmarks" element={<BenchmarkDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/adoption" element={<CustomerSuccessDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/ai-learning" element={<AILearningLoopTab />} />
+            )}
+            {isAdmin && (
+              <Route path="/evidence" element={<EvidenceDashboard />} />
+            )}
+            {isAdmin && (
+              <Route path="/founder-tower" element={<FounderControlTower />} />
+            )}
+            {isAdmin && (
+              <Route
+                path="/health"
+                element={
+                  <OperationalHealthTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                    userId={user?.uid || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/financials"
+                element={
+                  <FinancialsTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                    userId={user?.uid || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/revenue-intelligence"
+                element={
+                  <RevenueIntelligenceTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/client-360"
+                element={<Client360Tab userRole={role || ""} />}
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/vendor-360"
+                element={<Vendor360Tab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/vendor-intelligence"
+                element={<VendorIntelligenceTab />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-copilot"
+                element={<AICopilotTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/autonomous-operations"
+                element={<AutonomousOperationsTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/workflow-studio"
+                element={<WorkflowStudioTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/approval-center"
+                element={<HumanApprovalCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/validation-center"
+                element={<ValidationCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/success-intelligence"
+                element={<SuccessIntelligenceTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/knowledge-graph"
+                element={<KnowledgeIntelligenceTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-agents"
+                element={<AIAgentsTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-ops-center"
+                element={<AIOpsCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/enterprise-command-center"
+                element={<EnterpriseCommandCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/finance-os"
+                element={<FinanceOSTab userRole={role || ""} />}
+              />
+            )}
+            {(isAdmin || isRecruiter) && (
+              <Route
+                path="/recruiter-performance"
+                element={<RecruiterPerformanceTab userRole={role || ""} />}
+              />
+            )}
+            {(isAdmin || isVendor) && (
+              <Route
+                path="/trust-sla"
+                element={
+                  <TrustEngineTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            <Route path="/deal-rooms" element={<DealRoomsTab />} />
+            <Route path="/placements" element={<PlacementsTab />} />
+            <Route path="/interviews" element={<InterviewsTab />} />
+            <Route path="/emails" element={<InboxTab />} />
+            {isAdmin && (
+              <Route
+                path="/operations"
+                element={
+                  <WorkflowOperationsTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            {isAdmin && <Route path="/admin" element={<AdminOverview />} />}
+            {isAdmin && (
+              <Route
+                path="/governance"
+                element={<AdminGovernanceDashboard />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/users"
+                element={<AdminUsersManager orgData={userData} />}
+              />
+            )}
+            {isAdmin && <Route path="/trace" element={<TraceView />} />}
+            {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
+            {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
+            {(isAdmin || isVendor || isRecruiter) && (
+              <Route path="/ownership" element={<OwnershipLedgerTab />} />
+            )}
+            {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}
+            <Route path="/timesheets" element={<TimesheetsTab />} />
+            <Route path="/invoices" element={<InvoicesTab />} />
+            <Route
+              path="/usage"
+              element={<TenantUsageDashboard orgData={userData} />}
+            />
+            <Route
+              path="/notifications"
+              element={
+                <NotificationsTab
+                  org={{ id: userData?.organizationId }}
+                  role={userData?.role}
+                />
+              }
+            />
+            <Route
+              path="/onboarding"
+              element={
+                <Onboarding onComplete={() => window.location.reload()} />
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                user && !loading ? (
+                  <SettingsTab />
+                ) : (
+                  <Navigate to="/dashboard" />
+                )
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </div>
-
       </main>
 
-      {/* Terminal logs panel (Full Width bottom) */}
-      <footer className="border-t border-slate-800 bg-[#060911] p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2 font-display">
-              <Terminal className="w-4 h-4 text-slate-400" />
-              Grounded Event Logging Console
-            </h2>
-            <span className="text-[10px] font-mono text-slate-500 uppercase">Interactive Logs Monitor</span>
-          </div>
-
-          <div id="logs-panel" className="bg-[#0c101b] border border-slate-800 rounded-xl p-4 font-mono text-xs h-40 overflow-y-auto space-y-2 scrollbar-thin">
-            {logs.length === 0 ? (
-              <p className="text-slate-500 italic text-center py-8">Console is waiting for diagnostic events...</p>
-            ) : (
-              logs.map((log) => (
-                <div key={log.id} className="flex gap-2.5 items-start py-0.5 border-b border-slate-800/20 last:border-0">
-                  <span className="text-slate-500 text-[10px] shrink-0 font-sans">{log.time}</span>
-                  <span className={`font-semibold shrink-0 uppercase text-[10px] ${
-                    log.type === "success" ? "text-emerald-400" : log.type === "warn" ? "text-amber-400" : "text-blue-400"
-                  }`}>
-                    [{log.type}]
-                  </span>
-                  <span className="text-slate-300 leading-relaxed break-all">{log.text}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </footer>
+      <EnterpriseSearchModal 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+      />
     </div>
   );
-}
+};
+
+const App = () => (
+  <Router>
+    <AppContent />
+  </Router>
+);
+
+export default App;

@@ -6,6 +6,23 @@ export default async function opsHandler(req: Request, res: Response) {
   const method = req.method;
 
   try {
+    if (path === "ops" && method === "POST") {
+        const action = req.query.action;
+        if (action === "process_coo") {
+            const { AICOORuntime } = await import("../os/kernel/AICOORuntime.js");
+            await AICOORuntime.processInbox();
+            return res.json({ success: true });
+        }
+        if (action === "process_offices") {
+            // Trigger matching office processing, and other offices
+            const { MatchingOffice } = await import("../os/kernel/MatchingOffice.js");
+            const matchingOffice = new MatchingOffice();
+            await matchingOffice.processQueue();
+            
+            return res.json({ success: true });
+        }
+    }
+
     if (path === "ops/heartbeats" && method === "GET") {
       const heartbeats = await RuntimeMetricsService.getHeartbeats("hq");
       return res.json({ success: true, heartbeats });

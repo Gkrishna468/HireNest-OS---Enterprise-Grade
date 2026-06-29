@@ -13,8 +13,6 @@ export class ProductionDataGuard {
     "michael chen",
     "retailgenius",
     "retail genius",
-    "cloudnative",
-    "cloud native",
     "techsource staffing",
     "techsource",
     "healthcorp",

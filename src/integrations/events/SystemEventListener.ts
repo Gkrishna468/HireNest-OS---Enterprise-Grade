@@ -30,20 +30,7 @@ export class SystemEventListener {
       if (subscribedTypes.length === 0) {
         console.log("[SystemEventListener] No remote events subscribed to in system_event_subscriptions. Seeding default subscriptions.");
         
-        const defaultEvents = [
-          "OPPORTUNITY_WON", 
-          "PLACEMENT_CLOSED", 
-          "CandidateUploaded", 
-          "JobPublished", 
-          "SubmissionCreated", 
-          "DealRoomOpened", 
-          "InterviewScheduled", 
-          "PlacementCompleted",
-          "REQUIREMENT_CREATED",
-          "REQUIREMENT_UPDATED",
-          "CANDIDATE_CREATED",
-          "CANDIDATE_UPLOADED"
-        ];
+        const defaultEvents = ["OPPORTUNITY_WON", "PLACEMENT_CLOSED", "CandidateUploaded", "JobPublished", "SubmissionCreated", "DealRoomOpened", "InterviewScheduled", "PlacementCompleted"];
         
         try {
           for (const type of defaultEvents) {

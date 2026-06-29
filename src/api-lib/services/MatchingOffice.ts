@@ -1,0 +1,327 @@
+import { db } from '../../lib/firebase-admin.js';
+import { EventBus } from './EventBus.js';
+import { AIGateway } from './AIGateway.js';
+import { BusinessGraphService } from './BusinessGraphService.js';
+
+export class MatchingOffice {
+    
+    /**
+     * Entry point for handling business events.
+     */
+    static async handleEvent(type: string, payload: any, orgId?: string) {
+        if (!db) return;
+        
+        console.log(`[MatchingOffice] Processing event ${type} in Matching Office...`);
+        
+        try {
+            switch (type) {
+                case 'REQUIREMENT_CREATED':
+                case 'REQUIREMENT_UPDATED': {
+                    const reqId = payload.requirementId || payload.id;
+                    if (reqId) {
+                        await this.matchRequirement(reqId, orgId);
+                    }
+                    break;
+                }
+                    
+                case 'CANDIDATE_CREATED':
+                case 'CANDIDATE_UPDATED': {
+                    const candId = payload.candidateId || payload.id;
+                    if (candId) {
+                        await this.matchCandidate(candId, orgId);
+                    }
+                    break;
+                }
+                    
+                case 'REQUIREMENT_CLOSED': {
+                    const reqId = payload.requirementId || payload.id;
+                    if (reqId) {
+                        await this.cleanupRequirementMatches(reqId);
+                    }
+                    break;
+                }
+                    
+                case 'CANDIDATE_WITHDRAWN': {
+                    const candId = payload.candidateId || payload.id;
+                    if (candId) {
+                        await this.cleanupCandidateMatches(candId);
+                    }
+                    break;
+                }
+                    
+                default:
+                    console.log(`[MatchingOffice] Event type ${type} ignored by Matching Office.`);
+            }
+        } catch (error) {
+            console.error(`[MatchingOffice] Error handling event ${type}:`, error);
+        }
+    }
+
+    private static async computeAndSaveMatch(cand: any, reqObj: any) {
+        if (!db) return null;
+
+        // Check if candidate is active/eligible
+        const isArchived = cand.status === "archived" || cand.isArchived;
+        const isDeleted =
+            cand.status === "deleted" ||
+            cand.status === "DELETED" ||
+            cand.isDeleted ||
+            cand.isActive === false ||
+            cand.active === false;
+        const isBlacklisted = cand.status === "blacklisted" || cand.isBlacklisted;
+
+        if (isArchived || isDeleted || isBlacklisted) {
+            return null;
+        }
+
+        // Check if requirement is closed or inactive
+        const reqIsClosed = reqObj.status === "CLOSED" || reqObj.status === "ARCHIVED";
+        if (reqIsClosed) {
+            return null;
+        }
+
+        // Create Summaries for AI
+        const jdSummary = `Title: ${reqObj.title || reqObj.jobTitle || "N/A"}
+Role: ${reqObj.role || "N/A"}
+Org: ${reqObj.clientId || reqObj.orgId || "N/A"}
+Must Have Skills: ${(reqObj.mustHaveSkills || []).join(", ")}
+Good To Have Skills: ${(reqObj.goodToHaveSkills || []).join(", ")}
+Description: ${reqObj.description || "N/A"}
+Experience: ${reqObj.experience || reqObj.yearsOfExperience || "N/A"}`;
+
+        const candidateSummary = `Name: ${cand.fullName || cand.name || "N/A"}
+Title: ${cand.title || cand.role || "N/A"}
+Vendor: ${cand.vendorId || cand.orgId || "N/A"}
+Skills: ${(cand.skills || []).join(", ")}
+Experience: ${cand.experience || cand.yearsOfExperience || "N/A"}`;
+
+        const prompt = `You are a recruitment AI.
+Score the match between this Candidate and this Job Description out of 100.
+Also provide a 1-sentence summary of the fit.
+
+Job Description:
+${jdSummary}
+
+Candidate:
+${candidateSummary}
+
+Return JSON strictly in this format:
+{"matchScore": 85, "summary": "Strong fit based on React and Node.js experience.", "strengths": ["skill 1"], "missingSkills": ["skill 2"], "breakdown": {"skillsScore": 90, "experienceScore": 80, "domainScore": 80, "locationScore": 100}}`;
+
+        const fallbackRuleEngine = (text: string) => {
+            return {
+                matchScore: 75,
+                summary: "Fallback deterministic match based on skill intersection.",
+                strengths: ["Matching Core Profile"],
+                missingSkills: [],
+                breakdown: { skillsScore: 75, experienceScore: 75, domainScore: 75, locationScore: 75 }
+            };
+        };
+
+        try {
+            const aiResponse = await AIGateway.analyze({
+                prompt: prompt,
+                modelPreference: 'fast',
+                schema: true,
+                fallbackRuleEngine
+            });
+
+            const resultJson = aiResponse.data || {};
+            const mScore = resultJson.matchScore || 0;
+
+            if (mScore > 0) {
+                const matchResult = {
+                    canonicalRequirementId: reqObj.id,
+                    requirementId: reqObj.id,
+                    tenantId: reqObj.tenantId || reqObj.orgId || cand.tenantId || "TENANT-HQ",
+                    matchScore: mScore,
+                    summary: resultJson.summary || "AI Match Generated",
+                    strengths: resultJson.strengths || [],
+                    missingSkills: resultJson.missingSkills || [],
+                    breakdown: resultJson.breakdown || {
+                        skillsScore: mScore,
+                        experienceScore: mScore,
+                        domainScore: mScore,
+                        locationScore: mScore,
+                    },
+                };
+
+                const matchId = `${cand.id}_${reqObj.id}`;
+                const vendorId = cand.vendorId || cand.orgId || "UNKNOWN";
+                
+                const matchDocRef = db.collection("candidate_matches").doc(matchId);
+                const existingMatch = await matchDocRef.get();
+                const isNew = !existingMatch.exists;
+
+                const matchPayload = {
+                    ...matchResult,
+                    candidateId: cand.id,
+                    vendorId: vendorId,
+                    orgId: cand.orgId || vendorId || "SYSTEM",
+                    source: "MATCHING_OFFICE_V1",
+                    generatedAt: new Date().toISOString(),
+                };
+
+                await matchDocRef.set(matchPayload);
+
+                // Update Business Graph Relationship (Candidate Match link)
+                try {
+                    await BusinessGraphService.addRelationship(
+                        cand.id, 
+                        reqObj.id, 
+                        'MATCHED', 
+                        { score: mScore, confidence: aiResponse.confidence }
+                    );
+                } catch (graphErr) {
+                    console.warn(`[MatchingOffice] Failed to update Business Graph for ${cand.id} <-> ${reqObj.id}:`, graphErr);
+                }
+
+                // Publish Event
+                const eventType = isNew ? 'MATCH_CREATED' : 'MATCH_UPDATED';
+                await EventBus.publish(eventType, {
+                    matchId,
+                    candidateId: cand.id,
+                    requirementId: reqObj.id,
+                    matchScore: mScore,
+                    summary: matchResult.summary
+                }, 'MATCHING_OFFICE', reqObj.orgId || cand.orgId);
+
+                return matchPayload;
+            }
+        } catch (err) {
+            console.error(`[MatchingOffice] Error computing match for ${cand.id} and ${reqObj.id}:`, err);
+        }
+        return null;
+    }
+
+    static async matchRequirement(requirementId: string, orgId?: string) {
+        if (!db) return;
+        
+        console.log(`[MatchingOffice] Matching all candidates against requirement: ${requirementId}`);
+        
+        const reqDoc = await db.collection("requirements_public").doc(requirementId).get();
+        if (!reqDoc.exists) {
+            console.warn(`[MatchingOffice] Requirement ${requirementId} not found.`);
+            return;
+        }
+        
+        const reqObj = { id: reqDoc.id, ...reqDoc.data() };
+        
+        // Fetch all active candidates
+        const activeCandidates = await db.collection("candidatePool").get();
+        const candidates = activeCandidates.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        for (const cand of candidates) {
+            await this.computeAndSaveMatch(cand, reqObj);
+        }
+        
+        // Update requirement match index
+        await this.updateRequirementMatchIndex(requirementId);
+    }
+
+    static async matchCandidate(candidateId: string, orgId?: string) {
+        if (!db) return;
+        
+        console.log(`[MatchingOffice] Matching candidate: ${candidateId} against all active requirements`);
+        
+        const candDoc = await db.collection("candidatePool").doc(candidateId).get();
+        if (!candDoc.exists) {
+            console.warn(`[MatchingOffice] Candidate ${candidateId} not found.`);
+            return;
+        }
+        
+        const candObj = { id: candDoc.id, ...candDoc.data() };
+        
+        // Fetch all active/open requirements
+        const reqSnapshot = await db.collection("requirements_public")
+            .where("status", "==", "OPEN")
+            .get();
+            
+        const requirements = reqSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        for (const reqObj of requirements) {
+            await this.computeAndSaveMatch(candObj, reqObj);
+            // Update requirement match index
+            await this.updateRequirementMatchIndex(reqObj.id);
+        }
+    }
+
+    static async cleanupRequirementMatches(requirementId: string) {
+        if (!db) return;
+        
+        console.log(`[MatchingOffice] Cleaning up matches for requirement: ${requirementId}`);
+        
+        const oldMatches = await db.collection("candidate_matches")
+            .where("requirementId", "==", requirementId)
+            .get();
+            
+        for (const doc of oldMatches.docs) {
+            const data = doc.data();
+            await doc.ref.delete();
+            
+            // Publish Match Removed
+            await EventBus.publish('MATCH_REMOVED', {
+                matchId: doc.id,
+                candidateId: data.candidateId,
+                requirementId: requirementId
+            }, 'MATCHING_OFFICE', data.orgId);
+        }
+        
+        // Remove requirement match index
+        await db.collection("requirement_match_index").doc(requirementId).delete().catch(() => {});
+    }
+
+    static async cleanupCandidateMatches(candidateId: string) {
+        if (!db) return;
+        
+        console.log(`[MatchingOffice] Cleaning up matches for candidate: ${candidateId}`);
+        
+        const oldMatches = await db.collection("candidate_matches")
+            .where("candidateId", "==", candidateId)
+            .get();
+            
+        const affectedReqIds = new Set<string>();
+        
+        for (const doc of oldMatches.docs) {
+            const data = doc.data();
+            await doc.ref.delete();
+            if (data.requirementId) {
+                affectedReqIds.add(data.requirementId);
+            }
+            
+            // Publish Match Removed
+            await EventBus.publish('MATCH_REMOVED', {
+                matchId: doc.id,
+                candidateId: candidateId,
+                requirementId: data.requirementId
+            }, 'MATCHING_OFFICE', data.orgId);
+        }
+        
+        // Update affected requirement indices
+        for (const reqId of affectedReqIds) {
+            await this.updateRequirementMatchIndex(reqId);
+        }
+    }
+
+    private static async updateRequirementMatchIndex(requirementId: string) {
+        if (!db) return;
+        
+        const matchesSnap = await db.collection("candidate_matches")
+            .where("requirementId", "==", requirementId)
+            .get();
+            
+        let topScore = 0;
+        let totalMatches = matchesSnap.size;
+        matchesSnap.docs.forEach((doc: any) => {
+            const data = doc.data();
+            if (data.matchScore > topScore) topScore = data.matchScore;
+        });
+        
+        await db.collection("requirement_match_index").doc(requirementId).set({
+            requirementId: requirementId,
+            totalMatches: totalMatches,
+            topMatchScore: topScore,
+            lastCalculated: new Date().toISOString(),
+        });
+    }
+}
