@@ -34,7 +34,7 @@ import {
   CheckSquare,
   AlertCircle
 } from "lucide-react";
-import { collection, query, limit, getDocs } from "firebase/firestore";
+import { collection, query, limit, getDocs, doc, onSnapshot, orderBy } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 
@@ -332,6 +332,76 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     { time: '09:37:00', type: 'Runtime', text: 'Active queue depth decreased from 28 to 23 items.', trace: 'TR-908' }
   ]);
 
+  // Syncing status indicator
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [dbState, setDbState] = useState<any>(null);
+
+  // Firestore real-time snapshot listeners
+  useEffect(() => {
+    if (!db) return;
+
+    // Listen to workforce master states
+    const unsubState = onSnapshot(
+      doc(db, "system_runtime", "state"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setDbState(data);
+          
+          // Propagate statuses to local states
+          const isLive = ["LIVE", "STARTING", "BOOTSTRAPPING", "RECOVERING", "PROCESSING"].includes(data.status);
+          setWorkforceRunning(isLive);
+          if (data.autopilotMode) {
+            setAutopilotMode(data.autopilotMode);
+          }
+          if (data.offices && Array.isArray(data.offices)) {
+            setOffices(data.offices);
+          }
+          if (data.queueBreakdown) {
+            setQueueBreakdown(data.queueBreakdown);
+          }
+          if (data.workerUtilization) {
+            setWorkerUtilization(data.workerUtilization);
+          }
+          if (data.schedulers && Array.isArray(data.schedulers)) {
+            setSchedulers(data.schedulers);
+          }
+        }
+      },
+      (err) => console.warn("[AutonomousOperations] State snapshot error:", err)
+    );
+
+    // Listen to logging channel
+    const logsQuery = query(
+      collection(db, "system_logs"),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+    const unsubLogs = onSnapshot(
+      logsQuery,
+      (snapshot) => {
+        const parsed = snapshot.docs.map(d => {
+          const item = d.data();
+          return {
+            time: item.time || new Date(item.timestamp).toLocaleTimeString(),
+            type: item.type || "System",
+            text: item.text || "",
+            trace: item.trace || "TR-DB"
+          };
+        });
+        if (parsed.length > 0) {
+          setTerminalLogs(parsed.reverse());
+        }
+      },
+      (err) => console.warn("[AutonomousOperations] Logs snapshot error:", err)
+    );
+
+    return () => {
+      unsubState();
+      unsubLogs();
+    };
+  }, [db]);
+
   // Filter checkboxes for the Event Log Terminal
   const [logFilters, setLogFilters] = useState<Record<string, boolean>>({
     'Event Bus': true,
@@ -420,37 +490,51 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   }, [workforceRunning]);
 
   // Master switch execution with Safe Execution Mode pre-flight check validation
-  const triggerStartWorkforce = () => {
+  const triggerStartWorkforce = async () => {
     // Perform automated checks
     setShowPreflightModal(true);
     setPreflightLogs([]);
+    setIsSyncing(true);
     
     const checks = [
-      { name: "Firestore Reachability Check", pass: true, delay: 400 },
-      { name: "Event Bus Routing Verification", pass: !eventBusStopped, delay: 800 },
-      { name: "MailOS OAuth Link Verification", pass: !mailosPaused, delay: 1200 },
-      { name: "Business Graph Referential Constraint Scan", pass: true, delay: 1600 },
-      { name: "Inbound Queue Consistency Scan", pass: true, delay: 2000 },
-      { name: "Vibe Coding Security Spec Certification", pass: true, delay: 2400 },
-      { name: "AI Core Gemini Model Connectivity", pass: !geminiDisabled, delay: 2800 }
+      { name: "Firestore Reachability Check", pass: true, delay: 300 },
+      { name: "Event Bus Routing Verification", pass: !eventBusStopped, delay: 600 },
+      { name: "MailOS OAuth Link Verification", pass: !mailosPaused, delay: 900 },
+      { name: "Business Graph Referential Constraint Scan", pass: true, delay: 1200 },
+      { name: "Inbound Queue Consistency Scan", pass: true, delay: 1500 },
+      { name: "Vibe Coding Security Spec Certification", pass: true, delay: 1800 },
+      { name: "AI Core Gemini Model Connectivity", pass: !geminiDisabled, delay: 2100 }
     ];
 
-    let currentLogIndex = 0;
-    
     const runCheck = (index: number) => {
       if (index >= checks.length) {
         // Evaluate all preflight passes
         const allPass = !eventBusStopped && !mailosPaused && !geminiDisabled;
         setPreflightPass(allPass);
         if (allPass) {
-          setTimeout(() => {
-            setWorkforceRunning(true);
-            setOffices(prev => prev.map(o => ({ ...o, status: 'RUNNING', lastHeartbeatSec: 0 })));
-            setShowPreflightModal(false);
-            addLog("System", "Safe Execution Mode: workforce started successfully after 7/7 preflight checks passed.", "TR-SAFE");
-          }, 600);
+          // Fire API request
+          fetch("/api/ops/runtime/start", { method: "POST" })
+            .then(res => res.json())
+            .then(result => {
+              if (result.success) {
+                setTimeout(() => {
+                  setShowPreflightModal(false);
+                  setIsSyncing(false);
+                  addLog("System", "Safe Execution Mode: workforce starting sequence triggered successfully.", "TR-SAFE");
+                }, 600);
+              } else {
+                setPreflightPass(false);
+                setPreflightLogs(prev => [...prev, `✗ Start operation failed on backend: ${result.error || 'Unknown error'}`]);
+                setIsSyncing(false);
+              }
+            })
+            .catch(err => {
+              setPreflightPass(false);
+              setPreflightLogs(prev => [...prev, `✗ Network dispatch error: ${err.message}`]);
+              setIsSyncing(false);
+            });
         } else {
-          // Failure
+          setIsSyncing(false);
           addLog("Runtime", "Safe Execution Mode BLOCKED: PREFLIGHT INTEGRITY CHECKS FAILED.", "TR-BLOCK");
         }
         return;
@@ -469,15 +553,55 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     runCheck(0);
   };
 
-  const toggleWorkforce = () => {
+  const toggleWorkforce = async () => {
     if (workforceRunning) {
-      // Halted State
-      setWorkforceRunning(false);
-      setOffices(prev => prev.map(o => ({ ...o, status: 'STOPPED' })));
-      addLog("Runtime", "EMERGENCY HALT: Suspended all background scheduler loops and active offices.", "TR-HALT");
+      setIsSyncing(true);
+      try {
+        const response = await fetch("/api/ops/runtime/stop", { method: "POST" });
+        const result = await response.json();
+        if (result.success) {
+          setWorkforceRunning(false);
+          setOffices(prev => prev.map(o => ({ ...o, status: 'STOPPED' })));
+          addLog("Runtime", "EMERGENCY HALT: Triggered shutdown sequence on operations cluster.", "TR-HALT");
+        }
+      } catch (err: any) {
+        console.error("Stop failed", err);
+        addLog("Errors", `Failed stopping workforce: ${err.message}`, "TR-ERR");
+      } finally {
+        setIsSyncing(false);
+      }
     } else {
-      // Start with Pre-Flight checks
       triggerStartWorkforce();
+    }
+  };
+
+  const handlePauseWorkforce = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/ops/runtime/pause", { method: "POST" });
+      const result = await response.json();
+      if (result.success) {
+        addLog("Runtime", "HQ manual override: operations suspended on active offices.", "TR-PAUSE");
+      }
+    } catch (err: any) {
+      console.error("Pause failed", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleResumeWorkforce = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/ops/runtime/resume", { method: "POST" });
+      const result = await response.json();
+      if (result.success) {
+        addLog("Runtime", "HQ manual override: resuming workforce from suspended state.", "TR-RESUME");
+      }
+    } catch (err: any) {
+      console.error("Resume failed", err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -705,8 +829,14 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                   {/* Master Status & Toggle */}
                   <div className={cn(
                     "p-6 rounded-2xl border flex flex-col justify-between transition-all shadow-sm",
-                    workforceRunning 
+                    dbState?.status === "LIVE" || dbState?.status === "PROCESSING"
                       ? "bg-emerald-50/40 border-emerald-200" 
+                      : dbState?.status === "PAUSED"
+                      ? "bg-amber-50/40 border-amber-200"
+                      : ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)
+                      ? "bg-indigo-50/40 border-indigo-200"
+                      : dbState?.status === "FAILED"
+                      ? "bg-rose-100 border-rose-300"
                       : "bg-rose-50/40 border-rose-200"
                   )}>
                     <div>
@@ -714,10 +844,27 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">Master State</span>
                         <span className={cn(
                           "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5",
-                          workforceRunning ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                          dbState?.status === "LIVE" || dbState?.status === "PROCESSING"
+                            ? "bg-emerald-100 text-emerald-800" 
+                            : dbState?.status === "PAUSED"
+                            ? "bg-amber-100 text-amber-800"
+                            : ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)
+                            ? "bg-indigo-100 text-indigo-800 animate-pulse"
+                            : dbState?.status === "FAILED"
+                            ? "bg-rose-200 text-rose-800"
+                            : "bg-rose-100 text-rose-800"
                         )}>
-                          <span className={cn("w-1.5 h-1.5 rounded-full", workforceRunning ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
-                          {workforceRunning ? "ACTIVE" : "HALTED"}
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full", 
+                            dbState?.status === "LIVE" || dbState?.status === "PROCESSING"
+                              ? "bg-emerald-500 animate-pulse" 
+                              : dbState?.status === "PAUSED"
+                              ? "bg-amber-500 animate-pulse"
+                              : ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)
+                              ? "bg-indigo-500 animate-pulse"
+                              : "bg-rose-500"
+                          )} />
+                          {dbState?.status || "OFFLINE"}
                         </span>
                       </div>
                       
@@ -725,35 +872,78 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         Enterprise Runtime OS
                       </h3>
                       <p className="text-xs text-slate-500 mt-2">
-                        Halting the workforce instantly suspends all background queues, scheduled events, and cron matching jobs. Starting performs Safe preflight integrity checks.
+                        {dbState?.status === "STARTING" && "Running preflight integrity checks on active databases and event sub-routines..."}
+                        {dbState?.status === "BOOTSTRAPPING" && "Registering AI office configurations, capabilities, and local event brokers..."}
+                        {dbState?.status === "RECOVERING" && "Replaying active outbox transactions and checking dead-letter states..."}
+                        {dbState?.status === "LIVE" && "All AI Offices active and listening. Dispatch loops running continuously."}
+                        {dbState?.status === "PAUSED" && "Workforce operations suspended. Schedulers paused but session variables preserved."}
+                        {dbState?.status === "OFFLINE" && "Workforce is stopped. All offices offline. Click start to run preflight check."}
+                        {!dbState?.status && "Halting the workforce instantly suspends all background queues, scheduled events, and cron matching jobs."}
                       </p>
                     </div>
 
-                    <div className="mt-6 flex gap-3">
-                      <button 
-                        onClick={toggleWorkforce}
-                        className={cn(
-                          "flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white shadow transition-all flex items-center justify-center gap-2",
-                          workforceRunning 
-                            ? "bg-rose-600 hover:bg-rose-700 shadow-rose-100" 
-                            : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100"
-                        )}
-                      >
-                        <Power size={14} />
-                        <span>{workforceRunning ? "Stop Workforce" : "Start Workforce"}</span>
-                      </button>
+                    <div className="mt-6 space-y-3">
+                      <div className="flex gap-2">
+                        <button 
+                          disabled={isSyncing || ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)}
+                          onClick={toggleWorkforce}
+                          className={cn(
+                            "flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-white shadow transition-all flex items-center justify-center gap-1.5",
+                            workforceRunning 
+                              ? "bg-rose-600 hover:bg-rose-700 shadow-rose-100" 
+                              : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100"
+                          )}
+                        >
+                          <Power size={13} />
+                          <span>
+                            {isSyncing 
+                              ? "Syncing..." 
+                              : ["STARTING", "BOOTSTRAPPING", "RECOVERING"].includes(dbState?.status)
+                              ? "Starting..."
+                              : dbState?.status === "STOPPING"
+                              ? "Stopping..."
+                              : workforceRunning 
+                              ? "Stop Workforce" 
+                              : "Start Workforce"}
+                          </span>
+                        </button>
 
-                      <button 
-                        disabled={!workforceRunning}
-                        onClick={() => {
-                          addLog("Runtime", "HQ triggered single database-wide queue execution run.", "TR-RUN-ONCE");
-                        }}
-                        className="px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
-                        title="Process Queue Once"
-                      >
-                        <RotateCw size={14} />
-                        <span>Run Once</span>
-                      </button>
+                        <button 
+                          disabled={!workforceRunning || isSyncing}
+                          onClick={() => {
+                            addLog("Runtime", "HQ triggered single database-wide queue execution run.", "TR-RUN-ONCE");
+                          }}
+                          className="px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                          title="Process Queue Once"
+                        >
+                          <RotateCw size={13} />
+                          <span>Run Once</span>
+                        </button>
+                      </div>
+
+                      {workforceRunning && (
+                        <div className="flex gap-2">
+                          {dbState?.status === "PAUSED" ? (
+                            <button
+                              disabled={isSyncing}
+                              onClick={handleResumeWorkforce}
+                              className="flex-1 py-2 px-3 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
+                            >
+                              <Play size={12} />
+                              Resume Workforce
+                            </button>
+                          ) : (
+                            <button
+                              disabled={isSyncing}
+                              onClick={handlePauseWorkforce}
+                              className="flex-1 py-2 px-3 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
+                            >
+                              <Pause size={12} />
+                              Pause Workforce
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

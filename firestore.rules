@@ -1282,6 +1282,14 @@ service cloud.firestore {
     // SYSTEM EVENTS & EVENT BUS
     // =====================================================
 
+    match /system_runtime/{docId} {
+      allow read, write: if isVerified();
+    }
+
+    match /system_logs/{docId} {
+      allow read, write: if isVerified();
+    }
+
     match /system_events/{eventId} {
       allow read: if isVerified();
       allow create: if isVerified();

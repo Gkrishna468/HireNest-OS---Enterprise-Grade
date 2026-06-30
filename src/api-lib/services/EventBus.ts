@@ -83,6 +83,28 @@ export class EventBus {
         // 1. Record the event in the events collection
         await db.collection('business_events').doc(event.eventId).set(event);
 
+        // Record to system_runtime if running
+        try {
+            const runtimeDoc = await db.collection('system_runtime').doc('state').get();
+            if (runtimeDoc.exists && runtimeDoc.data()?.status === 'LIVE') {
+                const timestamp = new Date();
+                await db.collection('system_logs').add({
+                    timestamp: timestamp.toISOString(),
+                    time: timestamp.toLocaleTimeString(),
+                    type: 'Event Bus',
+                    text: `Published event: ${type} (ID: ${event.eventId})`,
+                    trace: event.traceId || event.eventId || 'TR-EVENT'
+                });
+
+                if (type === 'REQUIREMENT_CREATED') {
+                    const { triggerAutonomousSequence } = await import('../handlers/ops.js');
+                    triggerAutonomousSequence(event).catch(e => console.error('[EventBus] Autonomous sequence error', e));
+                }
+            }
+        } catch (err) {
+            console.warn('[EventBus] Failed tracking runtime logs', err);
+        }
+
         const { FeatureFlags } = await import('../os/kernel/FeatureFlags.js');
         if (FeatureFlags.OUTBOX_PATTERN_ENABLED) {
             // Write to Outbox instead of direct queueing
