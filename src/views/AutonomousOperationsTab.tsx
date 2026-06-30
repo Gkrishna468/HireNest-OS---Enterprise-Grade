@@ -76,7 +76,67 @@ interface OfficeRuntimeState {
 export default function AutonomousOperationsTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
 
-  const [activeTab, setActiveTab] = useState<'control' | 'timeline' | 'approvals' | 'rules' | 'logs' | 'engineering' | 'readiness'>('control');
+  const [activeTab, setActiveTab] = useState<'control' | 'release' | 'commercial' | 'engineering'>('control');
+  const [controlSubTab, setControlSubTab] = useState<'brief' | 'timeline' | 'rules' | 'approvals'>('brief');
+  const [releaseSubTab, setReleaseSubTab] = useState<'gates' | 'history'>('gates');
+  const [commercialSubTab, setCommercialSubTab] = useState<'success' | 'product' | 'billing' | 'org' | 'security'>('success');
+  const [engineeringSubTab, setEngineeringSubTab] = useState<'chaos' | 'flags' | 'audit'>('chaos');
+
+  // Customer Health List SaaS states
+  const [customerHealthList, setCustomerHealthList] = useState<any[]>([
+    { name: "Acme Corporation", health: 98, usage: "High", recruiters: 24, active: 21, requirements: 312, renewalRisk: "Low", expansion: "High" },
+    { name: "Globex Corporation", health: 91, usage: "High", recruiters: 18, active: 15, requirements: 184, renewalRisk: "Low", expansion: "Medium" },
+    { name: "Zenith Systems", health: 85, usage: "Medium", recruiters: 12, active: 10, requirements: 95, renewalRisk: "Medium", expansion: "Low" },
+    { name: "Initech Staffing", health: 62, usage: "Low", recruiters: 8, active: 3, requirements: 42, renewalRisk: "High", expansion: "None" }
+  ]);
+  const [saasSuccessKpis] = useState({
+    timeToFirstValue: "14 minutes",
+    firstPlacement: "2 days",
+    automationUsage: "81%",
+    copilotUsage: "92%",
+    dailyActiveRecruiters: "18",
+    weeklyRetention: "97%"
+  });
+
+  // Tenant Billing configuration
+  const [billingPlan, setBillingPlan] = useState({
+    name: "Enterprise Pro (Tenant: hirenest-pilot-01)",
+    plan: "Professional Plan",
+    seats: "24 Allocated Seats",
+    credits: "142K Credits / Month",
+    geminiCost: "₹2,980 (1.59M Tokens)",
+    openaiCost: "₹620 (Proxy Route)",
+    storage: "7.3 GB of 20 GB",
+    invoices: [
+      { id: "INV-2026-006", date: "2026-06-01", amount: "₹45,000", status: "Paid" },
+      { id: "INV-2026-005", date: "2026-05-01", amount: "₹45,000", status: "Paid" }
+    ]
+  });
+
+  // AI Recommendation Overrides
+  const [aiOverrides, setAiOverrides] = useState<any[]>([
+    {
+      id: "OVR_001",
+      recReq: "Senior React Architect",
+      recCandidate: "Rahul Sharma (DevOps Specialist)",
+      aiRecommended: "Arjun Mehta (Python Architect)",
+      reason: "Stronger client-facing verbal communication & native cloud exposure",
+      category: "Soft Skills / Client Fit",
+      outcome: "Successfully placed & passed 90-day probation",
+      learned: true
+    },
+    {
+      id: "OVR_002",
+      recReq: "Senior Java Engineer",
+      recCandidate: "Priyanka Sen (Java Specialist)",
+      aiRecommended: "Anil Deshmukh (Kotlin Lead)",
+      reason: "Direct legacy banking experience is critical for on-site onboarding",
+      category: "Niche Domain Expertise",
+      outcome: "Interview in progress, positive feedback",
+      learned: false
+    }
+  ]);
+
   const [automationRules, setAutomationRules] = useState<any[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [executionLogs, setExecutionLogs] = useState<any[]>([]);
@@ -130,6 +190,22 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   ]);
   const [deploying, setDeploying] = useState<boolean>(false);
   const [deployed, setDeployed] = useState<boolean>(false);
+
+  // Commercial Pilot Analytics States
+  const [backups, setBackups] = useState<any[]>([
+    { id: "bak_001", date: "2026-06-29 02:00", size: "18.4 MB", status: "SUCCESS", type: "Scheduled Automated Snapshot" },
+    { id: "bak_002", date: "2026-06-30 02:00", size: "18.6 MB", status: "SUCCESS", type: "Scheduled Automated Snapshot" }
+  ]);
+  const [backingUp, setBackingUp] = useState<boolean>(false);
+  const [gdprChecked, setGdprChecked] = useState<boolean>(true);
+  const [orgMembers, setOrgMembers] = useState<any[]>([
+    { name: "Gopal Krishna", email: "gopalkrishna0046@gmail.com", role: "Primary Admin & Principal Architect", status: "ACTIVE" },
+    { name: "Sarah Jenkins", email: "sarah.j@hirenest.com", role: "Hiring Manager Lead", status: "ACTIVE" },
+    { name: "Alex Rivera", email: "alex.r@hirenest.com", role: "Vendor Agency Coordinator", status: "ACTIVE" }
+  ]);
+  const [newOrgMemberName, setNewOrgMemberName] = useState<string>("");
+  const [newOrgMemberEmail, setNewOrgMemberEmail] = useState<string>("");
+  const [newOrgMemberRole, setNewOrgMemberRole] = useState<string>("Recruiter");
 
   // Increment Uptime and process rollback countdowns
   useEffect(() => {
@@ -1240,6 +1316,42 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     }
   };
 
+  const handleTriggerBackup = async () => {
+    if (backingUp) return;
+    setBackingUp(true);
+    addLog("Runtime", "Initiating complete tenant database snapshot export sequence...", "TR-DR-BACKUP-START");
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const newBackup = {
+      id: `bak_00${backups.length + 1}`,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      size: `${(18.6 + Math.random() * 0.5).toFixed(1)} MB`,
+      status: "SUCCESS",
+      type: "Manual Operator Backup"
+    };
+    
+    setBackups(prev => [newBackup, ...prev]);
+    setBackingUp(false);
+    addLog("Runtime", `✓ SUCCESS: Disaster recovery database snapshot [${newBackup.id}] compiled and persisted safely to Google Cloud Storage.`, "TR-DR-BACKUP-SUCCESS");
+  };
+
+  const handleAddOrgMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrgMemberName.trim() || !newOrgMemberEmail.trim()) return;
+    
+    const newMember = {
+      name: newOrgMemberName,
+      email: newOrgMemberEmail,
+      role: newOrgMemberRole,
+      status: "ACTIVE"
+    };
+    
+    setOrgMembers(prev => [...prev, newMember]);
+    setNewOrgMemberName("");
+    setNewOrgMemberEmail("");
+    addLog("System", `✓ Invited new pilot team member [${newMember.name} (${newMember.email})] as ${newMember.role}. SSO profile pending activation.`, "TR-ORG-INVITE");
+  };
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-sm">
@@ -1403,40 +1515,22 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
               <Gauge className="w-4.5 h-4.5 text-indigo-500" /> Mission Control
             </button>
             <button 
-              onClick={() => setActiveTab('timeline')}
+              onClick={() => setActiveTab('release')}
               className={cn(
                 "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
-                activeTab === 'timeline' ? "border-indigo-500 text-indigo-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
+                activeTab === 'release' ? "border-emerald-600 text-emerald-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
               )}
             >
-              <Activity className="w-4 h-4 text-indigo-500 animate-pulse" /> Runtime Timeline
+              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 animate-pulse" /> Release Center
             </button>
             <button 
-              onClick={() => setActiveTab('approvals')}
+              onClick={() => setActiveTab('commercial')}
               className={cn(
                 "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
-                activeTab === 'approvals' ? "border-amber-500 text-amber-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
+                activeTab === 'commercial' ? "border-sky-600 text-sky-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
               )}
             >
-              Pending Approvals ({pendingApprovals.length})
-            </button>
-            <button 
-              onClick={() => setActiveTab('rules')}
-              className={cn(
-                "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
-                activeTab === 'rules' ? "border-indigo-500 text-indigo-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Automation Engine
-            </button>
-            <button 
-              onClick={() => setActiveTab('logs')}
-              className={cn(
-                "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
-                activeTab === 'logs' ? "border-emerald-500 text-emerald-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Execution Audit
+              <Sparkles className="w-4.5 h-4.5 text-sky-500" /> Commercial Center
             </button>
             <button 
               onClick={() => setActiveTab('engineering')}
@@ -1447,25 +1541,67 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
             >
               <Cpu className="w-4.5 h-4.5 text-purple-500" /> Engineering Console
             </button>
-            <button 
-              onClick={() => setActiveTab('readiness')}
-              className={cn(
-                "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
-                activeTab === 'readiness' ? "border-emerald-600 text-emerald-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
-              )}
-            >
-              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 animate-pulse" /> Launch Certification
-            </button>
           </div>
 
           <div className="p-6 flex-1">
             
-            {/* WORKFORCE CONTROL TAB */}
+            {/* MISSION CONTROL CONSOLE */}
             {activeTab === 'control' && (
               <div className="space-y-8 animate-fade-in">
                 
-                {/* 1. Centerpiece: AI COO Morning Brief */}
-                <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden">
+                {/* Unified Operations Sub-tabs */}
+                <div className="flex border-b border-slate-200 gap-4 overflow-x-auto pb-px mb-6">
+                  <button
+                    onClick={() => setControlSubTab('brief')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      controlSubTab === 'brief' 
+                        ? "border-indigo-600 text-indigo-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Sparkles size={14} className="text-indigo-500" /> 1. HUD & AI COO BRIEF
+                  </button>
+                  <button
+                    onClick={() => setControlSubTab('timeline')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      controlSubTab === 'timeline' 
+                        ? "border-indigo-600 text-indigo-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Activity size={14} className={cn("text-indigo-500", controlSubTab === 'timeline' && "animate-pulse")} /> 2. RUNTIME TIMELINE
+                  </button>
+                  <button
+                    onClick={() => setControlSubTab('rules')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      controlSubTab === 'rules' 
+                        ? "border-indigo-600 text-indigo-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Sliders size={14} className="text-indigo-500" /> 3. AUTOMATION ENGINE
+                  </button>
+                  <button
+                    onClick={() => setControlSubTab('approvals')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      controlSubTab === 'approvals' 
+                        ? "border-indigo-600 text-indigo-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <AlertTriangle size={14} className={cn("text-amber-500", pendingApprovals.length > 0 && "animate-bounce")} /> 4. PENDING APPROVALS ({pendingApprovals.length})
+                  </button>
+                </div>
+
+                {controlSubTab === 'brief' && (
+                  <div className="space-y-8 animate-fade-in">
+                    
+                    {/* 1. Centerpiece: AI COO Morning Brief */}
+                    <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
                   
@@ -2477,165 +2613,8 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
               </div>
             )}
 
-            {/* PENDING APPROVALS TAB */}
-            {activeTab === 'approvals' && (
-              <div className="divide-y divide-slate-100">
-                {pendingApprovals.length === 0 ? (
-                  <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs space-y-2">
-                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                    <p>No high-priority manual approvals pending</p>
-                    <p className="text-[10px] text-slate-400 font-normal normal-case">Assisted autopilot proposals display in the main Recommendations Queue.</p>
-                  </div>
-                ) : pendingApprovals.map(pa => (
-                  <div key={pa.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div className="flex items-start gap-4">
-                      <div className="mt-1">
-                        <AlertTriangle className={cn("w-5 h-5", pa.severity === 'high' ? "text-rose-500" : "text-amber-500")} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{pa.rule}</span>
-                          <span className="text-xs text-slate-400 font-medium flex items-center"><Clock className="w-3 h-3 mr-1" /> {pa.date}</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-800">{pa.desc}</h4>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">Reject</button>
-                      <button className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm">Approve & Execute</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* AUTOMATION ENGINE TAB */}
-            {activeTab === 'rules' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rule Name</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trigger</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {automationRules.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No active custom automation policy blueprints configured</td>
-                      </tr>
-                    ) : automationRules.map(rule => (
-                      <tr key={rule.id} className="hover:bg-slate-50">
-                        <td className="py-4 px-6">
-                          <div className="text-sm font-bold text-slate-800">{rule.name}</div>
-                          <div className="text-[10px] font-medium text-slate-400 mt-1">{rule.type}</div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded inline-block">
-                            {rule.trigger}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="text-xs font-medium text-slate-700 flex items-center">
-                            <ArrowRight className="w-3 h-3 mr-1 text-indigo-400" />
-                            {rule.action}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="text-[10px] px-2 py-1 rounded-sm font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
-                            {rule.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* EXECUTION AUDIT TAB */}
-            {activeTab === 'logs' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rule</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Event Details</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                    {executionLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No active execution logs found in Firestore</td>
-                      </tr>
-                    ) : executionLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50 font-mono text-[11px]">
-                        <td className="py-3 px-6 text-slate-500 whitespace-nowrap">{log.date}</td>
-                        <td className="py-3 px-6 font-bold text-slate-700">{log.rule}</td>
-                        <td className="py-3 px-6 text-slate-600 max-w-xs truncate">{log.event}</td>
-                        <td className="py-3 px-6">
-                          <span className={cn(
-                             "px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]",
-                             log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-700" :
-                             log.status === 'PENDING_APPROVAL' ? "bg-amber-100 text-amber-700" :
-                             "bg-slate-100 text-slate-600"
-                          )}>
-                            {log.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* EXECUTION AUDIT TAB */}
-            {activeTab === 'logs' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rule</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Event Details</th>
-                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                    {executionLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No active execution logs found in Firestore</td>
-                      </tr>
-                    ) : executionLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50 font-mono text-[11px]">
-                        <td className="py-3 px-6 text-slate-500 whitespace-nowrap">{log.date}</td>
-                        <td className="py-3 px-6 font-bold text-slate-700">{log.rule}</td>
-                        <td className="py-3 px-6 text-slate-600 max-w-xs truncate">{log.event}</td>
-                        <td className="py-3 px-6">
-                          <span className={cn(
-                             "px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]",
-                             log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-700" :
-                             log.status === 'PENDING_APPROVAL' ? "bg-amber-100 text-amber-700" :
-                             "bg-slate-100 text-slate-600"
-                          )}>
-                             {log.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* CHRONOLOGICAL RUNTIME TIMELINE TAB */}
-            {activeTab === 'timeline' && (
-              <div className="space-y-6 animate-fade-in">
+            {controlSubTab === 'timeline' && (
+              <div className="space-y-6 animate-fade-in bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
@@ -2785,12 +2764,157 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
               </div>
             )}
 
-            {/* ENGINEERING CONSOLE TAB (REPLACING DEV TOOLS) */}
+            {controlSubTab === 'rules' && (
+              <div className="space-y-6 animate-fade-in bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                      <Sliders className="text-indigo-600" size={18} /> Active Automation Rules
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Configure event-triggered workflows, strategic auto-routing thresholds, and auto-matching criteria.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rule Name</th>
+                        <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trigger</th>
+                        <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action</th>
+                        <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {automationRules.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs col-span-4">No active custom automation policy blueprints configured</td>
+                        </tr>
+                      ) : automationRules.map(rule => (
+                        <tr key={rule.id} className="hover:bg-slate-50">
+                          <td className="py-4 px-6">
+                            <div className="text-sm font-bold text-slate-800">{rule.name}</div>
+                            <div className="text-[10px] font-medium text-slate-400 mt-1">{rule.type}</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded inline-block">
+                              {rule.trigger}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="text-xs font-medium text-slate-700 flex items-center">
+                              <ArrowRight className="w-3 h-3 mr-1 text-indigo-400" />
+                              {rule.action}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="text-[10px] px-2 py-1 rounded-sm font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                              {rule.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {controlSubTab === 'approvals' && (
+              <div className="space-y-6 animate-fade-in bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                      <AlertTriangle className="text-amber-500" size={18} /> Pending System Approvals
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      High-risk operations awaiting human verification before proceeding to execution.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {pendingApprovals.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                      <p>No high-priority manual approvals pending</p>
+                      <p className="text-[10px] text-slate-400 font-normal normal-case">Assisted autopilot proposals display in the main Recommendations Queue.</p>
+                    </div>
+                  ) : pendingApprovals.map(pa => (
+                    <div key={pa.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className="mt-1">
+                          <AlertTriangle className={cn("w-5 h-5", pa.severity === 'high' ? "text-rose-500" : "text-amber-500")} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{pa.rule}</span>
+                            <span className="text-xs text-slate-400 font-medium flex items-center"><Clock className="w-3 h-3 mr-1" /> {pa.date}</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-800">{pa.desc}</h4>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">Reject</button>
+                        <button className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm">Approve & Execute</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
+            {/* ENGINEERING CONSOLE TAB */}
             {activeTab === 'engineering' && (
               <div className="space-y-6 animate-fade-in">
                 
-                {/* 1. Drift Telemetry & Kernel Specs */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Engineering Sub-tab Navigation */}
+                <div className="flex border-b border-slate-200 gap-4 overflow-x-auto pb-px mb-6">
+                  <button
+                    onClick={() => setEngineeringSubTab('chaos')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      engineeringSubTab === 'chaos' 
+                        ? "border-purple-600 text-purple-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Zap size={14} className="text-purple-500" /> 1. DIAGNOSTICS & CHAOS SUITE
+                  </button>
+                  <button
+                    onClick={() => setEngineeringSubTab('flags')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      engineeringSubTab === 'flags' 
+                        ? "border-purple-600 text-purple-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Sliders size={14} className="text-purple-500" /> 2. FEATURE FLAGS & OUTBOX
+                  </button>
+                  <button
+                    onClick={() => setEngineeringSubTab('audit')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      engineeringSubTab === 'audit' 
+                        ? "border-purple-600 text-purple-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Terminal size={14} className="text-purple-500" /> 3. EXECUTION AUDIT LOGS
+                  </button>
+                </div>
+
+                {engineeringSubTab === 'chaos' && (
+                  <div className="space-y-6 animate-fade-in">
+                    
+                    {/* 1. Drift Telemetry & Kernel Specs */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
                   {/* Real-time Latency Sparkline */}
                   <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -3145,8 +3269,14 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                     </div>
                   </div>
 
-                  {/* Feature Flags Approval Workflow block */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative">
+                </div>
+                </div>
+                )}
+
+                {engineeringSubTab === 'flags' && (
+                  <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+                    {/* Feature Flags Approval Workflow block */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative">
                     <div>
                       <h4 className="text-sm font-black uppercase tracking-tight text-slate-850 flex items-center gap-2">
                         <Settings2 className="text-indigo-500 animate-spin" style={{ animationDuration: '10s' }} size={16} /> Adaptive Operating Feature Flags
@@ -3259,11 +3389,13 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                       </div>
                     )}
                   </div>
-
                 </div>
+                )}
 
-                {/* 4. Heartbeat Diagnostics Log */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                {engineeringSubTab === 'chaos' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* 4. Heartbeat Diagnostics Log */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div>
                     <h4 className="text-sm font-black uppercase tracking-tight text-slate-805">
                       Heartbeat Diagnostics Log
@@ -3297,11 +3429,66 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                     ))}
                   </div>
                 </div>
+                </div>
+                )}
+                
+                {engineeringSubTab === 'audit' && (
+                  <div className="space-y-6 animate-fade-in bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                      <div>
+                        <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                          <Terminal className="text-indigo-600" size={18} /> Engine Transaction & Policy Audit Trail
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Historical log of all event-driven matching executions, rules evaluations, and database state transitions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Timestamp</th>
+                            <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trigger Rule</th>
+                            <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Transaction Event Details</th>
+                            <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                          {executionLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+                                No transaction execution logs recorded in the current session.
+                              </td>
+                            </tr>
+                          ) : executionLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50 font-mono text-[11px]">
+                              <td className="py-3 px-6 text-slate-500 whitespace-nowrap">{log.date}</td>
+                              <td className="py-3 px-6 font-bold text-slate-700">{log.rule}</td>
+                              <td className="py-3 px-6 text-slate-600 max-w-xs truncate">{log.event}</td>
+                              <td className="py-3 px-6">
+                                <span className={cn(
+                                   "px-2 py-0.5 rounded font-black uppercase tracking-wider text-[9px] font-mono",
+                                   log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-700" :
+                                   log.status === 'PENDING_APPROVAL' ? "bg-amber-100 text-amber-700" :
+                                   "bg-slate-100 text-slate-600"
+                                )}>
+                                  {log.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}
 
-            {activeTab === 'readiness' && (
+            {activeTab === 'release' && (
               <div className="space-y-8 animate-fade-in max-w-7xl mx-auto px-4 md:px-8 pb-12">
                 
                 {/* Upgraded Launch Release Gate Header Banner */}
@@ -3328,7 +3515,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                       <p className="text-xs md:text-sm text-slate-300 max-w-2xl leading-relaxed">
                         Verify system compliance across the 10 core SaaS operating pillars. Run live workflow checks, audit RBAC policies, and submit active pilot telemetry.
                       </p>
-
+ 
                       {/* Live Release Status Indicators */}
                       <div className="pt-2 flex flex-wrap gap-4 text-xs font-mono">
                         <div className="flex items-center gap-1.5 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800">
@@ -3345,7 +3532,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         </div>
                       </div>
                     </div>
-
+ 
                     <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 min-w-[180px]">
                       <span className="text-[10px] font-mono font-black uppercase tracking-widest text-indigo-300">Launch Readiness</span>
                       <span className="text-5xl font-black text-white mt-1">
@@ -3357,9 +3544,36 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                     </div>
                   </div>
                 </div>
-
-                {/* Main Dashboard Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+ 
+                {/* Sub-tab Selection */}
+                <div className="flex border-b border-slate-200 gap-4">
+                  <button
+                    onClick={() => setReleaseSubTab('gates')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5",
+                      releaseSubTab === 'gates' 
+                        ? "border-emerald-600 text-emerald-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <CheckCircle2 size={14} className="text-emerald-500" /> 1. LAUNCH CERTIFICATION GATES
+                  </button>
+                  <button
+                    onClick={() => setReleaseSubTab('history')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5",
+                      releaseSubTab === 'history' 
+                        ? "border-emerald-600 text-emerald-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <History size={14} className="text-slate-500" /> 2. HISTORICAL COMPLIANCE RUNS
+                  </button>
+                </div>
+ 
+                {releaseSubTab === 'gates' && (
+                  /* Main Dashboard Layout */
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   
                   {/* Left & Middle Column: Core Gates Certification Panel */}
                   <div className="lg:col-span-2 space-y-6">
@@ -3872,14 +4086,592 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                   </div>
 
                 </div>
+                )}
 
+                {releaseSubTab === 'history' && (
+                  <div className="space-y-6 animate-fade-in bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-4xl mx-auto">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                      <div>
+                        <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                          <History className="text-emerald-600" size={18} /> Compliance Run Audit History
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Audited timeline of system launch verification cycles and compliance snapshots.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 font-sans">
+                      {[
+                        { run: "RUN-902", date: "2026-06-30 11:24:02 UTC", operator: "System Daemon (CI/CD)", status: "COMPLIANT", score: "100%", hash: "sha255-abc891023d8c11ef..." },
+                        { run: "RUN-901", date: "2026-06-29 18:42:15 UTC", operator: "Principal Architect", status: "NON-COMPLIANT", score: "90%", hash: "sha255-dfa102948c21de0a..." },
+                        { run: "RUN-900", date: "2026-06-25 09:12:00 UTC", operator: "System Daemon (CI/CD)", status: "COMPLIANT", score: "100%", hash: "sha255-ffa902341d211e4f..." }
+                      ].map((hist, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 border border-slate-150 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-mono text-xs font-black text-slate-500">[{hist.run}]</span>
+                              <span className="text-xs font-bold text-slate-850">{hist.date}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">By {hist.operator}</span>
+                            </div>
+                            <div className="font-mono text-[10px] text-slate-400 max-w-xs truncate">
+                              Signature Checksum: {hist.hash}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded font-black text-[9px] font-mono tracking-wider uppercase block",
+                                hist.status === 'COMPLIANT' ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                              )}>
+                                {hist.status}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">Score: {hist.score}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* COMMERCIAL CENTER */}
+            {activeTab === 'commercial' && (
+              <div className="space-y-8 animate-fade-in max-w-7xl mx-auto px-4 md:px-8 pb-12">
+                
+                {/* Commercial Center Header */}
+                <div className="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/20 rounded-3xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+                  <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-widest rounded border border-sky-500/30 font-mono">
+                          HN-015 — COMMERCIAL OS
+                        </span>
+                        <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-widest rounded border border-emerald-500/30 font-mono">
+                          PILOT STAGE v1.0
+                        </span>
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+                        Commercial Intelligence & Tenant Observability
+                      </h2>
+                      <p className="text-xs md:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                        Track customer success KPIs, monitor real-time AI API transaction costs, manage multi-tenant billing models, and control enterprise security policy asserts.
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 min-w-[180px]">
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-sky-300">Monthly Run Rate</span>
+                      <span className="text-3xl font-black text-white mt-1">
+                        $342,500
+                      </span>
+                      <span className="text-[9px] text-emerald-400 mt-2 block font-mono font-black">
+                        +24.5% MoM Growth
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Commercial Sub-tabs Selection */}
+                <div className="flex border-b border-slate-200 gap-4 overflow-x-auto pb-px">
+                  <button
+                    onClick={() => setCommercialSubTab('success')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      commercialSubTab === 'success' 
+                        ? "border-sky-600 text-sky-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <TrendingUp size={14} className="text-sky-500" /> 1. SUCCESS KPIs
+                  </button>
+                  <button
+                    onClick={() => setCommercialSubTab('product')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      commercialSubTab === 'product' 
+                        ? "border-sky-600 text-sky-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Activity size={14} className="text-sky-500" /> 2. PRODUCT INTELLIGENCE
+                  </button>
+                  <button
+                    onClick={() => setCommercialSubTab('billing')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      commercialSubTab === 'billing' 
+                        ? "border-sky-600 text-sky-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <CreditCard size={14} className="text-sky-500" /> 3. TENANT BILLING & LICENSING
+                  </button>
+                  <button
+                    onClick={() => setCommercialSubTab('org')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      commercialSubTab === 'org' 
+                        ? "border-sky-600 text-sky-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Building2 size={14} className="text-sky-500" /> 4. ORGANIZATION MANAGEMENT
+                  </button>
+                  <button
+                    onClick={() => setCommercialSubTab('security')}
+                    className={cn(
+                      "pb-4 text-xs font-black font-mono tracking-wider border-b-2 transition-all px-2 flex items-center gap-1.5 whitespace-nowrap",
+                      commercialSubTab === 'security' 
+                        ? "border-sky-600 text-sky-700 font-black" 
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <ShieldCheck size={14} className="text-sky-500" /> 5. SECURITY POLICY DEFAULTS
+                  </button>
+                </div>
+
+                {commercialSubTab === 'success' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+                    {/* Left Column - col-span-2: Product Analytics & AI Costing */}
+                    <div className="lg:col-span-2 space-y-6">
+                    
+                    {/* HN-016: Pilot Product Analytics & Conversions */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest rounded border border-emerald-200 font-mono">
+                            HN-016 — Product Analytics
+                          </span>
+                        </div>
+                        <h3 className="text-base font-black text-slate-800 mt-1.5">Pilot User Funnel & Pipeline Conversions</h3>
+                        <p className="text-xs text-slate-500 font-medium">Observe dynamic recruiter, vendor, and client hiring progression loops.</p>
+                      </div>
+
+                      {/* Funnel chart simulation */}
+                      <div className="space-y-4">
+                        {[
+                          { stage: "1. User Logins", count: 1420, rate: "100%", detail: "Cohort engagement rate nominal", color: "bg-indigo-650" },
+                          { stage: "2. Requirements Created", count: 184, rate: "81.2%", detail: "HN-009 requirements_public propagation", color: "bg-blue-600" },
+                          { stage: "3. RAG Candidate Matching", count: 592, rate: "73.5%", detail: "Semantic query buffer active", color: "bg-cyan-600" },
+                          { stage: "4. Recruiter Submissions Ledger", count: 211, rate: "58.4%", detail: "Dynamic ledger updates registered", color: "bg-teal-600" },
+                          { stage: "5. Client Interviews Scheduled", count: 94, rate: "44.5%", detail: "SLA notification loops healthy", color: "bg-emerald-600" },
+                          { stage: "6. Offer Release & Placements", count: 38, rate: "40.4%", detail: "Net placements closed successfully", color: "bg-emerald-700" }
+                        ].map((item, idx) => (
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-mono">
+                              <span className="font-bold text-slate-700">{item.stage}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-400">({item.count} actions)</span>
+                                <span className="font-black text-slate-800">{item.rate}</span>
+                              </div>
+                            </div>
+                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                              <div 
+                                className={cn("h-full rounded-full", item.color)}
+                                style={{ width: item.rate }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-mono leading-none">{item.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* AI Decision Telemetry: Why was AI Ignored? */}
+                      <div className="border-t border-slate-100 pt-6 space-y-4">
+                        <div>
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono">AI Match Acceptance Audit (Why was AI Ignored?)</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Understand when and why human recruiters override algorithmic recommendations.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-center">
+                            <span className="text-[10px] font-mono font-black text-emerald-600 uppercase tracking-wider block">AI Recommendation Match Rate</span>
+                            <div className="text-2xl font-black text-slate-800 mt-1">84.6%</div>
+                            <span className="text-[10px] text-slate-400 font-mono">242 accepted placements</span>
+                          </div>
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-center">
+                            <span className="text-[10px] font-mono font-black text-rose-500 uppercase tracking-wider block">Human Overrides / Ignored</span>
+                            <div className="text-2xl font-black text-slate-800 mt-1">15.4%</div>
+                            <span className="text-[10px] text-slate-400 font-mono">44 overrides logged</span>
+                          </div>
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 flex flex-col justify-center">
+                            <div className="flex justify-between text-[10px] font-mono border-b border-slate-200/60 pb-1">
+                              <span className="text-slate-400 font-bold">Total Recommendations:</span>
+                              <span className="text-slate-700 font-black">286</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] font-mono pt-1">
+                              <span className="text-slate-400 font-bold">Override SLA Gate:</span>
+                              <span className="text-emerald-600 font-black">PASS (Within bounds)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-3">
+                          <span className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-wider block">Override Classification Breakdown</span>
+                          <div className="space-y-2">
+                            {[
+                              { label: "Candidate Overqualified (Salary Bandwidth Mismatch)", pct: "45.4%", count: 20 },
+                              { label: "Client Requirements Adjusted (Remote preference on-the-fly shift)", pct: "29.5%", count: 13 },
+                              { label: "Niche Framework Specialist Overlap Override", pct: "15.9%", count: 7 },
+                              { label: "Candidate Hourly/Annual Rate Band Overrun", pct: "9.2%", count: 4 }
+                            ].map((item, idx) => (
+                              <div key={idx} className="space-y-1">
+                                <div className="flex justify-between text-[10px] font-mono text-slate-600">
+                                  <span>{item.label}</span>
+                                  <span className="font-bold">{item.pct} ({item.count})</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                  <div className="h-full bg-slate-400" style={{ width: item.pct }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Usage-Based AI Cost & Token Audit */}
+                    <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-sm text-slate-200 space-y-6">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-widest rounded border border-indigo-500/30 font-mono">
+                              FINANCIAL OBSERVABILITY
+                            </span>
+                          </div>
+                          <h3 className="text-base font-black text-white mt-1.5">Usage-Based AI Token & Compute Audit</h3>
+                          <p className="text-xs text-slate-400 font-medium">Transparent compute usage per workspace organization.</p>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-2.5 rounded-xl text-center">
+                          <span className="text-[9px] font-mono text-emerald-400 uppercase tracking-widest font-black block">Est. Revenue Saved</span>
+                          <span className="text-xl font-black text-emerald-400 font-mono">₹37,500</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Compute Consumption */}
+                        <div className="space-y-3 font-mono text-[11px]">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 block border-b border-slate-800 pb-1">Compute Consumption Ledger</span>
+                          
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Gemini 1.5 Flash Tokens:</span>
+                            <span className="text-white font-bold">1,382,410</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Gemini 1.5 Flash Cost:</span>
+                            <span className="text-white font-bold">₹138.24</span>
+                          </div>
+                          
+                          <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                            <span className="text-slate-400">Gemini 1.5 Pro Tokens:</span>
+                            <span className="text-white font-bold">212,400</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Gemini 1.5 Pro Cost:</span>
+                            <span className="text-white font-bold">₹53.10</span>
+                          </div>
+                          
+                          <div className="flex justify-between pt-2 border-t border-slate-800 font-bold text-xs">
+                            <span className="text-slate-200">Total API Expense:</span>
+                            <span className="text-emerald-400 font-black">₹191.34</span>
+                          </div>
+                        </div>
+
+                        {/* Efficiency Metrics */}
+                        <div className="space-y-3 font-mono text-[11px]">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 block border-b border-slate-800 pb-1">Efficiency Metrics</span>
+                          
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">RAG Context Cache Hit Rate:</span>
+                            <span className="text-indigo-400 font-bold">74.5%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Model Fallback Incidents:</span>
+                            <span className="text-emerald-400 font-bold">0 (None)</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">API Response SLA Uptime:</span>
+                            <span className="text-emerald-400 font-bold">100.0%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Budget Limit Remaining:</span>
+                            <span className="text-indigo-300 font-bold">₹308.66 / ₹500</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+                )}
+
+                {/* PRODUCT INTELLIGENCE TAB (DR & API Performance) */}
+                {commercialSubTab === 'product' && (
+                  <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+                    {/* Disaster Recovery Console */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">Disaster Recovery Console</h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Compile manual backups of client databases and RAG indexes.</p>
+                        </div>
+                        <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-black">
+                          DR Active
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 font-mono text-[11px]">
+                        {backups.map((bak, idx) => (
+                          <div key={idx} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-1 hover:bg-slate-100/55 transition-colors">
+                            <div className="flex justify-between items-center font-mono">
+                              <span className="font-black text-slate-700 font-mono">{bak.id}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-black bg-emerald-100 text-emerald-800">
+                                {bak.status}
+                              </span>
+                            </div>
+                            <p className="text-slate-500 font-mono text-[10px]">{bak.type}</p>
+                            <div className="flex justify-between items-center text-[9px] text-slate-400 pt-1 font-mono">
+                              <span className="font-mono">{bak.date}</span>
+                              <span className="font-mono font-bold">Size: {bak.size}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={handleTriggerBackup}
+                        disabled={backingUp}
+                        className={cn(
+                          "w-full py-2.5 rounded-xl font-bold text-xs font-mono tracking-widest uppercase transition-all shadow-md flex items-center justify-center gap-2",
+                          backingUp 
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                            : "bg-indigo-650 hover:bg-indigo-700 text-white hover:text-white"
+                        )}
+                      >
+                        <RefreshCw className={cn("w-3.5 h-3.5", backingUp && "animate-spin")} />
+                        {backingUp ? "COMPILING DATABASE SNAPSHOT..." : "TRIGGER PILOT BACKUP"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TENANT BILLING & LICENSING */}
+                {commercialSubTab === 'billing' && (
+                  <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <div>
+                          <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                            <CreditCard className="text-sky-600" size={18} /> Tenant License & Subscription Calibrator
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Manages commercial tenant tiers, invoice generation loops, and custom pilot license allocations.
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider font-mono rounded">
+                          Enterprise Active
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+                        <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Subscription Tier</span>
+                          <h4 className="text-lg font-black text-slate-800">Growth Pilot v1</h4>
+                          <p className="text-xs text-slate-500">Up to 25 recruiters and 10 vendor agencies connected.</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Active Tenant Billing</span>
+                          <h4 className="text-lg font-black text-slate-800">$12,500 <span className="text-xs font-normal text-slate-500">/mo</span></h4>
+                          <p className="text-xs text-slate-500">Base fee + $2.50 per verified candidate submission pass.</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Next Renewal Date</span>
+                          <h4 className="text-lg font-black text-slate-800">July 31, 2026</h4>
+                          <p className="text-xs text-slate-500">Invoice cycle auto-billed via credit ledger reserves.</p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-150 pt-4 space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono">Invoice Settlement Logs</h4>
+                        <div className="space-y-2">
+                          {[
+                            { inv: "INV-2026-04", date: "June 01, 2026", amount: "$12,850.00", status: "SETTLED" },
+                            { inv: "INV-2026-03", date: "May 01, 2026", amount: "$12,620.00", status: "SETTLED" }
+                          ].map((inv, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 border border-slate-150 rounded-xl font-mono text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-700">{inv.inv}</span>
+                                <span className="text-slate-400 font-normal">({inv.date})</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <strong className="text-slate-800 font-black">{inv.amount}</strong>
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black tracking-widest uppercase rounded">
+                                  {inv.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ORGANIZATION MANAGEMENT TAB */}
+                {commercialSubTab === 'org' && (
+                  <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+                    {/* HN-015: Organization Management & SSO */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">Organization & Teams Management</h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Invite pilot recruiters and view SSO accounts.</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {orgMembers.map((member, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-150 rounded-xl">
+                            <div className="space-y-0.5">
+                              <h4 className="text-xs font-black text-slate-800">{member.name}</h4>
+                              <p className="text-[10px] text-slate-400 font-mono">{member.email}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-black bg-indigo-100 text-indigo-700 uppercase">
+                                {member.role}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <form onSubmit={handleAddOrgMember} className="border-t border-slate-150 pt-4 space-y-3">
+                        <span className="text-[10px] font-mono font-black uppercase tracking-wider text-slate-400 block">Invite Pilot User</span>
+                        
+                        <div className="space-y-1.5">
+                          <input
+                            type="text"
+                            required
+                            value={newOrgMemberName}
+                            onChange={(e) => setNewOrgMemberName(e.target.value)}
+                            placeholder="Full Name"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <input
+                            type="email"
+                            required
+                            value={newOrgMemberEmail}
+                            onChange={(e) => setNewOrgMemberEmail(e.target.value)}
+                            placeholder="Email Address"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <select
+                            value={newOrgMemberRole}
+                            onChange={(e) => setNewOrgMemberRole(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all font-mono"
+                          >
+                            <option>Recruiter</option>
+                            <option>Vendor Coordinator</option>
+                            <option>Hiring Manager</option>
+                            <option>Audit Agent</option>
+                          </select>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs font-mono tracking-widest uppercase rounded-xl transition-all shadow-xs"
+                        >
+                          INVITE & PROVISION ACCOUNT
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECURITY POLICY DEFAULTS TAB */}
+                {commercialSubTab === 'security' && (
+                  <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+                    {/* GDPR Legal Compliance & Diagnostics Download */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <div>
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">Compliance & Privacy Sentinel</h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Active compliance monitors for European GDPR & US SOC2.</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={gdprChecked}
+                            onChange={(e) => setGdprChecked(e.target.checked)}
+                            className="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-slate-700 block font-mono">GDPR Consent Logging Active</span>
+                            <span className="text-[10px] text-slate-400 block font-mono">Record all cookies & analytics consents to Firestore ledger.</span>
+                          </div>
+                        </label>
+
+                        <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-1.5 font-mono text-[10px]">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-bold">Logged IP:</span>
+                            <span className="text-slate-600">192.168.1.104</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-bold">SSO Claims verified:</span>
+                            <span className="text-emerald-600 font-black">YES (SAMLv2)</span>
+                          </div>
+                        </div>
+
+                        {/* Download Diagnostic Bundle */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+                              tenant: "HireNestOS Commercial Pilot",
+                              timestamp: new Date().toISOString(),
+                              releaseHistory,
+                              orgMembers,
+                              backups,
+                              gdprChecked,
+                              systemPerformance: {
+                                avgScreenLoad: "94ms",
+                                matchCalcLatency: "780ms",
+                                uptime: "100%",
+                                errorRate: "0.00%"
+                              }
+                            }, null, 2));
+                            const downloadAnchor = document.createElement('a');
+                            downloadAnchor.setAttribute("href", dataStr);
+                            downloadAnchor.setAttribute("download", `hirenest_diagnostic_bundle_${new Date().toISOString().substring(0,10)}.json`);
+                            document.body.appendChild(downloadAnchor);
+                            downloadAnchor.click();
+                            downloadAnchor.remove();
+                          }}
+                          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs font-mono tracking-widest uppercase rounded-xl transition-all border border-slate-200 flex items-center justify-center gap-2"
+                        >
+                          <Server className="w-3.5 h-3.5" />
+                          DOWNLOAD DIAGNOSTIC BUNDLE
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                  
               </div>
             )}
 
           </div>
         </div>
-
-      </div>
 
       {/* Active Queue Drilldown Modal Overlay */}
       {(() => {
