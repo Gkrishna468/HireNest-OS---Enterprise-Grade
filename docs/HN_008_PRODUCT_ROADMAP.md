@@ -52,7 +52,16 @@ The AI COO's morning briefing for the C-suite. Not just a reporting page.
   - Revenue forecasting.
   - **AI COO Summary:** Natural language highlights of risks, improvements, and revenue opportunities.
 
-### HN-010: Automation Studio
+### HN-010: AI Daily Briefing
+
+Personalized daily briefings for different personas, increasing daily engagement.
+
+- **Features:**
+  - **Recruiter Briefing:** Requirements needing attention, interviews today, follow-ups, AI recommendations.
+  - **Manager Briefing:** Team workload, SLA risks, placements, bottlenecks.
+  - **Founder Briefing:** Revenue, growth, AI ROI, client health, expansion opportunities.
+
+### HN-011: Automation Studio
 
 No-code automations allowing recruiters to create rules without changing the runtime.
 
@@ -60,7 +69,7 @@ No-code automations allowing recruiters to create rules without changing the run
   - "If/Then" rule builder (e.g., "If AI confidence is below 80%, create a review task").
   - Trigger-based notifications and automated workflow steps (e.g., auto-broadcasting to preferred vendors).
 
-### HN-011: Vendor Intelligence Platform
+### HN-012: Vendor Intelligence Platform
 
 Evolving the Vendor Workspace to help vendors succeed and build network effects.
 
@@ -70,7 +79,7 @@ Evolving the Vendor Workspace to help vendors succeed and build network effects.
   - Revenue generation tracking and acceptance rates.
   - **AI Advice:** Prescriptive guidance for vendors (e.g., "Increase React Bench, demand expected to rise this week").
 
-### HN-012: Client Intelligence Platform
+### HN-013: Client Intelligence Platform
 
 Evolving the Client Workspace into an AI Account Manager.
 
@@ -80,7 +89,7 @@ Evolving the Client Workspace into an AI Account Manager.
   - Risk assessments and placement predictions.
   - Recommended strategies (e.g., Vendor Broadcast).
 
-### HN-013: Marketplace Platform
+### HN-014: Marketplace Platform
 
 Creating network effects by connecting client requirements to vendor benches across the ecosystem.
 
@@ -88,7 +97,7 @@ Creating network effects by connecting client requirements to vendor benches acr
   - Automated marketplace recommendations via the Capability Broker and Business Graph.
   - Ecosystem-wide semantic matching.
 
-### HN-014: Enterprise Knowledge Graph
+### HN-015: Enterprise Knowledge Graph
 
 Evolving the Business Graph into a comprehensive Knowledge Graph.
 
@@ -96,13 +105,41 @@ Evolving the Business Graph into a comprehensive Knowledge Graph.
   - Mapping deep relationships: Candidate -> Skills -> Projects -> Certifications -> Employers -> Vendors -> Recruiters -> Clients -> Placements.
   - Supporting advanced reasoning and prescriptive analytics.
 
-### HN-015: Predictive Staffing
+### HN-016: Predictive Staffing
 
 Anticipating staffing needs before they become urgent requirements.
 
 - **Features:**
   - Demand forecasting based on client hiring velocity, market intelligence, and historical data.
   - Proactive bench building and talent pipelining.
+
+## Cross-Cutting Initiative: Design System & UX Consistency
+
+Define reusable patterns for AI panels, timelines, action cards, confidence indicators, risk badges, loading states, and notifications. A consistent experience will make the product feel cohesive as it grows.
+
+- **Product Rule:** "No feature is complete until a recruiter can use it without reading documentation."
+- **Focus on Decisions:** Build around decisions (needs attention, ready to submit) instead of raw data tables.
+- **The 4 Questions:** Every screen must answer: What happened? Why did it happen? What should I do next? What business impact will it have?
+
+### UX Philosophy
+
+- **AI First:** The AI speaks first. The user edits second.
+- **Explainable:** Every recommendation includes a reason.
+- **Actionable:** Every insight includes a button.
+- **Progressive Disclosure:** Summary first, details second, raw data last.
+- **Outcome Focused:** Never show a metric unless it helps someone make a decision.
+
+## Product KPIs
+
+Shifting from engineering KPIs to product KPIs:
+
+- Time to first AI recommendation
+- AI recommendation acceptance rate
+- Average recruiter clicks per placement
+- Time saved per recruiter
+- Daily active recruiters
+- Requirements closed per recruiter
+- Revenue influenced by AI
 
 ## Core Feature Addition: AI Timeline
 

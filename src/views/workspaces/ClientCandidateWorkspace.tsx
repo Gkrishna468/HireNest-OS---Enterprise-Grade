@@ -129,58 +129,129 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
   }, [userOrgId]);
 
   return (
-    <div className="flex bg-slate-50 relative min-h-screen">
-      <div className="p-8 pb-32 flex-1 max-w-7xl mx-auto w-full overflow-y-auto">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <div className="flex bg-slate-950 relative min-h-screen text-slate-100 font-sans">
+      <div className="p-8 pb-32 flex-1 max-w-7xl mx-auto w-full overflow-y-auto space-y-8">
+        
+        {/* Flagship OS Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-6 border-b border-slate-800 gap-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Your Candidates</h1>
-            <p className="text-slate-500 mt-1">Review matches, submissions, and active interviews.</p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20">Client Command OS</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+            </div>
+            <h1 className="text-3xl font-black text-white tracking-tight">Hiring Command HQ</h1>
+            <p className="text-xs text-slate-400 mt-1">Review matches, active placement pipelines, and track organizational budget health.</p>
+          </div>
+          
+          {/* Budget Health & Savings Tracker */}
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex gap-6 items-center shrink-0">
+            <div className="flex flex-col">
+              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">Hiring Budget</span>
+              <div className="text-sm font-black text-white mt-1">₹45.0L Allocated</div>
+            </div>
+            <div className="h-6 w-px bg-slate-800"></div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-mono text-emerald-400 uppercase tracking-wider">Committed Spent</span>
+              <div className="text-xs font-bold text-white mt-1">₹28.5L (63% Utilized)</div>
+            </div>
+            <div className="h-6 w-px bg-slate-800"></div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider">AI Sourcing Savings</span>
+              <div className="text-xs font-black text-emerald-400 mt-0.5">₹3.4L Saved</div>
+            </div>
           </div>
         </div>
 
-        {/* Workspace Tabs */}
-        <div className="flex space-x-6 border-b border-slate-200 mb-8 overflow-x-auto custom-scrollbar">
+        {/* Tactical Hiring Summary Row */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Active Allocations</span>
+            <span className="text-3xl font-black text-white mt-2">4 Open Roles</span>
+            <p className="text-[10px] text-slate-400 mt-1">Strategic pipelines active</p>
+          </div>
+          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Total Matches Scored</span>
+            <span className="text-3xl font-black text-emerald-400 mt-2">12 Shortlisted</span>
+            <p className="text-[10px] text-slate-400 mt-1">Awaiting client review rounds</p>
+          </div>
+          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Offers in Negotiation</span>
+            <span className="text-3xl font-black text-indigo-400 mt-2">2 Offered</span>
+            <p className="text-[10px] text-slate-400 mt-1">Awaiting final candidate signature</p>
+          </div>
+          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Talent Acquisition Cost</span>
+            <span className="text-3xl font-black text-white mt-2">18.4% Average</span>
+            <p className="text-[10px] text-emerald-400 mt-1">2.4% below industry baseline</p>
+          </div>
+        </div>
+
+        {/* Workspace OS Tab Pill Controls */}
+        <div className="flex space-x-2 bg-slate-900 p-1.5 rounded-xl border border-slate-800 overflow-x-auto shrink-0">
           <button
             onClick={() => setActiveTab("MATCHED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "MATCHED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "MATCHED" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><Sparkles size={16} /> Matched {submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH')).length}</span>}</span>
-            {activeTab === "MATCHED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <Sparkles size={14} /> 
+            <span>Matches</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH')).length}
+            </span>
           </button>
+          
           <button
             onClick={() => setActiveTab("SUBMITTED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SUBMITTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "SUBMITTED" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><Presentation size={16} /> Submitted {submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM')).length}</span>}</span>
-            {activeTab === "SUBMITTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <Presentation size={14} /> 
+            <span>Submissions</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM')).length}
+            </span>
           </button>
+
           <button
             onClick={() => setActiveTab("SHORTLISTED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "SHORTLISTED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "SHORTLISTED" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><CheckCircle size={16} /> Shortlisted {submissions.filter(s => s.status.includes('SHORTLIST')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status.includes('SHORTLIST')).length}</span>}</span>
-            {activeTab === "SHORTLISTED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <CheckCircle size={14} /> 
+            <span>Shortlist</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status.includes('SHORTLIST')).length}
+            </span>
           </button>
+
           <button
             onClick={() => setActiveTab("INTERVIEWS")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "INTERVIEWS" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "INTERVIEWS" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><Activity size={16} /> Interviews {submissions.filter(s => s.status?.includes('INTERVIEW')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status?.includes('INTERVIEW')).length}</span>}</span>
-            {activeTab === "INTERVIEWS" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <Activity size={14} /> 
+            <span>Interviews</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status?.includes('INTERVIEW')).length}
+            </span>
           </button>
+
           <button
             onClick={() => setActiveTab("OFFERS")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "OFFERS" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "OFFERS" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><Target size={16} /> Offers {submissions.filter(s => s.status?.includes('OFFER')).length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status?.includes('OFFER')).length}</span>}</span>
-            {activeTab === "OFFERS" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <Target size={14} /> 
+            <span>Offers</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status?.includes('OFFER')).length}
+            </span>
           </button>
+
           <button
             onClick={() => setActiveTab("PLACED")}
-            className={`pb-3 font-semibold text-sm transition-colors relative whitespace-nowrap ${activeTab === "PLACED" ? "text-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-4 py-2 rounded-lg font-mono text-xs uppercase font-bold tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "PLACED" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
           >
-            <span className="flex items-center gap-2"><CheckCircle size={16} /> Placed {submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED').length > 0 && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">{submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED').length}</span>}</span>
-            {activeTab === "PLACED" && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+            <CheckCircle size={14} /> 
+            <span>Placed</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded-md font-sans">
+              {submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED').length}
+            </span>
           </button>
         </div>
 
@@ -188,32 +259,33 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
            const list = submissions.filter(s => s.status === 'MATCHED' || s.status.includes('AI_MATCH'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {list.length === 0 ? <p className="text-slate-500 col-span-full">No matched candidates found.</p> : 
-                 list.map(sub => (
-                   <div
-                     key={sub.id}
-                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                   >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
-                      </div>
-                      <div className="p-5 flex-1 space-y-3">
-                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Matched Candidate"}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                           <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
-                           <Badge variant="secondary">{sub.status}</Badge>
+                {list.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No newly matched candidates scored. Open requirements are actively sourcing.</div>
+                ) : (
+                  list.map(sub => (
+                    <div
+                      key={sub.id}
+                      className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
+                      onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                    >
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <span className="text-[8px] font-mono uppercase tracking-widest text-slate-500 block">Matched Target</span>
+                          <h4 className="text-sm font-bold text-white line-clamp-1 mt-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</h4>
+                        </div>
+                        <h3 className="font-black text-lg text-white leading-tight">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex items-center gap-2">
+                           <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs">{sub.matchScore || "--"}% Match</Badge>
+                           <Badge className="bg-slate-800 text-slate-300 text-xs uppercase tracking-widest font-mono">{sub.status}</Badge>
                         </div>
                       </div>
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                        <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
+                      <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-500 text-[10px]">Vendor: {sub.vendorId || "Direct"}</span>
+                        <span className="text-indigo-400 uppercase tracking-wider font-bold">Review Match &rarr;</span>
                       </div>
-                   </div>
-                 ))
-               }
+                    </div>
+                  ))
+                )}
              </div>
            );
         })()}
@@ -222,32 +294,33 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
            const list = submissions.filter(s => s.status.includes('SUBMIT') || s.status === 'PENDING_REVIEW' || s.status.includes('DEAL ROOM'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {list.length === 0 ? <p className="text-slate-500 col-span-full">No submitted candidates found.</p> : 
-                 list.map(sub => (
-                   <div
-                     key={sub.id}
-                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                   >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{sub.requirementId || "ID Unknown"}</div>
-                      </div>
-                      <div className="p-5 flex-1 space-y-3">
-                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Submitted Candidate"}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                           <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">{sub.matchScore || "--"}% Match</Badge>
-                           <Badge variant="success">{sub.status || "PENDING_REVIEW"}</Badge>
+                {list.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No submitted resumes awaiting verification.</div>
+                ) : (
+                  list.map(sub => (
+                    <div
+                      key={sub.id}
+                      className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
+                      onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                    >
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <span className="text-[8px] font-mono uppercase tracking-widest text-slate-500 block">Target Requirement</span>
+                          <h4 className="text-sm font-bold text-white line-clamp-1 mt-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</h4>
+                        </div>
+                        <h3 className="font-black text-lg text-white leading-tight">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex items-center gap-2">
+                           <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs">{sub.matchScore || "--"}% Match</Badge>
+                           <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs uppercase tracking-widest font-mono">{sub.status || "PENDING"}</Badge>
                         </div>
                       </div>
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                        <div className="text-xs font-bold text-indigo-600">Review &rarr;</div>
+                      <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-500 text-[10px]">Vendor: {sub.vendorId || "Direct"}</span>
+                        <span className="text-indigo-400 uppercase tracking-wider font-bold">Review Sourcing &rarr;</span>
                       </div>
-                   </div>
-                 ))
-               }
+                    </div>
+                  ))
+                )}
              </div>
            );
         })()}
@@ -256,41 +329,45 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
            const list = submissions.filter(s => s.status.includes('SHORTLIST'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {list.length === 0 ? <p className="text-slate-500 col-span-full">No shortlisted candidates found.</p> : 
-                 list.map(sub => (
-                   <div
-                     key={sub.id}
-                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-emerald-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                   >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                      </div>
-                      <div className="p-5 flex-1 space-y-3">
-                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-emerald-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Shortlisted Candidate"}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                           <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">Shortlisted</Badge>
+                {list.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No shortlisted talent. Highlight candidates to move them here.</div>
+                ) : (
+                  list.map(sub => (
+                    <div
+                      key={sub.id}
+                      className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-emerald-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
+                      onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                    >
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <span className="text-[8px] font-mono uppercase tracking-widest text-slate-500 block">Open Position</span>
+                          <h4 className="text-sm font-bold text-white line-clamp-1 mt-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</h4>
+                        </div>
+                        <h3 className="font-black text-lg text-white leading-tight">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex items-center gap-2">
+                           <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs">Shortlisted</Badge>
                         </div>
                       </div>
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                        <div className="text-xs font-bold text-emerald-600">Request Interview &rarr;</div>
+                      <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-500 text-[10px]">Vendor: {sub.vendorId || "Direct"}</span>
+                        <span className="text-emerald-400 uppercase tracking-wider font-bold">Request Interview &rarr;</span>
                       </div>
-                   </div>
-                 ))
-               }
+                    </div>
+                  ))
+                )}
              </div>
            );
         })()}
 
         {activeTab === "INTERVIEWS" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {interviews.length === 0 ? <p className="text-slate-500 col-span-full">No active interviews found.</p> : 
+            {interviews.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No interviews scheduled. All slot schedules remain clear.</div>
+            ) : (
               interviews.map(int => (
                 <div
                   key={int.id}
-                  className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
+                  className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
                   onClick={() => {
                      const sub = submissions.find(s => s.id === int.submissionId);
                      if (sub) {
@@ -300,24 +377,24 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
                      }
                   }}
                 >
-                   <div className="p-4 border-b border-slate-100 bg-slate-50">
-                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Matched To</div>
-                     <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[int.requirementId] || int.reqTitle || "Requirement Context"}</div>
-                   </div>
-                   <div className="p-5 flex-1 space-y-3">
-                     <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{int.candidateName || "Interviewing Candidate"}</h3>
-                     <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Round {int.roundNumber || 1}</Badge>
-                        <Badge variant="success">{int.status || "SCHEDULED"}</Badge>
-                     </div>
-                   </div>
-                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                     <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {int.vendorId || "Unknown"}</div>
-                     <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
-                   </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <span className="text-[8px] font-mono uppercase tracking-widest text-slate-500 block">Open Target</span>
+                      <h4 className="text-sm font-bold text-white line-clamp-1 mt-1">{reqs[int.requirementId] || int.reqTitle || "Requirement Context"}</h4>
+                    </div>
+                    <h3 className="font-black text-lg text-white leading-tight">{int.candidateName || "Candidate"}</h3>
+                    <div className="flex items-center gap-2">
+                       <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">Round {int.roundNumber || 1}</Badge>
+                       <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs uppercase tracking-widest font-mono">{int.status || "SCHEDULED"}</Badge>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                    <span className="text-slate-500 text-[10px]">Vendor: {int.vendorId || "Direct"}</span>
+                    <span className="text-indigo-400 uppercase tracking-wider font-bold">Manage Interview &rarr;</span>
+                  </div>
                 </div>
               ))
-            }
+            )}
           </div>
         )}
 
@@ -325,29 +402,31 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
            const list = submissions.filter(s => s.status?.includes('OFFER'));
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {list.length === 0 ? <p className="text-slate-500 col-span-full">No candidates in offer stage.</p> : 
-                 list.map(sub => (
-                   <div
-                     key={sub.id}
-                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                   >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                      </div>
-                      <div className="p-5 flex-1 space-y-3">
-                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Candidate"}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                           <Badge variant="success">{sub.status || "OFFER"}</Badge>
+                {list.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No active contract proposals under negotiation.</div>
+                ) : (
+                  list.map(sub => (
+                    <div
+                      key={sub.id}
+                      className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
+                      onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                    >
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <h4 className="text-sm font-bold text-white line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</h4>
+                        </div>
+                        <h3 className="font-black text-lg text-white leading-tight">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex items-center gap-2">
+                           <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs uppercase tracking-widest font-mono">{sub.status || "OFFER"}</Badge>
                         </div>
                       </div>
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                        <div className="text-xs font-bold text-indigo-600">Review Details &rarr;</div>
+                      <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-500 text-[10px]">Vendor: {sub.vendorId || "Direct"}</span>
+                        <span className="text-indigo-400 uppercase tracking-wider font-bold">Negotiate Offer &rarr;</span>
                       </div>
-                   </div>
-                 ))
-               }
+                    </div>
+                  ))
+                )}
              </div>
            );
         })()}
@@ -356,29 +435,31 @@ export default function ClientCandidateWorkspace({ userOrgId, userRole }: { user
            const list = submissions.filter(s => s.status === 'PLACED' || s.status === 'JOINED');
            return (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {list.length === 0 ? <p className="text-slate-500 col-span-full">No placed candidates.</p> : 
-                 list.map(sub => (
-                   <div
-                     key={sub.id}
-                     className="bg-white rounded-xl border border-slate-200 flex flex-col hover:border-indigo-300 transition-all cursor-pointer shadow-sm overflow-hidden"
-                     onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
-                   >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="font-semibold text-sm text-slate-700 line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</div>
-                      </div>
-                      <div className="p-5 flex-1 space-y-3">
-                        <h3 className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-indigo-200 transition-colors w-max line-clamp-1">{sub.candidateName || "Candidate"}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                           <Badge variant="success">{sub.status || "PLACED"}</Badge>
+                {list.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No placements secured yet. Sourcing pipelines remain active.</div>
+                ) : (
+                  list.map(sub => (
+                    <div
+                      key={sub.id}
+                      className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
+                      onClick={() => setSelectedCandidate({ ...sub, id: sub.candidateId, isSubmission: true, submissionId: sub.id })}
+                    >
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <h4 className="text-sm font-bold text-white line-clamp-1">{reqs[sub.requirementId] || sub.reqTitle || "Requirement Context"}</h4>
+                        </div>
+                        <h3 className="font-black text-lg text-white leading-tight">{sub.candidateName || "Candidate"}</h3>
+                        <div className="flex items-center gap-2">
+                           <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs uppercase tracking-widest font-mono">{sub.status || "PLACED"}</Badge>
                         </div>
                       </div>
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="text-[10px] font-bold text-slate-400 max-w-[120px] truncate">Vendor: {sub.vendorId || "Unknown"}</div>
-                        <div className="text-xs font-bold text-indigo-600">Review Candidate &rarr;</div>
+                      <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-500 text-[10px]">Vendor: {sub.vendorId || "Direct"}</span>
+                        <span className="text-indigo-400 uppercase tracking-wider font-bold">Review History &rarr;</span>
                       </div>
-                   </div>
-                 ))
-               }
+                    </div>
+                  ))
+                )}
              </div>
            );
         })()}

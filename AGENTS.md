@@ -60,12 +60,20 @@ Effective immediately, **Runtime v1.0 is FROZEN**. The primary focus of developm
 
 1. **Recruiter OS (HN-008):** Operating system driven by intelligent queues (Priority, AI, Collaboration, Pipeline, Review), AI Side Panel, and AI Timeline.
 2. **Executive Dashboard (HN-009):** The AI COO's morning briefing (Real-time revenue, AI Savings vs Cost, Highlights/Risks).
-3. **Automation Studio (HN-010):** No-code rules for recruiters.
-4. **Vendor Intelligence Platform (HN-011):** Trust scores, Bench utilization, AI Advice for Vendors to improve.
-5. **Client Intelligence Platform (HN-012):** Hiring velocity, Risk assessments, Placement predictions.
-6. **Marketplace Platform (HN-013):** Ecosystem-wide semantic matching across vendor benches and client requirements.
-7. **Enterprise Knowledge Graph (HN-014):** Deep relationship reasoning across all entities.
-8. **Predictive Staffing (HN-015):** Demand forecasting and proactive bench building.
+3. **AI Daily Briefing (HN-010):** Personalized daily briefings for Recruiter, Manager, and Founder to drive engagement.
+4. **Automation Studio (HN-011):** No-code rules for recruiters.
+5. **Vendor Intelligence Platform (HN-012):** Trust scores, Bench utilization, AI Advice for Vendors to improve.
+6. **Client Intelligence Platform (HN-013):** Hiring velocity, Risk assessments, Placement predictions.
+7. **Marketplace Platform (HN-014):** Ecosystem-wide semantic matching across vendor benches and client requirements.
+8. **Enterprise Knowledge Graph (HN-015):** Deep relationship reasoning across all entities.
+9. **Predictive Staffing (HN-016):** Demand forecasting and proactive bench building.
+
+**UX Philosophy & Product Standards:**
+
+- **Product Rule:** "No feature is complete until a recruiter can use it without reading documentation."
+- **AI First:** The AI speaks first. The user edits second.
+- **Explainable & Actionable:** Every recommendation includes a reason and a button.
+- **Focus on Moments & Decisions:** Build around decisions, not data tables (e.g., Needs Attention, Waiting Review). Every page answers: What happened? Why? What next? What impact?
 
 Every architectural or code change MUST be strictly validated against the 6-Stage Gate as documented in `docs/20_PRODUCTION_READINESS_CERTIFICATION.md`. AI Matching is restricted to Layer 1 (Deterministic), Layer 2 (Semantic Inference), and Layer 3 (Recruiter Override). Recruiter insights ALWAYS win over AI predictions.
 

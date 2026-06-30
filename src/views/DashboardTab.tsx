@@ -33,7 +33,8 @@ import {
   Search,
   Filter,
   UserCheck,
-  CheckCircle
+  CheckCircle,
+  Sparkles
 } from "lucide-react";
 import { auth, db } from "../lib/firebase";
 import { collection, getDocs, query, where, deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
@@ -96,6 +97,9 @@ export default function DashboardTab() {
   // AI COO State
   const [cooActionApplied, setCooActionApplied] = useState<boolean>(false);
   const [balancingQueue, setBalancingQueue] = useState<boolean>(false);
+
+  // Executive OS Command Sub-Section State
+  const [activeCommandSection, setActiveCommandSection] = useState<'company' | 'operations' | 'ai' | 'runtime'>('company');
 
   // Workforce Health Heartbeat States
   const [heartbeatStatus, setHeartbeatStatus] = useState<Record<string, string>>({
@@ -798,16 +802,119 @@ export default function DashboardTab() {
         {activeBOSPillar === 'command' && (
           <div className="space-y-8 animate-in fade-in duration-300">
             
-            {/* Vital Signs Grid Header */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            {/* SECTION 1: Redesigned Executive Briefing Board */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
               
-              {/* Overall Company Health Circle */}
-              <div className="p-6 rounded-[24px] border border-slate-800 bg-slate-900 shadow-xl flex flex-col items-center justify-center text-center col-span-1 lg:col-span-2 relative overflow-hidden group">
+              {/* Executive Morning Briefing Bento (col-span-9) */}
+              <div className="lg:col-span-9 p-8 rounded-[32px] border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+                {/* Visual ambient light */}
+                <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3 pointer-events-none" />
+                
+                <div>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800/60">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-400 bg-indigo-400/5 px-2.5 py-1 rounded-md border border-indigo-500/10">AI-Native Briefing</span>
+                      <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">
+                        Good Morning, {session?.user?.name || "Gopal"} 👋
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Your AI Workforce compiled this morning's operational briefing from 5 synchronized offices.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-xl text-[10px] font-mono text-emerald-400 font-bold self-start md:self-auto">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      5 OFFICES SYNCHRONIZED
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Yesterday column */}
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" /> Yesterday
+                      </h4>
+                      <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-2xl space-y-3">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-bold">Revenue</span>
+                          <div className="text-lg font-black text-white mt-0.5">₹5.2L</div>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-900 pt-2">
+                          <div>
+                            <span className="text-[9px] text-slate-500 block">Placements</span>
+                            <span className="text-xs font-bold text-white">{execStats?.placements || 8} Hired</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] text-slate-500 block">AI Hours Saved</span>
+                            <span className="text-xs font-bold text-emerald-400">31.2 hrs</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Today column */}
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Today
+                      </h4>
+                      <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-2xl space-y-3">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-bold">Pipeline Forecast</span>
+                          <div className="text-lg font-black text-white mt-0.5">₹{(execStats?.invoiceValue || 4500000).toLocaleString()}</div>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-900 pt-2">
+                          <div>
+                            <span className="text-[9px] text-slate-500 block">Active Req.</span>
+                            <span className="text-xs font-bold text-white">{execStats?.openReqs || 67} Positions</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] text-slate-500 block">Waiting Review</span>
+                            <span className="text-xs font-bold text-indigo-400">{execStats?.submissions || 18} candidates</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Strategic targets column */}
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Strategic Focus
+                      </h4>
+                      <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-2xl space-y-3">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Top Opportunity</span>
+                          <span className="text-xs font-bold text-white block mt-0.5 truncate">Healthcare GCC (Acme)</span>
+                        </div>
+                        <div className="border-t border-slate-900 pt-2">
+                          <span className="text-[10px] text-slate-400 block font-bold flex items-center gap-1 text-amber-400">
+                            ⚠️ Active Risk
+                          </span>
+                          <span className="text-xs font-bold text-white block mt-0.5 truncate">React Hiring SLA at Risk</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl flex items-start gap-3">
+                  <div className="bg-indigo-600/10 p-2 rounded-xl text-indigo-400 mt-0.5 shrink-0">
+                    <Sparkles size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400">AI Recruiter OS Advisor recommendation:</span>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed mt-0.5">
+                      Sourcing velocity of partner <strong className="text-indigo-300">TechNova</strong> is high. Reassign the new <strong className="text-white">Java Backend</strong> requirement immediately to accelerate shortlisting.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Overall Company Health Ring Bento (col-span-3) */}
+              <div className="lg:col-span-3 p-8 rounded-[32px] border border-slate-800 bg-slate-900 shadow-2xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
                 <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400 font-bold mb-4">Enterprise Health Index</span>
                 
                 {/* Visual Ring */}
-                <div className="relative w-28 h-28 flex items-center justify-center">
+                <div className="relative w-28 h-28 flex items-center justify-center my-2">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="42" stroke="#1e293b" strokeWidth="8" fill="transparent" />
                     <circle cx="50" cy="50" r="42" stroke="#6366f1" strokeWidth="8" fill="transparent" 
@@ -819,189 +926,351 @@ export default function DashboardTab() {
                   </div>
                 </div>
 
-                <p className="text-[10px] text-slate-400 mt-4 font-mono font-medium leading-relaxed">System queue, Latency, SLA & Financial goals optimized.</p>
+                <p className="text-[10px] text-slate-400 mt-4 font-mono font-medium leading-relaxed">
+                  System queue, latency, SLA adherence & financial throughput optimized.
+                </p>
               </div>
 
-              {/* Metrics */}
+            </div>
+
+            {/* NEW: Section Tabs Selector inside Executive Command */}
+            <div className="flex gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800 w-full md:w-max overflow-x-auto">
               {[
-                { label: "Today's Revenue", value: `₹${(execStats?.todaysRevenue || 0).toLocaleString()}`, desc: "Processed live via invoices", icon: <DollarSign size={16} className="text-emerald-400" /> },
-                { label: "Revenue Forecast", value: `₹${(execStats?.invoiceValue || 0).toLocaleString()}`, desc: "Weighted deal probability", icon: <TrendingUp size={16} className="text-indigo-400" /> },
-                { label: "SLA Compliance", value: "93.4%", desc: "Target timeline: 72 hours", icon: <Clock size={16} className="text-amber-400" /> },
-                { label: "Active Placements", value: execStats?.placements || 5, desc: "Warranty tracking: Active", icon: <CheckCircle2 size={16} className="text-fuchsia-400" /> },
-              ].map((m, i) => (
-                <div key={i} className="p-6 rounded-[24px] border border-slate-800 bg-slate-900 shadow-md flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400 font-bold">{m.label}</span>
-                    <div className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50">{m.icon}</div>
-                  </div>
-                  <div className="my-3">
-                    <div className="text-2xl font-black text-white tracking-tight">{m.value}</div>
-                    <p className="text-[9px] text-slate-500 font-mono mt-1 font-bold">{m.desc}</p>
-                  </div>
-                </div>
+                { id: 'company', label: '🏢 Company', desc: 'Revenue, Growth, Forecasts' },
+                { id: 'operations', label: '⚙️ Operations', desc: 'Recruiters, Vendors, Offices' },
+                { id: 'ai', label: '🤖 AI & RAG Insights', desc: 'Hours Saved, Confidence' },
+                { id: 'runtime', label: '⚡ Runtime & Health', desc: 'Heartbeat pulse, Telemetry' }
+              ].map((sec) => (
+                <button
+                  key={sec.id}
+                  onClick={() => setActiveCommandSection(sec.id as any)}
+                  className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300 flex flex-col items-center gap-0.5 whitespace-nowrap ${
+                    activeCommandSection === sec.id
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-950/40'
+                  }`}
+                >
+                  <span>{sec.label}</span>
+                  <span className="text-[7.5px] opacity-60 font-mono font-medium tracking-tight normal-case">{sec.desc}</span>
+                </button>
               ))}
             </div>
 
-            {/* Workforce Health - Core Offices Queue Grid */}
-            <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                    <Activity size={16} className="text-emerald-400" /> Workforce Health OS Grid
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-mono mt-1">Real-time load balancing and queue health over 5 central offices</p>
+            {/* TAB CONTENT: COMPANY */}
+            {activeCommandSection === 'company' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+                
+                {/* Recharts Revenue Radar */}
+                <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl lg:col-span-2">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                      <TrendingUp size={16} className="text-emerald-400" /> Revenue Radar & Forecast Funnel
+                    </h3>
+                    <Badge variant="outline" className="border-emerald-500/20 text-emerald-400 bg-emerald-500/5 text-[8px] font-mono">Monthly Projection</Badge>
+                  </div>
+
+                  <div className="h-72 w-full bg-slate-950/40 rounded-2xl p-4 border border-slate-800/40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={[
+                          { name: 'Sourcing', current: 1200000, projected: 1400000 },
+                          { name: 'Submissions', current: 1800000, projected: 2200000 },
+                          { name: 'Interviews', current: 2800000, projected: 3100000 },
+                          { name: 'Offers', current: 3600000, projected: 4100000 },
+                          { name: 'Placed', current: 4200000, projected: 4500000 }
+                        ]}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="colorCur" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorProj" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f1f5f9' }} />
+                        <Legend />
+                        <Area type="monotone" dataKey="current" name="Current Value" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorCur)" />
+                        <Area type="monotone" dataKey="projected" name="Projected Value" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProj)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <Button 
-                  onClick={balanceWorkQueues} 
-                  disabled={balancingQueue} 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest"
-                >
-                  {balancingQueue ? 'Balancing...' : '⚡ Rebalance Queues'}
-                </Button>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                {[
-                  { id: 'recruitment-office', name: "Recruitment Office", cap: 50, queue: 2, sla: 96, ut: 12 },
-                  { id: 'vendor-office', name: "Vendor Office", cap: 40, queue: 1, sla: 94, ut: 8 },
-                  { id: 'client-office', name: "Client Office", cap: 30, queue: 3, sla: 91, ut: 24 },
-                  { id: 'finance-office', name: "Finance Office", cap: 20, queue: 0, sla: 98, ut: 4 },
-                  { id: 'ai-coo', name: "AI COO Office", cap: 60, queue: 1, sla: 95, ut: 15 },
-                ].map((off) => (
-                  <div key={off.id} className="p-5 bg-slate-950 border border-slate-800/80 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition-colors">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-black text-slate-200 tracking-tight">{off.name}</span>
-                        <Badge className={`text-[8px] font-mono px-2 py-0.5 ${
-                          heartbeatStatus[off.id] === 'HEALTHY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                        }`}>
-                          {heartbeatStatus[off.id] || 'ONLINE'}
-                        </Badge>
+                {/* Company Growth Stats */}
+                <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
+                      <BarChart2 size={16} className="text-indigo-400" /> Growth & Placements Analysis
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-mono">Monthly Placement Speed</span>
+                          <h4 className="text-sm font-bold text-white mt-0.5">14.6 Days average</h4>
+                        </div>
+                        <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 text-[9px]">-3.2 days</Badge>
                       </div>
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-mono">Recruitment Profit Margin</span>
+                          <h4 className="text-sm font-bold text-white mt-0.5">₹3.8L gross pipeline</h4>
+                        </div>
+                        <Badge className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 text-[9px]">+18.4% MoM</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-slate-800 text-xs text-slate-400 font-mono flex items-center justify-between">
+                    <span>Forecast calculated securely via SSOT</span>
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5">Live</Badge>
+                  </div>
+                </div>
 
-                      <div className="space-y-2 font-mono text-[10px] text-slate-400 my-4">
-                        <div className="flex justify-between border-b border-slate-900 pb-1">
-                          <span>Queue Depth:</span>
-                          <span className="font-bold text-white">{off.queue} items</span>
+              </div>
+            )}
+
+            {/* TAB CONTENT: OPERATIONS */}
+            {activeCommandSection === 'operations' && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {/* Workforce Health - Core Offices Queue Grid */}
+                <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl">
+                  <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                        <Activity size={16} className="text-emerald-400" /> Workforce Health OS Grid
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-mono mt-1">Real-time load balancing and queue health over 5 central offices</p>
+                    </div>
+                    <Button 
+                      onClick={balanceWorkQueues} 
+                      disabled={balancingQueue} 
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest"
+                    >
+                      {balancingQueue ? 'Balancing...' : '⚡ Rebalance Queues'}
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    {[
+                      { id: 'recruitment-office', name: "Recruitment Office", cap: 50, queue: 2, sla: 96, ut: 12 },
+                      { id: 'vendor-office', name: "Vendor Office", cap: 40, queue: 1, sla: 94, ut: 8 },
+                      { id: 'client-office', name: "Client Office", cap: 30, queue: 3, sla: 91, ut: 24 },
+                      { id: 'finance-office', name: "Finance Office", cap: 20, queue: 0, sla: 98, ut: 4 },
+                      { id: 'ai-coo', name: "AI COO Office", cap: 60, queue: 1, sla: 95, ut: 15 },
+                    ].map((off) => (
+                      <div key={off.id} className="p-5 bg-slate-950 border border-slate-800/80 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition-colors">
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-slate-200 tracking-tight">{off.name}</span>
+                            <Badge className={`text-[8px] font-mono px-2 py-0.5 ${
+                              heartbeatStatus[off.id] === 'HEALTHY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}>
+                              {heartbeatStatus[off.id] || 'ONLINE'}
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2 font-mono text-[10px] text-slate-400 my-4">
+                            <div className="flex justify-between border-b border-slate-900 pb-1">
+                              <span>Queue Depth:</span>
+                              <span className="font-bold text-white">{off.queue} items</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-900 pb-1">
+                              <span>SLA Match:</span>
+                              <span className="font-bold text-emerald-400">{off.sla}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Utilization:</span>
+                              <span className="font-bold text-indigo-400">{off.ut}%</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between border-b border-slate-900 pb-1">
-                          <span>SLA Match:</span>
-                          <span className="font-bold text-emerald-400">{off.sla}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Utilization:</span>
-                          <span className="font-bold text-indigo-400">{off.ut}%</span>
-                        </div>
+
+                        <Button 
+                          size="sm" 
+                          onClick={() => triggerHeartbeat(off.id)} 
+                          disabled={heartbeatLoading[off.id]} 
+                          variant="outline" 
+                          className="w-full text-[8px] uppercase tracking-widest font-black border-slate-800 text-slate-400 hover:text-white hover:bg-slate-900 h-7"
+                        >
+                          {heartbeatLoading[off.id] ? 'Syncing...' : '⚡ Pulse'}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: AI */}
+            {activeCommandSection === 'ai' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                {/* Strategic AI COO Advice Card */}
+                <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-6">
+                      <Bot size={20} className="text-indigo-400" />
+                      <h3 className="text-sm font-black uppercase tracking-widest text-white">Daily briefings (AI COO Advising)</h3>
+                    </div>
+
+                    <div className="p-5 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-4">
+                      <p className="text-xs text-indigo-300 font-semibold leading-relaxed">
+                        "SLA compliance threshold warnings detected on Requirement R-102 (React Developer). Sourcing speed of vendor Global IT Talent is below 78% target."
+                      </p>
+                      <div className="border-t border-indigo-500/10 pt-3 flex flex-col gap-2">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">Recommended Action:</span>
+                        <p className="text-xs text-white font-bold flex items-center gap-1">
+                          <CornerDownRight size={14} className="text-indigo-400 shrink-0" />
+                          Reassign Senior Recruiter Raj Kumar to oversee Acme Corp portfolio directly.
+                        </p>
                       </div>
                     </div>
 
+                    <div className="mt-6 flex flex-col gap-3">
+                      <div className="flex items-center gap-3 p-3 bg-slate-950 border border-slate-800/60 rounded-xl">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-black text-xs">A+</div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-200">Confidence Match Score: 94%</span>
+                          <p className="text-[9px] text-slate-500 font-mono">Calculated by Decision Engine v2</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-slate-500">Auto-balanced telemetry logs</span>
                     <Button 
-                      size="sm" 
-                      onClick={() => triggerHeartbeat(off.id)} 
-                      disabled={heartbeatLoading[off.id]} 
-                      variant="outline" 
-                      className="w-full text-[8px] uppercase tracking-widest font-black border-slate-800 text-slate-400 hover:text-white hover:bg-slate-900 h-7"
+                      onClick={() => {
+                        setCooActionApplied(true);
+                        alert("Decision Engine action implemented: Recruiter Raj assigned and notified via Event Bus.");
+                      }}
+                      disabled={cooActionApplied}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[9px] tracking-widest h-8"
                     >
-                      {heartbeatLoading[off.id] ? 'Syncing...' : '⚡ Pulse'}
+                      {cooActionApplied ? 'Applied ✓' : 'One-Click Executive Implement'}
                     </Button>
+                  </div>
+                </div>
+
+                {/* AI ROI Metrics Dashboard */}
+                <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl space-y-6 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2 mb-6">
+                      <Combine size={16} className="text-indigo-400" /> AI Cognitive ROI Tracker
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-[9px] font-mono uppercase text-slate-400">Total Hours Saved</span>
+                        <h4 className="text-xl font-bold text-white mt-1">242.5 Hours</h4>
+                        <p className="text-[8px] text-emerald-400 font-mono mt-1">+14% this week</p>
+                      </div>
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-[9px] font-mono uppercase text-slate-400">AI ROI Rating</span>
+                        <h4 className="text-xl font-bold text-white mt-1">310.4%</h4>
+                        <p className="text-[8px] text-indigo-400 font-mono mt-1">SaaS value generated</p>
+                      </div>
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-[9px] font-mono uppercase text-slate-400">Active Prompts Served</span>
+                        <h4 className="text-xl font-bold text-white mt-1">1,482 calls</h4>
+                        <p className="text-[8px] text-slate-500 font-mono mt-1 font-bold">Avg confidence: 94.2%</p>
+                      </div>
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-[9px] font-mono uppercase text-slate-400">Compute Cost Saved</span>
+                        <h4 className="text-xl font-bold text-white mt-1">₹48,200</h4>
+                        <p className="text-[8px] text-emerald-400 font-mono mt-1">RAG compression enabled</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-slate-500 font-mono">
+                    Compute optimizations trace automated compressions inside the LLM gateway.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: RUNTIME */}
+            {activeCommandSection === 'runtime' && (
+              <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl animate-in fade-in duration-300 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                      <Combine size={16} className="text-indigo-400" /> Capability Broker & Telemetry Registry
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-mono mt-1">Real-time microservices dispatch log across the Enterprise Event Bus.</p>
+                  </div>
+                  <Badge variant="outline" className="border-indigo-500/20 text-indigo-400 bg-indigo-500/5 text-[8px] font-mono">P0 Core System Live</Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800/80">
+                    <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider block mb-2">Capability Broker State</span>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between text-slate-400"><span>Registered Services:</span> <span className="font-bold text-white">12 API Providers</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Broker Health:</span> <span className="font-bold text-emerald-400">100% Operational</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Peak Load:</span> <span className="font-bold text-slate-200">14 rps</span></div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800/80">
+                    <span className="text-[9px] font-mono text-emerald-400 uppercase tracking-wider block mb-2">Decision Engine Metrics</span>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between text-slate-400"><span>Decisions Stored:</span> <span className="font-bold text-white">346 Records</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Validation Rate:</span> <span className="font-bold text-emerald-400">100% Secure</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Rule Exclusions:</span> <span className="font-bold text-slate-200">0 Breaches</span></div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800/80">
+                    <span className="text-[9px] font-mono text-purple-400 uppercase tracking-wider block mb-2">Event Bus Capacity</span>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between text-slate-400"><span>Total Event Bus Traces:</span> <span className="font-bold text-white">4,819 Events</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Avg Event Ingress:</span> <span className="font-bold text-slate-200">2.1 ms</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Replay Engine:</span> <span className="font-bold text-emerald-400">Enabled</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 3: Recent Activity (Live GitHub-like Timeline) */}
+            <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl mt-8">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800/60">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                    <Activity size={16} className="text-indigo-400 animate-pulse" /> Live Event Bus Feed & Activity Stream
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-1">Real-time system events streamed directly over the enterprise channel.</p>
+                </div>
+                <Badge variant="outline" className="border-indigo-500/20 text-indigo-400 bg-indigo-500/5 text-[9px] font-mono">STREAMING LIVE</Badge>
+              </div>
+
+              <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  { time: "09:20", badge: "AI RANKER", badgeColor: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20", msg: "AI ranked 82 candidates for Senior React Developer", detail: "8 matching high-confidence scores synced to client_match_index" },
+                  { time: "09:31", badge: "VENDOR PARTNER", badgeColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", msg: "Vendor Partner TechNova submitted 3 new resumes", detail: "Resumes passed static screening rules and compiled directly to database" },
+                  { time: "09:45", badge: "OFFICE WORKFLOW", badgeColor: "text-amber-400 bg-amber-500/10 border-amber-500/20", msg: "Technical interview Round 1 scheduled with John Doe", detail: "Availability validated; Google Calendar invite dispatched successfully" },
+                  { time: "10:05", badge: "REVENUE GENERAL", badgeColor: "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20", msg: "Placement completed successfully for Acme Corp Lead", detail: "Invoice INV-2026-04 drafted and dispatch workflow initiated to client" },
+                  { time: "10:22", badge: "AI COO", badgeColor: "text-purple-400 bg-purple-500/10 border-purple-500/20", msg: "Autonomous workspace queue load balanced", detail: "Reassigned priority tickets and verified compliance with client SLA targets" },
+                ].map((act, idx) => (
+                  <div key={idx} className="flex items-start gap-4 p-4 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 hover:bg-slate-900/40 transition-all duration-200 text-left">
+                    <span className="text-xs font-mono font-bold text-slate-500 whitespace-nowrap pt-0.5">{act.time}</span>
+                    <div className="h-2 w-2 rounded-full bg-indigo-500 mt-2 shrink-0 animate-pulse" />
+                    <div className="flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${act.badgeColor}`}>{act.badge}</span>
+                        <h4 className="text-xs font-bold text-white leading-tight">{act.msg}</h4>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium font-mono">{act.detail}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* AI Advisor & Revenue Radar Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Strategic AI COO Advice Card */}
-              <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-6">
-                    <Bot size={20} className="text-indigo-400" />
-                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Daily briefings (AI COO Advising)</h3>
-                  </div>
-
-                  <div className="p-5 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-4">
-                    <p className="text-xs text-indigo-300 font-semibold leading-relaxed">
-                      "SLA compliance threshold warnings detected on Requirement R-102 (React Developer). Sourcing speed of vendor Global IT Talent is below 78% target."
-                    </p>
-                    <div className="border-t border-indigo-500/10 pt-3 flex flex-col gap-2">
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">Recommended Action:</span>
-                      <p className="text-xs text-white font-bold flex items-center gap-1">
-                        <CornerDownRight size={14} className="text-indigo-400 shrink-0" />
-                        Reassign Senior Recruiter Raj Kumar to oversee Acme Corp portfolio directly.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-col gap-3">
-                    <div className="flex items-center gap-3 p-3 bg-slate-950 border border-slate-800/60 rounded-xl">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-black text-xs">A+</div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-200">Confidence Match Score: 94%</span>
-                        <p className="text-[9px] text-slate-500 font-mono">Calculated by Decision Engine v2</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-slate-500">Auto-balanced telemetry logs</span>
-                  <Button 
-                    onClick={() => {
-                      setCooActionApplied(true);
-                      alert("Decision Engine action implemented: Recruiter Raj assigned and notified via Event Bus.");
-                    }}
-                    disabled={cooActionApplied}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[9px] tracking-widest h-8"
-                  >
-                    {cooActionApplied ? 'Applied ✓' : 'One-Click Executive Implement'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Recharts Revenue Radar */}
-              <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 shadow-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                    <TrendingUp size={16} className="text-emerald-400" /> Revenue Radar & Forecast Funnel
-                  </h3>
-                  <Badge variant="outline" className="border-emerald-500/20 text-emerald-400 bg-emerald-500/5 text-[8px] font-mono">Monthly Projection</Badge>
-                </div>
-
-                <div className="h-64 w-full bg-slate-950/40 rounded-2xl p-4 border border-slate-800/40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={[
-                        { name: 'Sourcing', current: 1200000, projected: 1400000 },
-                        { name: 'Submissions', current: 1800000, projected: 2200000 },
-                        { name: 'Interviews', current: 2800000, projected: 3100000 },
-                        { name: 'Offers', current: 3600000, projected: 4100000 },
-                        { name: 'Placed', current: 4200000, projected: 4500000 }
-                      ]}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorCur" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorProj" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
-                      <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f1f5f9' }} />
-                      <Legend />
-                      <Area type="monotone" dataKey="current" name="Current Value" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorCur)" />
-                      <Area type="monotone" dataKey="projected" name="Projected Value" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProj)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
             </div>
 
           </div>
