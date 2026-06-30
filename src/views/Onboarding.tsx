@@ -4,7 +4,7 @@ import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User,
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from "../lib/Button";
-import { ShieldCheck, UploadCloud, CheckCircle, Fingerprint, Building, UserCheck, Briefcase, ArrowRight, LogOut, FileText, AlertCircle } from "lucide-react";
+import { ShieldCheck, UploadCloud, CheckCircle, Fingerprint, Building, UserCheck, Briefcase, ArrowRight, LogOut, FileText, AlertCircle, User as UserIcon } from "lucide-react";
 
 export default function Onboarding({ onComplete }: { onComplete: (orgData: any) => void }) {
   const [user, setUser] = useState<User | null>(null);
@@ -12,7 +12,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
   const [hasPredefinedRole, setHasPredefinedRole] = useState(false);
 
   // Form States
-  const [orgType, setOrgType] = useState<"client" | "vendor_agency" | "independent_recruiter" | "independent_vendor" | null>(null);
+  const [orgType, setOrgType] = useState<"client" | "vendor_agency" | "independent_recruiter" | "independent_vendor" | "candidate" | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [companyName, setCompanyName] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
@@ -185,6 +185,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         return ["view_dashboard", "manage_candidates", "submit_candidates", "view_jobs", "view_deals"];
       case 'independent':
         return ["view_dashboard", "submit_self", "view_jobs", "view_deals"];
+      case 'candidate':
+        return ["view_dashboard", "submit_self", "view_jobs"];
       default:
         return ["view_dashboard"];
     }
@@ -225,6 +227,10 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
         if (orgType === 'client') finalOrgType = 'client';
         else if (orgType === 'independent_recruiter') finalOrgType = 'recruiter';
         else if (orgType === 'independent_vendor') finalOrgType = 'independent';
+        else if (orgType === 'candidate') {
+          finalOrgType = 'candidate';
+          orgId = "CAND-" + user.uid.substring(0, 10).toUpperCase();
+        }
       }
 
       // 3. Assemble and apply profile permissions configuration
@@ -528,7 +534,8 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     { id: "client", label: "Client Node", desc: "Corporate entity hiring talent", icon: Building },
                     { id: "vendor_agency", label: "Vendor Partner", desc: "Sourcing agency deploying experts", icon: Briefcase },
                     { id: "independent_recruiter", label: "Solo Recruiter", desc: "Independent recruiter agent", icon: UserCheck },
-                    { id: "independent_vendor", label: "Freelancer", desc: "Solo contractor / Specialist Node", icon: Fingerprint }
+                    { id: "independent_vendor", label: "Freelancer", desc: "Solo contractor / Specialist Node", icon: Fingerprint },
+                    { id: "candidate", label: "Candidate", desc: "Talent node seeking opportunities", icon: UserIcon }
                   ].map((arch) => {
                     const Icon = arch.icon;
                     return (
@@ -542,6 +549,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                           else if (arch.id === "vendor_agency") setSelectedRole("vendor_admin");
                           else if (arch.id === "independent_recruiter") setSelectedRole("independent_recruiter");
                           else if (arch.id === "independent_vendor") setSelectedRole("independent_vendor");
+                          else if (arch.id === "candidate") setSelectedRole("candidate");
                         }}
                         className={`p-3 border-2 rounded-2xl text-left select-none transition-all outline-none flex flex-col justify-between h-24 ${
                           orgType === arch.id 
@@ -655,6 +663,31 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     {orgType === "independent_vendor" && [
                       { id: "independent_vendor", name: "Independent Specialty Partner", desc: "Freelance professional managing multiple contract assignments" },
                       { id: "independent", name: "High-Authority Specialist Node", desc: "Specialist authority providing bespoke technology services directly" }
+                    ].map(r => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setSelectedRole(r.id)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          selectedRole === r.id 
+                            ? "border-indigo-600 bg-white" 
+                            : "border-transparent bg-slate-200/45 hover:bg-slate-200/80"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 rounded-full flex items-center justify-center border ${selectedRole === r.id ? "border-indigo-600" : "border-slate-300"}`}>
+                            {selectedRole === r.id && <div className="h-1.5 w-1.5 rounded-full bg-indigo-600" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{r.name}</p>
+                            <p className="text-[9px] text-slate-400 font-semibold mt-0.5 leading-snug">{r.desc}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+
+                    {orgType === "candidate" && [
+                      { id: "candidate", name: "Candidate Specialist", desc: "Manage profile, view applications, and prepare with AI Career Coach" }
                     ].map(r => (
                       <button
                         key={r.id}

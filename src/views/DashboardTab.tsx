@@ -45,6 +45,7 @@ import { useNavigate } from "react-router-dom";
 import VendorPartnerWorkspace from "./workspaces/VendorPartnerWorkspace";
 import HiringManagerWorkspace from "./workspaces/HiringManagerWorkspace";
 import RecruiterWorkspace from "./workspaces/RecruiterWorkspace";
+import CandidatePortalWorkspace from "./workspaces/CandidatePortalWorkspace";
 import { subscribeToEvents } from "../services/eventBus";
 import { EnterpriseViewModelService } from "../services/EnterpriseViewModelService";
 import { ProductionDataGuard } from "../lib/ProductionDataGuard";
@@ -486,6 +487,7 @@ export default function DashboardTab() {
   const isVendor = org?.type === 'vendor' || org?.type === 'vendor_admin' || org?.type?.startsWith('vendor_') || org?.type === 'vendor';
   const isRecruiter = org?.type === 'recruiter' || org?.type?.includes('recruiter');
   const isIndependent = org?.type === 'independent' || org?.type === 'independent_vendor' || org?.type === 'independent_consultant';
+  const isCandidate = org?.type === 'candidate' || session?.user?.role === 'candidate';
 
   useEffect(() => {
     if (session?.org) {
@@ -494,6 +496,7 @@ export default function DashboardTab() {
       else if (isVendor) queryType = "vendor";
       else if (isRecruiter) queryType = "recruiter";
       else if (isIndependent) queryType = "vendor";
+      else if (isCandidate) queryType = "candidate";
 
       if (auth.currentUser) {
         auth.currentUser.getIdToken().then(token => {
@@ -732,6 +735,10 @@ export default function DashboardTab() {
 
   if (isRecruiter) {
     return <RecruiterWorkspace userName={session?.user?.name || "Recruiter"} orgId={session?.user?.organizationId} metrics={metrics} />;
+  }
+
+  if (isCandidate) {
+    return <CandidatePortalWorkspace userName={session?.user?.name || "Candidate"} orgId={session?.user?.organizationId} metrics={metrics} />;
   }
 
   const handleNodeClick = (node: any) => {

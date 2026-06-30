@@ -17,3 +17,8 @@ export const checkIsRecruiter = (role: string) => {
 export const checkIsIndependent = (role: string) => {
   return role === "independent" || role === "independent_vendor" || role === "independent_consultant";
 };
+
+export const checkIsCandidate = (role: string) => {
+  return role === "candidate";
+};
+

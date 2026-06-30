@@ -7,6 +7,7 @@ import {
   Link,
   useLocation,
   Navigate,
+  useNavigate,
 } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -67,6 +68,7 @@ import KnowledgeIntelligenceTab from "./views/KnowledgeIntelligenceTab";
 import EnterpriseCommandCenterTab from "./views/EnterpriseCommandCenterTab";
 import AIOpsCenterTab from "./views/AIOpsCenterTab";
 import { EnterpriseSearchModal } from "./components/EnterpriseSearchModal";
+import { UniversalAIChatDrawer } from "./components/UniversalAIChatDrawer";
 import AIAgentsTab from "./views/AIAgentsTab";
 import FinanceOSTab from "./views/FinanceOSTab";
 import AICopilotTab from "./views/AICopilotTab";
@@ -100,7 +102,7 @@ import ContractsTab from "./views/ContractsTab";
 import TimesheetsTab from "./views/TimesheetsTab";
 import InvoicesTab from "./views/InvoicesTab";
 import OwnershipLedgerTab from "./views/OwnershipLedgerTab";
-import { OnboardingGuide } from "./components/OnboardingGuide";
+import { ExperienceEngine } from "./components/ExperienceEngine";
 import { LiveToaster } from "./components/LiveToaster";
 import SignalsTab from "./views/SignalsTab";
 import { NotificationCenter } from "./components/NotificationCenter";
@@ -156,10 +158,12 @@ const SidebarItem = ({
 
 const AppContent = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, userData, loading, showDemo, initialize, closeDemo } =
     useSystemStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
 
   React.useEffect(() => {
     const unsub = initialize();
@@ -170,14 +174,64 @@ const AppContent = () => {
 
   React.useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. Check if the user is typing in an input field to avoid interrupting text input
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        (activeEl as any).isContentEditable
+      );
+
+      // Cmd/Ctrl+K search modal toggle - ALWAYS active
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setIsSearchOpen(true);
+        setIsSearchOpen(prev => !prev);
+        return;
+      }
+
+      // If user is focused on an input field, do not trigger single key shortcuts
+      if (isInput) return;
+
+      // 2. Global AI Copilot toggle (Alt + A)
+      if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setIsAIChatOpen(prev => !prev);
+        return;
+      }
+
+      // 3. Simple Single Key Shortcuts
+      switch (e.key.toLowerCase()) {
+        case 'n': // New Requirement context
+          e.preventDefault();
+          navigate('/jobs');
+          break;
+        case 's': // Submit / Deal rooms context
+          e.preventDefault();
+          navigate('/deal-rooms');
+          break;
+        case 'i': // Schedule Interviews
+          e.preventDefault();
+          navigate('/interviews');
+          break;
+        case 'v': // Open Vendor SLA Directory
+          e.preventDefault();
+          navigate('/network');
+          break;
+        case 'c': // Open Candidate talent pool
+          e.preventDefault();
+          navigate('/candidates');
+          break;
+        case 'a': // Alternate fast shortcut to open Copilot chat drawer
+          e.preventDefault();
+          setIsAIChatOpen(true);
+          break;
+        default:
+          break;
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -244,7 +298,17 @@ const AppContent = () => {
         />
       )}
 
-      {hasCompletedOnboarding && <OnboardingGuide role={role} />}
+      {hasCompletedOnboarding && (
+        <ExperienceEngine
+          user={user}
+          userData={userData}
+          isAdmin={isAdmin}
+          isClient={isClient}
+          isVendor={isVendor}
+          isRecruiter={isRecruiter}
+          isIndependent={isIndependent}
+        />
+      )}
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
@@ -858,6 +922,18 @@ const AppContent = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Ask Copilot Button */}
+            <button
+              onClick={() => setIsAIChatOpen(true)}
+              className="flex items-center gap-2 px-4 h-10 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-100 group shrink-0"
+            >
+              <Bot size={14} className="group-hover:animate-bounce" />
+              <span>Ask Copilot</span>
+              <div className="bg-white/20 text-white text-[8px] rounded px-1.5 py-0.5 font-mono">
+                ⌥A
+              </div>
+            </button>
+
             <div className="hidden md:flex items-center bg-slate-50 rounded-2xl px-4 py-2 border border-slate-100 gap-3">
               <ShieldCheck size={14} className="text-indigo-600" />
               <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">
@@ -1129,6 +1205,12 @@ const AppContent = () => {
       <EnterpriseSearchModal 
         isOpen={isSearchOpen} 
         onClose={() => setIsSearchOpen(false)} 
+        onToggleAIChat={() => setIsAIChatOpen(true)}
+      />
+
+      <UniversalAIChatDrawer 
+        isOpen={isAIChatOpen} 
+        onClose={() => setIsAIChatOpen(false)} 
       />
     </div>
   );

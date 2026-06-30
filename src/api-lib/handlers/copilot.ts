@@ -3,7 +3,7 @@ import { AIGateway } from "../services/AIGateway.js";
 
 export default async function copilotHandler(req: any, res: any) {
   try {
-    const { query } = req.body;
+    const { query, context, pageData } = req.body;
 
     if (!query) {
       return res.status(400).json({ error: "Query is required" });
@@ -53,16 +53,27 @@ export default async function copilotHandler(req: any, res: any) {
     }
 
     // 2. Query AIGateway
+    let contextHeader = "[CURRENT WORKSPACE CONTEXT]\nExecutive Control Center";
+    if (context) {
+      contextHeader = `[CURRENT WORKSPACE CONTEXT]\nActive Screen/Tab: ${context}`;
+      if (pageData) {
+        contextHeader += `\nDetail/State context: ${pageData}`;
+      }
+    }
+
     const prompt = `You are the AI Copilot for HireNestOS, an AI Staffing Operating System.
-You help the Managing Director and Admins understand their business metrics, search for entities, and identify risks.
+You help the Managing Director, Admins, Clients, and Recruiters understand their business metrics, search for entities, and identify risks.
+
+${contextHeader}
+
 You have access to the following current system context summary:
 ${summary}
 
 User query: "${query}"
 
-Provide a concise, professional, and actionable insight based on the query. If the query asks for specific numbers you don't have, give an approximate status based on the context summary provided.
+Provide a concise, professional, and highly actionable response based on the query, respecting the active workspace context. If the query asks for specific numbers you don't have, give an approximate status based on the context summary provided.
 Format your response as a JSON object with the following properties:
-- insight (string): The main answer or finding.
+- insight (string): The main answer or finding. Write in a proactive, professional, helpful tone. Include details about why this finding applies.
 - reason (string): Brief explanation of why or the underlying data.
 - sources (array of strings): Which collections or data points were used (e.g., ["requirements_public", "dealRooms"]).
 - action (string): A recommended action to take in the system.
