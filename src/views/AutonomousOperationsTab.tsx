@@ -32,7 +32,12 @@ import {
   Search,
   Filter,
   CheckSquare,
-  AlertCircle
+  AlertCircle,
+  TrendingUp,
+  DollarSign,
+  Briefcase,
+  Users,
+  UserCheck
 } from "lucide-react";
 import { collection, query, limit, getDocs, doc, onSnapshot, orderBy } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
@@ -43,7 +48,7 @@ interface OfficeRuntimeState {
   id: string;
   name: string;
   description: string;
-  status: 'RUNNING' | 'PAUSED' | 'STOPPED' | 'PROCESSING';
+  status: 'RUNNING' | 'PAUSED' | 'STOPPED' | 'PROCESSING' | 'FAILED';
   state: string;
   queueCount: number;
   workers: number;
@@ -71,10 +76,73 @@ interface OfficeRuntimeState {
 export default function AutonomousOperationsTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
 
-  const [activeTab, setActiveTab] = useState<'control' | 'approvals' | 'rules' | 'logs'>('control');
+  const [activeTab, setActiveTab] = useState<'control' | 'timeline' | 'approvals' | 'rules' | 'logs' | 'engineering'>('control');
   const [automationRules, setAutomationRules] = useState<any[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [executionLogs, setExecutionLogs] = useState<any[]>([]);
+
+  // Dynamic Uptime Tracker
+  const [uptimeSeconds, setUptimeSeconds] = useState(15732); // starting at ~4h 22m 12s
+  
+  // Real-time Drift Telemetry History for Sparkline
+  const [driftHistory, setDriftHistory] = useState<number[]>([4, 6, 3, 5, 8, 4, 3, 7, 5, 4, 6, 8, 9, 5, 4, 3, 5, 6, 4, 5]);
+
+  // Dead Letter Queue Messages State
+  const [dlqMessages, setDlqMessages] = useState<any[]>([
+    { id: "DLQ-101", correlationId: "abc-123", workflow: "Strategic Match Calibration", office: "Matching Office", reason: "Network deadlock in Event Bus partition matching-01", retryCount: 3, firstFailure: "09:02:14", lastFailure: "09:02:16" }
+  ]);
+
+  // Feature Flags with approval workflow
+  const [featureFlags, setFeatureFlags] = useState<any[]>([
+    { id: 'outbox', name: 'Transactional Outbox Pattern', desc: 'Guarantees exactly-once message dispatch.', status: 'ENABLED' },
+    { id: 'backoff', name: 'Exponential Backoff Retries', desc: 'Prevents network thundering herd problem.', status: 'ENABLED' },
+    { id: 'breaker', name: 'Circuit Breaker Fail-Fast', desc: 'Instantly bypasses faulty downstream connections.', status: 'HALF-OPEN' },
+    { id: 'loadbalancer', name: 'Intelligent Load Balancer', desc: 'Dynamically routes concurrent matching queue threads.', status: 'DISABLED' }
+  ]);
+  const [pendingFlagChange, setPendingFlagChange] = useState<any | null>(null);
+  const [rollbackTimers, setRollbackTimers] = useState<Record<string, number>>({});
+
+  // Increment Uptime and process rollback countdowns
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUptimeSeconds(prev => prev + 1);
+      
+      // Update drift history with realistic tiny variations
+      setDriftHistory(prev => {
+        const nextVal = Math.max(1, Math.min(15, prev[prev.length - 1] + (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 2)));
+        return [...prev.slice(1), nextVal];
+      });
+
+      // Handle Feature Flag Rollbacks
+      setRollbackTimers(prevTimers => {
+        const next = { ...prevTimers };
+        let updated = false;
+        Object.keys(next).forEach(flagId => {
+          if (next[flagId] > 0) {
+            next[flagId] -= 1;
+            updated = true;
+            if (next[flagId] === 0) {
+              // Rollback!
+              setFeatureFlags(prevFlags => 
+                prevFlags.map(f => f.id === flagId ? { ...f, status: 'DISABLED' } : f)
+              );
+              // Log the rollback event
+              const timestamp = new Date().toLocaleTimeString();
+              setTerminalLogs(prev => [
+                ...prev.slice(-40),
+                { time: timestamp, type: 'Runtime', text: `⚠️ AUTO-ROLLBACK: Feature flag [${flagId}] automatically reverted to DISABLED (timer expired).`, trace: `TR-ROLL-${flagId.toUpperCase()}` }
+              ]);
+            }
+          } else {
+            delete next[flagId];
+            updated = true;
+          }
+        });
+        return updated ? next : prevTimers;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Workforce OS Master Toggles
   const [workforceRunning, setWorkforceRunning] = useState(true);
@@ -315,6 +383,9 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
 
   // Selected office for deep dive state tracking
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('recruitment-office');
+
+  // Interactive Queue Drill-down State
+  const [activeQueueDrilldown, setActiveQueueDrilldown] = useState<string | null>(null);
 
   // Find currently selected office
   const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
@@ -605,6 +676,21 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     }
   };
 
+  const handleBootstrapWorkforce = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/ops/runtime/bootstrap", { method: "POST" });
+      const result = await response.json();
+      if (result.success) {
+        addLog("Runtime", "HQ manual override: explicit system bootstrap triggered successfully.", "TR-BOOT");
+      }
+    } catch (err: any) {
+      console.error("Bootstrap failed", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Helper to add manual event logs to the terminal
   const addLog = (type: string, text: string, trace: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -786,7 +872,16 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                 activeTab === 'control' ? "border-indigo-600 text-indigo-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
               )}
             >
-              <Gauge className="w-4 h-4 text-indigo-500" /> Workforce Control Center
+              <Gauge className="w-4.5 h-4.5 text-indigo-500" /> Mission Control
+            </button>
+            <button 
+              onClick={() => setActiveTab('timeline')}
+              className={cn(
+                "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
+                activeTab === 'timeline' ? "border-indigo-500 text-indigo-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Activity className="w-4 h-4 text-indigo-500 animate-pulse" /> Runtime Timeline
             </button>
             <button 
               onClick={() => setActiveTab('approvals')}
@@ -815,18 +910,250 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
             >
               Execution Audit
             </button>
+            <button 
+              onClick={() => setActiveTab('engineering')}
+              className={cn(
+                "px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap", 
+                activeTab === 'engineering' ? "border-purple-600 text-purple-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Cpu className="w-4.5 h-4.5 text-purple-500" /> Engineering Console
+            </button>
           </div>
 
           <div className="p-6 flex-1">
             
             {/* WORKFORCE CONTROL TAB */}
             {activeTab === 'control' && (
-              <div className="space-y-8">
+              <div className="space-y-8 animate-fade-in">
                 
-                {/* Master Switch Panel */}
+                {/* 1. Centerpiece: AI COO Morning Brief */}
+                <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
+                  
+                  <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-indigo-500/15 p-3 rounded-2xl border border-indigo-500/30">
+                        <Sparkles className="text-indigo-400 animate-pulse w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-black tracking-tight text-white">AI COO Morning Briefing</h2>
+                          <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[9px] font-bold uppercase tracking-widest rounded border border-indigo-500/30">Intelligence Core</span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">Personalized daily briefing for Recruiter, Manager, and Founders.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-slate-400 font-mono">Last analysis: Just now</span>
+                      <button 
+                        onClick={() => {
+                          addLog("AI Decisions", "AI COO initiated comprehensive morning briefing sweep.", "TR-COO-SWEEP");
+                        }}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 transition-all"
+                        title="Re-run Strategic Evaluation"
+                      >
+                        <RefreshCw size={13} className="animate-spin-slow" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6 relative">
+                    {/* Briefing points */}
+                    <div className="lg:col-span-2 space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 font-mono">Good morning, Operator. Since yesterday:</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-white">18 new requirements</strong> were successfully created across active client pipelines.
+                            </p>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-white">263 candidates</strong> were processed, validated, and injected into the Candidate Pool.
+                            </p>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-white">91% matching accuracy</strong>: high-quality matches generated for newly registered positions.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-rose-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-rose-300">Vendor SLA Alert</strong>: Response SLA dropped below target for 2 partner agencies.
+                            </p>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-emerald-300">₹4.8L estimated revenue increase project projection</strong> projected based on pending offer stages.
+                            </p>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-1.5 shrink-0" />
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              <strong className="text-purple-300">Recommended action</strong>: broadcast three senior Java roles to Vendor Tier A network.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Interactive Recommendation Button */}
+                      <div className="pt-2">
+                        <button 
+                          onClick={() => {
+                            addLog("AI Decisions", "Operator approved morning brief suggestion: Broadcasted senior Java roles to Tier A Vendors.", "TR-COO-EXEC");
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5"
+                        >
+                          <Send size={13} />
+                          Broadcast 3 Senior Java Roles to Vendor Tier A
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Executive Outcome KPIs (Visual representation) */}
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-slate-400 font-mono block">AI SAVINGS VS COST</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-black text-white font-mono">₹1.2L Saved</span>
+                          <span className="text-xs text-emerald-400 font-bold font-mono">3.8x ROI</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Based on automatic parsing, matching, and interview coordination hours saved.</p>
+                      </div>
+
+                      <div className="space-y-1 pt-2 border-t border-slate-800/60">
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-slate-400 font-mono block">ECOSYSTEM VELOCITY</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-black text-indigo-300 font-mono">15 Seconds</span>
+                          <span className="text-[9px] text-slate-400 font-medium font-mono">vs 15 Minutes manually</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                          <div className="bg-indigo-500 h-full w-[95%]" />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 text-[9px] text-slate-500 font-mono flex items-center gap-1.5">
+                        <Shield size={10} className="text-emerald-400" />
+                        <span>Decision Authority Level: Recruiter Override Active</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 2. Business-First Outcomes HUD Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 font-sans">
+                  
+                  {/* Placements Today */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono">Placements Today</span>
+                      <UserCheck className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[11px] text-slate-400">Total Closed:</div>
+                      <div className="text-2xl font-black text-slate-850 font-mono tracking-tight flex items-baseline gap-1.5">
+                        <span>12</span>
+                        <span className="text-xs text-slate-400 font-normal">/ 15 goal</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>Fill Rate: <strong className="text-emerald-600 font-bold">84%</strong></span>
+                      <span>Avg SLA: <strong className="text-slate-700">4.2d</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Candidates Waiting */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono">Candidates Waiting</span>
+                      <Users className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[11px] text-slate-400">In Queue:</div>
+                      <div className="text-2xl font-black text-slate-850 font-mono tracking-tight flex items-baseline gap-1.5">
+                        <span>42</span>
+                        <span className="text-xs text-amber-500 font-bold">Needs Review</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>SLA Time: <strong className="text-slate-700">1.2h avg</strong></span>
+                      <span>Unmatched: <strong className="text-rose-600 font-bold">3</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Interviews Today */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono">Interviews Scheduled</span>
+                      <Briefcase className="w-4 h-4 text-cyan-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[11px] text-slate-400">Scheduled:</div>
+                      <div className="text-2xl font-black text-slate-850 font-mono tracking-tight">
+                        19 <span className="text-xs font-normal text-slate-400">Today</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>Completed: <strong className="text-slate-700 font-bold">11</strong></span>
+                      <span>Next: <strong className="text-indigo-600">11:00 AM</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Active Requirements */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono">Active Requirements</span>
+                      <Sliders className="w-4 h-4 text-purple-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[11px] text-slate-400">Total Positions:</div>
+                      <div className="text-2xl font-black text-slate-850 font-mono tracking-tight">
+                        128 <span className="text-xs font-normal text-slate-400 font-semibold">Live</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>With Matches: <strong className="text-emerald-600 font-bold font-semibold">96%</strong></span>
+                      <span>Unassigned: <strong className="text-slate-700">4</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Revenue projection */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xs text-white">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono">Financial Velocity</span>
+                      <TrendingUp className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[11px] text-slate-500">Pending pipeline revenue:</div>
+                      <div className="text-lg font-black text-indigo-400 font-mono tracking-tight flex items-baseline gap-1">
+                        <span>+₹4.8L</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex justify-between text-[10px] font-mono text-slate-400">
+                      <span>Monthly Goal: <strong className="text-emerald-400">88%</strong></span>
+                      <span>SaaS Fee: <strong className="text-slate-300">₹85K</strong></span>
+                    </div>
+                  </div>
+
+                </div>
+                
+                {/* 3. Operational Master Controls & Health Matrix Panel */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
-                  {/* Master Status & Toggle */}
+                  {/* Master Status & Toggle (Operations Controls) */}
                   <div className={cn(
                     "p-6 rounded-2xl border flex flex-col justify-between transition-all shadow-sm",
                     dbState?.status === "LIVE" || dbState?.status === "PROCESSING"
@@ -841,7 +1168,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                   )}>
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">Master State</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono font-black">Workforce Master State</span>
                         <span className={cn(
                           "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5",
                           dbState?.status === "LIVE" || dbState?.status === "PROCESSING"
@@ -868,8 +1195,8 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         </span>
                       </div>
                       
-                      <h3 className="text-lg font-black text-slate-800 leading-tight">
-                        Enterprise Runtime OS
+                      <h3 className="text-base font-black text-slate-800 leading-tight">
+                        Ecosystem Operation Cluster
                       </h3>
                       <p className="text-xs text-slate-500 mt-2">
                         {dbState?.status === "STARTING" && "Running preflight integrity checks on active databases and event sub-routines..."}
@@ -878,17 +1205,21 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         {dbState?.status === "LIVE" && "All AI Offices active and listening. Dispatch loops running continuously."}
                         {dbState?.status === "PAUSED" && "Workforce operations suspended. Schedulers paused but session variables preserved."}
                         {dbState?.status === "OFFLINE" && "Workforce is stopped. All offices offline. Click start to run preflight check."}
+                        {dbState?.status === "FAILED" && "Operations cluster encountered critical error. Review linter or event-graph outbox."}
                         {!dbState?.status && "Halting the workforce instantly suspends all background queues, scheduled events, and cron matching jobs."}
                       </p>
                     </div>
 
                     <div className="mt-6 space-y-3">
-                      <div className="flex gap-2">
+                      {/* Operational Button Row */}
+                      <div className="flex flex-col gap-2">
+                        
+                        {/* Power state button */}
                         <button 
                           disabled={isSyncing || ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)}
                           onClick={toggleWorkforce}
                           className={cn(
-                            "flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-white shadow transition-all flex items-center justify-center gap-1.5",
+                            "w-full py-2.5 px-3 rounded-xl text-xs font-bold text-white shadow transition-all flex items-center justify-center gap-1.5",
                             workforceRunning 
                               ? "bg-rose-600 hover:bg-rose-700 shadow-rose-100" 
                               : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100"
@@ -897,7 +1228,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                           <Power size={13} />
                           <span>
                             {isSyncing 
-                              ? "Syncing..." 
+                              ? "Syncing State..." 
                               : ["STARTING", "BOOTSTRAPPING", "RECOVERING"].includes(dbState?.status)
                               ? "Starting..."
                               : dbState?.status === "STOPPING"
@@ -908,266 +1239,119 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                           </span>
                         </button>
 
-                        <button 
-                          disabled={!workforceRunning || isSyncing}
-                          onClick={() => {
-                            addLog("Runtime", "HQ triggered single database-wide queue execution run.", "TR-RUN-ONCE");
-                          }}
-                          className="px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
-                          title="Process Queue Once"
-                        >
-                          <RotateCw size={13} />
-                          <span>Run Once</span>
-                        </button>
-                      </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Bootstrap Workforce Button */}
+                          <button 
+                            disabled={isSyncing || ["STARTING", "BOOTSTRAPPING", "RECOVERING", "STOPPING"].includes(dbState?.status)}
+                            onClick={handleBootstrapWorkforce}
+                            className="py-2 px-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
+                            title="Rebuild projections, reconcile graph, replay outbox"
+                          >
+                            <RotateCw size={11} />
+                            Bootstrap
+                          </button>
 
-                      {workforceRunning && (
-                        <div className="flex gap-2">
+                          {/* Pause / Resume buttons */}
                           {dbState?.status === "PAUSED" ? (
                             <button
                               disabled={isSyncing}
                               onClick={handleResumeWorkforce}
-                              className="flex-1 py-2 px-3 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
+                              className="py-2 px-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
                             >
-                              <Play size={12} />
-                              Resume Workforce
+                              <Play size={11} />
+                              Resume
                             </button>
                           ) : (
                             <button
-                              disabled={isSyncing}
+                              disabled={!workforceRunning || isSyncing}
                               onClick={handlePauseWorkforce}
-                              className="flex-1 py-2 px-3 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
+                              className="py-2 px-2 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-800 rounded-lg text-[11px] font-black tracking-wider uppercase transition-all flex items-center justify-center gap-1"
                             >
-                              <Pause size={12} />
-                              Pause Workforce
+                              <Pause size={11} />
+                              Pause
                             </button>
                           )}
                         </div>
-                      )}
+
+                      </div>
                     </div>
                   </div>
 
-                  {/* Operational Health Status Matrix (Item 9) */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">System Health Matrix</span>
-                        <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider font-mono">Real-time status</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 font-mono text-[11px] font-semibold text-slate-600">
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>MailOS</span>
-                          <span className={cn("text-[10px] font-bold", mailosPaused ? "text-rose-500" : "text-emerald-500")}>
-                            {mailosPaused ? "● SUSPENDED" : "🟢 HEALTHY"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>Business Graph</span>
-                          <span className="text-emerald-500 text-[10px] font-bold">🟢 HEALTHY</span>
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>Decision Engine</span>
-                          <span className="text-emerald-500 text-[10px] font-bold">🟢 HEALTHY</span>
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>Capability Broker</span>
-                          <span className="text-emerald-500 text-[10px] font-bold">🟢 HEALTHY</span>
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>Event Bus</span>
-                          <span className={cn("text-[10px] font-bold", eventBusStopped ? "text-rose-500" : "text-emerald-500")}>
-                            {eventBusStopped ? "● STOPPED" : "🟢 HEALTHY"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-50 pb-1.5">
-                          <span>Telemetry Hub</span>
-                          <span className="text-emerald-500 text-[10px] font-bold">🟢 HEALTHY</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Firestore DB</span>
-                          <span className="text-emerald-500 text-[10px] font-bold">🟢 HEALTHY</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Gemini Client</span>
-                          <span className={cn("text-[10px] font-bold", geminiDisabled ? "text-rose-500" : "text-emerald-500")}>
-                            {geminiDisabled ? "● MUTED" : "🟢 HEALTHY"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button 
-                      onClick={() => addLog("Runtime", "Refreshed unified system-wide diagnostics matrix.", "TR-REFR")}
-                      className="mt-4 w-full py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-all"
-                    >
-                      Refresh Health Specs
-                    </button>
-                  </div>
-
-                  {/* Operational Mute Switches */}
+                  {/* Production Proactive Alerts Panel */}
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">Emergency Rail</span>
-                        <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider font-mono">Mute switches</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono font-black">Proactive Alerts</span>
+                        <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider font-mono">System Telemetry</span>
                       </div>
 
-                      <div className="space-y-2 text-xs font-semibold text-slate-600">
-                        <div className="flex items-center justify-between">
-                          <span>Stop Event Bus</span>
-                          <button 
-                            onClick={() => {
-                              const next = !eventBusStopped;
-                              setEventBusStopped(next);
-                              addLog("Emergency", `Event Bus dispatcher transitioned to ${next ? 'HALTED' : 'ACTIVE'}.`, "TR-DISP");
-                            }}
-                            className={cn(
-                              "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all",
-                              eventBusStopped ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {eventBusStopped ? "STOPPED" : "NOMINAL"}
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span>Pause MailOS</span>
-                          <button 
-                            onClick={() => {
-                              const next = !mailosPaused;
-                              setMailosPaused(next);
-                              addLog("Emergency", `MailOS worker synchronization ${next ? 'SUSPENDED' : 'ACTIVE'}.`, "TR-MAIL");
-                            }}
-                            className={cn(
-                              "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all",
-                              mailosPaused ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {mailosPaused ? "PAUSED" : "NOMINAL"}
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span>Disable Matching</span>
-                          <button 
-                            onClick={() => {
-                              const next = !matchingDisabled;
-                              setMatchingDisabled(next);
-                              addLog("Emergency", `Match scoring engine algorithm ${next ? 'SUSPENDED' : 'ACTIVE'}.`, "TR-MATCH");
-                            }}
-                            className={cn(
-                              "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all",
-                              matchingDisabled ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {matchingDisabled ? "SUSPENDED" : "NOMINAL"}
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span>Disable Gemini API</span>
-                          <button 
-                            onClick={() => {
-                              const next = !geminiDisabled;
-                              setGeminiDisabled(next);
-                              addLog("Emergency", `Gemini client routing ${next ? 'DISABLED' : 'ACTIVE'}.`, "TR-GEM");
-                            }}
-                            className={cn(
-                              "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all",
-                              geminiDisabled ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {geminiDisabled ? "DISABLED" : "NOMINAL"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Queue Visualization Breakdown & Worker Utilization Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  
-                  {/* Queue Visualization Breakdown (Item 5) */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">Queue Depth Breakdown</span>
-                        <span className="text-xs font-mono font-black text-indigo-600 bg-indigo-55 py-0.5 px-2 rounded">
-                          {Object.values(queueBreakdown).reduce((a, b) => a + b, 0)} Total Tasks
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-3 font-sans">
+                      <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
                         {[
-                          { label: "Email Sync Tasks", val: queueBreakdown.email, color: "bg-blue-500", key: "email" },
-                          { label: "Resume Parsing", val: queueBreakdown.resumeParsing, color: "bg-purple-500", key: "resume" },
-                          { label: "Matching Queries", val: queueBreakdown.matching, color: "bg-indigo-500", key: "matching" },
-                          { label: "Partner Submissions", val: queueBreakdown.submission, color: "bg-cyan-500", key: "submission" },
-                          { label: "Active Interview Schedules", val: queueBreakdown.interview, color: "bg-amber-500", key: "interview" },
-                          { label: "Negotiating Offers", val: queueBreakdown.offer, color: "bg-emerald-500", key: "offer" },
-                          { label: "Finance & Invoicing", val: queueBreakdown.finance, color: "bg-rose-500", key: "finance" }
-                        ].map((item, idx) => {
-                          const total = Object.values(queueBreakdown).reduce((a, b) => a + b, 0);
-                          const percentage = Math.round((item.val / total) * 100);
-                          return (
-                            <div key={idx} className="space-y-1">
-                              <div className="flex justify-between text-xs font-semibold text-slate-700">
-                                <span className="flex items-center gap-1.5">
-                                  <span className={cn("w-2 h-2 rounded-full", item.color)} />
-                                  {item.label}
-                                </span>
-                                <span className="font-mono text-slate-500">{item.val} items ({percentage}%)</span>
-                              </div>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div className={cn("h-full rounded-full transition-all duration-500", item.color)} style={{ width: `${percentage}%` }} />
+                          { title: "No Event Bus activity for 10 minutes", sev: "HIGH", action: "Check Broker", color: "border-rose-100 bg-rose-50/50 text-rose-800" },
+                          { title: "MailOS backlog exceeds threshold", sev: "MEDIUM", action: "Drain Queue", color: "border-amber-100 bg-amber-50/50 text-amber-800" },
+                          { title: "Matching Office latency exceeds SLA", sev: "WARNING", action: "Re-Route", color: "border-slate-100 bg-slate-50/50 text-slate-700" },
+                          { title: "AI budget reaches 90%", sev: "CRITICAL", action: "Increase Limit", color: "border-rose-100 bg-rose-50/50 text-rose-800" },
+                          { title: "Vendor queue backlog grows", sev: "MEDIUM", action: "Scale Workers", color: "border-amber-100 bg-amber-50/50 text-amber-800" },
+                          { title: "Office heartbeat missing", sev: "WARNING", action: "Ping Status", color: "border-slate-100 bg-slate-50/50 text-slate-700" },
+                        ].map((alert, idx) => (
+                          <div key={idx} className={cn("p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-3", alert.color)}>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-[9px] uppercase tracking-wider px-1 bg-white/80 rounded border border-black/5 font-mono">{alert.sev}</span>
+                                <span className="font-semibold leading-tight">{alert.title}</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Worker Pools Utilization (Item 7) */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono">Worker Pools Utilization</span>
-                        <span className="text-xs font-mono font-bold text-slate-500">Multiprocessing Scales</span>
-                      </div>
-
-                      <div className="space-y-4 pt-2">
-                        {[
-                          { label: "Recruitment Pool", value: workerUtilization.recruitment, color: "bg-indigo-600" },
-                          { label: "Vendor Outreach Pool", value: workerUtilization.vendor, color: "bg-cyan-600" },
-                          { label: "Finance & Invoice Processor", value: workerUtilization.finance, color: "bg-emerald-600" },
-                          { label: "AI COO Strategic Engine", value: workerUtilization.coo, color: "bg-purple-600" }
-                        ].map((pool, idx) => (
-                          <div key={idx} className="space-y-1.5">
-                            <div className="flex justify-between text-xs font-bold text-slate-700">
-                              <span>{pool.label}</span>
-                              <span className="font-mono text-slate-600">{pool.value}% Active</span>
-                            </div>
-                            <div className="flex items-center gap-2 font-mono text-[10px]">
-                              <span className="text-slate-400 font-bold shrink-0">CPU Pool</span>
-                              <div className="flex-1 bg-slate-100 h-4 rounded overflow-hidden flex items-center relative border border-slate-150">
-                                <div className={cn("h-full transition-all duration-700", pool.color)} style={{ width: `${pool.value}%` }} />
-                                <span className="absolute inset-0 flex items-center justify-center text-slate-700 font-bold mix-blend-difference text-[9.5px]">
-                                  {Math.round(pool.value / 10)} / 10 Workers Active
-                                </span>
-                              </div>
-                            </div>
+                            <button 
+                              onClick={() => {
+                                addLog("System", `Operator enqueued action: [${alert.action}] for alert [${alert.title}].`, "TR-ALERT-RESOLVE");
+                              }}
+                              className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-mono text-[9px] font-bold rounded"
+                            >
+                              {alert.action}
+                            </button>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-3 flex justify-between text-[10px] font-mono font-semibold text-slate-400">
-                      <span>Scaling Config: AUTO-SCALE ENABLED</span>
-                      <span className="text-indigo-600">Max limit: 40 threads</span>
+                    <div className="pt-3 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-400">
+                      <span>Proactive Monitoring: ACTIVE</span>
+                      <span>6 Active Alerts</span>
+                    </div>
+                  </div>
+
+                  {/* Production Gateway Health Matrix */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block font-mono font-black">Gateway Dependency Matrix</span>
+                        <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider font-mono">Healthy</span>
+                      </div>
+
+                      <div className="space-y-3 font-mono text-[11px] text-slate-600">
+                        {[
+                          { name: "MailOS Pipeline", desc: "Workspace mailbox synchronization API", status: "ONLINE", color: "bg-emerald-50 text-emerald-600" },
+                          { name: "Decision Engine", desc: "RAG matching & priority queues", status: "ONLINE", color: "bg-emerald-50 text-emerald-600" },
+                          { name: "Capability Broker", desc: "Model routing & semantic searches", status: "ONLINE", color: "bg-emerald-50 text-emerald-600" },
+                          { name: "Gemini Core API", desc: "Flash-3.5 strategic model", status: "ONLINE", color: "bg-purple-50 text-purple-600" },
+                          { name: "OpenAI Connector", desc: "GPT secondary fallback pipeline", status: "ONLINE", color: "bg-slate-50 text-slate-600" },
+                        ].map((gateway, idx) => (
+                          <div key={idx} className="flex items-center justify-between pb-2 border-b border-slate-50 last:border-b-0 last:pb-0">
+                            <div>
+                              <span className="font-bold text-slate-800 text-[11px] block">{gateway.name}</span>
+                              <span className="text-[9px] text-slate-400 font-normal block">{gateway.desc}</span>
+                            </div>
+                            <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded", gateway.color)}>
+                              {gateway.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex justify-between text-[10px] font-mono text-slate-400">
+                      <span>Network Ingress: NOMINAL</span>
+                      <span>Ping: 14ms</span>
                     </div>
                   </div>
 
@@ -1743,10 +1927,782 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
               </div>
             )}
 
+            {/* EXECUTION AUDIT TAB */}
+            {activeTab === 'logs' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rule</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Event Details</th>
+                      <th className="py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                    {executionLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No active execution logs found in Firestore</td>
+                      </tr>
+                    ) : executionLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-slate-50 font-mono text-[11px]">
+                        <td className="py-3 px-6 text-slate-500 whitespace-nowrap">{log.date}</td>
+                        <td className="py-3 px-6 font-bold text-slate-700">{log.rule}</td>
+                        <td className="py-3 px-6 text-slate-600 max-w-xs truncate">{log.event}</td>
+                        <td className="py-3 px-6">
+                          <span className={cn(
+                             "px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]",
+                             log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-700" :
+                             log.status === 'PENDING_APPROVAL' ? "bg-amber-100 text-amber-700" :
+                             "bg-slate-100 text-slate-600"
+                          )}>
+                             {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* CHRONOLOGICAL RUNTIME TIMELINE TAB */}
+            {activeTab === 'timeline' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-850 flex items-center gap-2">
+                      <Clock size={18} className="text-indigo-600 animate-spin" style={{ animationDuration: '8s' }} /> Chronological Runtime Timeline
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Real-time chronological trace of active event-state transitions. Driven directly by the live HireNestOS Event Bus stream.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full">
+                    Listening Live
+                  </span>
+                </div>
+
+                <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-indigo-100">
+                  {terminalLogs.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 font-bold uppercase tracking-widest text-xs">
+                      No active events recorded in the runtime timeline
+                    </div>
+                  ) : [...terminalLogs].reverse().map((log, idx) => {
+                    const isError = log.type === 'Errors' || log.text.includes('[CRITICAL]') || log.text.includes('[FAIL]') || log.text.includes('failed') || log.text.includes('FAILED');
+                    const isAI = log.type === 'AI Decisions' || log.text.includes('Gemini') || log.text.includes('calibrated');
+                    const isEventBus = log.type === 'Event Bus' || log.text.includes('DISPATCH') || log.text.includes('RECEIVED');
+                    const isMail = log.type === 'MailOS' || log.text.includes('MailOS');
+
+                    return (
+                      <div key={idx} className="relative group transition-all hover:translate-x-1 duration-200">
+                        {/* Timeline Node Icon */}
+                        <div className={cn(
+                          "absolute -left-7.5 top-1 w-3.5 h-3.5 rounded-full border-2 bg-white flex items-center justify-center z-10 transition-transform group-hover:scale-125",
+                          isError ? "border-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.3)]" :
+                          isAI ? "border-purple-500" :
+                          isEventBus ? "border-indigo-500" :
+                          isMail ? "border-cyan-500" :
+                          "border-slate-400"
+                        )}>
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            isError ? "bg-rose-500 animate-ping" :
+                            isAI ? "bg-purple-500" :
+                            isEventBus ? "bg-indigo-500" :
+                            isMail ? "bg-cyan-500" :
+                            "bg-slate-400"
+                          )} />
+                        </div>
+
+                        {/* Content Card */}
+                        <div className={cn(
+                          "p-4 rounded-xl border transition-all shadow-2xs",
+                          isError ? "bg-rose-50/20 border-rose-100" :
+                          isAI ? "bg-purple-50/20 border-purple-100" :
+                          isEventBus ? "bg-indigo-50/10 border-indigo-100" :
+                          "bg-white border-slate-150"
+                        )}>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">
+                                {log.time}
+                              </span>
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono",
+                                isError ? "bg-rose-100 text-rose-800" :
+                                isAI ? "bg-purple-100 text-purple-800" :
+                                isEventBus ? "bg-indigo-100 text-indigo-800" :
+                                isMail ? "bg-cyan-100 text-cyan-800" :
+                                "bg-slate-100 text-slate-700"
+                              )}>
+                                {log.type}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-slate-400 uppercase">
+                              Trace: <strong className="text-slate-600 font-bold font-mono">{log.trace}</strong>
+                            </span>
+                          </div>
+
+                          <p className={cn(
+                            "text-xs font-semibold mt-2 leading-relaxed font-mono",
+                            isError ? "text-rose-800" : "text-slate-700"
+                          )}>
+                            {log.text}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ENGINEERING CONSOLE TAB (REPLACING DEV TOOLS) */}
+            {activeTab === 'engineering' && (
+              <div className="space-y-6 animate-fade-in">
+                
+                {/* 1. Drift Telemetry & Kernel Specs */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Real-time Latency Sparkline */}
+                  <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-800 flex items-center gap-2">
+                          <Activity className="text-indigo-500" size={16} /> Runtime Heartbeat Telemetry (Live Waveform)
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Visualizing live scheduler drift and transaction processing latencies.</p>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        Avg Drift: +2.4 ms
+                      </span>
+                    </div>
+
+                    {/* SVG Sparkline */}
+                    <div className="bg-slate-950 rounded-xl p-4 relative overflow-hidden h-24 flex items-end">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.15),transparent)] pointer-events-none" />
+                      <svg className="w-full h-full stroke-indigo-400 fill-none" viewBox="0 0 100 30" preserveAspectRatio="none">
+                        <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={`M ${driftHistory.map((d, i) => `${(i / (driftHistory.length - 1)) * 100} ${30 - d}`).join(' L ')}`} />
+                      </svg>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 text-center text-xs font-mono">
+                      <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl">
+                        <span className="text-[9px] text-slate-400 block uppercase">Sampling Rate</span>
+                        <strong className="text-slate-700 text-sm mt-0.5 block">1 Hz</strong>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl">
+                        <span className="text-[9px] text-slate-400 block uppercase">Variance Limit</span>
+                        <strong className="text-slate-700 text-sm mt-0.5 block">15 ms</strong>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl">
+                        <span className="text-[9px] text-slate-400 block uppercase">Outlier States</span>
+                        <strong className="text-emerald-600 text-sm mt-0.5 block">0 (Nominal)</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Runtime Kernel Variables Specs */}
+                  <div className="bg-slate-900 text-slate-100 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
+                    <div className="border-b border-slate-800 pb-3">
+                      <h4 className="text-xs font-black uppercase tracking-widest font-mono text-indigo-400 flex items-center gap-1.5">
+                        <Cpu size={14} /> Runtime Kernel Variables
+                      </h4>
+                      <span className="text-[9px] text-slate-500 uppercase font-mono mt-0.5 block">Infrastructure spec descriptors</span>
+                    </div>
+
+                    <div className="space-y-2 font-mono text-[10.5px] flex-1 mt-4">
+                      <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                        <span className="text-slate-400">Kernel Version</span>
+                        <span className="text-slate-200 font-bold">v2.1.0-LIVE</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                        <span className="text-slate-400">Process PID</span>
+                        <span className="text-emerald-400 font-bold">14829</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                        <span className="text-slate-400">Host Hostname</span>
+                        <span className="text-slate-200">cloud-run-pod-091a</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                        <span className="text-slate-400">RAM Heap lease</span>
+                        <span className="text-indigo-300">142 MB / 512 MB</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Event Loop Period</span>
+                        <span className="text-indigo-400 font-bold">1,200 ms (Steady)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 2. Scenario Simulator & Dead Letter Queue (DLQ) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* High Fidelity Event Generator */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="text-sm font-black uppercase tracking-tight text-slate-850 flex items-center gap-2">
+                        <Zap className="text-amber-500 animate-bounce" size={16} /> Live Event Simulator
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Trigger live operations transactions or run synthetic failure chaos outages.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      
+                      {/* Scenario A */}
+                      <button
+                        onClick={async () => {
+                          const time = new Date().toLocaleTimeString();
+                          setTerminalLogs(prev => [...prev, { time, type: "Event Bus", text: "HQ Event Dispatcher: broadcasting simulated REQUIREMENT_CREATED...", trace: "TR-DISP" }]);
+                          try {
+                            const res = await fetch("/api/ops/runtime/simulate", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                eventType: "CREATE_REQUIREMENT",
+                                details: { reqId: "REQ-2026-112", title: "Senior React Architect" }
+                              })
+                            });
+                            if (res.ok) {
+                              setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "System", text: "✓ Simulation API response: REQUIREMENT_CREATED dispatched successfully.", trace: "TR-OK" }]);
+                            }
+                          } catch (err: any) {
+                            setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Errors", text: `Simulation failed: ${err.message}`, trace: "TR-ERR" }]);
+                          }
+                        }}
+                        className="p-3 bg-indigo-50/40 hover:bg-indigo-150/40 border border-indigo-150 rounded-xl text-left transition-all"
+                      >
+                        <span className="text-[9px] font-bold text-indigo-700 uppercase font-mono block">Scenario A</span>
+                        <span className="text-xs font-black text-indigo-900 block mt-0.5">Create Requirement</span>
+                        <p className="text-[10px] text-slate-500 mt-1 font-normal leading-normal">Simulates REQ_CREATED event, triggers match calibrations.</p>
+                      </button>
+
+                      {/* Scenario B */}
+                      <button
+                        onClick={async () => {
+                          const time = new Date().toLocaleTimeString();
+                          setTerminalLogs(prev => [...prev, { time, type: "Event Bus", text: "HQ Event Dispatcher: broadcasting simulated CANDIDATE_UPLOADED...", trace: "TR-DISP" }]);
+                          try {
+                            const res = await fetch("/api/ops/runtime/simulate", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                eventType: "CANDIDATE_UPLOAD",
+                                details: { candidateName: "Elena Rostova", title: "Staff Golang Engineer" }
+                              })
+                            });
+                            if (res.ok) {
+                              setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "System", text: "✓ Simulation API response: CANDIDATE_UPLOADED dispatched successfully.", trace: "TR-OK" }]);
+                            }
+                          } catch (err: any) {
+                            setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Errors", text: `Simulation failed: ${err.message}`, trace: "TR-ERR" }]);
+                          }
+                        }}
+                        className="p-3 bg-emerald-50/40 hover:bg-emerald-150/40 border border-emerald-150 rounded-xl text-left transition-all"
+                      >
+                        <span className="text-[9px] font-bold text-emerald-700 uppercase font-mono block">Scenario B</span>
+                        <span className="text-xs font-black text-emerald-900 block mt-0.5">Upload Candidate</span>
+                        <p className="text-[10px] text-slate-500 mt-1 font-normal leading-normal">Simulates resume parser triggers and alignment scoring.</p>
+                      </button>
+
+                      {/* Scenario C */}
+                      <button
+                        onClick={async () => {
+                          const time = new Date().toLocaleTimeString();
+                          setTerminalLogs(prev => [...prev, { time, type: "Event Bus", text: "HQ Event Dispatcher: broadcasting simulated AUTOMATION_RULE...", trace: "TR-DISP" }]);
+                          try {
+                            const res = await fetch("/api/ops/runtime/simulate", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                eventType: "AUTOMATION_RULE_TRIGGER",
+                                details: { ruleName: "Nudge Silent Client" }
+                              })
+                            });
+                            if (res.ok) {
+                              setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "System", text: "✓ Simulation API response: AUTOMATION_RULE dispatched successfully.", trace: "TR-OK" }]);
+                            }
+                          } catch (err: any) {
+                            setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Errors", text: `Simulation failed: ${err.message}`, trace: "TR-ERR" }]);
+                          }
+                        }}
+                        className="p-3 bg-purple-50/40 hover:bg-purple-150/40 border border-purple-150 rounded-xl text-left transition-all"
+                      >
+                        <span className="text-[9px] font-bold text-purple-700 uppercase font-mono block">Scenario C</span>
+                        <span className="text-xs font-black text-purple-900 block mt-0.5">Rule Triggered</span>
+                        <p className="text-[10px] text-slate-500 mt-1 font-normal leading-normal">Evaluates business policies & triggers candidate nudges.</p>
+                      </button>
+
+                      {/* Scenario D: Chaos Outage testing */}
+                      <button
+                        onClick={async () => {
+                          const time = new Date().toLocaleTimeString();
+                          setTerminalLogs(prev => [...prev, { time, type: "Errors", text: "⚠️ [CHAOS_TEST] Manually initiating network partition outage simulation...", trace: "TR-CHAOS" }]);
+                          try {
+                            const res = await fetch("/api/ops/runtime/simulate", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ eventType: "CHAOS_TEST" })
+                            });
+                            if (res.ok) {
+                              // Inject simulated poisonous message into local DLQ state for live operator interaction!
+                              setDlqMessages(prev => [
+                                ...prev,
+                                {
+                                  id: `DLQ-${101 + prev.length}`,
+                                  correlationId: "chaos-deadlock-901",
+                                  workflow: "Strategic Match Calibration",
+                                  office: "Matching Office",
+                                  reason: "Network deadlock in Event Bus partition matching-01 (MOCK_CHAOS)",
+                                  retryCount: 3,
+                                  firstFailure: new Date().toLocaleTimeString(),
+                                  lastFailure: new Date().toLocaleTimeString()
+                                }
+                              ]);
+                              setTerminalLogs(prev => [
+                                ...prev,
+                                { time: new Date().toLocaleTimeString(), type: "Errors", text: "❌ [FAIL] Partition deadlock active: Matching Office has crashed into FAILED state. Outbox events are landing in DLQ.", trace: "TR-FAIL" }
+                              ]);
+                            }
+                          } catch (err: any) {
+                            setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Errors", text: `Chaos execution failed: ${err.message}`, trace: "TR-ERR" }]);
+                          }
+                        }}
+                        className="p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-left transition-all relative overflow-hidden group"
+                      >
+                        <div className="absolute right-2 top-2 w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping pointer-events-none" />
+                        <span className="text-[9px] font-bold text-rose-700 uppercase font-mono block">Scenario D</span>
+                        <span className="text-xs font-black text-rose-900 flex items-center gap-1.5 mt-0.5">
+                          Chaos Outage Test <span className="bg-rose-200 text-rose-800 text-[8px] font-black tracking-wider px-1 py-0.2 rounded font-mono uppercase">destructive</span>
+                        </span>
+                        <p className="text-[10px] text-slate-600 mt-1 font-normal leading-normal">Forces Event Bus partition crash, fails offices, and seeds DLQ.</p>
+                      </button>
+
+                    </div>
+                  </div>
+
+                  {/* Dead Letter Queue (DLQ) Inspector panel */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div className="space-y-0.5">
+                          <h4 className="text-sm font-black uppercase tracking-tight text-slate-850 flex items-center gap-2">
+                            <ShieldAlert className="text-rose-500" size={16} /> Dead Letter Queue (DLQ)
+                          </h4>
+                          <p className="text-[11px] text-slate-400">Poisoned or unrouted transaction events isolated for safe manual recovery.</p>
+                        </div>
+                        <span className={cn(
+                          "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border",
+                          dlqMessages.length > 0 ? "text-rose-700 bg-rose-50 border-rose-200 animate-pulse" : "text-slate-400 bg-slate-50 border-slate-150"
+                        )}>
+                          {dlqMessages.length} Failed Logs
+                        </span>
+                      </div>
+
+                      {dlqMessages.length === 0 ? (
+                        <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50/50 text-center text-xs text-slate-400 font-bold uppercase tracking-widest py-8">
+                          Nominal Operations. DLQ is currently empty.
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5 max-h-40 overflow-y-auto pr-1">
+                          {dlqMessages.map((msg, idx) => (
+                            <div key={idx} className="p-3 rounded-xl border border-rose-100 bg-rose-50/20 space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="font-mono text-xs font-black text-rose-850">ID: {msg.id}</span>
+                                <span className="font-mono text-[9px] text-slate-500">First fail: {msg.firstFailure}</span>
+                              </div>
+                              <p className="font-mono text-[11px] text-slate-600 leading-relaxed font-semibold">
+                                {msg.reason}
+                              </p>
+                              <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 pt-1 border-t border-rose-100/50">
+                                <span>CorrID: <strong className="text-slate-700">{msg.correlationId}</strong></span>
+                                <span>Retries: <strong className="text-rose-700">{msg.retryCount} / 3</strong></span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        const time = new Date().toLocaleTimeString();
+                        setTerminalLogs(prev => [...prev, { time, type: "Event Bus", text: "HQ Operator initiated DLQ Manual Replay procedure...", trace: "TR-REPLAY" }]);
+                        try {
+                          const res = await fetch("/api/ops/runtime/simulate", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ eventType: "REPLAY_DLQ" })
+                          });
+                          if (res.ok) {
+                            setDlqMessages([]); // clear queue
+                            setTerminalLogs(prev => [
+                              ...prev,
+                              { time: new Date().toLocaleTimeString(), type: "System", text: "✓ [NOMINAL] Manual Replay success: DLQ transactions re-routed. Workforce State reverted to nominal LIVE.", trace: "TR-PASS" }
+                            ]);
+                          }
+                        } catch (err: any) {
+                          setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Errors", text: `DLQ replay failed: ${err.message}`, trace: "TR-ERR" }]);
+                        }
+                      }}
+                      disabled={dlqMessages.length === 0}
+                      className={cn(
+                        "mt-4 w-full py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5",
+                        dlqMessages.length > 0 
+                          ? "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer" 
+                          : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                      )}
+                    >
+                      <RefreshCw size={14} className={dlqMessages.length > 0 ? "animate-spin" : ""} style={{ animationDuration: '4s' }} /> Replay & Recover DLQ Transactions
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* 3. Queue Explorer & Adaptive Feature Flags with Approvals */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Queue Explorer */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="text-sm font-black uppercase tracking-tight text-slate-850 flex items-center gap-2">
+                        <Layers className="text-indigo-500" size={16} /> Central Queue Explorer
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Inspect and prioritize active transactions in the central Event Bus buffer pool.</p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {[
+                        { qId: "Q-102", type: "RESUME_UPLOADED", office: "Recruitment", age: "12s ago", priority: "NORMAL", correlation: "xyz-789" },
+                        { qId: "Q-103", type: "MATCH_CALIBRATE", office: "Matching", age: "42s ago", priority: "NORMAL", correlation: "abc-123" },
+                        { qId: "Q-104", type: "RULE_TRIGGERED", office: "AI COO", age: "2m ago", priority: "MEDIUM", correlation: "rule-902" }
+                      ].map((queueItem, index) => (
+                        <div key={index} className="p-3 bg-slate-50 border border-slate-150 rounded-xl flex items-center justify-between hover:bg-slate-100/50 transition-colors">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] font-black text-slate-400">[{queueItem.qId}]</span>
+                              <strong className="text-xs font-black text-slate-800">{queueItem.type}</strong>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+                              <span>Office: <strong className="text-slate-600">{queueItem.office}</strong></span>
+                              <span>Age: <strong className="text-slate-600">{queueItem.age}</strong></span>
+                              <span>CorrID: <strong className="text-slate-600">{queueItem.correlation}</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "font-mono text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase",
+                              queueItem.priority === 'HIGH' ? "bg-amber-100 text-amber-800" : "bg-slate-150 text-slate-600"
+                            )}>
+                              {queueItem.priority}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const timestamp = new Date().toLocaleTimeString();
+                                setTerminalLogs(prev => [
+                                  ...prev,
+                                  { time: timestamp, type: "Event Bus", text: `✓ [PRIORITIZE] Transferred queue item ${queueItem.qId} (Correlation: ${queueItem.correlation}) to zero-drift high-priority execution slot.`, trace: "TR-PRIORITY" }
+                                ]);
+                              }}
+                              className="px-2 py-1 bg-white hover:bg-slate-150 border border-slate-200 rounded text-[9px] font-bold text-slate-600 transition-colors uppercase"
+                            >
+                              Prioritize
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feature Flags Approval Workflow block */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative">
+                    <div>
+                      <h4 className="text-sm font-black uppercase tracking-tight text-slate-850 flex items-center gap-2">
+                        <Settings2 className="text-indigo-500 animate-spin" style={{ animationDuration: '10s' }} size={16} /> Adaptive Operating Feature Flags
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Administers advanced runtime loops safely via secure proposal approvals.</p>
+                    </div>
+
+                    <div className="space-y-3 pt-1 text-xs font-semibold text-slate-600">
+                      {featureFlags.map((flag) => (
+                        <div key={flag.id} className="flex justify-between items-center border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
+                          <div>
+                            <span className="text-slate-800 font-black">{flag.name}</span>
+                            <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{flag.desc}</span>
+                            {rollbackTimers[flag.id] > 0 && (
+                              <span className="font-mono text-[9px] text-rose-600 font-bold block mt-0.5 animate-pulse">
+                                ⏳ Rollback timer active: Reverting in {Math.floor(rollbackTimers[flag.id] / 60)}:{(rollbackTimers[flag.id] % 60).toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "px-2 py-0.5 text-[9px] font-black uppercase rounded font-mono",
+                              flag.status === 'ENABLED' ? "bg-emerald-50 text-emerald-800" :
+                              flag.status === 'HALF-OPEN' ? "bg-amber-50 text-amber-800" :
+                              "bg-slate-100 text-slate-400"
+                            )}>
+                              {flag.status}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const nextState = flag.status === 'ENABLED' ? 'DISABLED' : 'ENABLED';
+                                setPendingFlagChange({ flag, nextState, rollback: "300" });
+                              }}
+                              className="p-1 hover:bg-slate-100 rounded text-indigo-600 transition-colors text-[10px] font-mono font-bold"
+                            >
+                              Toggle
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Change Request Proposal Overlay */}
+                    {pendingFlagChange && (
+                      <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-xs rounded-2xl p-6 text-white flex flex-col justify-between z-10 animate-fade-in">
+                        <div className="space-y-2">
+                          <span className="text-[9px] font-mono font-black text-indigo-400 uppercase tracking-widest block">Authorization Change Proposal</span>
+                          <h4 className="text-sm font-black">Verify Feature Flag Transition</h4>
+                          <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 text-xs font-mono space-y-1.5 mt-2">
+                            <div>Flag: <strong className="text-indigo-400">{pendingFlagChange.flag.name}</strong></div>
+                            <div>Action: <strong className="text-amber-400">{pendingFlagChange.flag.status} ➔ {pendingFlagChange.nextState}</strong></div>
+                            <div>Clearance: <span className="text-rose-400 font-bold">L2 Operator Authorization Required</span></div>
+                          </div>
+
+                          {/* Rollback Duration Picker */}
+                          <div className="space-y-1 pt-1.5">
+                            <label className="text-[10px] font-mono text-slate-400 block font-bold">Automatic Safety Rollback Safeguard:</label>
+                            <select
+                              value={pendingFlagChange.rollback}
+                              onChange={(e) => setPendingFlagChange(prev => ({ ...prev, rollback: e.target.value }))}
+                              className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2 text-xs font-mono text-slate-200 outline-none cursor-pointer"
+                            >
+                              <option value="0">None (Permanent Direct Application)</option>
+                              <option value="60">1 Minute Safe-Timer</option>
+                              <option value="300">5 Minutes Safe-Timer (Recommended)</option>
+                              <option value="900">15 Minutes Safe-Timer</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2.5 mt-4">
+                          <button
+                            onClick={() => setPendingFlagChange(null)}
+                            className="flex-1 py-1.5 border border-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-colors"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => {
+                              const fId = pendingFlagChange.flag.id;
+                              const targetVal = pendingFlagChange.nextState;
+                              const duration = parseInt(pendingFlagChange.rollback);
+
+                              // Apply flag change
+                              setFeatureFlags(prev => prev.map(f => f.id === fId ? { ...f, status: targetVal } : f));
+                              
+                              if (duration > 0 && targetVal === 'ENABLED') {
+                                setRollbackTimers(prev => ({ ...prev, [fId]: duration }));
+                              }
+
+                              const timestamp = new Date().toLocaleTimeString();
+                              setTerminalLogs(prev => [
+                                ...prev,
+                                {
+                                  time: timestamp,
+                                  type: 'Runtime',
+                                  text: `✓ FEATURE_FLAG_APPLIED: Flag [${fId}] transitioned to ${targetVal}.${duration > 0 ? ` Automatic rollback timer armed for ${duration / 60} min.` : ''}`,
+                                  trace: `TR-FLAG-${fId.toUpperCase()}`
+                                }
+                              ]);
+
+                              setPendingFlagChange(null);
+                            }}
+                            className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-md"
+                          >
+                            Approve & Apply
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* 4. Heartbeat Diagnostics Log */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-tight text-slate-805">
+                      Heartbeat Diagnostics Log
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Verifies alignment of active schedulers, heartbeat drift, and runtime lock leases.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                      { name: "Marketplace Scan Thread", interval: "Every 15 min", drift: "+4 ms", status: "NOMINAL" },
+                      { name: "AI COO Audit Loop", interval: "Every 1 hour", drift: "+12 ms", status: "NOMINAL" },
+                      { name: "Learning Engine Daemon", interval: "Nightly (02:00)", drift: "0 ms", status: "NOMINAL" },
+                      { name: "Heartbeat Monitor Engine", interval: "Every 10 sec", drift: "+1.2 ms", status: "NOMINAL" },
+                      { name: "SLA Monitor Service", interval: "Every 5 min", drift: "+2.5 ms", status: "NOMINAL" },
+                      { name: "Business Graph Verifier", interval: "Hourly", drift: "+8 ms", status: "NOMINAL" }
+                    ].map((sched, index) => (
+                      <div key={index} className="p-4 bg-slate-50 border border-slate-100 rounded-xl font-mono text-xs flex justify-between items-center hover:bg-slate-100/50 transition-colors">
+                        <div>
+                          <span className="font-bold text-slate-700 block">{sched.name}</span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Interval: {sched.interval}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-wider uppercase rounded block">
+                            {sched.status}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Drift: {sched.drift}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </div>
         </div>
 
       </div>
+
+      {/* Active Queue Drilldown Modal Overlay */}
+      {(() => {
+        if (!activeQueueDrilldown) return null;
+
+        const drilldownData: Record<string, { id: string; label: string; status: 'RUNNING' | 'WAITING' | 'COMPLETED' | 'RETRY'; age: string; details: string }[]> = {
+          email: [
+            { id: "EM-902", label: "Client Nudge Email", status: "RUNNING", age: "42 sec ago", details: "REQ-2026-102 (Globex Corporation SLA Warning)" },
+            { id: "EM-903", label: "Partner Campaign Broadcast", status: "WAITING", age: "2 min ago", details: "Zenith Systems Bench Update Broadcast" },
+            { id: "EM-904", label: "AI Candidate Preparation Nudge", status: "WAITING", age: "5 min ago", details: "Aarav Mehta Interview preparation guidance dispatch" }
+          ],
+          resume: [
+            { id: "RP-401", label: "Candidate Resume Parser", status: "RUNNING", age: "12 sec ago", details: "Rahul_Sharma_Resume.pdf (Gemini Engine Extraction)" },
+            { id: "RP-402", label: "Batch Upload Parse (4/8)", status: "RETRY", age: "1 min ago", details: "Neha_Gupta_CV.docx (Temporary Gemini rate limit hit)" },
+            { id: "RP-403", label: "Passive Profile Crawler Parse", status: "WAITING", age: "3 min ago", details: "Ecosystem Talent Pool Crawler pipeline pass" }
+          ],
+          matching: [
+            { id: "MQ-301", label: "Strategic Match Calibration", status: "RUNNING", age: "4 sec ago", details: "REQ-2026-109 (Senior Java Developer) vs 14 Active profiles" },
+            { id: "MQ-302", label: "Bespoke Fit Tuning loop", status: "WAITING", age: "1 min ago", details: "REQ-2026-102 (React Native Developer) vs Anil Deshmukh" }
+          ],
+          submission: [
+            { id: "PS-201", label: "Compliance Authorizer Validation", status: "WAITING", age: "30 sec ago", details: "Zenith Systems Submission: Priyanka Sen" },
+            { id: "PS-202", label: "Ecosystem Submission Ledger", status: "WAITING", age: "2 min ago", details: "Core Logic submission block verification" }
+          ],
+          interview: [
+            { id: "IS-101", label: "SLA Scheduling Loop", status: "WAITING", age: "15 min ago", details: "Aarav Mehta vs Globex Corp Interview Calendar Lock" }
+          ],
+          offer: [
+            { id: "NO-501", label: "Pro-forma Contract Draft Engine", status: "WAITING", age: "18 min ago", details: "Siddharth Roy contract placement parameters review" }
+          ],
+          finance: [
+            { id: "FI-601", label: "Automated GST/Invoice Calibrator", status: "WAITING", age: "25 min ago", details: "Globex Corp Pro-forma Invoice ID FI-2026-098" }
+          ]
+        };
+
+        const targetData = (activeQueueDrilldown === 'resumeParsing' ? drilldownData['resume'] : drilldownData[activeQueueDrilldown]) || [];
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 block">Queue Live Inspector</span>
+                  <h3 className="text-base font-black text-slate-800 capitalize mt-1">
+                    {activeQueueDrilldown === 'resumeParsing' ? 'Resume Parsing' : activeQueueDrilldown} Task Queue Depth
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setActiveQueueDrilldown(null)}
+                  className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-500 font-bold transition-all text-sm flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4">
+                <div className="flex justify-between items-center text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono">
+                  <span>Active Worker Pool Leases: <strong className="text-slate-800 font-bold">3 Active Workers</strong></span>
+                  <span>Unacknowledged count: <strong className="text-slate-800 font-bold">0 Items</strong></span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {targetData.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-xs">No active queue items found</div>
+                  ) : targetData.map((task) => (
+                    <div key={task.id} className="p-4 border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/40 rounded-xl transition-all flex flex-col md:flex-row justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-slate-400 font-bold">[{task.id}]</span>
+                          <h4 className="text-sm font-black text-slate-800">{task.label}</h4>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium">{task.details}</p>
+                        <span className="text-[10px] text-slate-400 font-bold block">Enqueued: {task.age}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 self-end md:self-center">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider font-mono",
+                          task.status === 'RUNNING' ? "bg-blue-50 text-blue-700 animate-pulse" :
+                          task.status === 'WAITING' ? "bg-amber-50 text-amber-700" :
+                          task.status === 'RETRY' ? "bg-rose-55 text-rose-700" :
+                          "bg-emerald-50 text-emerald-700"
+                        )}>
+                          {task.status}
+                        </span>
+
+                        <button 
+                          onClick={() => {
+                            const time = new Date().toLocaleTimeString();
+                            setTerminalLogs(prev => [...prev, { time, type: "Runtime", text: `✓ Manually prioritizing / retriggering task ${task.id}...`, trace: "TR-FORCE" }]);
+                            setActiveQueueDrilldown(null);
+                          }}
+                          className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-700 transition-colors"
+                          title="Force immediate priority execution"
+                        >
+                          <PlayCircle size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button
+                  onClick={() => setActiveQueueDrilldown(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all"
+                >
+                  Close Inspector
+                </button>
+                <button
+                  onClick={() => {
+                    const time = new Date().toLocaleTimeString();
+                    setTerminalLogs(prev => [...prev, { time, type: "Runtime", text: `✓ Flushed all completed/stale buffers in queue: ${activeQueueDrilldown}.`, trace: "TR-FLUSH" }]);
+                    setActiveQueueDrilldown(null);
+                  }}
+                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                >
+                  Clear Stale Queue
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

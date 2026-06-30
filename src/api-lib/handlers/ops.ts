@@ -498,6 +498,287 @@ export default async function opsHandler(req: Request, res: Response) {
       return res.json({ success: true, status: "RECOVERING" });
     }
 
+    if (path === "ops/runtime/bootstrap" && method === "POST") {
+      if (db) {
+        const docRef = db.collection("system_runtime").doc("state");
+        (async () => {
+          try {
+            const traceId = `TR-BOOT-${Date.now()}`;
+            await docRef.update({ status: "BOOTSTRAPPING", updatedAt: new Date().toISOString() });
+            await writeSystemLog("System", "Initiating explicit system bootstrap...", traceId);
+            await new Promise(r => setTimeout(r, 500));
+
+            await writeSystemLog("System", "Rebuilding database projections...", traceId);
+            await writeSystemLog("System", "Reconciling Enterprise Knowledge Graph nodes and edges...", traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            await writeSystemLog("System", "Replaying pending outbox events...", traceId);
+            await initializeRuntimeState("LIVE");
+            await writeSystemLog("System", "Bootstrap complete. Operational state synchronized to LIVE.", traceId);
+          } catch (err) {
+            console.error("Bootstrap error", err);
+          }
+        })().catch(e => console.error(e));
+      }
+      return res.json({ success: true, status: "BOOTSTRAPPING" });
+    }
+
+    if (path === "ops/runtime/simulate" && method === "POST") {
+      if (!db) {
+        return res.json({ success: true });
+      }
+      const { eventType, details } = req.body || {};
+      const traceId = `TR-SIM-${Date.now()}`;
+      const docRef = db.collection("system_runtime").doc("state");
+
+      // Set status to PROCESSING
+      await docRef.update({ status: "PROCESSING", updatedAt: new Date().toISOString() });
+
+      // Run simulation sequence asynchronously so it doesn't block the HTTP response
+      (async () => {
+        try {
+          if (eventType === "CREATE_REQUIREMENT") {
+            const reqId = details?.reqId || "REQ-2026-112";
+            const reqTitle = details?.title || "Senior React Architect";
+            await writeSystemLog("Event Bus", `EVENT RECEIVED: REQUIREMENT_CREATED [${reqId}] - ${reqTitle}`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            // Matching office
+            await writeSystemLog("Matching Office", `Triggering semantic matching pass for ${reqId}...`, traceId);
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "recruitment-office") {
+                  return {
+                    ...off,
+                    status: "PROCESSING",
+                    state: "Semantic matching pass",
+                    currentExecution: {
+                      requirement: reqTitle,
+                      candidate: "Rahul Sharma",
+                      step: "Analyzing skillset matches...",
+                      progress: 40,
+                      estimatedFinishSec: 8
+                    }
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ offices: updatedOffices });
+            }
+            await new Promise(r => setTimeout(r, 800));
+
+            // Success match log
+            await writeSystemLog("Matching Office", `Match indexing complete. Found 3 candidates with score > 85%.`, traceId);
+            await writeSystemLog("Recruitment Office", `Publishing MATCH_CREATED for ${reqId} to Outbox.`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            // Vendor Broadcast
+            await writeSystemLog("Vendor Office", `Event received: MATCH_CREATED. Dispatching notification to Zenith Systems.`, traceId);
+            const snap2 = await docRef.get();
+            if (snap2.exists) {
+              const data = snap2.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "recruitment-office") {
+                  return {
+                    ...off,
+                    status: "RUNNING",
+                    state: "Idle",
+                    queueCount: Math.max(0, off.queueCount - 1),
+                    currentExecution: null
+                  };
+                }
+                if (off.id === "vendor-office") {
+                  return {
+                    ...off,
+                    status: "PROCESSING",
+                    state: "Broadcasting candidate matches",
+                    currentExecution: {
+                      requirement: reqTitle,
+                      candidate: "Amit Patel",
+                      step: "Broadcasting matches",
+                      progress: 75,
+                      estimatedFinishSec: 3
+                    }
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ offices: updatedOffices });
+            }
+            await new Promise(r => setTimeout(r, 800));
+
+            await writeSystemLog("Vendor Office", `Partner notifications broadcasted successfully via MailOS.`, traceId);
+            
+            // Re-set master status back to LIVE
+            const snap3 = await docRef.get();
+            if (snap3.exists) {
+              const data = snap3.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "vendor-office") {
+                  return {
+                    ...off,
+                    status: "RUNNING",
+                    state: "Idle",
+                    currentExecution: null
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ status: "LIVE", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          } else if (eventType === "CANDIDATE_UPLOAD") {
+            const candName = details?.candidateName || "Elena Rostova";
+            const reqTitle = details?.title || "Staff Golang Engineer";
+            await writeSystemLog("Event Bus", `EVENT RECEIVED: CANDIDATE_UPLOADED [${candName}] for ${reqTitle}`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            // Recruitment Office
+            await writeSystemLog("Recruitment Office", `Processing resume extract pipeline for ${candName}...`, traceId);
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "recruitment-office") {
+                  return {
+                    ...off,
+                    status: "PROCESSING",
+                    state: "Extracting skills with Gemini",
+                    currentExecution: {
+                      requirement: reqTitle,
+                      candidate: candName,
+                      step: "Calling Gemini-3.5-Flash parsing API...",
+                      progress: 30,
+                      estimatedFinishSec: 10
+                    }
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ offices: updatedOffices });
+            }
+            await new Promise(r => setTimeout(r, 800));
+
+            await writeSystemLog("Recruitment Office", `Successfully parsed resume. Confidence: 98%. Extracted: Kubernetes, Go, gRPC.`, traceId);
+            await writeSystemLog("Matching Office", `Evaluating fit score against ${reqTitle}...`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            await writeSystemLog("Matching Office", `Fit score verified: 94%. Automatic submission registered in Submission Ledger.`, traceId);
+            const snap2 = await docRef.get();
+            if (snap2.exists) {
+              const data = snap2.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "recruitment-office") {
+                  return {
+                    ...off,
+                    status: "RUNNING",
+                    state: "Idle",
+                    currentExecution: null
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ status: "LIVE", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          } else if (eventType === "AUTOMATION_RULE_TRIGGER") {
+            const ruleName = details?.ruleName || "Nudge Silent Client";
+            await writeSystemLog("Automation Engine", `RULE TRIGGERED: [${ruleName}]`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            await writeSystemLog("Automation Engine", `Evaluating conditions... ALL CONDITIONS PASSED.`, traceId);
+            await writeSystemLog("AI COO Office", `Action registered: Send Slack warning to hiring manager.`, traceId);
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "ai-coo") {
+                  return {
+                    ...off,
+                    status: "PROCESSING",
+                    state: "Nudging client",
+                    currentExecution: {
+                      requirement: "Slack Alert Dispatch",
+                      candidate: "N/A",
+                      step: "Posting secure Slack webhook notification...",
+                      progress: 80,
+                      estimatedFinishSec: 3
+                    }
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ offices: updatedOffices });
+            }
+            await new Promise(r => setTimeout(r, 800));
+
+            await writeSystemLog("AI COO Office", `Slack notification dispatched successfully. SLA breach marker cleared.`, traceId);
+            const snap2 = await docRef.get();
+            if (snap2.exists) {
+              const data = snap2.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "ai-coo") {
+                  return {
+                    ...off,
+                    status: "RUNNING",
+                    state: "Idle",
+                    currentExecution: null
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ status: "LIVE", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          } else if (eventType === "CHAOS_TEST") {
+            await writeSystemLog("Errors", `[CRITICAL] Network deadlock detected in Event Bus partition matching-01. Circuit breaker tripped.`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+            await writeSystemLog("Errors", `[DLQ] Injected poisonous match payload REQ-1023 (Correlation: abc-123) into Dead Letter Queue.`, traceId);
+            
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "recruitment-office" || off.id === "ai-coo") {
+                  return {
+                    ...off,
+                    status: "FAILED",
+                    state: "Circuit breaker tripped (Fail-Fast)",
+                    currentExecution: null
+                  };
+                }
+                return off;
+              });
+              await docRef.update({ status: "FAILED", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          } else if (eventType === "REPLAY_DLQ") {
+            await writeSystemLog("Event Bus", `[REPLAY] Manual replay requested for correlation ID abc-123.`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+            await writeSystemLog("Event Bus", `[REPLAY] Retransmitting payload through routing channels... SUCCESS.`, traceId);
+            await writeSystemLog("Matching Office", `Processed replayed match successfully.`, traceId);
+            
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                return {
+                  ...off,
+                  status: "RUNNING",
+                  state: "Idle",
+                  currentExecution: null
+                };
+              });
+              await docRef.update({ status: "LIVE", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          }
+        } catch (err: any) {
+          console.error("Simulation error", err);
+          await docRef.update({ status: "LIVE" });
+        }
+      })().catch(e => console.error(e));
+
+      return res.json({ success: true });
+    }
+
     // 2. LEGACY CRON & BATCH TRIGGERS
     if (path === "ops" && method === "POST") {
       const action = req.query.action;

@@ -253,11 +253,13 @@ async function createServer() {
         case 'ops/queue':
         case 'ops/timeline':
         case 'ops/trends':
+        case 'ops/replay':
         case 'ops/runtime/start':
         case 'ops/runtime/stop':
         case 'ops/runtime/pause':
         case 'ops/runtime/resume':
         case 'ops/runtime/status':
+        case 'ops/runtime/simulate':
           return await opsHandler(req, res);
 
         case 'integrations/events':
