@@ -9,6 +9,9 @@ export default async function opsHandler(req: Request, res: Response) {
     if (path === "ops" && method === "POST") {
         const action = req.query.action;
         if (action === "process_coo") {
+            const { OutboxDispatcher } = await import("../os/kernel/OutboxDispatcher.js");
+            await OutboxDispatcher.dispatchOutbox();
+
             const { AICOORuntime } = await import("../os/kernel/AICOORuntime.js");
             await AICOORuntime.processInbox();
             return res.json({ success: true });
@@ -18,6 +21,10 @@ export default async function opsHandler(req: Request, res: Response) {
             const { MatchingOffice } = await import("../os/kernel/MatchingOffice.js");
             const matchingOffice = new MatchingOffice();
             await matchingOffice.processQueue();
+
+            const { RecruitmentOffice } = await import("../os/kernel/RecruitmentOffice.js");
+            const recruitmentOffice = new RecruitmentOffice();
+            await recruitmentOffice.processQueue();
             
             return res.json({ success: true });
         }
@@ -46,6 +53,26 @@ export default async function opsHandler(req: Request, res: Response) {
     if (path === "ops/trends" && method === "GET") {
       const trends = await RuntimeMetricsService.getHistoricalTrends();
       return res.json({ success: true, trends });
+    }
+
+    if (path === "ops/governance" && method === "GET") {
+      const office = req.query.office as string;
+      const { CircuitBreaker } = await import("../os/kernel/CircuitBreaker.js");
+      const { AIBudgetManager } = await import("../os/kernel/AIBudgetManager.js");
+      const circuit = await CircuitBreaker.checkCircuit(office || "MatchingOffice");
+      const budget = await AIBudgetManager.checkBudget(office || "MatchingOffice");
+      return res.json({ success: true, circuit, budget });
+    }
+
+    if (path === "ops/replay" && method === "POST") {
+      const { eventId, office } = req.body;
+      const { EventReplay } = await import("../os/kernel/EventReplay.js");
+      if (eventId) {
+        await EventReplay.replayEvent(eventId);
+      } else if (office) {
+        await EventReplay.replayDeadLetters(office);
+      }
+      return res.json({ success: true });
     }
 
     return res.status(404).json({ error: `Ops path not found: ${path}` });

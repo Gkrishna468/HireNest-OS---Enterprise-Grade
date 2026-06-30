@@ -1,63 +1,60 @@
-import { BaseAIOffice, OfficeExecutionResult } from './BaseAIOffice.js';
-import { BusinessEvent } from '../../services/EventBus.js';
-import { MatchingOffice as LegacyMatchingOffice } from '../../services/MatchingOffice.js';
-import { db } from '../../../lib/firebase-admin.js';
+import { BaseAIOffice } from "./BaseAIOffice.js";
+import { MatchingOffice as LegacyMatchingOffice } from "../../services/MatchingOffice.js";
+import { db } from "../../../lib/firebase-admin.js";
+import {
+  BusinessEvent,
+  OfficeExecutionResult,
+  OfficePolicy,
+} from "./RuntimeTypes.js";
 
 export class MatchingOffice extends BaseAIOffice {
-    readonly name = 'MatchingOffice';
-    readonly supportedEvents = [
-        'REQUIREMENT_CREATED',
-        'REQUIREMENT_UPDATED',
-        'REQUIREMENT_CLOSED',
-        'CANDIDATE_CREATED',
-        'CANDIDATE_UPDATED',
-        'CANDIDATE_WITHDRAWN'
-    ];
+  readonly name = "MatchingOffice";
 
-    protected async decisionEngine(event: BusinessEvent, memory: any): Promise<boolean> {
-        // Matching Office computes matching for any of its supported events.
-        return this.supportedEvents.includes(event.type);
-    }
+  readonly policy: OfficePolicy = {
+    supportedEvents: [
+      "REQUIREMENT_CREATED",
+      "REQUIREMENT_UPDATED",
+      "REQUIREMENT_CLOSED",
+      "CANDIDATE_CREATED",
+      "CANDIDATE_UPDATED",
+      "CANDIDATE_WITHDRAWN",
+    ],
+    priority: "HIGH",
+    concurrency: 5,
+    maximumRuntimeMs: 60000,
+    dependencies: [],
+    maxRetries: 3,
+    retryDelayMs: 5000,
+    backoffMultiplier: 2,
+    maximumDelayMs: 60000,
+    retryableErrorTypes: ["timeout", "network_error", "quota_exceeded"],
+    permanentErrorTypes: ["validation_error", "not_found"],
+    healthCheckIntervalMs: 60000,
+    heartbeatIntervalMs: 15000,
+  };
 
-    protected async execute(event: BusinessEvent, memory: any): Promise<OfficeExecutionResult> {
-        await LegacyMatchingOffice.handleEvent(event.type, event.payload, event.orgId);
-        return { success: true, actionTaken: 'Processed Match', tokensUsed: 1500, model: 'gemini-1.5-flash' };
-    }
+  protected async decisionEngine(
+    event: BusinessEvent,
+    memory: any,
+  ): Promise<boolean> {
+    // Matching Office computes matching for any of its supported events.
+    return this.policy.supportedEvents.includes(event.eventType);
+  }
 
-    /**
-     * Processes events in the `office_inbox` for this office
-     */
-    public async processQueue() {
-        if (!db) return;
-
-        const snap = await db.collection('office_inbox')
-            .where('office', '==', this.name)
-            .where('status', '==', 'PENDING')
-            .orderBy('enqueuedAt', 'asc')
-            .limit(10)
-            .get();
-
-        if (snap.empty) return;
-
-        const batch = db.batch();
-        const activeTasks = snap.docs.map(doc => {
-            batch.update(doc.ref, { status: 'PROCESSING', processedAt: new Date().toISOString() });
-            return { id: doc.id, data: doc.data(), ref: doc.ref };
-        });
-        await batch.commit();
-
-        for (const task of activeTasks) {
-            try {
-                const eventDoc = await db.collection('business_events').doc(task.data.eventId).get();
-                if (eventDoc.exists) {
-                    const event = eventDoc.data() as BusinessEvent;
-                    await this.executeItem(task.id, event);
-                }
-                await task.ref.update({ status: 'COMPLETED' });
-            } catch (e: any) {
-                console.error(`[MatchingOffice] Error processing task ${task.id}`, e);
-                await task.ref.update({ status: 'FAILED', error: e.message });
-            }
-        }
-    }
+  protected async execute(
+    event: BusinessEvent,
+    memory: any,
+  ): Promise<OfficeExecutionResult> {
+    await LegacyMatchingOffice.handleEvent(
+      event.eventType,
+      event.payload,
+      event.tenantId,
+    );
+    return {
+      success: true,
+      actionTaken: "Processed Match",
+      tokensUsed: 1500,
+      model: "gemini-1.5-flash",
+    };
+  }
 }

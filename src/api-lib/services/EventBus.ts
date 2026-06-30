@@ -1,19 +1,7 @@
 import { db } from '../../lib/firebase-admin.js';
 import { AgentOrchestrator } from './AgentOrchestrator.js';
 import { WorkOrchestrator } from './WorkOrchestrator.js';
-
-export interface BusinessEvent {
-    eventId: string;
-    type: string; // e.g., 'REQUIREMENT_CREATED', 'RESUME_UPLOADED', 'CANDIDATE_MATCHED'
-    payload: any;
-    source: string; // 'UI', 'Webhook', 'Cron'
-    createdAt: string;
-    orgId?: string;
-    traceId?: string;
-    correlationId?: string;
-    parentCorrelationId?: string;
-    causationId?: string;
-}
+import { BusinessEvent } from '../os/kernel/RuntimeTypes.js';
 
 export class EventBus {
     
@@ -62,30 +50,65 @@ export class EventBus {
 
         const eventId = `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         const traceId = traceContext?.traceId || payload?.traceId || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const parentCorrelationId = traceContext?.parentCorrelationId || payload?.correlationId || "";
         const causationId = traceContext?.causationId || payload?.eventId || "";
         const correlationId = traceContext?.correlationId || `EV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const entityId = payload?.id || payload?.requirementId || payload?.candidateId || payload?.matchId || payload?.submissionId || 'unknown';
+        
+        // Derive entityType heuristically from event type
+        const entityType = type.split('_')[0] || 'UNKNOWN';
 
         const event: BusinessEvent = {
             eventId,
-            type,
-            payload,
-            source,
-            createdAt: new Date().toISOString(),
-            orgId,
-            traceId,
+            eventType: type, // standard field
+            type, // legacy
+            eventVersion: 1,
             correlationId,
-            parentCorrelationId,
-            causationId
+            causationId,
+            entityType,
+            entityId,
+            tenantId: orgId || payload?.orgId || payload?.organizationId || 'GLOBAL',
+            source,
+            priority: 'NORMAL', // Default priority, AI COO can adjust
+            createdAt: new Date().toISOString(),
+            publishedAt: new Date().toISOString(),
+            retryCount: 0,
+            traceId,
+            payload,
+            metadata: {
+                parentCorrelationId: traceContext?.parentCorrelationId || payload?.correlationId || ""
+            },
+            orgId // legacy
         };
 
         // 1. Record the event in the events collection
         await db.collection('business_events').doc(event.eventId).set(event);
 
+        const { FeatureFlags } = await import('../os/kernel/FeatureFlags.js');
+        if (FeatureFlags.OUTBOX_PATTERN_ENABLED) {
+            // Write to Outbox instead of direct queueing
+            await db.collection('outbox_events').doc(event.eventId).set({
+                event,
+                status: 'PENDING',
+                createdAt: new Date().toISOString()
+            });
+
+            // Trigger Outbox Dispatcher
+            const { OutboxDispatcher } = await import('../os/kernel/OutboxDispatcher.js');
+            OutboxDispatcher.dispatchOutbox().catch(e => console.error('[EventBus] Outbox trigger failed', e));
+        } else {
+            await this.publishInternal(event);
+        }
+
+        return event.eventId;
+    }
+
+    static async publishInternal(event: BusinessEvent) {
+        // Build the Business Graph
+        const { BusinessGraph } = await import('../os/kernel/BusinessGraph.js');
+        await BusinessGraph.buildFromEvent(event.eventType, event.payload).catch(e => console.error('[EventBus] Graph build failed', e));
+
         // 2. Enqueue to AI COO
         const { AICOORuntime } = await import('../os/kernel/AICOORuntime.js');
         await AICOORuntime.enqueueEvent(event);
-
-        return event.eventId;
     }
 }

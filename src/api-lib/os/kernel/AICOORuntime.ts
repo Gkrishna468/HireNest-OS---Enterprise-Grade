@@ -1,108 +1,197 @@
-import { db } from '../../../lib/firebase-admin.js';
-import { BusinessEvent } from '../../services/EventBus.js';
+import { db } from "../../../lib/firebase-admin.js";
+import { BusinessEvent } from "./RuntimeTypes.js";
 
 export class AICOORuntime {
-    
-    /**
-     * Called by the Event Bus to enqueue a business event for the AI COO.
-     */
-    static async enqueueEvent(event: BusinessEvent) {
-        if (!db) return;
-        await db.collection('coo_inbox').add({
-            eventId: event.eventId,
-            type: event.type,
-            status: 'PENDING',
-            enqueuedAt: new Date().toISOString(),
-            priority: 'NORMAL'
+  /**
+   * Called by the Event Bus to enqueue a business event for the AI COO.
+   */
+  static async enqueueEvent(event: BusinessEvent) {
+    const { FeatureFlags } = await import("./FeatureFlags.js");
+    if (!FeatureFlags.AI_RUNTIME_ENABLED) return;
+
+    if (!db) return;
+    await db.collection("coo_inbox").add({
+      eventId: event.eventId,
+      type: event.eventType, // Using the new property
+      status: "PENDING",
+      enqueuedAt: new Date().toISOString(),
+      priority: event.priority || "NORMAL",
+      tenantId: event.tenantId,
+      retryCount: event.retryCount || 0,
+    });
+
+    // Trigger background processing (non-blocking)
+    this.triggerProcessing().catch((e) =>
+      console.error("[AICOORuntime] trigger failed", e),
+    );
+  }
+
+  private static async triggerProcessing() {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    fetch(`${baseUrl}/api/ops?action=process_coo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }).catch(() => {
+      /* ignore */
+    });
+  }
+
+  /**
+   * Processes the COO inbox. Looks at PENDING events, determines which offices
+   * should act, and enqueues tasks for those offices.
+   * Respects Priority: CRITICAL, HIGH, NORMAL, LOW, BACKGROUND.
+   */
+  static async processInbox() {
+    if (!db) return;
+
+    // Process in priority order. For simplicity, we fetch all PENDING and sort in memory if limits are small,
+    // or we could query by priority. Here we'll do a simple fetch since limits are small.
+    const snap = await db
+      .collection("coo_inbox")
+      .where("status", "==", "PENDING")
+      .orderBy("enqueuedAt", "asc")
+      .limit(100)
+      .get();
+
+    if (snap.empty) return;
+
+    const docs = snap.docs.map((d) => ({
+      id: d.id,
+      ref: d.ref,
+      data: d.data(),
+    }));
+
+    // Priority ranking
+    const prioRank: Record<string, number> = {
+      CRITICAL: 5,
+      HIGH: 4,
+      NORMAL: 3,
+      LOW: 2,
+      BACKGROUND: 1,
+    };
+
+    docs.sort((a, b) => {
+      const prioA = prioRank[a.data.priority] || 3;
+      const prioB = prioRank[b.data.priority] || 3;
+      if (prioA !== prioB) return prioB - prioA; // higher first
+      return (
+        new Date(a.data.enqueuedAt).getTime() -
+        new Date(b.data.enqueuedAt).getTime()
+      );
+    });
+
+    const batch = db.batch();
+    let processedCount = 0;
+
+    for (const doc of docs) {
+      if (processedCount >= 20) break; // limit processing batch
+
+      const data = doc.data;
+      const eventId = data.eventId;
+      const eventType = data.type;
+      const tenantId = data.tenantId || "GLOBAL";
+
+      // Mark as processing
+      batch.update(doc.ref, {
+        status: "PROCESSING",
+        processedAt: new Date().toISOString(),
+      });
+
+      // Determine offices based on eventType
+      const targetOffices = await this.determineOffices(eventType);
+
+      for (const office of targetOffices) {
+        const inboxRef = db.collection("office_inbox").doc();
+        batch.set(inboxRef, {
+          office,
+          eventId,
+          eventType,
+          status: "PENDING",
+          enqueuedAt: new Date().toISOString(),
+          priority: data.priority,
+          tenantId,
+          retryCount: 0,
         });
-        
-        // Trigger background processing (non-blocking)
-        this.triggerProcessing().catch(e => console.error('[AICOORuntime] trigger failed', e));
+      }
+
+      // Mark COO inbox item as complete
+      batch.update(doc.ref, { status: "COMPLETED" });
+      processedCount++;
     }
+    await batch.commit();
 
-    private static async triggerProcessing() {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        fetch(`${baseUrl}/api/ops?action=process_coo`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }).catch(() => { /* ignore */ });
-    }
+    // Trigger office processing
+    this.triggerOfficeProcessing().catch((e) =>
+      console.error("[AICOORuntime] trigger office failed", e),
+    );
+  }
 
-    /**
-     * Processes the COO inbox. Looks at PENDING events, determines which offices
-     * should act, and enqueues tasks for those offices.
-     */
-    static async processInbox() {
-        if (!db) return;
-        const snap = await db.collection('coo_inbox')
-            .where('status', '==', 'PENDING')
-            .orderBy('enqueuedAt', 'asc')
-            .limit(20)
-            .get();
+  private static async determineOffices(eventType: string): Promise<string[]> {
+    const { OfficeCapabilityRegistry } =
+      await import("./OfficeCapabilityRegistry.js");
+    const registeredOffices =
+      await OfficeCapabilityRegistry.getOfficesForEvent(eventType);
 
-        if (snap.empty) return;
+    // Fallback or static routes can still be merged if needed, but registry is primary.
+    const staticRoutes: Record<string, string[]> = {
+      REQUIREMENT_CREATED: [
+        "MatchingOffice",
+        "VendorOffice",
+        "ClientOffice",
+        "MarketplaceOffice",
+        "RecruitmentOffice",
+      ],
+      REQUIREMENT_UPDATED: [
+        "MatchingOffice",
+        "ClientOffice",
+        "RecruitmentOffice",
+      ],
+      REQUIREMENT_CLOSED: [
+        "MatchingOffice",
+        "ClientOffice",
+        "RecruitmentOffice",
+      ],
+      CANDIDATE_CREATED: ["MatchingOffice"],
+      CANDIDATE_UPDATED: ["MatchingOffice"],
+      CANDIDATE_WITHDRAWN: ["MatchingOffice"],
+      MATCH_CREATED: [
+        "RecruitmentOffice",
+        "VendorOffice",
+        "NotificationOffice",
+      ],
+      SUBMISSION_CREATED: ["RecruitmentOffice", "VendorOffice"],
+      INTERVIEW_SCHEDULED: ["RecruitmentOffice", "NotificationOffice"],
+      FEEDBACK_RECEIVED: ["RecruitmentOffice"],
+      OFFER_RELEASED: [
+        "RecruitmentOffice",
+        "ClientOffice",
+        "NotificationOffice",
+      ],
+      PAYMENT_RECEIVED: ["VendorOffice", "NotificationOffice"],
+      BENCH_UPDATED: ["MarketplaceOffice"],
+      VENDOR_UPDATED: ["MarketplaceOffice"],
+      SOURCING_SLA_BREACH: ["RecruitmentOffice"],
+      PIPELINE_STALLED: ["RecruitmentOffice"],
+    };
 
-        const batch = db.batch();
-        for (const doc of snap.docs) {
-            const data = doc.data();
-            const eventId = data.eventId;
-            const eventType = data.type;
+    const staticOffices = staticRoutes[eventType] || [];
+    return Array.from(
+      new Set([
+        ...staticOffices,
+        ...registeredOffices,
+        "AnalyticsOffice",
+        "KnowledgeOffice",
+      ]),
+    );
+  }
 
-            // Mark as processing
-            batch.update(doc.ref, { status: 'PROCESSING', processedAt: new Date().toISOString() });
-
-            // Determine offices based on eventType
-            const targetOffices = this.determineOffices(eventType);
-
-            for (const office of targetOffices) {
-                const inboxRef = db.collection('office_inbox').doc();
-                batch.set(inboxRef, {
-                    office,
-                    eventId,
-                    eventType,
-                    status: 'PENDING',
-                    enqueuedAt: new Date().toISOString(),
-                    retryCount: 0
-                });
-            }
-
-            // Mark COO inbox item as complete
-            batch.update(doc.ref, { status: 'COMPLETED' });
-        }
-        await batch.commit();
-
-        // Trigger office processing
-        this.triggerOfficeProcessing().catch(e => console.error('[AICOORuntime] trigger office failed', e));
-    }
-
-    private static determineOffices(eventType: string): string[] {
-        const routes: Record<string, string[]> = {
-            'REQUIREMENT_CREATED': ['MatchingOffice', 'VendorOffice', 'ClientOffice', 'MarketplaceOffice'],
-            'REQUIREMENT_UPDATED': ['MatchingOffice', 'ClientOffice'],
-            'REQUIREMENT_CLOSED': ['MatchingOffice', 'ClientOffice'],
-            'CANDIDATE_CREATED': ['MatchingOffice'],
-            'CANDIDATE_UPDATED': ['MatchingOffice'],
-            'CANDIDATE_WITHDRAWN': ['MatchingOffice'],
-            'MATCH_CREATED': ['RecruitmentOffice', 'VendorOffice', 'NotificationOffice'],
-            'SUBMISSION_CREATED': ['RecruitmentOffice', 'VendorOffice'],
-            'INTERVIEW_SCHEDULED': ['RecruitmentOffice', 'NotificationOffice'],
-            'FEEDBACK_RECEIVED': ['RecruitmentOffice'],
-            'OFFER_RELEASED': ['RecruitmentOffice', 'ClientOffice', 'NotificationOffice'],
-            'PAYMENT_RECEIVED': ['VendorOffice', 'NotificationOffice'],
-            'BENCH_UPDATED': ['MarketplaceOffice'],
-            'VENDOR_UPDATED': ['MarketplaceOffice']
-        };
-
-        const offices = routes[eventType] || [];
-        // Analytics and Knowledge consume all
-        return Array.from(new Set([...offices, 'AnalyticsOffice', 'KnowledgeOffice']));
-    }
-
-    private static async triggerOfficeProcessing() {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        fetch(`${baseUrl}/api/ops?action=process_offices`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }).catch(() => { /* ignore */ });
-    }
+  private static async triggerOfficeProcessing() {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    fetch(`${baseUrl}/api/ops?action=process_offices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }).catch(() => {
+      /* ignore */
+    });
+  }
 }
