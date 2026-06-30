@@ -59,4 +59,13 @@ export class OfficeCapabilityRegistry {
 
     return results;
   }
+
+  /**
+   * Get all registered offices
+   */
+  static async getAllOffices(): Promise<string[]> {
+    if (!db) return [];
+    const snap = await db.collection("office_registry").get();
+    return snap.docs.map((doc) => doc.data().name);
+  }
 }

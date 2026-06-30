@@ -4,7 +4,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
 
-  const orgId = req.headers['x-org-id'] || 'system';
+  const orgId = req.headers["x-org-id"] || "system";
 
   try {
     const { profile, jd, type, job, stage, query } = req.body;
@@ -53,33 +53,42 @@ User Role: ${type}`;
     }
 
     try {
-       const aiResponse = await AIGateway.analyze({
-           prompt: userPrompt,
-           schema: !isCopilot
-       });
-       
-       if (aiResponse.outcome === 'failed') {
-           throw new Error("AI Gateway failed");
-       }
-       
-       if (isCopilot) {
-         return res.status(200).json({ summary: aiResponse.data?.text || "Fallback: Analysis failed." });
-       }
-       
-       return res.status(200).json(aiResponse.data);
-       
-    } catch (aiErr: any) {
-        if (isCopilot) {
-           return res.status(200).json({ summary: "AI Gateway limits exceeded or failed. I am currently operating in diagnostics-only mode. Please check limits." });
-        }
-        throw aiErr;
-    }
+      const aiResponse = await AIGateway.analyze({
+        prompt: userPrompt,
+        schema: !isCopilot,
+      });
 
+      if (aiResponse.outcome === "failed") {
+        throw new Error("AI Gateway failed");
+      }
+
+      if (isCopilot) {
+        return res.status(200).json({
+          summary: aiResponse.data?.text || "Fallback: Analysis failed.",
+        });
+      }
+
+      return res.status(200).json(aiResponse.data);
+    } catch (aiErr: any) {
+      if (isCopilot) {
+        return res.status(200).json({
+          summary:
+            "AI Gateway limits exceeded or failed. I am currently operating in diagnostics-only mode. Please check limits.",
+        });
+      }
+      throw aiErr;
+    }
   } catch (err: any) {
     console.error("Deal Intelligence Error:", err);
     res.status(200).json({
-       questions: ["Could you elaborate on your experience?", "What was your most challenging project?"],
-       starters: ["I noticed you have strong experience in your field...", "How does this role align with your goals?"]
+      questions: [
+        "Could you elaborate on your experience?",
+        "What was your most challenging project?",
+      ],
+      starters: [
+        "I noticed you have strong experience in your field...",
+        "How does this role align with your goals?",
+      ],
     });
   }
 }

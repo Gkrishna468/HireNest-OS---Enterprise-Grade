@@ -18,8 +18,40 @@ export interface CapabilityResponse {
   error?: string;
 }
 
+export interface CapabilitySLA {
+  name: string;
+  averageLatencyMs: number;
+  estimatedCostUsd: number;
+  availability: number; // e.g. 0.999
+  fallbackAction: string;
+  expectedConfidence: number;
+}
+
 export class CapabilityBroker {
   public static readonly VERSION = "v2.0";
+
+  private static readonly REGISTRY: Record<string, CapabilitySLA> = {
+    "candidate.semantic_match": {
+      name: "candidate.semantic_match",
+      averageLatencyMs: 3500,
+      estimatedCostUsd: 0.005,
+      availability: 0.99,
+      fallbackAction: "Deterministic Keyword Match",
+      expectedConfidence: 0.85,
+    },
+    "resume.parse": {
+      name: "resume.parse",
+      averageLatencyMs: 2500,
+      estimatedCostUsd: 0.002,
+      availability: 0.995,
+      fallbackAction: "Reject / Manual Review",
+      expectedConfidence: 0.9,
+    },
+  };
+
+  static getSLA(capabilityName: string): CapabilitySLA | undefined {
+    return this.REGISTRY[capabilityName];
+  }
 
   /**
    * AI Service Mesh execution layer.

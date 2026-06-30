@@ -105,9 +105,9 @@ Return JSON strictly in this format:
 
       try {
         const aiResponse = await AIGateway.analyze({
-            prompt: prompt,
-            modelPreference: 'fast',
-            schema: true
+          prompt: prompt,
+          modelPreference: "fast",
+          schema: true,
         });
         const resultJson = aiResponse.data || {};
         const mScore = resultJson.matchScore || 0;
@@ -246,13 +246,11 @@ Return JSON strictly in this format:
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   if (!adminDb)
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error:
-          "Firebase Service Account configuration is missing. Cannot perform requirement refresh in client fallback mode.",
-      });
+    return res.status(503).json({
+      success: false,
+      error:
+        "Firebase Service Account configuration is missing. Cannot perform requirement refresh in client fallback mode.",
+    });
 
   const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const startTime = Date.now();
@@ -260,15 +258,20 @@ export default async function handler(req: any, res: any) {
   try {
     const { orgId, role, reqId } = req.body;
 
-    await adminDb.collection("agent_executions").doc(executionId).set({
-      id: executionId,
-      agentName: "Match Intelligence Agent",
-      agentType: "SYSTEM_AGENT",
-      task: reqId ? `Evaluating matches for Requirement ${reqId}` : "Global Match Refresh",
-      status: "running",
-      targetId: reqId || "GLOBAL",
-      createdAt: adminDb.doc('1/1').firestore.FieldValue.serverTimestamp()
-    });
+    await adminDb
+      .collection("agent_executions")
+      .doc(executionId)
+      .set({
+        id: executionId,
+        agentName: "Match Intelligence Agent",
+        agentType: "SYSTEM_AGENT",
+        task: reqId
+          ? `Evaluating matches for Requirement ${reqId}`
+          : "Global Match Refresh",
+        status: "running",
+        targetId: reqId || "GLOBAL",
+        createdAt: adminDb.doc("1/1").firestore.FieldValue.serverTimestamp(),
+      });
 
     const matchUpdatesCount = await runMatchIntelligenceEngine(
       reqId,
@@ -277,25 +280,31 @@ export default async function handler(req: any, res: any) {
     );
 
     const duration = Date.now() - startTime;
-    await adminDb.collection("agent_executions").doc(executionId).update({
-      status: "success",
-      duration,
-      logs: `Successfully evaluated matches. ${matchUpdatesCount} opportunities created or updated.`,
-      completedAt: adminDb.doc('1/1').firestore.FieldValue.serverTimestamp()
-    });
+    await adminDb
+      .collection("agent_executions")
+      .doc(executionId)
+      .update({
+        status: "success",
+        duration,
+        logs: `Successfully evaluated matches. ${matchUpdatesCount} opportunities created or updated.`,
+        completedAt: adminDb.doc("1/1").firestore.FieldValue.serverTimestamp(),
+      });
 
     return res.status(200).json({ success: true, matchUpdatesCount });
   } catch (e: any) {
     console.error("Rescan Error:", e);
     const duration = Date.now() - startTime;
-    await adminDb.collection("agent_executions").doc(executionId).update({
-      status: "failed",
-      duration,
-      error: e.message,
-      completedAt: adminDb.doc('1/1').firestore.FieldValue.serverTimestamp()
-    }).catch(console.error);
+    await adminDb
+      .collection("agent_executions")
+      .doc(executionId)
+      .update({
+        status: "failed",
+        duration,
+        error: e.message,
+        completedAt: adminDb.doc("1/1").firestore.FieldValue.serverTimestamp(),
+      })
+      .catch(console.error);
 
     return res.status(500).json({ error: e.message });
   }
 }
-

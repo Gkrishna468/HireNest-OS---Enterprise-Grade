@@ -6,30 +6,36 @@ export default async function handler(req: any, res: any) {
   }
 
   let { candidateId, clientId } = req.query;
-  
+
   const userId = req.user?.uid;
   let role = req.user?.role;
   let userOrg = req.user?.organizationId;
 
   if (userId) {
-     try {
-       const userDoc = await adminDb.collection("users").doc(userId).get();
-       if (userDoc.exists) {
-          role = userDoc.data()?.role || role;
-          userOrg = userDoc.data()?.organizationId || userOrg;
-       }
-     } catch (e) {
-       console.error("[AUTH] Error", e);
-     }
+    try {
+      const userDoc = await adminDb.collection("users").doc(userId).get();
+      if (userDoc.exists) {
+        role = userDoc.data()?.role || role;
+        userOrg = userDoc.data()?.organizationId || userOrg;
+      }
+    } catch (e) {
+      console.error("[AUTH] Error", e);
+    }
   }
 
-  const isAdmin = role === "admin" || role === "super_admin" || role === "hq_admin" || userOrg === "ORG-GLOBAL-HQ";
+  const isAdmin =
+    role === "admin" ||
+    role === "super_admin" ||
+    role === "hq_admin" ||
+    userOrg === "ORG-GLOBAL-HQ";
 
   if (!isAdmin) {
-     if (clientId && clientId !== userOrg) {
-         return res.status(403).json({ error: "Access Denied: Organization Mismatch" });
-     }
-     clientId = userOrg;
+    if (clientId && clientId !== userOrg) {
+      return res
+        .status(403)
+        .json({ error: "Access Denied: Organization Mismatch" });
+    }
+    clientId = userOrg;
   }
 
   if (!candidateId || !clientId) {
@@ -38,7 +44,8 @@ export default async function handler(req: any, res: any) {
 
   try {
     // 1. Verify access: Does this client have a submission for this candidate?
-    const subSnap = await adminDb.collection("submissions")
+    const subSnap = await adminDb
+      .collection("submissions")
       .where("clientId", "==", clientId)
       .where("candidateId", "==", candidateId)
       .limit(1)
@@ -48,75 +55,93 @@ export default async function handler(req: any, res: any) {
 
     // 2. Fallback: Does this client have an AI match for this candidate?
     if (!isAuthorized) {
-       const aiMatchSnap = await adminDb.collection("candidate_matches")
-          .where("candidateId", "==", candidateId as string)
-          .where("clientId", "==", clientId)
-          .limit(1)
-          .get();
-       isAuthorized = !aiMatchSnap.empty;
+      const aiMatchSnap = await adminDb
+        .collection("candidate_matches")
+        .where("candidateId", "==", candidateId as string)
+        .where("clientId", "==", clientId)
+        .limit(1)
+        .get();
+      isAuthorized = !aiMatchSnap.empty;
     }
 
     if (!isAuthorized) {
-      return res.status(403).json({ error: "Access denied. Candidate not submitted or matched to your organization." });
+      return res.status(403).json({
+        error:
+          "Access denied. Candidate not submitted or matched to your organization.",
+      });
     }
 
     // 3. Fetch full candidate data
-    const candDoc = await adminDb.collection("candidatePool").doc(candidateId as string).get();
+    const candDoc = await adminDb
+      .collection("candidatePool")
+      .doc(candidateId as string)
+      .get();
     let candidateData = candDoc.exists ? candDoc.data() : null;
 
     if (!candidateData) {
-       return res.status(404).json({ error: "Candidate not found in pool." });
+      return res.status(404).json({ error: "Candidate not found in pool." });
     }
 
     // fallback for resume text just in case
     if (!candidateData.resumeText && !candidateData.parsedResumeText) {
-       const parseDoc = await adminDb.collection("resume_parses").doc(candidateId as string).get();
-       if (parseDoc.exists) {
-         candidateData.parsedResumeText = parseDoc.data()?.text || parseDoc.data()?.extractedText || "";
-       }
+      const parseDoc = await adminDb
+        .collection("resume_parses")
+        .doc(candidateId as string)
+        .get();
+      if (parseDoc.exists) {
+        candidateData.parsedResumeText =
+          parseDoc.data()?.text || parseDoc.data()?.extractedText || "";
+      }
     }
 
     // 3. Fetch AI match data context (the one related to this submission)
     const subRecord = !subSnap.empty ? subSnap.docs[0].data() : null;
     let aiAnalysis = null;
-    
+
     // get from candidate_matches if it exists
     if (subRecord && subRecord.requirementId) {
-       const matchDoc = await adminDb.collection("candidate_matches").doc(`${candidateId}_${subRecord.requirementId}`).get();
-       if (matchDoc.exists) {
-           aiAnalysis = matchDoc.data();
-       }
+      const matchDoc = await adminDb
+        .collection("candidate_matches")
+        .doc(`${candidateId}_${subRecord.requirementId}`)
+        .get();
+      if (matchDoc.exists) {
+        aiAnalysis = matchDoc.data();
+      }
     } else {
-       // fallback generic match for the client
-       const aiMatchSnap = await adminDb.collection("candidate_matches")
-          .where("candidateId", "==", candidateId as string)
-          .where("clientId", "==", clientId)
-          .limit(1)
-          .get();
-       if (!aiMatchSnap.empty) {
-          aiAnalysis = aiMatchSnap.docs[0].data();
-       }
+      // fallback generic match for the client
+      const aiMatchSnap = await adminDb
+        .collection("candidate_matches")
+        .where("candidateId", "==", candidateId as string)
+        .where("clientId", "==", clientId)
+        .limit(1)
+        .get();
+      if (!aiMatchSnap.empty) {
+        aiAnalysis = aiMatchSnap.docs[0].data();
+      }
     }
 
     // 4. Fetch interviews for this client
-    const interviewsSnap = await adminDb.collection("interviews")
+    const interviewsSnap = await adminDb
+      .collection("interviews")
       .where("candidateId", "==", candidateId)
       .where("clientId", "==", clientId)
       .get();
-    
-    let interviews = interviewsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    let interviews = interviewsSnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
 
     return res.status(200).json({
       candidate: candidateData,
       aiAnalysis: aiAnalysis,
-      interviews: interviews
+      interviews: interviews,
     });
-
   } catch (err: any) {
     console.error("CLIENT_CANDIDATE_ERROR", err);
-    return res.status(500).json({ 
-       success: false,
-       error: String(err)
+    return res.status(500).json({
+      success: false,
+      error: String(err),
     });
   }
 }

@@ -11,12 +11,12 @@ const generateAIPayload = async (
 ) => {
   try {
     const aiResponse = await AIGateway.analyze({
-        prompt: `${systemInstruction}\n\n${prompt}`,
-        modelPreference: 'accurate',
-        schema: options.responseSchema ? true : false
+      prompt: `${systemInstruction}\n\n${prompt}`,
+      modelPreference: "accurate",
+      schema: options.responseSchema ? true : false,
     });
-    
-    if (aiResponse.outcome === 'failed') throw new Error("AIGateway failed");
+
+    if (aiResponse.outcome === "failed") throw new Error("AIGateway failed");
     return JSON.stringify(aiResponse.data);
   } catch (err: any) {
     console.error("[AI GATEWAY] Gemini generation error:", err);
@@ -35,11 +35,9 @@ export default async function handler(req: any, res: any) {
 
   const { resumeTexts } = req.body;
   if (!resumeTexts || !Array.isArray(resumeTexts)) {
-    return res
-      .status(400)
-      .json({
-        message: "Missing or invalid resumeTexts array in request body",
-      });
+    return res.status(400).json({
+      message: "Missing or invalid resumeTexts array in request body",
+    });
   }
 
   const orgId = req.headers["x-org-id"] || "system";
@@ -156,15 +154,22 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
           );
 
           profile = JSON.parse(rawResponse || "{}");
-          
-          if (profile.name === "Local Mock Generated" || profile.name === "Sarah Jenkins" || profile.name === "Mock Data") {
-             profile.name = "Parsing Pending";
+
+          if (
+            profile.name === "Local Mock Generated" ||
+            profile.name === "Sarah Jenkins" ||
+            profile.name === "Mock Data"
+          ) {
+            profile.name = "Parsing Pending";
           }
-          if (profile.email === "mock@example.com" || profile.email === "sarah.jenkins@example.com") {
-             profile.email = "pending@hirenest.os";
+          if (
+            profile.email === "mock@example.com" ||
+            profile.email === "sarah.jenkins@example.com"
+          ) {
+            profile.email = "pending@hirenest.os";
           }
           if (profile.name === "Parsing Pending") {
-             profile.status = "PARSING_PENDING";
+            profile.status = "PARSING_PENDING";
           }
 
           // Save to Cache
@@ -248,7 +253,7 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
             riskScore: 0,
             isRisky: false,
             status: "PARSE_FAILED",
-            pipelineStage: "Candidate Added"
+            pipelineStage: "Candidate Added",
           };
 
           // Simple email regex
@@ -262,11 +267,13 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
             /(\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/,
           );
           if (phoneMatch) profile.phone = phoneMatch[0];
-          
+
           // Experience Regex
-          const expMatch = text.match(/([\d\.]+)\+?\s*years?\s+of\s+experience/i) || text.match(/([\d\.]+)\s*years\+/i);
+          const expMatch =
+            text.match(/([\d\.]+)\+?\s*years?\s+of\s+experience/i) ||
+            text.match(/([\d\.]+)\s*years\+/i);
           if (expMatch && expMatch[1]) {
-             profile.experience = expMatch[1] + "+ Years";
+            profile.experience = expMatch[1] + "+ Years";
           }
 
           // Header detection for name
@@ -326,11 +333,9 @@ CRITICAL: If the resume content is missing, too short, or lacks a real human nam
     return res.status(200).json(parsedResults);
   } catch (err: any) {
     console.error("[BULK_PARSE_API_ERROR]", err);
-    return res
-      .status(500)
-      .json({
-        message: "Failed during bulk parsing operations",
-        error: err.message,
-      });
+    return res.status(500).json({
+      message: "Failed during bulk parsing operations",
+      error: err.message,
+    });
   }
 }

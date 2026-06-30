@@ -36,6 +36,17 @@ export class RecruitmentOffice extends BaseAIOffice {
       maxCostPerHour: 50,
       businessHoursOnly: false,
     },
+    permissions: {
+      canRead: [
+        "requirements",
+        "candidates",
+        "workflows",
+        "business_graph_nodes",
+        "business_graph_edges",
+        "users",
+      ],
+      canWrite: ["assignments", "human_tasks", "workflows", "business_events"],
+    },
   };
 
   protected async decisionEngine(
@@ -116,9 +127,8 @@ ${JSON.stringify(reqData)}`;
           event.correlationId,
         );
 
-        // 3. Assign Recruiter
-        // Simplified assignment: just picking a recruiter from DB or default
-        let assignedRecruiterId = "recruiter-default";
+        // 3. Recommend Recruiter
+        let recommendedRecruiterId = "recruiter-default";
         if (db) {
           const snap = await db
             .collection("users")
@@ -126,14 +136,14 @@ ${JSON.stringify(reqData)}`;
             .limit(1)
             .get();
           if (!snap.empty) {
-            assignedRecruiterId = snap.docs[0].id;
+            recommendedRecruiterId = snap.docs[0].id;
           }
         }
 
         // Publish Domain Event
         await EventBus.publishInternal({
           eventId: `evt-${Date.now()}-2`,
-          eventType: "RecruiterAssigned",
+          eventType: "RecruiterRecommended",
           eventVersion: 1,
           correlationId: event.correlationId,
           causationId: event.eventId,
@@ -148,10 +158,10 @@ ${JSON.stringify(reqData)}`;
           traceId: event.traceId,
           payload: {
             requirementId: event.entityId,
-            recruiterId: assignedRecruiterId,
+            recommendedRecruiterId,
           },
           metadata: {},
-          type: "RecruiterAssigned",
+          type: "RecruiterRecommended",
         });
 
         await WorkflowEngine.startStep(

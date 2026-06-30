@@ -3,7 +3,7 @@ import { runComprehensiveMatch } from "../ai/matchingEngine.js";
 import { getScopedCandidateUniverse } from "../utils/governance.js";
 
 const dispatchWorkflowEvent = async (db: any, payload: any) => {
-    console.log(`[EVENT MATCHING MOCK] Dispatched: ${payload.type}`);
+  console.log(`[EVENT MATCHING MOCK] Dispatched: ${payload.type}`);
 };
 
 function normalizeSkills(skills: string[]): string[] {
@@ -42,16 +42,16 @@ export default async function matchingGlobalHandler(req: any, res: any) {
   let orgId = req.user?.organizationId;
 
   if (adminDb && userId) {
-     try {
-       const userDoc = await adminDb.collection("users").doc(userId).get();
-       if (userDoc.exists) {
-          const userData = userDoc.data();
-          role = userData?.role || role;
-          orgId = userData?.organizationId || orgId;
-       }
-     } catch(e) {
-       console.error("[AUTH] Failed to fetch user doc", e);
-     }
+    try {
+      const userDoc = await adminDb.collection("users").doc(userId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        role = userData?.role || role;
+        orgId = userData?.organizationId || orgId;
+      }
+    } catch (e) {
+      console.error("[AUTH] Failed to fetch user doc", e);
+    }
   }
 
   // Parse skills array
@@ -80,11 +80,22 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
         const docsToEvaluate: any[] = [];
 
-        const poolSnapshot = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).get();
-        
+        const poolSnapshot = await getScopedCandidateUniverse(
+          adminDb,
+          "candidatePool",
+          role,
+          orgId,
+        ).get();
+
         poolSnapshot.docs.forEach((d: any) => {
           const cand = d.data();
-          if (cand.status === "DELETED" || cand.isActive === false || cand.active === false || cand.distillationStatus === "FAILED") return;
+          if (
+            cand.status === "DELETED" ||
+            cand.isActive === false ||
+            cand.active === false ||
+            cand.distillationStatus === "FAILED"
+          )
+            return;
           docsToEvaluate.push({ id: d.id, ...cand });
         });
 
@@ -162,64 +173,108 @@ export default async function matchingGlobalHandler(req: any, res: any) {
 
     // Generate Ledger Validation Counts (Single Source of Truth)
     const ledgerCounts = {
-        matches: 0,
-        floated: 0,
-        submitted: 0,
-        interviewing: 0,
-        offers: 0,
-        placed: 0,
-        rejected: 0,
+      matches: 0,
+      floated: 0,
+      submitted: 0,
+      interviewing: 0,
+      offers: 0,
+      placed: 0,
+      rejected: 0,
     };
-    
+
     let ledgerCandidates: any[] = [];
-    
+
     if (adminDb) {
-        try {
-            const isAdmin =
-              role === "admin" ||
-              role === "super_admin" ||
-              role === "ops_admin" ||
-              orgId === "ORG-GLOBAL-HQ" ||
-              orgId === "ADMIN";
+      try {
+        const isAdmin =
+          role === "admin" ||
+          role === "super_admin" ||
+          role === "ops_admin" ||
+          orgId === "ORG-GLOBAL-HQ" ||
+          orgId === "ADMIN";
 
-            let allCandidatesSnap;
-            let allSubsSnap;
+        let allCandidatesSnap;
+        let allSubsSnap;
 
-            allCandidatesSnap = await getScopedCandidateUniverse(adminDb, "candidatePool", role, orgId).where("mappedJobId", "==", targetReqId).get();
-            allSubsSnap = await getScopedCandidateUniverse(adminDb, "submissions", role, orgId).where("requirementId", "==", targetReqId).get();
-            
-            const uniqueMap = new Map();
-            
-            matchedCandidates.forEach((c:any) => uniqueMap.set(c.candidateId, { ...c, sysSource: 'AI_MATCH' }));
-            
-            allCandidatesSnap.docs.forEach((d:any) => {
-               const candData = d.data();
-               if (candData.status === "DELETED" || candData.isActive === false || candData.active === false) return;
-               const existing = uniqueMap.get(d.id);
-               uniqueMap.set(d.id, { ...candData, id: d.id, sysSource: 'VENDOR_FLOATED', matchScore: candData.matchScore || candData.aiMatchScore || existing?.matchScore || null });
-            });
-            
-            allSubsSnap.docs.forEach((d:any) => {
-               const subData = d.data();
-               if (subData.status === "DELETED" || subData.isActive === false) return;
-               const candId = subData.candidateId || d.id;
-               const existing = uniqueMap.get(candId);
-               uniqueMap.set(candId, { ...existing, ...subData, id: candId, sysSource: 'SUBMISSION', submissionId: d.id });
-            });
-            
-            ledgerCandidates = Array.from(uniqueMap.values());
-            
-            ledgerCandidates.forEach((c:any) => {
-                const stage = c.pipelineStage || c.status || "Matched";
-                if (stage === "Matched") ledgerCounts.matches++;
-                else if (stage === "Added") ledgerCounts.floated++;
-                else if (stage === "Submitted" || stage === "Deal Room Active" || stage.includes("SUBMITTED")) ledgerCounts.submitted++;
-                else if (stage === "Interviewing" || stage.includes("interview")) ledgerCounts.interviewing++;
-                else if (stage === "Offer") ledgerCounts.offers++;
-                else if (stage === "Placed" || stage === "hired") ledgerCounts.placed++;
-                else if (stage === "Rejected") ledgerCounts.rejected++;
-            });
-        } catch (e) {}
+        allCandidatesSnap = await getScopedCandidateUniverse(
+          adminDb,
+          "candidatePool",
+          role,
+          orgId,
+        )
+          .where("mappedJobId", "==", targetReqId)
+          .get();
+        allSubsSnap = await getScopedCandidateUniverse(
+          adminDb,
+          "submissions",
+          role,
+          orgId,
+        )
+          .where("requirementId", "==", targetReqId)
+          .get();
+
+        const uniqueMap = new Map();
+
+        matchedCandidates.forEach((c: any) =>
+          uniqueMap.set(c.candidateId, { ...c, sysSource: "AI_MATCH" }),
+        );
+
+        allCandidatesSnap.docs.forEach((d: any) => {
+          const candData = d.data();
+          if (
+            candData.status === "DELETED" ||
+            candData.isActive === false ||
+            candData.active === false
+          )
+            return;
+          const existing = uniqueMap.get(d.id);
+          uniqueMap.set(d.id, {
+            ...candData,
+            id: d.id,
+            sysSource: "VENDOR_FLOATED",
+            matchScore:
+              candData.matchScore ||
+              candData.aiMatchScore ||
+              existing?.matchScore ||
+              null,
+          });
+        });
+
+        allSubsSnap.docs.forEach((d: any) => {
+          const subData = d.data();
+          if (subData.status === "DELETED" || subData.isActive === false)
+            return;
+          const candId = subData.candidateId || d.id;
+          const existing = uniqueMap.get(candId);
+          uniqueMap.set(candId, {
+            ...existing,
+            ...subData,
+            id: candId,
+            sysSource: "SUBMISSION",
+            submissionId: d.id,
+          });
+        });
+
+        ledgerCandidates = Array.from(uniqueMap.values());
+
+        ledgerCandidates.forEach((c: any) => {
+          const stage = c.pipelineStage || c.status || "Matched";
+          if (stage === "Matched") ledgerCounts.matches++;
+          else if (stage === "Added") ledgerCounts.floated++;
+          else if (
+            stage === "Submitted" ||
+            stage === "Deal Room Active" ||
+            stage.includes("SUBMITTED")
+          )
+            ledgerCounts.submitted++;
+          else if (stage === "Interviewing" || stage.includes("interview"))
+            ledgerCounts.interviewing++;
+          else if (stage === "Offer") ledgerCounts.offers++;
+          else if (stage === "Placed" || stage === "hired")
+            ledgerCounts.placed++;
+          else if (stage === "Rejected") ledgerCounts.rejected++;
+        });
+      } catch (e) {}
     }
 
     const sortedMatches = matchedCandidates.sort(

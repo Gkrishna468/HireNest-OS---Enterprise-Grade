@@ -27,10 +27,39 @@ export class ExperienceEngine {
         createdAt: new Date().toISOString(),
       });
 
-    // Asynchronously update a feedback aggregation read model if needed
-    this.updateFeedbackModel(feedback).catch((e) =>
+    // Generate a learning signal from the outcome
+    this.generateLearningSignal(feedback).catch((e) =>
       console.error("[ExperienceEngine] update model failed", e),
     );
+  }
+
+  /**
+   * Translates an outcome into a learning signal (e.g. adjusting decision weights)
+   */
+  private static async generateLearningSignal(
+    feedback: Omit<OutcomeFeedback, "createdAt">,
+  ) {
+    if (!db) return;
+
+    if (feedback.outcome === "SUCCESS") {
+      // e.g. Positive reinforcement for this pattern
+      await db.collection("experience_signals").add({
+        type: "POSITIVE_REINFORCEMENT",
+        source: feedback.sourceModule,
+        entity: feedback.entityId,
+        weightAdjust: 0.05,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (feedback.outcome === "FAILURE") {
+      // e.g. Negative reinforcement
+      await db.collection("experience_signals").add({
+        type: "NEGATIVE_REINFORCEMENT",
+        source: feedback.sourceModule,
+        entity: feedback.entityId,
+        weightAdjust: -0.1,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**
@@ -47,11 +76,5 @@ export class ExperienceEngine {
 
     if (snap.empty) return {};
     return snap.docs[0].data();
-  }
-
-  private static async updateFeedbackModel(
-    feedback: Omit<OutcomeFeedback, "createdAt">,
-  ) {
-    // e.g. adjust weighting for specific vendors or matching traits based on SUCCESS/FAILURE
   }
 }

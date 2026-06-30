@@ -132,57 +132,7 @@ export class AICOORuntime {
     const registeredOffices =
       await OfficeCapabilityRegistry.getOfficesForEvent(eventType);
 
-    // Fallback or static routes can still be merged if needed, but registry is primary.
-    const staticRoutes: Record<string, string[]> = {
-      REQUIREMENT_CREATED: [
-        "MatchingOffice",
-        "VendorOffice",
-        "ClientOffice",
-        "MarketplaceOffice",
-        "RecruitmentOffice",
-      ],
-      REQUIREMENT_UPDATED: [
-        "MatchingOffice",
-        "ClientOffice",
-        "RecruitmentOffice",
-      ],
-      REQUIREMENT_CLOSED: [
-        "MatchingOffice",
-        "ClientOffice",
-        "RecruitmentOffice",
-      ],
-      CANDIDATE_CREATED: ["MatchingOffice"],
-      CANDIDATE_UPDATED: ["MatchingOffice"],
-      CANDIDATE_WITHDRAWN: ["MatchingOffice"],
-      MATCH_CREATED: [
-        "RecruitmentOffice",
-        "VendorOffice",
-        "NotificationOffice",
-      ],
-      SUBMISSION_CREATED: ["RecruitmentOffice", "VendorOffice"],
-      INTERVIEW_SCHEDULED: ["RecruitmentOffice", "NotificationOffice"],
-      FEEDBACK_RECEIVED: ["RecruitmentOffice"],
-      OFFER_RELEASED: [
-        "RecruitmentOffice",
-        "ClientOffice",
-        "NotificationOffice",
-      ],
-      PAYMENT_RECEIVED: ["VendorOffice", "NotificationOffice"],
-      BENCH_UPDATED: ["MarketplaceOffice"],
-      VENDOR_UPDATED: ["MarketplaceOffice"],
-      SOURCING_SLA_BREACH: ["RecruitmentOffice"],
-      PIPELINE_STALLED: ["RecruitmentOffice"],
-    };
-
-    const staticOffices = staticRoutes[eventType] || [];
-    return Array.from(
-      new Set([
-        ...staticOffices,
-        ...registeredOffices,
-        "AnalyticsOffice",
-        "KnowledgeOffice",
-      ]),
-    );
+    return registeredOffices;
   }
 
   private static async triggerOfficeProcessing() {

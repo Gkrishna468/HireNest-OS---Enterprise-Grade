@@ -103,12 +103,12 @@ export class EventBus {
     }
 
     static async publishInternal(event: BusinessEvent) {
-        // Build the Business Graph
-        const { BusinessGraph } = await import('../os/kernel/BusinessGraph.js');
-        await BusinessGraph.buildFromEvent(event.eventType, event.payload).catch(e => console.error('[EventBus] Graph build failed', e));
-
-        // 2. Enqueue to AI COO
+        // Enqueue to AI COO
         const { AICOORuntime } = await import('../os/kernel/AICOORuntime.js');
         await AICOORuntime.enqueueEvent(event);
+
+        // Enqueue to Graph Projection Worker
+        const { GraphProjectionWorker } = await import('../os/kernel/GraphProjectionWorker.js');
+        GraphProjectionWorker.queueProjection(event).catch(e => console.error('[EventBus] Graph projection queue failed', e));
     }
 }
