@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getDynamicGreeting } from "../../lib/greetings";
 import {
   Briefcase,
   Users,
@@ -46,7 +47,7 @@ export default function RecruiterWorkspace({
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-              Good Morning, {userName} 👋
+              {getDynamicGreeting()}, {userName} 👋
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
               <Bot size={14} className="text-indigo-400" />

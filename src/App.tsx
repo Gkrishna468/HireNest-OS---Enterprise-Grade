@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Settings,
   ShieldCheck,
+  Shield,
   Brain,
   Bell,
   LogOut,
@@ -46,7 +47,8 @@ import {
   Award,
   Terminal,
   Bot,
-  CheckCircle2
+  CheckCircle2,
+  Globe
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -79,6 +81,7 @@ import DealRoomsTab from "./views/DealRoomsTab";
 import InterviewsTab from "./views/InterviewsTab";
 import { PlacementsTab } from "./views/PlacementsTab";
 import InboxTab from "./views/InboxTab";
+import WhatsAppHubTab from "./views/WhatsAppHubTab";
 
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
@@ -89,6 +92,7 @@ import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import MatchIntelligenceTab from "./views/MatchIntelligenceTab";
 import AdminOverview from "./views/AdminOverview";
+import NetworkTab from "./views/NetworkTab";
 import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
 import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
 import AdminOpsDashboard from "./views/AdminOpsDashboard";
@@ -478,20 +482,6 @@ const AppContent = () => {
                 active={location.pathname === "/interviews"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
-              <SidebarItem
-                to="/emails"
-                icon={MessageSquare}
-                label="Work Email"
-                active={location.pathname === "/emails"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/trust-sla"
-                icon={Target}
-                label="Performance"
-                active={location.pathname === "/trust-sla"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
             </>
           )}
 
@@ -577,281 +567,73 @@ const AppContent = () => {
           {isAdmin && (
             <>
               <SidebarItem
-                to="/"
+                to="/admin"
                 icon={LayoutDashboard}
                 label="Home"
-                active={location.pathname === "/"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Work
-              </div>
-              <SidebarItem
-                to="/signals"
-                icon={Activity}
-                label="Signals Center"
-                active={location.pathname === "/signals"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/jobs"
-                icon={Briefcase}
-                label="Requirements"
-                active={location.pathname === "/jobs"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/candidates"
-                icon={Users}
-                label="Candidates"
-                active={location.pathname === "/candidates"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/matches"
-                icon={Star}
-                label="Match Opportunities"
-                active={location.pathname === "/matches"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/deal-rooms"
-                icon={MessageSquare}
-                label="Submissions"
-                active={location.pathname === "/deal-rooms"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/interviews"
-                icon={Video}
-                label="Interviews"
-                active={location.pathname === "/interviews"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/emails"
-                icon={Activity}
-                label="Work Email"
-                active={location.pathname === "/emails"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Network
-              </div>
-              <SidebarItem
-                to="/network?type=vendor"
-                icon={Building2}
-                label="Vendors"
-                active={
-                  location.pathname === "/network" &&
-                  location.search.includes("type=vendor")
-                }
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/network?type=client"
-                icon={Users}
-                label="Clients"
-                active={
-                  location.pathname === "/network" &&
-                  location.search.includes("type=client")
-                }
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/client-360"
-                icon={Building2}
-                label="Client 360"
-                active={location.pathname === "/client-360"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/vendor-360"
-                icon={Building2}
-                label="Vendor 360"
-                active={location.pathname === "/vendor-360"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/vendor-intelligence"
-                icon={Award}
-                label="Vendor Intelligence"
-                active={location.pathname === "/vendor-intelligence"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/recruiter-performance"
-                icon={Award}
-                label="Recruiter Engine"
-                active={location.pathname === "/recruiter-performance"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Finance
-              </div>
-              <SidebarItem
-                to="/invoices"
-                icon={Receipt}
-                label="Invoices"
-                active={location.pathname === "/invoices"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/financials"
-                icon={DollarSign}
-                label="Finance Ledger"
-                active={location.pathname === "/financials"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/revenue-intelligence"
-                icon={Activity}
-                label="Revenue Intel"
-                active={location.pathname === "/revenue-intelligence"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <SidebarItem
-                to="/knowledge-graph"
-                icon={Network}
-                label="Knowledge Graph (Audit)"
-                active={location.pathname === "/knowledge-graph"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Enterprise Validation
-              </div>
-              <SidebarItem
-                to="/ai-agents"
-                icon={Bot}
-                label="Workforce OS"
-                active={location.pathname === "/ai-agents"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/ai-ops-center"
-                icon={Terminal}
-                label="AI DevOps"
-                active={location.pathname === "/ai-ops-center"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/ai-copilot"
-                icon={BrainCircuit}
-                label="AI Copilot"
-                active={location.pathname === "/ai-copilot"}
+                active={location.pathname === "/admin"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/autonomous-operations"
-                icon={Zap}
-                label="Autonomous Ops"
+                icon={Activity}
+                label="Mission Control"
                 active={location.pathname === "/autonomous-operations"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/workflow-studio"
-                icon={Network}
-                label="Workflow Studio"
-                active={location.pathname === "/workflow-studio"}
+                to="/ops"
+                icon={Briefcase}
+                label="Operations"
+                active={location.pathname === "/ops"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/approval-center"
-                icon={CheckCircle2}
-                label="Approval Center"
-                active={location.pathname === "/approval-center"}
+                to="/network"
+                icon={Globe}
+                label="Network"
+                active={location.pathname === "/network"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/validation-center"
-                icon={ShieldCheck}
-                label="Validation Center"
-                active={location.pathname === "/validation-center"}
+                to="/ai-agents"
+                icon={Bot}
+                label="AI Workforce"
+                active={location.pathname === "/ai-agents"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/success-intelligence"
-                icon={Brain}
-                label="Success Intelligence"
-                active={location.pathname === "/success-intelligence"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/enterprise-command-center"
-                icon={TrendingUp}
-                label="Command Center"
-                active={location.pathname === "/enterprise-command-center"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/finance-os"
+                to="/revenue-intelligence"
                 icon={DollarSign}
-                label="FinanceOS"
-                active={location.pathname === "/finance-os"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/benchmarks"
-                icon={Activity}
-                label="Benchmarks"
-                active={location.pathname === "/benchmarks"}
+                label="Revenue"
+                active={location.pathname === "/revenue-intelligence"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
                 to="/adoption"
                 icon={TrendingUp}
-                label="Customer Success"
+                label="Product Intelligence"
                 active={location.pathname === "/adoption"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/ai-learning"
-                icon={Cpu}
-                label="AI Learning Loop"
-                active={location.pathname === "/ai-learning"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/evidence"
-                icon={ShieldAlert}
-                label="Evidence Dashboard"
-                active={location.pathname === "/evidence"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-8 mb-4 px-4">
-                Administration
-              </div>
-              <SidebarItem
-                to="/founder-tower"
-                icon={Globe2}
-                label="Founder Tower"
-                active={location.pathname === "/founder-tower"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/health"
-                icon={TrendingUp}
-                label="Operational Intelligence"
-                active={location.pathname === "/health"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/governance"
+                to="/validation-center"
                 icon={ShieldCheck}
-                label="Governance"
-                active={location.pathname === "/governance"}
+                label="Release Center"
+                active={location.pathname === "/validation-center"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/users"
-                icon={Users}
-                label="Users"
-                active={location.pathname === "/users"}
+                to="/security"
+                icon={Shield}
+                label="Security & Compliance"
+                active={location.pathname === "/security"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/trace"
+                icon={Terminal}
+                label="Engineering"
+                active={location.pathname === "/trace"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -942,11 +724,11 @@ const AppContent = () => {
             </div>
             {isAdmin && (
               <Link
-                to="/users"
+                to="/client-360"
                 className="hidden sm:flex bg-slate-900 text-white px-6 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-200 items-center gap-2"
               >
                 <Users size={14} />
-                Onboard Nodes
+                Clients & Vendors
               </Link>
             )}
             <NotificationCenter userRole={userData?.role} />
@@ -977,8 +759,11 @@ const AppContent = () => {
             <Route path="/jobs" element={<JobsTab />} />
             <Route path="/pipeline" element={<CandidatesTab />} />
             {(isAdmin || isRecruiter) && (
-              <Route path="/network" element={<NetworkDirectoryTab />} />
+              <Route path="/network" element={<NetworkTab />} />
             )}
+            <Route path="/client-360" element={<Client360Tab userRole={role || ""} />} />
+            <Route path="/vendor-360" element={<Vendor360Tab userRole={role || ""} />} />
+            <Route path="/whatsapp" element={<WhatsAppHubTab />} />
             {isAdmin && (
               <Route path="/benchmarks" element={<BenchmarkDashboard />} />
             )}
@@ -1161,6 +946,7 @@ const AppContent = () => {
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
             {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            {isAdmin && <Route path="/security" element={<AdminSecurityDashboard />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
             {(isAdmin || isVendor || isRecruiter) && (
               <Route path="/ownership" element={<OwnershipLedgerTab />} />

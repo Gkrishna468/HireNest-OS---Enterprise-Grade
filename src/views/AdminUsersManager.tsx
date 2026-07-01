@@ -27,6 +27,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [userToDelete, setUserToDelete] = useState<{ id: string, orgId: string, email: string, name: string, role: string } | null>(null);
 
   const roles = [
     { value: 'super_admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
@@ -292,21 +293,29 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     }
   };
 
-  const handleDeleteUser = async (userId: string, organizationId: string) => {
-    if (!window.confirm("Terminate this identity and associated organization?")) return;
+  const executeDeleteUser = async () => {
+    if (!userToDelete) return;
     try {
+      setIsSubmitting(true);
       const token = await auth.currentUser?.getIdToken();
-      await fetch('/api/delete-user', {
+      const res = await fetch('/api/delete-user', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ uid: userId, organizationId })
+        body: JSON.stringify({ uid: userToDelete.id, organizationId: userToDelete.orgId })
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete user");
+      }
+      setUserToDelete(null);
       await fetchUsers();
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : String(err));
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -654,7 +663,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                             <Lock size={16} />
                          </button>
                          <button 
-                            onClick={() => handleDeleteUser(u.id, u.organizationId)}
+                            onClick={() => setUserToDelete({ id: u.id, orgId: u.organizationId, email: u.email, name: u.name || "Unknown", role: u.role })}
                             className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm"
                          >
                             <Trash2 size={16} />
@@ -673,6 +682,58 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           </div>
         </div>
       </div>
+
+      {/* Delete User Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+                <Trash2 size={32} className="text-red-500" />
+              </div>
+            </div>
+            
+            <h2 className="text-xl font-bold text-center text-slate-900 mb-2">Delete User</h2>
+            
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6">
+              <div className="flex justify-between py-2 border-b border-slate-200">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Name</span>
+                <span className="text-sm font-semibold text-slate-900">{userToDelete.name}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-200">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Email</span>
+                <span className="text-sm font-semibold text-slate-900">{userToDelete.email}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Role</span>
+                <span className="text-sm font-semibold text-slate-900">{getRoleLabel(userToDelete.role)}</span>
+              </div>
+            </div>
+            
+            <p className="text-center text-sm font-semibold text-red-600 mb-8">
+              ⚠️ This action cannot be undone.
+            </p>
+            
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeDeleteUser}
+                disabled={isSubmitting}
+                className="flex-1 py-3 px-4 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? "Deleting..." : "Delete Permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

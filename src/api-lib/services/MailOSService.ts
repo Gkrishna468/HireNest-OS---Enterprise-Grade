@@ -187,6 +187,14 @@ export class MailOSService {
                     console.error(`[MailOS] Failed to publish EMAIL_RECEIVED event:`, busErr);
                 }
 
+                // 5. Automatic Email Parsing (MailOS 2.0)
+                // We analyze the message asynchronously without blocking the sync loop
+                setTimeout(() => {
+                    this.analyzeMessage(uid, orgId, msg.id).catch(e => {
+                        console.error(`[MailOS] Automatic analysis failed for ${msg.id}:`, e);
+                    });
+                }, 1000);
+
                 processed.push({ type: 'RECEIVED', id: msg.id, subject, summary: 'Ingested raw email successfully.' });
 
             } catch (msgErr: any) {

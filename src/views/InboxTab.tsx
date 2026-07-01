@@ -22,22 +22,19 @@ export default function InboxTab() {
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
   const categories = [
-    'ALL', 'REQUIREMENT', 'RESUME', 'VENDOR_RESPONSE', 'INTERVIEW', 
-    'INVOICE', 'OFFER', 'VENDOR_PARTNERSHIP', 'SALES_INQUIRY', 'COMPLAINT', 'OTHER'
+    'ALL', 'REQUIREMENT', 'RESUME', 'VENDOR_RESPONSE', 'CLIENT_RESPONSE', 
+    'AI_DRAFTS', 'APPROVALS', 'TEMPLATES'
   ];
 
   const displayNames: Record<string, string> = {
-    'ALL': 'All Messages',
+    'ALL': 'Inbox',
     'REQUIREMENT': 'Requirements',
-    'RESUME': 'Candidates',
-    'VENDOR_RESPONSE': 'Vendors',
-    'INTERVIEW': 'Interviews',
-    'INVOICE': 'Invoices',
-    'OFFER': 'Offers',
-    'VENDOR_PARTNERSHIP': 'Partnerships',
-    'SALES_INQUIRY': 'Sales / GTM',
-    'COMPLAINT': 'Complaints',
-    'OTHER': 'Other'
+    'RESUME': 'Candidate Emails',
+    'VENDOR_RESPONSE': 'Vendor Emails',
+    'CLIENT_RESPONSE': 'Client Emails',
+    'AI_DRAFTS': 'AI Drafts',
+    'APPROVALS': 'Approvals',
+    'TEMPLATES': 'Templates'
   };
 
   const filteredEmails = emails.filter(email => {
@@ -272,12 +269,10 @@ export default function InboxTab() {
                                       cat === 'REQUIREMENT' ? 'bg-blue-400' :
                                       cat === 'RESUME' ? 'bg-emerald-400' :
                                       cat === 'VENDOR_RESPONSE' ? 'bg-purple-400' :
-                                      cat === 'INVOICE' ? 'bg-amber-400' :
-                                      cat === 'INTERVIEW' ? 'bg-orange-400' :
-                                      cat === 'OFFER' ? 'bg-rose-400' :
-                                      cat === 'VENDOR_PARTNERSHIP' ? 'bg-pink-400' :
-                                      cat === 'SALES_INQUIRY' ? 'bg-teal-400' :
-                                      cat === 'COMPLAINT' ? 'bg-red-400' : 'bg-slate-400'
+                                      cat === 'CLIENT_RESPONSE' ? 'bg-orange-400' :
+                                      cat === 'AI_DRAFTS' ? 'bg-indigo-400' :
+                                      cat === 'APPROVALS' ? 'bg-rose-400' :
+                                      cat === 'TEMPLATES' ? 'bg-teal-400' : 'bg-slate-400'
                                   )}></span> 
                                   {displayNames[cat]}
                               </button>

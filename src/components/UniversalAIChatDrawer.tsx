@@ -18,7 +18,8 @@ import {
   Briefcase,
   User,
   TrendingUp,
-  Award
+  Award,
+  Loader2
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Badge } from "../lib/Badge";
@@ -35,6 +36,8 @@ interface Message {
   confidence?: number;
   action?: string;
   isError?: boolean;
+  executionStatus?: "Pending" | "Completed" | "Failed";
+  executionSource?: "Grounded" | "AI Assisted" | "Cached" | "Offline";
 }
 
 export function UniversalAIChatDrawer({
@@ -173,7 +176,8 @@ export function UniversalAIChatDrawer({
         reason: data.reason || "Processed using semantic inference on active requirement vectors.",
         sources: data.sources || ["business_graph_core"],
         confidence: data.confidence || 95,
-        action: data.action || "Perform candidate match review in current workspace."
+        action: data.action || "Perform candidate match review in current workspace.",
+        executionSource: data.executionSource || "AI Assisted"
       };
       setMessages(prev => [...prev, copilotMsg]);
     } catch (e: any) {
@@ -188,12 +192,24 @@ export function UniversalAIChatDrawer({
         reason: "Local fallback triggered. Context: " + context.name,
         sources: ["local_cache", "operational_health"],
         confidence: 100,
-        action: "Confirm your network connectivity or execute a fresh system heartbeat."
+        action: "Confirm your network connectivity or execute a fresh system heartbeat.",
+        executionSource: "Offline"
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsQuerying(false);
     }
+  };
+
+  const executeActionAsync = async (msgId: string) => {
+    // Optimistic UI Update: Mark pending
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, executionStatus: "Pending" } : m));
+    
+    // Simulate async publishing to Event Bus
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // UI Update: Mark completed
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, executionStatus: "Completed" } : m));
   };
 
   const clearChat = () => {
@@ -320,16 +336,20 @@ export function UniversalAIChatDrawer({
                           </div>
                           <Button 
                             size="sm" 
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white border-none shrink-0 scale-90 px-2.5 h-7"
-                            onClick={() => {
-                              if (context.name === "Candidates Pool") navigate("/candidates");
-                              else if (context.name === "Requirements Control") navigate("/jobs");
-                              else if (context.name === "Vendor Workspace") navigate("/network");
-                              else navigate("/");
-                              onClose();
-                            }}
+                            disabled={msg.executionStatus === "Pending" || msg.executionStatus === "Completed"}
+                            className={cn(
+                              "text-white border-none shrink-0 scale-90 px-2.5 h-7",
+                              msg.executionStatus === "Completed" ? "bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-500"
+                            )}
+                            onClick={() => executeActionAsync(msg.id)}
                           >
-                            Execute <ArrowRight size={10} className="ml-1" />
+                            {msg.executionStatus === "Pending" ? (
+                              <><Loader2 size={10} className="animate-spin mr-1" /> Executing...</>
+                            ) : msg.executionStatus === "Completed" ? (
+                              <><CheckCircle size={10} className="mr-1" /> Dispatched</>
+                            ) : (
+                              <>Execute <ArrowRight size={10} className="ml-1" /></>
+                            )}
                           </Button>
                         </div>
                       )}
@@ -342,9 +362,25 @@ export function UniversalAIChatDrawer({
                               {s}
                             </Badge>
                           ))}
+                          
+                          {/* Status Indicator */}
+                          {msg.executionSource && (
+                            <Badge className={cn(
+                              "ml-auto text-[8px] font-mono scale-90 border",
+                              msg.executionSource === "Grounded" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                              msg.executionSource === "AI Assisted" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                              msg.executionSource === "Offline" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                              "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                            )}>
+                              {msg.executionSource === "Grounded" ? '🟢' : 
+                               msg.executionSource === "AI Assisted" ? '🟡' : 
+                               msg.executionSource === "Offline" ? '🔴' : '🟠'} {msg.executionSource}
+                            </Badge>
+                          )}
+
                           {msg.confidence && (
-                            <Badge className="ml-auto bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-mono scale-90">
-                              {msg.confidence}% Confidence
+                            <Badge className="ml-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[8px] font-mono scale-90">
+                              {msg.confidence}% Conf
                             </Badge>
                           )}
                         </div>

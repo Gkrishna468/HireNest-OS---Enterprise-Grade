@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getDynamicGreeting } from "../lib/greetings";
 import { 
   Zap, 
   PlayCircle, 
@@ -23,6 +24,11 @@ import {
   Bot,
   Sparkles,
   Send,
+  History,
+  CreditCard,
+  Building2,
+  ShieldCheck,
+  Database,
   Trash2,
   HelpCircle,
   Gauge,
@@ -1370,16 +1376,16 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
         <div className="relative z-10 max-w-7xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <Zap className="text-indigo-400 animate-pulse" size={26} />
+              <ShieldAlert className="text-rose-400" size={26} />
               <h1 className="text-2xl font-black text-white tracking-tighter uppercase font-mono">
-                Workforce Control Center
+                Admin Console
               </h1>
-              <span className="bg-indigo-900/60 border border-indigo-700/50 text-indigo-300 font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
-                v2.1 Kernel
+              <span className="bg-rose-900/60 border border-rose-700/50 text-rose-300 font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
+                HQ INTERNAL
               </span>
             </div>
             <p className="text-slate-400 font-medium text-xs max-w-2xl">
-              Enterprise operations and live governance console for HireNestOS. Administer schedulers, view real-time logs, execute diagnostic audits, and resolve exceptions.
+              Internal HireNest administrators console. Manage organizations, pilot features, billing operations, and system orchestration.
             </p>
           </div>
 
@@ -1643,7 +1649,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6 relative">
                     {/* Briefing points */}
                     <div className="lg:col-span-2 space-y-4">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 font-mono">Good morning, Operator. Since yesterday:</h3>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 font-mono">{getDynamicGreeting()}, Operator. Since yesterday:</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
                           <div className="flex items-start gap-2.5">
@@ -4240,12 +4246,12 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                     {/* Left Column - col-span-2: Product Analytics & AI Costing */}
                     <div className="lg:col-span-2 space-y-6">
                     
-                    {/* HN-016: Pilot Product Analytics & Conversions */}
+                    {/* HN-016: Product Intelligence */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest rounded border border-emerald-200 font-mono">
-                            HN-016 — Product Analytics
+                            HN-016 — Product Intelligence
                           </span>
                         </div>
                         <h3 className="text-base font-black text-slate-800 mt-1.5">Pilot User Funnel & Pipeline Conversions</h3>
@@ -4284,52 +4290,72 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                       {/* AI Decision Telemetry: Why was AI Ignored? */}
                       <div className="border-t border-slate-100 pt-6 space-y-4">
                         <div>
-                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono">AI Match Acceptance Audit (Why was AI Ignored?)</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Understand when and why human recruiters override algorithmic recommendations.</p>
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono">Why was AI Ignored? (Experience Engine Loop)</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Understand when and why human recruiters override algorithmic recommendations to improve future placements.</p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-center">
-                            <span className="text-[10px] font-mono font-black text-emerald-600 uppercase tracking-wider block">AI Recommendation Match Rate</span>
-                            <div className="text-2xl font-black text-slate-800 mt-1">84.6%</div>
-                            <span className="text-[10px] text-slate-400 font-mono">242 accepted placements</span>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-center">
-                            <span className="text-[10px] font-mono font-black text-rose-500 uppercase tracking-wider block">Human Overrides / Ignored</span>
-                            <div className="text-2xl font-black text-slate-800 mt-1">15.4%</div>
-                            <span className="text-[10px] text-slate-400 font-mono">44 overrides logged</span>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 flex flex-col justify-center">
-                            <div className="flex justify-between text-[10px] font-mono border-b border-slate-200/60 pb-1">
-                              <span className="text-slate-400 font-bold">Total Recommendations:</span>
-                              <span className="text-slate-700 font-black">286</span>
-                            </div>
-                            <div className="flex justify-between text-[10px] font-mono pt-1">
-                              <span className="text-slate-400 font-bold">Override SLA Gate:</span>
-                              <span className="text-emerald-600 font-black">PASS (Within bounds)</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-3">
-                          <span className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-wider block">Override Classification Breakdown</span>
-                          <div className="space-y-2">
-                            {[
-                              { label: "Candidate Overqualified (Salary Bandwidth Mismatch)", pct: "45.4%", count: 20 },
-                              { label: "Client Requirements Adjusted (Remote preference on-the-fly shift)", pct: "29.5%", count: 13 },
-                              { label: "Niche Framework Specialist Overlap Override", pct: "15.9%", count: 7 },
-                              { label: "Candidate Hourly/Annual Rate Band Overrun", pct: "9.2%", count: 4 }
-                            ].map((item, idx) => (
-                              <div key={idx} className="space-y-1">
-                                <div className="flex justify-between text-[10px] font-mono text-slate-600">
-                                  <span>{item.label}</span>
-                                  <span className="font-bold">{item.pct} ({item.count})</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-4">
+                            <span className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-wider block">AI Match Acceptance vs Placement Rate</span>
+                            
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <div className="text-[10px] font-black text-slate-500 uppercase font-mono">AI Accepted</div>
+                                  <div className="text-xl font-black text-emerald-600">82%</div>
                                 </div>
-                                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                  <div className="h-full bg-slate-400" style={{ width: item.pct }} />
+                                <ArrowRight className="text-slate-300" size={16} />
+                                <div className="space-y-1 text-right">
+                                  <div className="text-[10px] font-black text-slate-500 uppercase font-mono">Placements</div>
+                                  <div className="text-xl font-black text-emerald-600">91%</div>
                                 </div>
                               </div>
-                            ))}
+                              
+                              <div className="h-px w-full bg-slate-200/60" />
+                              
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <div className="text-[10px] font-black text-slate-500 uppercase font-mono">AI Rejected</div>
+                                  <div className="text-xl font-black text-rose-500">18%</div>
+                                </div>
+                                <ArrowRight className="text-slate-300" size={16} />
+                                <div className="space-y-1 text-right">
+                                  <div className="text-[10px] font-black text-slate-500 uppercase font-mono">Placements</div>
+                                  <div className="text-xl font-black text-rose-500">62%</div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="pt-2">
+                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded">✓ AI measurably improves hiring</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex flex-col justify-center">
+                            <span className="text-[10px] font-mono font-black text-indigo-500 uppercase tracking-wider block mb-4">Live Correction Loop Example</span>
+                            
+                            <div className="space-y-2 text-xs font-mono">
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Bot size={12} className="text-indigo-500" /> AI Recommendation <ArrowRight size={10} className="text-slate-400 mx-auto" /> <span className="font-bold">Candidate A</span>
+                              </div>
+                              <div className="pl-3 border-l-2 border-indigo-200 py-1 space-y-2">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                  <UserCheck size={12} className="text-rose-400" /> Recruiter selected <span className="font-bold">Candidate B</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-600">
+                                  <span className="text-slate-400">↳ Reason:</span> Better communication
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-600">
+                                  <span className="text-slate-400">↳ Category:</span> Soft Skills
+                                </div>
+                                <div className="flex items-center gap-2 text-emerald-600 font-bold">
+                                  <span className="text-slate-400">↳ Outcome:</span> Candidate B placed
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-indigo-600 bg-indigo-100/50 p-2 rounded mt-2 font-bold">
+                                <Sparkles size={12} /> Learn? YES (Model updated)
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -4405,9 +4431,89 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         </div>
                       </div>
                     </div>
-                  </div>
+                    </div>
 
-                </div>
+                    {/* Right Column: Customer Health & Success */}
+                    <div className="space-y-6">
+                      
+                      {/* Customer Health Card */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 text-sm">
+                            AC
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-black text-slate-800">Acme Corp</h3>
+                            <div className="flex items-center gap-2 text-[10px] font-mono">
+                              <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-bold">Health 98</span>
+                              <span className="text-slate-400">|</span>
+                              <span className="text-slate-500 font-bold">Usage High</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 text-xs font-medium text-slate-600">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Recruiters</span>
+                            <span className="font-black text-slate-800">24</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Weekly Active</span>
+                            <span className="font-black text-slate-800">21</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Requirements</span>
+                            <span className="font-black text-slate-800">312</span>
+                          </div>
+                          <div className="h-px bg-slate-100 w-full my-2" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Renewal Risk</span>
+                            <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Low</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Expansion Opportunity</span>
+                            <span className="font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">High</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Customer Success KPIs */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                        <div>
+                          <h3 className="text-sm font-black text-slate-800">Customer Success KPIs</h3>
+                          <p className="text-[10px] text-slate-500 font-medium">Core adoption and value realization metrics.</p>
+                        </div>
+
+                        <div className="space-y-3 text-xs font-medium text-slate-600">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Time To First Value</span>
+                            <span className="font-black text-indigo-600">14 mins</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">First Placement</span>
+                            <span className="font-black text-slate-800">2 days</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Automation Usage</span>
+                            <span className="font-black text-emerald-600">81%</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Copilot Usage</span>
+                            <span className="font-black text-emerald-600">92%</span>
+                          </div>
+                          <div className="flex justify-between items-center border-t border-slate-100 pt-3">
+                            <span className="text-slate-500">Daily Active Recruiters</span>
+                            <span className="font-black text-slate-800">18</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Weekly Retention</span>
+                            <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">97%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
                 )}
 
                 {/* PRODUCT INTELLIGENCE TAB (DR & API Performance) */}
@@ -4417,30 +4523,47 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div>
-                          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">Disaster Recovery Console</h3>
-                          <p className="text-[10px] text-slate-400 mt-0.5">Compile manual backups of client databases and RAG indexes.</p>
+                          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">Enterprise Disaster Recovery</h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Automated multi-region backup and restore orchestration.</p>
                         </div>
-                        <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-black">
-                          DR Active
+                        <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-black border border-emerald-200">
+                          DR Active & Verified
                         </span>
                       </div>
 
-                      <div className="space-y-3 font-mono text-[11px]">
-                        {backups.map((bak, idx) => (
-                          <div key={idx} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-1 hover:bg-slate-100/55 transition-colors">
-                            <div className="flex justify-between items-center font-mono">
-                              <span className="font-black text-slate-700 font-mono">{bak.id}</span>
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-black bg-emerald-100 text-emerald-800">
-                                {bak.status}
-                              </span>
-                            </div>
-                            <p className="text-slate-500 font-mono text-[10px]">{bak.type}</p>
-                            <div className="flex justify-between items-center text-[9px] text-slate-400 pt-1 font-mono">
-                              <span className="font-mono">{bak.date}</span>
-                              <span className="font-mono font-bold">Size: {bak.size}</span>
-                            </div>
+                      <div className="py-4 px-2 space-y-6">
+                        <div className="flex items-center gap-4 text-xs font-mono font-black text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center"><Database size={12} /></div>
+                            Firestore Export
                           </div>
-                        ))}
+                          <ArrowRight className="text-slate-300 flex-shrink-0" size={14} />
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-sky-100 text-sky-600 flex items-center justify-center"><Server size={12} /></div>
+                            Cloud Storage
+                          </div>
+                          <ArrowRight className="text-slate-300 flex-shrink-0" size={14} />
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-amber-100 text-amber-600 flex items-center justify-center"><RefreshCw size={12} /></div>
+                            Restore Test
+                          </div>
+                          <ArrowRight className="text-slate-300 flex-shrink-0" size={14} />
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center"><CheckCircle2 size={12} /></div>
+                            Verification
+                          </div>
+                        </div>
+                        
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center text-xs font-mono">
+                          <div>
+                            <span className="block text-slate-400 font-bold">Last Successful Cycle</span>
+                            <span className="block text-slate-700 font-black mt-0.5">Today, 02:00 AM UTC</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="block text-slate-400 font-bold">RTO / RPO</span>
+                            <span className="block text-emerald-600 font-black mt-0.5">&lt; 15m / &lt; 1h</span>
+                          </div>
+                        </div>
                       </div>
 
                       <button
@@ -4478,21 +4601,26 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 font-sans">
                         <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
                           <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Subscription Tier</span>
-                          <h4 className="text-lg font-black text-slate-800">Growth Pilot v1</h4>
-                          <p className="text-xs text-slate-500">Up to 25 recruiters and 10 vendor agencies connected.</p>
+                          <h4 className="text-lg font-black text-slate-800">Professional</h4>
+                          <p className="text-xs text-slate-500">24 Active Seats</p>
                         </div>
                         <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
-                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Active Tenant Billing</span>
-                          <h4 className="text-lg font-black text-slate-800">$12,500 <span className="text-xs font-normal text-slate-500">/mo</span></h4>
-                          <p className="text-xs text-slate-500">Base fee + $2.50 per verified candidate submission pass.</p>
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">AI Compute (Monthly)</span>
+                          <h4 className="text-lg font-black text-slate-800">142K Credits</h4>
+                          <p className="text-[10px] text-slate-500">Gemini: ₹2,980 | OpenAI: ₹620</p>
                         </div>
                         <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
-                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Next Renewal Date</span>
-                          <h4 className="text-lg font-black text-slate-800">July 31, 2026</h4>
-                          <p className="text-xs text-slate-500">Invoice cycle auto-billed via credit ledger reserves.</p>
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Storage Usage</span>
+                          <h4 className="text-lg font-black text-slate-800">7.3 GB</h4>
+                          <p className="text-xs text-slate-500">Of 50 GB allocated capacity.</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400">Invoice Status</span>
+                          <h4 className="text-lg font-black text-emerald-600 flex items-center gap-1.5"><CheckCircle2 size={18} /> Paid</h4>
+                          <p className="text-[10px] text-slate-500">Next renewal: July 31, 2026</p>
                         </div>
                       </div>
 
@@ -4797,6 +4925,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
           </div>
         );
       })()}
+    </div>
     </div>
   );
 }

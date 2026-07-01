@@ -55,7 +55,7 @@ export class AIGateway {
 
         // 2. Try Primary Provider (Gemini)
         try {
-            const modelToUse = request.modelPreference === 'accurate' ? 'gemini-3.5-pro' : 'gemini-3.5-flash';
+            const modelToUse = request.modelPreference === 'accurate' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
             const contentParts: any[] = [request.prompt];
             
             if (request.imageParts && request.imageParts.length > 0) {

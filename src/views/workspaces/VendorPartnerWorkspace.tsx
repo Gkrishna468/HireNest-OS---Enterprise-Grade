@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getDynamicGreeting } from "../../lib/greetings";
 import {
   Briefcase,
   Users,
@@ -86,7 +87,7 @@ export default function VendorPartnerWorkspace({
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-              Good Morning, {vendorName} 👋
+              {getDynamicGreeting()}, {vendorName} 👋
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
               <Bot size={14} className="text-emerald-400" />
@@ -405,7 +406,7 @@ export default function VendorPartnerWorkspace({
                  </div>
                  <div className="space-y-3 text-xs text-slate-300">
                     <p className="leading-relaxed">
-                       Good morning! Today you have <strong className="text-white">₹4.8L</strong> in active revenue opportunities. 
+                       {getDynamicGreeting()}! Today you have <strong className="text-white">₹4.8L</strong> in active revenue opportunities. 
                     </p>
                     <p className="leading-relaxed font-mono text-[10px]">
                        We recommend focusing on the Senior Java submissions. Response speed of enterprise client is extremely high (average 14 mins).

@@ -366,71 +366,64 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 border-b border-indigo-900 pb-2 inline-block shadow-[inset_0_-2px_0_rgba(30,58,138,1)]">
-            Workforce OS
-          </h1>
-          <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-            <Bot size={14} className="text-indigo-900" /> Enterprise Runtime (AI Workforce OS)
-          </p>
+    <div className="p-6 max-w-7xl mx-auto space-y-6 bg-[#F8FAFC] min-h-full">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 border-b border-slate-800 pb-6 gap-4">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
+              <Bot className="text-emerald-400" size={28} /> AI Workforce Status
+            </h1>
+            <p className="text-xs text-slate-400 font-medium mt-1 uppercase tracking-widest">Continuous Event-Driven Operations Core</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+             <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-inner border border-slate-700">
+                 <Pause size={14} /> Pause
+             </button>
+             <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-2 border border-emerald-500">
+                 <Play size={14} /> Resume
+             </button>
+             <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-inner border border-slate-700">
+                 <RefreshCw size={14} /> Restart
+             </button>
+             <button className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-2 border border-rose-500 md:ml-4">
+                 <AlertTriangle size={14} /> Emergency Stop
+             </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-            {agents.length === 0 && (
-                <button onClick={handleInitialize} className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-amber-600 transition-colors flex items-center gap-2">
-                    <Activity size={16} /> Initialize Engine
-                </button>
-            )}
-            {agents.length > 0 && (
-                <button onClick={handleReset} className="bg-rose-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-rose-800 transition-colors flex items-center gap-2">
-                    <RefreshCw size={16} /> Reset DB
-                </button>
-            )}
-            <button onClick={async () => {
-              await fetch('/api/events/publish', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ type: 'RESUME_UPLOADED', payload: { resumeUrl: 'test.pdf' } })
-              });
-              await fetch('/api/events/publish', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ type: 'REQUIREMENT_CREATED', payload: { reqId: 'req-123' } })
-              });
-            }} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-emerald-500 transition-colors flex items-center gap-2">
-                <Play size={16} /> Test Events
-            </button>
-            <button onClick={handleRefresh} className="bg-indigo-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-800 transition-colors flex items-center gap-2">
-                <RefreshCw size={16} /> Process Queue
-            </button>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Agents Running</span>
-            <span className="text-2xl font-black text-emerald-600">{agents.filter(a => a.status === 'Running').length}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Idle / Standby</span>
-            <span className="text-2xl font-black text-slate-700">{agents.filter(a => a.status === 'Idle').length}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Disabled</span>
-            <span className="text-2xl font-black text-rose-600">{agents.filter(a => a.status === 'Disabled').length}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Failed</span>
-            <span className="text-2xl font-black text-rose-600">{failedCount}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Job Queue</span>
-            <span className="text-2xl font-black text-indigo-600">{queueCount}</span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Executions Today</span>
-            <span className="text-2xl font-black text-slate-800">{agents.reduce((acc, a) => acc + (a.execsToday || 0), 0).toLocaleString()}</span>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="flex flex-col border-r border-slate-800 pr-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">System Status</span>
+            <span className="text-sm font-bold text-emerald-400 flex items-center gap-2 bg-emerald-500/10 w-fit px-2 py-1 rounded border border-emerald-500/20">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              Running
+            </span>
+          </div>
+          <div className="flex flex-col border-r border-slate-800 px-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Last Heartbeat</span>
+            <span className="text-sm font-bold text-white flex items-center gap-2">
+               <Clock size={14} className="text-slate-400" /> 3 sec ago
+            </span>
+          </div>
+          <div className="flex flex-col border-r border-slate-800 px-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Active Offices</span>
+            <span className="text-lg font-black text-white">5</span>
+          </div>
+          <div className="flex flex-col border-r border-slate-800 px-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Events Today</span>
+            <span className="text-lg font-black text-indigo-400">421</span>
+          </div>
+          <div className="flex flex-col border-r border-slate-800 px-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Reqs Processed</span>
+            <span className="text-lg font-black text-white">38</span>
+          </div>
+          <div className="flex flex-col pl-4">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Matches Gen.</span>
+            <span className="text-lg font-black text-emerald-400">1,284</span>
+          </div>
         </div>
       </div>
 

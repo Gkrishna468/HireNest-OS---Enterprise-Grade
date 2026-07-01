@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { getDynamicGreeting } from "../lib/greetings";
 import { 
   Activity, 
   ShieldCheck, 
@@ -822,10 +823,10 @@ export default function DashboardTab() {
                     <div>
                       <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-400 bg-indigo-400/5 px-2.5 py-1 rounded-md border border-indigo-500/10">AI-Native Briefing</span>
                       <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">
-                        Good Morning, {session?.user?.name || "Gopal"} 👋
+                        {getDynamicGreeting()}, {session?.user?.name || "Gopal"} 👋
                       </h2>
                       <p className="text-xs text-slate-400 mt-1">
-                        Your AI Workforce compiled this morning's operational briefing from 5 synchronized offices.
+                        Your AI Workforce compiled today's operational briefing from 5 synchronized offices.
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-xl text-[10px] font-mono text-emerald-400 font-bold self-start md:self-auto">

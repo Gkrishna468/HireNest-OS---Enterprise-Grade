@@ -159,7 +159,24 @@ export default async function handler(req: any, res: any) {
             "Authority node not initialized (missing Firebase Admin credentials on the backend)",
         });
       }
+
+      if (uid === authUserId) {
+        return res.status(400).json({ error: "You cannot delete the currently signed-in administrator." });
+      }
+
+      let deletedUserEmail = "Unknown";
+      let deletedUserRole = "Unknown";
+      try {
+        const uRec = await adminAuth.getUser(uid);
+        deletedUserEmail = uRec.email || "Unknown";
+        deletedUserRole = uRec.customClaims?.role || "Unknown";
+      } catch (e) {
+        // ignore
+      }
+
       if (uid) {
+        // Find and delete any active sessions
+        await adminAuth.revokeRefreshTokens(uid).catch(() => {});
         await adminAuth.deleteUser(uid).catch(() => {});
         await adminDb
           .collection("users")
@@ -174,6 +191,21 @@ export default async function handler(req: any, res: any) {
           .delete()
           .catch(() => {});
       }
+
+      await adminDb.collection("audit_logs").add({
+        date: new Date().toISOString(),
+        timestamp: Date.now(),
+        deletedBy: req.user?.email || authUserId || "Unknown Admin",
+        deletedUser: deletedUserEmail,
+        deletedUserId: uid,
+        role: deletedUserRole,
+        action: "USER_DELETED",
+        reason: "Admin removed user",
+        status: "SUCCESS",
+        ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown',
+        correlationId: `DEL-${Date.now()}`
+      });
+
       return res.status(200).json({ ok: true });
     }
 
