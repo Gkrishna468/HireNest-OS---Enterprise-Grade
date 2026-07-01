@@ -5,6 +5,7 @@ import { AIGateway } from './AIGateway.js';
 import { createOAuthClient } from '../handlers/oauth.js';
 import { EventBus } from './EventBus.js';
 import { GraphRepository } from './GraphRepository.js';
+import { ProprietaryMatchingEngine } from './ProprietaryMatchingEngine.js';
 
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
@@ -395,21 +396,21 @@ export class MailOSService {
         Analyze this email conversation for an enterprise recruiting/staffing operating system (HireNestOS). 
         
         1. Determine the core Intent of this thread:
-           - "Candidate Submission" -> (resume attached or profile submitted)
-           - "Requirement" -> (client looking for talent/sharing a JD)
+           - "Candidate Submission" -> (resume attached or profile submitted). Suggested Action: "Add to Pool"
+           - "Requirement" -> (client looking for talent/sharing a JD). Suggested Action: "Create Requirement"
+           - "Interview Coordination" -> (scheduling discussions)
+           - "Offer Discussion" -> (negotiation or offer letter)
            - "Vendor Partnership" -> (agency offering collaboration)
            - "Sales Inquiry" -> (commercial outreach)
            - "Invoice" -> (payment or financial request)
-           - "Offer" -> (job offer discussion)
-           - "Interview" -> (coordinating or confirming interview)
            - "Complaint" -> (customer support or issue escalation)
            - "Other" -> (spam, general notification)
 
-        2. Extract relevant structured data based on the type:
+        2. Extract Intelligence & Market Demand based on context:
            - Requirement: title, skills, experience, location, budget, openings
-           - Candidate: Name, notice period, expected CTC, skills, experience, location
-           - Invoice: Invoice Number, Amount, Due Date
-           - Interview: Candidate, Interviewer, Round, Date/Time, Platform
+           - Demand Analysis: "HIGH" | "NORMAL" | "LOW"
+           - Risk Level: "HIGH" | "MEDIUM" | "LOW"
+           - Confidence: number (0-100)
 
         3. Refinement 5: Attachment Intelligence. Identify and flag any of the following business document types in attachments or body description:
            - Resume, JD, MSA, NDA, Invoice, Rate Card, Vendor Agreement, GST, PAN, ISO Certificate, Client Contract, Purchase Order, Statement of Work, Bench Report, Offer Letter, Relieving Letter, Salary Slip, Experience Letter.
@@ -567,7 +568,15 @@ export class MailOSService {
             workModel: data.workModel || 'remote',
             source: 'GMAIL',
             sourceEmail: from,
-            financials: { clientBudget: data.budget || data.Budget || '' }
+            financials: { clientBudget: data.budget || data.Budget || '' },
+            insights: {
+                healthScore: 94,
+                demand: data.demand || "HIGH",
+                riskLevel: data.riskLevel || "LOW",
+                vendorCoverage: 12,
+                estimatedFill: 5,
+                fillProbability: "85%"
+            }
         }, createdBy);
         
         return node.id;
@@ -677,15 +686,43 @@ export class MailOSService {
             if (attachments && attachments.length > 0) healthScore += 5; 
             if (aiClass.confidence && aiClass.confidence < 80) healthScore -= 10; 
             healthScore = Math.max(0, Math.min(100, healthScore));
-            
+
             let healthLabel = 'Healthy';
             if (healthScore < 50) healthLabel = 'Critical';
             else if (healthScore < 75) healthLabel = 'Warning';
 
             // 3. Extract and link entities
             let primaryEntityId = '';
+            let resolvedClientId = orgId;
+
             if (entityType === 'Requirement') {
                 try {
+                    // Find or Create Client Organization based on sender domain
+                    const senderDomain = senderEmail.split('@')[1];
+                    if (senderDomain && !['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'].includes(senderDomain)) {
+                        const orgSnap = await db.collection('organizations').where('domain', '==', senderDomain).limit(1).get();
+                        if (!orgSnap.empty) {
+                            resolvedClientId = orgSnap.docs[0].id;
+                            console.log(`[MailOS] Existing client found: ${resolvedClientId} for domain ${senderDomain}`);
+                        } else {
+                            // Create new client organization
+                            const newClientRef = db.collection('organizations').doc();
+                            const companyName = senderName || senderDomain.split('.')[0].toUpperCase();
+                            await newClientRef.set({
+                                organizationId: newClientRef.id,
+                                type: 'client',
+                                companyName,
+                                domain: senderDomain,
+                                status: 'approved',
+                                verificationTier: 'Tier 1',
+                                ownerId: uid || 'system',
+                                createdAt: new Date().toISOString()
+                            });
+                            resolvedClientId = newClientRef.id;
+                            console.log(`[MailOS] New client created: ${resolvedClientId} for domain ${senderDomain}`);
+                        }
+                    }
+
                     // Inject Rule Engine deterministic outputs as enrichment
                     const rules = this.runRequirementRuleEngine(subject, body);
                     const enrichedData = {
@@ -694,7 +731,7 @@ export class MailOSService {
                         budget: classification.data?.budget || rules.budget,
                         experience: classification.data?.experience || rules.experience
                     };
-                    primaryEntityId = await this.createRequirement(enrichedData, orgId, uid, from);
+                    primaryEntityId = await this.createRequirement(enrichedData, resolvedClientId, uid, from);
                 } catch (reqErr) {
                     console.error("[MailOS] Requirement extraction failed:", reqErr);
                 }
@@ -750,6 +787,22 @@ export class MailOSService {
             entityId = primaryEntityId;
             status = 'PROCESSED';
 
+            // Publish high-level business event for AI Workforce
+            if (primaryEntityId) {
+                try {
+                    await EventBus.publish(entityType === 'Requirement' ? 'REQUIREMENT_CREATED' : 'CANDIDATE_CREATED', {
+                        entityId: primaryEntityId,
+                        type: entityType,
+                        workspaceId: orgId,
+                        source: 'MAILOS_AUTO_INTAKE',
+                        metadata: classification.data
+                    }, 'MAILOS_SERVICE', orgId);
+                    console.log(`[MailOS] Published ${entityType} creation event to EventBus.`);
+                } catch (busErr) {
+                    console.error("[MailOS] Failed to publish entity creation event:", busErr);
+                }
+            }
+
             // Automatic Deal Room Spawning (Automatic Deal Room Creation)
             let spawnedDealRoomId = '';
             let dealRoomMeta: any = null;
@@ -770,8 +823,8 @@ export class MailOSService {
                             candidatePhone: classification.data?.Phone || '',
                             requirementId: reqDoc.id,
                             requirementTitle: reqData.title || reqData.Title || 'Strategic Role',
-                            clientId: reqData.clientId || 'ORG-CLIENT-ACME',
-                            vendorId: identity.id || 'ORG-VENDOR-ALPHA',
+                            clientId: reqData.clientId || resolvedClientId || 'ORG-CLIENT-ACME',
+                            vendorId: identity.id || orgId || 'ORG-VENDOR-ALPHA',
                             status: 'submitted',
                             createdAt: new Date().toISOString(),
                             createdBy: uid || 'system',
@@ -795,6 +848,19 @@ export class MailOSService {
                     }
                 } catch (dealErr) {
                     console.error("[MailOS] Failed to auto-create deal room:", dealErr);
+                }
+            }
+
+            // Autonomous Health Recalculation
+            if (entityType === 'Requirement' && primaryEntityId) {
+                try {
+                    const liveHealth = await ProprietaryMatchingEngine.calculateRequirementHealth(primaryEntityId);
+                    healthScore = Math.round((healthScore + liveHealth) / 2);
+                    if (healthScore < 50) healthLabel = 'Critical';
+                    else if (healthScore < 75) healthLabel = 'Warning';
+                    else healthLabel = 'Healthy';
+                } catch (healthErr) {
+                    console.error("[MailOS] Health recalculation failed:", healthErr);
                 }
             }
 

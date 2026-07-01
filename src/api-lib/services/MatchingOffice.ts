@@ -2,6 +2,7 @@ import { db } from '../../lib/firebase-admin.js';
 import { EventBus } from './EventBus.js';
 import { AIGateway } from './AIGateway.js';
 import { BusinessGraphService } from './BusinessGraphService.js';
+import { ProprietaryMatchingEngine } from './ProprietaryMatchingEngine.js';
 
 export class MatchingOffice {
     
@@ -80,54 +81,15 @@ export class MatchingOffice {
             return null;
         }
 
-        // Create Summaries for AI
-        const jdSummary = `Title: ${reqObj.title || reqObj.jobTitle || "N/A"}
-Role: ${reqObj.role || "N/A"}
-Org: ${reqObj.clientId || reqObj.orgId || "N/A"}
-Must Have Skills: ${(reqObj.mustHaveSkills || []).join(", ")}
-Good To Have Skills: ${(reqObj.goodToHaveSkills || []).join(", ")}
-Description: ${reqObj.description || "N/A"}
-Experience: ${reqObj.experience || reqObj.yearsOfExperience || "N/A"}`;
-
-        const candidateSummary = `Name: ${cand.fullName || cand.name || "N/A"}
-Title: ${cand.title || cand.role || "N/A"}
-Vendor: ${cand.vendorId || cand.orgId || "N/A"}
-Skills: ${(cand.skills || []).join(", ")}
-Experience: ${cand.experience || cand.yearsOfExperience || "N/A"}`;
-
-        const prompt = `You are a recruitment AI.
-Score the match between this Candidate and this Job Description out of 100.
-Also provide a 1-sentence summary of the fit.
-
-Job Description:
-${jdSummary}
-
-Candidate:
-${candidateSummary}
-
-Return JSON strictly in this format:
-{"matchScore": 85, "summary": "Strong fit based on React and Node.js experience.", "strengths": ["skill 1"], "missingSkills": ["skill 2"], "breakdown": {"skillsScore": 90, "experienceScore": 80, "domainScore": 80, "locationScore": 100}}`;
-
-        const fallbackRuleEngine = (text: string) => {
-            return {
-                matchScore: 75,
-                summary: "Fallback deterministic match based on skill intersection.",
-                strengths: ["Matching Core Profile"],
-                missingSkills: [],
-                breakdown: { skillsScore: 75, experienceScore: 75, domainScore: 75, locationScore: 75 }
-            };
-        };
-
         try {
-            const aiResponse = await AIGateway.analyze({
-                prompt: prompt,
-                modelPreference: 'fast',
-                schema: true,
-                fallbackRuleEngine
-            });
+            // Invoke HN-016 Proprietary Matching Engine
+            const engineResult = await ProprietaryMatchingEngine.calculateMatch(
+                cand.id, 
+                reqObj.id, 
+                reqObj.tenantId || reqObj.orgId || "GLOBAL"
+            );
 
-            const resultJson = aiResponse.data || {};
-            const mScore = resultJson.matchScore || 0;
+            const mScore = engineResult.compositeScore;
 
             if (mScore > 0) {
                 const matchResult = {
@@ -135,15 +97,16 @@ Return JSON strictly in this format:
                     requirementId: reqObj.id,
                     tenantId: reqObj.tenantId || reqObj.orgId || cand.tenantId || "TENANT-HQ",
                     matchScore: mScore,
-                    summary: resultJson.summary || "AI Match Generated",
-                    strengths: resultJson.strengths || [],
-                    missingSkills: resultJson.missingSkills || [],
-                    breakdown: resultJson.breakdown || {
-                        skillsScore: mScore,
-                        experienceScore: mScore,
-                        domainScore: mScore,
-                        locationScore: mScore,
+                    summary: engineResult.reasoning || "AI Match Generated",
+                    strengths: [], 
+                    missingSkills: [],
+                    breakdown: {
+                        skillsScore: engineResult.deterministicScore,
+                        experienceScore: engineResult.deterministicScore,
+                        semanticScore: engineResult.semanticScore,
+                        businessScore: engineResult.businessScore,
                     },
+                    suggestedAction: engineResult.suggestedAction
                 };
 
                 const matchId = `${cand.id}_${reqObj.id}`;
@@ -158,7 +121,7 @@ Return JSON strictly in this format:
                     candidateId: cand.id,
                     vendorId: vendorId,
                     orgId: cand.orgId || vendorId || "SYSTEM",
-                    source: "MATCHING_OFFICE_V1",
+                    source: "PROPRIETARY_MATCHING_ENGINE_V1",
                     generatedAt: new Date().toISOString(),
                 };
 
@@ -170,7 +133,7 @@ Return JSON strictly in this format:
                         cand.id, 
                         reqObj.id, 
                         'MATCHED', 
-                        { score: mScore, confidence: aiResponse.confidence }
+                        { score: mScore, confidence: mScore / 100 }
                     );
                 } catch (graphErr) {
                     console.warn(`[MatchingOffice] Failed to update Business Graph for ${cand.id} <-> ${reqObj.id}:`, graphErr);

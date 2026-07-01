@@ -26,6 +26,11 @@ export class FirebaseIdentityService implements IIdentityService {
     await updateDoc(docRef, { hasSeenDemo });
   }
 
+  async updatePilotMode(uid: string, enabled: boolean): Promise<void> {
+    const docRef = doc(db, "users", uid);
+    await updateDoc(docRef, { pilotMode: enabled });
+  }
+
   async executeAdminCleanup(email: string): Promise<void> {
     try {
       const q = query(

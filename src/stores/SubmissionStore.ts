@@ -72,6 +72,24 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await ServiceProvider.submissionService.updateInterviewEvent(id, event);
+      
+      const { EventDispatcher } = await import('../events/EventDispatcher');
+      const { EventTypes } = await import('../lib/events/EventTypes');
+      const { auth } = await import('../lib/firebase');
+      
+      const eventBus = EventDispatcher.getInstance();
+      await eventBus.publish({
+         id: "evt_" + Math.random().toString(36).substring(2, 9),
+         type: EventTypes.INTERVIEW_SCHEDULED,
+         timestamp: new Date().toISOString(),
+         tenantId: "SYSTEM",
+         payload: { 
+            submissionId: id, 
+            ...event,
+            uid: auth.currentUser?.uid 
+         }
+      });
+
       set((state) => {
         const selected = state.selectedSubmission?.id === id ? { ...state.selectedSubmission, interviewStatus: event.interviewStatus || state.selectedSubmission.interviewStatus } as Submission : state.selectedSubmission;
         return { selectedSubmission: selected, isLoading: false };
@@ -95,6 +113,7 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
       // We can also trigger the Event Dispatcher here
       const { EventDispatcher } = await import('../events/EventDispatcher');
       const { EventTypes } = await import('../lib/events/EventTypes');
+      const { auth } = await import('../lib/firebase');
       
       const eventBus = EventDispatcher.getInstance();
       await eventBus.publish({
@@ -102,7 +121,11 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
          type: EventTypes.INTERVIEW_REQUESTED,
          timestamp: new Date().toISOString(),
          tenantId: "SYSTEM",
-         payload: { submissionId: id, ...reqDetails }
+         payload: { 
+            submissionId: id, 
+            ...reqDetails,
+            uid: auth.currentUser?.uid 
+         }
       });
       
       set((state) => {

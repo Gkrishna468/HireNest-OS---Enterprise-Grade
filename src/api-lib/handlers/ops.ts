@@ -31,7 +31,7 @@ export async function initializeRuntimeState(status: string = "OFFLINE") {
     lastHeartbeat: new Date().toISOString(),
     currentQueueLength: 0,
     cpuTime: status === "LIVE" ? 420 : 0,
-    activeOffices: status === "LIVE" ? ["recruitment-office", "vendor-office", "client-office", "founder-office", "marketplace-office", "ai-coo"] : [],
+    activeOffices: status === "LIVE" ? ["recruitment-office", "vendor-office", "client-office", "founder-office", "marketplace-office", "ai-coo", "scheduling-office"] : [],
     currentWorkflowCount: 0,
     autopilotMode: "autonomous",
     eventStats: {
@@ -400,7 +400,7 @@ export default async function opsHandler(req: Request, res: Response) {
           // Phase 2: BOOTSTRAPPING
           await docRef.update({ status: "BOOTSTRAPPING", updatedAt: new Date().toISOString() });
           await writeSystemLog("System", "Bootstrapping Runtime Kernel...", traceId);
-          await writeSystemLog("System", "Registering Offices: Recruitment Office, Vendor Office, Client Office, Finance & Founder Office, Marketplace Office, AI COO Office", traceId);
+          await writeSystemLog("System", "Registering Offices: Recruitment Office, Vendor Office, Client Office, Finance & Founder Office, Marketplace Office, AI COO Office, Scheduling Office", traceId);
           await new Promise(r => setTimeout(r, 600));
 
           await writeSystemLog("System", "Offices registered successfully.", traceId);
@@ -676,6 +676,61 @@ export default async function opsHandler(req: Request, res: Response) {
                     state: "Idle",
                     currentExecution: null
                   };
+                }
+                return off;
+              });
+              await docRef.update({ status: "LIVE", offices: updatedOffices, updatedAt: new Date().toISOString() });
+            }
+          } else if (eventType === "UNIFIED_INTAKE") {
+            const intakeType = details?.intakeType || "REQUIREMENT";
+            const source = details?.source || "EMAIL";
+            const orgId = details?.orgId || "client_123";
+            
+            await writeSystemLog("MailOS", `Unified Intake triggered: [${source}] -> [${intakeType}]`, traceId);
+            await new Promise(r => setTimeout(r, 800));
+
+            await writeSystemLog("Intake Service", `Processing ${intakeType} from ${source}. Correlation: ${traceId}`, traceId);
+            
+            const entityId = intakeType === 'REQUIREMENT' ? 'req_sim_999' : 'cand_sim_999';
+            await writeSystemLog("Intake Service", `Entity Created: ${entityId}. Status: DRAFT`, traceId);
+            await new Promise(r => setTimeout(r, 600));
+
+            await writeSystemLog("Event Bus", `Publishing unified event: INTAKE_COMPLETED (Entity: ${entityId})`, traceId);
+            
+            const snap = await docRef.get();
+            if (snap.exists) {
+              const data = snap.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "ai-coo") {
+                   return { 
+                     ...off, 
+                     status: "PROCESSING", 
+                     state: "Auditing Intake Pipeline", 
+                     currentJob: "Unified Intake Verification",
+                     currentExecution: {
+                       requirement: intakeType === 'REQUIREMENT' ? "Java Architect" : "Candidate Import",
+                       candidate: intakeType === 'CANDIDATE' ? "Amit Kumar" : "N/A",
+                       step: "Broadcasting INTAKE_COMPLETED event...",
+                       progress: 90,
+                       estimatedFinishSec: 2
+                     }
+                   };
+                }
+                return off;
+              });
+              await docRef.update({ offices: updatedOffices });
+            }
+
+            await new Promise(r => setTimeout(r, 1000));
+            
+            await writeSystemLog("AI Workforce", `Workforce triggered for INTAKE_COMPLETED: [${entityId}]. Executing autonomous matching sequence...`, traceId);
+            
+            const snap3 = await docRef.get();
+            if (snap3.exists) {
+              const data = snap3.data();
+              const updatedOffices = (data.offices || []).map((off: any) => {
+                if (off.id === "ai-coo") {
+                  return { ...off, status: "RUNNING", state: "Idle", currentExecution: null };
                 }
                 return off;
               });

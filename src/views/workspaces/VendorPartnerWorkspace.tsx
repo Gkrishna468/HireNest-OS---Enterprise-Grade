@@ -128,7 +128,7 @@ export default function VendorPartnerWorkspace({
             <h3 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold mb-3">
               Hot Sourcing Actions
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button
                 onClick={() =>
                   setSubmittingReq({
@@ -158,18 +158,6 @@ export default function VendorPartnerWorkspace({
                     Browse Active Job Board
                   </h4>
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">Live requirements allocated to you</p>
-                </div>
-              </button>
-
-              <button className="bg-slate-900/60 hover:bg-slate-900 transition-all duration-150 border border-slate-800 hover:border-slate-700 p-5 rounded-2xl flex items-center gap-4 group text-left">
-                <div className="bg-amber-500/10 text-amber-400 p-3.5 rounded-xl group-hover:bg-amber-500/20 transition-colors">
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">
-                    Submit Performance Invoice
-                  </h4>
-                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">Claim commissions for placements</p>
                 </div>
               </button>
             </div>

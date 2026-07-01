@@ -247,18 +247,18 @@ export default function DashboardTab() {
       });
 
       setExecStats({
-        openReqs: openReqs || 12,
-        submissions: submissions || 48,
-        interviews: interviews || 15,
-        offers: offers || 8,
-        placements: placements || 5,
-        activeDealRooms: activeDealRooms || 6,
-        candidatesAvailable: candidatesAvailable || 184,
-        aiMatchesGenerated: aiMatchesGenerated || 242,
-        invoiceValue: invoiceValue || 4500000,
-        collections: collections || 2840000,
-        todaysRevenue: todaysRevenue || 125000,
-        vendorPayouts: vendorPayouts || 950000
+        openReqs: openReqs,
+        submissions: submissions,
+        interviews: interviews,
+        offers: offers,
+        placements: placements,
+        activeDealRooms: activeDealRooms,
+        candidatesAvailable: candidatesAvailable,
+        aiMatchesGenerated: aiMatchesGenerated,
+        invoiceValue: invoiceValue,
+        collections: collections,
+        todaysRevenue: todaysRevenue,
+        vendorPayouts: vendorPayouts
       });
     } catch (err) {
       console.warn("Failed to fetch executive stats", err);

@@ -5,6 +5,7 @@ import { InterviewEventHandler } from './handlers/InterviewEventHandler';
 import { OfferEventHandler } from './handlers/OfferEventHandler';
 import { VendorEventHandler } from './handlers/VendorEventHandler';
 import { AnalyticsEventHandler } from './handlers/AnalyticsEventHandler';
+import { ServerEventForwarder } from './handlers/ServerEventForwarder';
 import { SystemEventListener } from '../integrations/events/SystemEventListener';
 
 export function initializeEventBus() {
@@ -16,6 +17,7 @@ export function initializeEventBus() {
   registry.registerHandler(eventBus, new OfferEventHandler());
   registry.registerHandler(eventBus, new VendorEventHandler());
   registry.registerHandler(eventBus, new AnalyticsEventHandler());
+  registry.registerHandler(eventBus, new ServerEventForwarder());
 
   SystemEventListener.initialize();
 

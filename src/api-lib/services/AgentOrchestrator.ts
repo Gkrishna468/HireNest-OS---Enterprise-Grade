@@ -37,6 +37,7 @@ export class AgentOrchestrator {
             { id: 'client-office', name: 'Client Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_UPDATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Drives hiring outcomes, sends market insights, monitors SLA.' },
             { id: 'marketplace-office', name: 'Marketplace Office', category: 'Layer 1: Office Agents', triggerType: 'CRON', schedule: 'Every 15 min', status: 'Healthy', enabled: true, core: true, desc: 'Optimizes entire ecosystem, detects idle bench, drives cross-workspace matches.' },
             { id: 'matching-office', name: 'Matching Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'REQUIREMENT_CREATED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Maintains candidate-requirement relationships and updates candidate_matches.' },
+            { id: 'scheduling-office', name: 'Scheduling Office', category: 'Layer 1: Office Agents', triggerType: 'EVENT', triggerEvent: 'INTERVIEW_REQUESTED', schedule: 'Event-driven', status: 'Healthy', enabled: true, core: true, desc: 'Coordinates interviews, manages Google Calendar sync, and sends invites.' },
             
             // Layer 2: Shared Skills
             { id: 'resume-parser', name: 'Resume Parser', category: 'Layer 2: Shared Skills', triggerType: 'CALL', schedule: 'On Demand', status: 'Healthy', enabled: true, desc: 'Extracts entities and skills from resumes.' },
@@ -120,6 +121,11 @@ export class AgentOrchestrator {
                 console.log(`[MATCHING_OFFICE] Running Event-Driven Match Routine for event type: ${payload.eventType || 'UNKNOWN'}`);
                 await MatchingOffice.handleEvent(payload.eventType, payload.payload, payload.orgId);
                 return { success: true, output: { status: 'Match Loop Completed Successfully' }, tokens: 3500, model: 'gemini-3.5-flash' };
+            case 'scheduling-office':
+                console.log(`[SCHEDULING_OFFICE] Running Event-Driven Scheduling Routine for event type: ${payload.eventType || 'UNKNOWN'}`);
+                const { SchedulingOffice } = await import('./SchedulingOffice.js');
+                await SchedulingOffice.handleEvent(payload.eventType, payload.payload, payload.orgId);
+                return { success: true, output: { status: 'Scheduling Loop Completed Successfully' }, tokens: 1200, model: 'gemini-1.5-flash' };
             default:
                 return { success: true, output: { status: 'processed' }, tokens: 450, model: 'gemini-1.5-flash' };
         }

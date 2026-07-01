@@ -98,6 +98,7 @@ const updateDoc = async (ref: any, data: any) => {
 };
 import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
+import Requirement360Modal from "../components/modals/Requirement360Modal";
 import { HybridMatchResult } from "../types";
 import { EmptyState } from "../components/EmptyState";
 import { publishEvent } from "../lib/eventEngine";
@@ -1680,27 +1681,19 @@ export default function JobsTab() {
           </div>
         </div>
 
-        {/* Selected Job & Candidate Intelligence Sidebar */}
+        {/* Requirement 360 Modal */}
         {selectedJob && (
+          <Requirement360Modal
+            job={selectedJob}
+            onClose={() => setSelectedJob(null)}
+            isAdmin={isAdmin}
+            userRole={userRole}
+            userOrgId={orgId}
+          />
+        )}
+        {false && selectedJob && (
           <div className="w-full lg:w-1/2 absolute lg:relative inset-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 z-10">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedJob(null);
-                    setAiAnalysis(null);
-                    setIsEditing(null);
-                  }}
-                  className="h-6 w-6"
-                >
-                  <X size={14} />
-                </Button>
-                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800 flex items-center gap-2">
-                  <Activity size={14} className="text-indigo-600" /> Requirement 360
-                </h2>
-              </div>
               <div className="flex items-center gap-2">
                 {(isAdmin || (isClient && selectedJob.clientId === orgId)) && (
                   <Button

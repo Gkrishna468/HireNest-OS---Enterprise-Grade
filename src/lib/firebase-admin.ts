@@ -63,14 +63,58 @@ export let adminAuth: any = null;
 
 try {
   const credentials = getCredentials();
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || firebaseConfig.projectId || "hirenest-os";
+  
+  // Detection for managed environments vs local
+  const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
+  
+  // Priority: 
+  // 1. Explicit FIREBASE_PROJECT_ID (unless it is the placeholder 'hirenest-os' in a managed env)
+  // 2. System GOOGLE_CLOUD_PROJECT
+  // 3. Blueprint config
+  let projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || firebaseConfig.projectId;
+  
+  if (isManagedEnv && projectId === "hirenest-os" && process.env.GOOGLE_CLOUD_PROJECT) {
+    console.log("[Firebase Admin] Detected managed environment with hirenest-os placeholder. Switching to GOOGLE_CLOUD_PROJECT:", process.env.GOOGLE_CLOUD_PROJECT);
+    projectId = process.env.GOOGLE_CLOUD_PROJECT;
+  }
+
+  console.log("[Firebase Admin] Init attempt. Project:", projectId);
 
   if (getApps().length === 0) {
-    if (credentials) {
-      app = initializeApp({ credential: cert(credentials), projectId });
+    // Strategy: 
+    // If in managed environment without a valid explicit credential, try applicationDefault first.
+    // Otherwise, try credentials, then applicationDefault.
+    
+    const tryAppDefault = () => {
+      console.log("[Firebase Admin] Attempting applicationDefault...");
+      try {
+        return initializeApp({ credential: applicationDefault(), projectId }, "fallback");
+      } catch (e: any) {
+        console.warn("[Firebase Admin] applicationDefault failed:", e.message);
+        return null;
+      }
+    };
+
+    const tryManual = () => {
+      if (!credentials) {
+        console.log("[Firebase Admin] No manual credentials available.");
+        return null;
+      }
+      console.log("[Firebase Admin] Attempting manual credentials for project:", projectId);
+      try {
+        const manualApp = initializeApp({ credential: cert(credentials), projectId }, "primary");
+        console.log("[Firebase Admin] Manual credentials SDK init success.");
+        return manualApp;
+      } catch (e: any) {
+        console.warn("[Firebase Admin] Manual credentials SDK init failed:", e.message);
+        return null;
+      }
+    };
+
+    if (isManagedEnv && !credentials) {
+      app = tryAppDefault() || initializeApp({ projectId }, "degraded");
     } else {
-      console.warn("[Firebase Admin] No valid credentials found. Ensure FIREBASE_SERVICE_ACCOUNT is set. Vercel deployments do NOT support applicationDefault() out of the box.");
-      // We will not use applicationDefault() as it fails silently later in Vercel without ADC
+      app = tryManual() || tryAppDefault() || initializeApp({ projectId }, "degraded");
     }
   } else {
     app = getApps()[0];

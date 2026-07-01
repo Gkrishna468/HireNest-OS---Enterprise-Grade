@@ -10,9 +10,12 @@ import {
   ChevronUp,
   Quote,
   Banknote,
+  Cpu,
+  TrendingUp,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
+import { cn } from "../lib/utils";
 
 interface JDIntelligenceProps {
   job: any;
@@ -98,39 +101,117 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
       </div>
 
       {/* Recruiter Copilot AI Insights */}
-      <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Sparkles size={100} className="text-indigo-600" />
+      <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+          <Sparkles size={120} className="text-indigo-600" />
         </div>
         <div className="relative z-10">
-           <h3 className="text-[11px] font-black uppercase tracking-widest text-indigo-800 mb-6 flex items-center gap-2">
-              <Sparkles size={16} /> Recruiter Copilot Intelligence
-           </h3>
-           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
-                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Fill Probability</div>
-                 <div className="text-2xl font-black text-emerald-600">{job.insights?.fillProbability || "82%"}</div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
-                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Closure Time</div>
-                 <div className="text-xl font-black text-slate-800 mt-1">{job.insights?.closureTime || "14 Days"}</div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-indigo-50 shadow-sm text-center">
-                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Internal Matches</div>
-                 <div className="text-xl font-black text-indigo-600 mt-1">{job.insights?.internalMatches ?? job.internalMatches ?? "0"} Candidates</div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-rose-50 shadow-sm text-center flex flex-col justify-center items-center">
-                 <div className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Identified Risk</div>
-                 <div className="text-xs font-bold text-rose-700 leading-tight">{job.insights?.risk || "Niche Skill Shortage"}</div>
+           <div className="flex items-center justify-between mb-8">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                 <Cpu size={16} className="text-indigo-500" /> Neural Requirement Intelligence
+              </h3>
+              <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Demand:</span>
+                    <Badge className={cn(
+                      "border-none text-[10px] uppercase font-black px-2 py-0.5",
+                      job.insights?.demand === "HIGH" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                    )}>
+                      {job.insights?.demand || "HIGH"}
+                    </Badge>
+                 </div>
+                 <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Risk:</span>
+                    <span className="text-[10px] font-black text-slate-700 uppercase">{job.insights?.riskLevel || "LOW"}</span>
+                 </div>
               </div>
            </div>
-           
-           <div className="mt-4 bg-white p-4 rounded-xl border border-indigo-50 shadow-sm flex items-center gap-4">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Likely Vendors</div>
-              <div className="flex flex-wrap gap-2">
-                 {(job.insights?.likelyVendors || ["Worknexa", "ABC Staffing", "XYZ Solutions"]).map((v: string, i: number) => (
-                    <Badge key={i} className="bg-indigo-50 text-indigo-700 border-indigo-100">{v}</Badge>
-                 ))}
+
+           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Health Score Gauge */}
+              <div className="lg:col-span-1 flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[24px] border border-slate-100">
+                 <div className="relative h-24 w-24 flex items-center justify-center mb-4">
+                    <svg className="h-full w-full transform -rotate-90">
+                       <circle
+                          cx="48"
+                          cy="48"
+                          r="40"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          className="text-slate-200"
+                       />
+                       <circle
+                          cx="48"
+                          cy="48"
+                          r="40"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray={251.2}
+                          strokeDashoffset={251.2 - (251.2 * (job.insights?.healthScore || 94)) / 100}
+                          className="text-indigo-500 transition-all duration-1000"
+                       />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                       <span className="text-2xl font-black text-slate-900 leading-none">{job.insights?.healthScore || 94}%</span>
+                    </div>
+                 </div>
+                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Requirement Health</p>
+              </div>
+
+              <div className="lg:col-span-3 grid grid-cols-2 lg:grid-cols-3 gap-4">
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-colors">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Matching Candidates</div>
+                    <div className="flex items-baseline gap-2">
+                       <div className="text-2xl font-black text-slate-900">{job.insights?.internalMatches ?? job.internalMatches ?? "28"}</div>
+                       <span className="text-[10px] font-bold text-emerald-500">+4 new</span>
+                    </div>
+                    <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                       <div className="h-full bg-indigo-500 w-[65%]" />
+                    </div>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-colors">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Ready Now</div>
+                    <div className="flex items-baseline gap-2">
+                       <div className="text-2xl font-black text-indigo-600">{job.insights?.readyNow || "7"}</div>
+                       <span className="text-[10px] font-bold text-slate-400 uppercase">Bench</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium mt-3 italic leading-tight">Pre-cleared and available for immediate interview.</p>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-colors">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Vendor Coverage</div>
+                    <div className="flex items-baseline gap-2">
+                       <div className="text-2xl font-black text-slate-900">{job.insights?.vendorCoverage || "12"}</div>
+                       <span className="text-[10px] font-bold text-slate-400 uppercase">Agencies</span>
+                    </div>
+                    <div className="flex -space-x-2 mt-4">
+                       {[1,2,3,4].map(i => (
+                          <div key={i} className="h-6 w-6 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500">V{i}</div>
+                       ))}
+                       <div className="h-6 w-6 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center text-[8px] font-bold text-indigo-600">+8</div>
+                    </div>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-colors">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Estimated Fill</div>
+                    <div className="flex items-baseline gap-2">
+                       <div className="text-2xl font-black text-slate-900">{job.insights?.estimatedFill || "5"}</div>
+                       <span className="text-[10px] font-bold text-slate-400 uppercase">Days</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-600 font-bold mt-3 flex items-center gap-1">
+                       <TrendingUp size={10} /> 2 days faster than avg
+                    </p>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-colors col-span-2">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">AI Strategic Advice</div>
+                    <p className="text-[11px] text-slate-600 font-medium leading-relaxed italic">
+                       "Focus on candidates from <span className="text-indigo-600 font-bold">Worknexa</span> bench. Their recent placements for similar React roles show 95% interview-to-hire velocity."
+                    </p>
+                 </div>
               </div>
            </div>
         </div>

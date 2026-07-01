@@ -30,7 +30,8 @@ export class EventBus {
             { id: 'sub-req-matching-closed', eventType: 'REQUIREMENT_CLOSED', subscriber: 'matching-office', priority: 10, enabled: true },
             { id: 'sub-cand-matching-created', eventType: 'CANDIDATE_CREATED', subscriber: 'matching-office', priority: 10, enabled: true },
             { id: 'sub-cand-matching-updated', eventType: 'CANDIDATE_UPDATED', subscriber: 'matching-office', priority: 10, enabled: true },
-            { id: 'sub-cand-matching-withdrawn', eventType: 'CANDIDATE_WITHDRAWN', subscriber: 'matching-office', priority: 10, enabled: true }
+            { id: 'sub-cand-matching-withdrawn', eventType: 'CANDIDATE_WITHDRAWN', subscriber: 'matching-office', priority: 10, enabled: true },
+            { id: 'sub-interview-scheduling', eventType: 'INTERVIEW_REQUESTED', subscriber: 'scheduling-office', priority: 10, enabled: true }
         ];
         
         for (const sub of defaultSubs) {

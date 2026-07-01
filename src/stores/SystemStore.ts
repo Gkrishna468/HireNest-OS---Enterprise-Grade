@@ -8,8 +8,10 @@ interface SystemState {
   userData: any | null;
   loading: boolean;
   showDemo: boolean;
+  pilotMode: boolean;
   initialize: () => () => void;
   closeDemo: () => Promise<void>;
+  togglePilotMode: (enabled: boolean) => Promise<void>;
 }
 
 export const useSystemStore = create<SystemState>((set, get) => ({
@@ -17,6 +19,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   userData: null,
   loading: true,
   showDemo: false,
+  pilotMode: false,
   
   initialize: () => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -41,9 +44,11 @@ export const useSystemStore = create<SystemState>((set, get) => ({
           }
 
           const hasSeenDemo = data.hasSeenDemo;
+          const pilotMode = data.pilotMode || false;
           set({ 
             userData: data,
-            showDemo: !hasSeenDemo && Object.keys(data).length > 0
+            showDemo: !hasSeenDemo && Object.keys(data).length > 0,
+            pilotMode
           });
         } catch (e) {
           console.error("User data sync failed", e);
@@ -65,6 +70,18 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         await ServiceProvider.identityService.updateDemoFlag(user.uid, true);
       } catch (err) {
         console.error("Failed to update demo flag:", err);
+      }
+    }
+  },
+
+  togglePilotMode: async (enabled: boolean) => {
+    const { user, userData } = get();
+    if (user) {
+      set({ pilotMode: enabled, userData: { ...userData, pilotMode: enabled } });
+      try {
+        await ServiceProvider.identityService.updatePilotMode(user.uid, enabled);
+      } catch (err) {
+        console.error("Failed to update pilot mode:", err);
       }
     }
   }

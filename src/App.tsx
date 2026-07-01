@@ -163,7 +163,7 @@ const SidebarItem = ({
 const AppContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, userData, loading, showDemo, initialize, closeDemo } =
+  const { user, userData, loading, showDemo, pilotMode, initialize, closeDemo, togglePilotMode } =
     useSystemStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -590,50 +590,8 @@ const AppContent = () => {
               <SidebarItem
                 to="/network"
                 icon={Globe}
-                label="Network"
+                label="Global HQ"
                 active={location.pathname === "/network"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/ai-agents"
-                icon={Bot}
-                label="AI Workforce"
-                active={location.pathname === "/ai-agents"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/revenue-intelligence"
-                icon={DollarSign}
-                label="Revenue"
-                active={location.pathname === "/revenue-intelligence"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/adoption"
-                icon={TrendingUp}
-                label="Product Intelligence"
-                active={location.pathname === "/adoption"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/validation-center"
-                icon={ShieldCheck}
-                label="Release Center"
-                active={location.pathname === "/validation-center"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/security"
-                icon={Shield}
-                label="Security & Compliance"
-                active={location.pathname === "/security"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
-                to="/trace"
-                icon={Terminal}
-                label="Engineering"
-                active={location.pathname === "/trace"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -669,7 +627,10 @@ const AppContent = () => {
             >
               <Menu size={24} />
             </button>
-            <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic hidden sm:block">
+            <div className={cn(
+              "text-white px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase italic hidden sm:block transition-colors",
+              pilotMode ? "bg-indigo-600" : "bg-slate-900"
+            )}>
               Node:{" "}
               {isAdmin
                 ? "Global HQ"
@@ -680,7 +641,31 @@ const AppContent = () => {
                     : isRecruiter
                       ? "Recruiter Workspace"
                       : "User Workspace"}
+              {pilotMode && " (Pilot)"}
             </div>
+
+            {isAdmin && (
+              <div className="hidden lg:flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                <button 
+                  onClick={() => togglePilotMode(false)}
+                  className={cn(
+                    "px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest transition-all",
+                    !pilotMode ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  Sandbox
+                </button>
+                <button 
+                  onClick={() => togglePilotMode(true)}
+                  className={cn(
+                    "px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest transition-all",
+                    pilotMode ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  Pilot
+                </button>
+              </div>
+            )}
 
             {/* Universal Search Bar */}
             <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-2 w-64 hover:bg-slate-100 transition-all cursor-text" onClick={() => setIsSearchOpen(true)}>

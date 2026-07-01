@@ -10,19 +10,23 @@ import {
   DollarSign,
   History,
   Bot,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { collection, getDocs, onSnapshot, query, addDoc, doc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { checkIsAdmin } from "../lib/permissions";
 import { assertNoMockData } from "../lib/ProductionDataGuard";
+import { ExplainableEvidenceCard, EvidenceObject } from "../components/ExplainableEvidenceCard";
 
 export default function HumanApprovalCenterTab({ userRole }: { userRole: string }) {
   const [activeTab, setActiveTab] = useState('pending');
   const [approvals, setApprovals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "approval_requests"));
@@ -44,10 +48,82 @@ export default function HumanApprovalCenterTab({ userRole }: { userRole: string 
   const handleInitializeDefaultApprovals = async () => {
     setIsInitializing(true);
     const defaults = [
-      { type: 'OFFER', title: 'Offer Release: Jane Doe', desc: 'SDE II at Google - $145k Base', requester: 'Autonomous Ops', time: '10 mins ago', risk: 'low', status: 'PENDING' },
-      { type: 'INVOICE', title: 'Invoice Generation: PL-882', desc: '$25,000 Placement Fee for TechSource', requester: 'Finance Agent', time: '1 hour ago', risk: 'low', status: 'PENDING' },
-      { type: 'VENDOR', title: 'Vendor Onboarding: Nova Staffing', desc: 'Compliance checks passed, awaiting final sign-off', requester: 'Compliance Checker', time: '2 hours ago', risk: 'medium', status: 'PENDING' },
-      { type: 'ESCALATION', title: 'Requirement Escalation: Senior PM', desc: 'Open > 30 days, requesting 20% margin increase', requester: 'Ops Agent', time: '5 hours ago', risk: 'high', status: 'PENDING' }
+      { 
+        type: 'OFFER', 
+        title: 'Offer Release: Jane Doe', 
+        desc: 'SDE II at Google - $145k Base', 
+        requester: 'Autonomous Ops', 
+        time: '10 mins ago', 
+        risk: 'low', 
+        status: 'PENDING',
+        evidence: {
+            id: 'OFFER-2026-001',
+            decision: 'Authorize offer release based on verified budget and candidate acceptance probability.',
+            confidence: 96,
+            graphNodes: ['Candidate-Jane-Doe', 'Requirement-SDE-II', 'Budget-2026-Q3'],
+            experiences: ['Matched candidate salary expectations', 'Background check cleared', 'Interview scorecard: 4.5/5'],
+            decisionFactors: ['Market rate parity verified', 'Budget allocation confirmed', 'Team capacity bottleneck identified'],
+            telemetrySnapshot: ['LATENCY: 12ms', 'COST: $0.05', 'MODEL: gemini-2.0-flash'],
+            version: '2.1.0'
+        }
+      },
+      { 
+        type: 'INVOICE', 
+        title: 'Invoice Generation: PL-882', 
+        desc: '$25,000 Placement Fee for TechSource', 
+        requester: 'Finance Agent', 
+        time: '1 hour ago', 
+        risk: 'low', 
+        status: 'PENDING',
+        evidence: {
+            id: 'INV-2026-882',
+            decision: 'Trigger invoice generation following placement confirmation.',
+            confidence: 99,
+            graphNodes: ['Placement-882', 'Vendor-TechSource', 'Account-Receivable'],
+            experiences: ['Placement signed by client', 'Vendor commission verified', 'Tax compliance pass'],
+            decisionFactors: ['Contractual terms met', 'Invoice sequence valid', 'Payment gateway connected'],
+            telemetrySnapshot: ['FINANCE_CORE_ACTIVE', 'AUTH: VALID'],
+            version: '1.0.5'
+        }
+      },
+      { 
+        type: 'VENDOR', 
+        title: 'Vendor Onboarding: Nova Staffing', 
+        desc: 'Compliance checks passed, awaiting final sign-off', 
+        requester: 'Compliance Checker', 
+        time: '2 hours ago', 
+        risk: 'medium', 
+        status: 'PENDING',
+        evidence: {
+            id: 'VND-2026-015',
+            decision: 'Approve vendor partnership based on tiered compliance audit.',
+            confidence: 88,
+            graphNodes: ['Vendor-Nova-Staffing', 'Region-APAC', 'Tier-Preferred'],
+            experiences: ['KYC/AML verified', 'Insurance certificates uploaded', 'Bank details confirmed'],
+            decisionFactors: ['Audit score: 88/100', 'Risk category: Low-Medium', 'Strategic need in APAC confirmed'],
+            telemetrySnapshot: ['COMPLIANCE_RUN_ID: 9912', 'VECTOR_SIM: 0.92'],
+            version: '2.0.1'
+        }
+      },
+      { 
+        type: 'ESCALATION', 
+        title: 'Requirement Escalation: Senior PM', 
+        desc: 'Open > 30 days, requesting 20% margin increase', 
+        requester: 'Ops Agent', 
+        time: '5 hours ago', 
+        risk: 'high', 
+        status: 'PENDING',
+        evidence: {
+            id: 'ESC-2026-101',
+            decision: 'Escalate requirement for executive margin review.',
+            confidence: 82,
+            graphNodes: ['Requirement-SR-PM', 'Market-Conditions-Tight', 'Margin-Target-25'],
+            experiences: ['0 candidates submitted in 30 days', 'Competitor fill rates are < 10%', 'Target margin is currently uncompetitive'],
+            decisionFactors: ['Time-to-fill SLA breached', 'Ecosystem scarcity detected', 'Revenue risk high'],
+            telemetrySnapshot: ['MODEL: gemini-exp', 'TEMPERATURE: 0.7'],
+            version: '3.0.0-beta'
+        }
+      }
     ];
 
     try {
@@ -140,37 +216,55 @@ export default function HumanApprovalCenterTab({ userRole }: { userRole: string 
                   </div>
               ) : (
                   pendingApprovals.map(app => (
-                      <div key={app.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-colors">
-                          <div className="flex items-center gap-4">
-                              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                  {getIcon(app.type)}
-                              </div>
-                              <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                      <h3 className="text-sm font-bold text-slate-800">{app.title}</h3>
-                                      {app.risk === 'high' && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">High Risk</span>}
-                                  </div>
-                                  <p className="text-sm text-slate-500 mb-2">{app.desc}</p>
-                                  <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                      <span className="flex items-center gap-1"><Bot size={12} /> {app.requester}</span>
-                                      <span className="flex items-center gap-1"><Clock size={12} /> {app.time}</span>
-                                  </div>
-                              </div>
+                      <div key={app.id} className="bg-white border border-slate-200 rounded-2xl p-0 overflow-hidden shadow-sm flex flex-col group hover:border-indigo-200 transition-colors">
+                          <div 
+                            onClick={() => setExpandedId(expandedId === app.id ? null : app.id)}
+                            className="p-6 flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    {getIcon(app.type)}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="text-sm font-bold text-slate-800">{app.title}</h3>
+                                        {app.risk === 'high' && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">High Risk</span>}
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-2">{app.desc}</p>
+                                    <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                        <span className="flex items-center gap-1"><Bot size={12} /> {app.requester}</span>
+                                        <span className="flex items-center gap-1"><Clock size={12} /> {app.time}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity mr-4">
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleAction(app.id, 'REJECTED'); }}
+                                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg text-sm font-bold transition-colors"
+                                    >
+                                        <XCircle size={16} /> Reject
+                                    </button>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleAction(app.id, 'APPROVED'); }}
+                                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-bold shadow-sm transition-colors"
+                                    >
+                                        <CheckCircle2 size={16} /> Approve
+                                    </button>
+                                </div>
+                                {expandedId === app.id ? <ChevronUp className="text-slate-400" /> : <ChevronDown className="text-slate-400" />}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={() => handleAction(app.id, 'REJECTED')}
-                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg text-sm font-bold transition-colors"
-                              >
-                                  <XCircle size={16} /> Reject
-                              </button>
-                              <button 
-                                onClick={() => handleAction(app.id, 'APPROVED')}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-bold shadow-sm transition-colors"
-                              >
-                                  <CheckCircle2 size={16} /> Approve
-                              </button>
-                          </div>
+
+                          {expandedId === app.id && app.evidence && (
+                              <div className="px-6 pb-6 pt-0 border-t border-slate-50 bg-slate-50/30">
+                                  <ExplainableEvidenceCard 
+                                    evidence={app.evidence} 
+                                    isDark={false}
+                                    className="mt-4 border-slate-200 shadow-none" 
+                                  />
+                              </div>
+                          )}
                       </div>
                   ))
               )}

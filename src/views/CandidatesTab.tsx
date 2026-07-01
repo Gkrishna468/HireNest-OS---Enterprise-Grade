@@ -321,6 +321,9 @@ export default function CandidatesTab() {
     parsed: number;
     matched: number;
   } | null>(null);
+  const [isAiSearching, setIsAiSearching] = useState(false);
+  const [aiSearchResults, setAiSearchResults] = useState<any[] | null>(null);
+
   const isAdmin =
     userRole === "admin" ||
     userRole === "super_admin" ||
@@ -1531,6 +1534,38 @@ ${extText}`;
     }
   };
 
+  const handleAiSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsAiSearching(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/search/candidates", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiSearchResults(data.candidates || []);
+      } else {
+        const error = await res.json();
+        alert("AI Search failed: " + (error.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("AI Search error: " + err.message);
+    } finally {
+      setIsAiSearching(false);
+    }
+  };
+
+  const clearAiSearch = () => {
+    setAiSearchResults(null);
+    setSearchQuery("");
+  };
+
   const isClientUser = userRole.includes("client") || userRole === "client_hiring_manager";
 
   if (isClientUser) {
@@ -1552,7 +1587,41 @@ ${extText}`;
                  <button onClick={() => setViewMode("GRID")} className={cn("px-3 py-1.5 text-xs font-semibold rounded transition-colors", viewMode === "GRID" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}>Grid</button>
                  <button onClick={() => setViewMode("PIPELINE")} className={cn("px-3 py-1.5 text-xs font-semibold rounded transition-colors", viewMode === "PIPELINE" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}>Pipeline</button>
               </div>
-              {viewMode === "GRID" && <input type="text" placeholder="Search..." className="border rounded-md px-3 py-2 text-sm" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />}
+              {viewMode === "GRID" && (
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    placeholder={aiSearchResults ? "AI Results Active..." : "Search candidates..."} 
+                    className={cn(
+                      "border rounded-md px-3 py-2 text-sm w-64 outline-none focus:ring-2 transition-all",
+                      aiSearchResults ? "border-emerald-500 bg-emerald-50 ring-emerald-500/20" : "border-slate-200 focus:ring-indigo-500"
+                    )}
+                    value={searchQuery} 
+                    onChange={e => setSearchQuery(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleAiSearch()}
+                  />
+                  {aiSearchResults ? (
+                    <Button variant="ghost" size="sm" onClick={clearAiSearch} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-2">
+                      <X className="w-4 h-4 mr-1" /> Clear
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleAiSearch} 
+                      disabled={isAiSearching || !searchQuery.trim()}
+                      className="bg-white border-slate-200 hover:bg-slate-50 text-indigo-600 font-bold border-2"
+                    >
+                      {isAiSearching ? (
+                        <Activity className="w-4 h-4 mr-2 animate-pulse" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 mr-2 text-indigo-500" />
+                      )}
+                      AI Search
+                    </Button>
+                  )}
+                </div>
+              )}
               <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
                 <Upload className="w-4 h-4 mr-2" /> Bulk Upload
               </Button>
@@ -1565,7 +1634,7 @@ ${extText}`;
 
         {viewMode === "PIPELINE" ? (
           <VendorCandidatePipeline 
-            candidates={candidates.map(c => {
+            candidates={(aiSearchResults || candidates.map(c => {
                const candSubs = globalSubmissions.filter(s => s.candidateId === (c.originalId || c.id) && s.status !== "REJECTED");
                let highestStage = c.pipelineStage || "Candidate Added";
                
@@ -1593,8 +1662,9 @@ ${extText}`;
                }
                
                return { ...c, highestStage };
-            }).filter(
+            })).filter(
                 (c) =>
+                  aiSearchResults ||
                   (!searchQuery ||
                   c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   c.name?.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1603,14 +1673,13 @@ ${extText}`;
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {candidates
-              .filter(
+            {(aiSearchResults || candidates.filter(
                 (c) =>
                   !searchQuery ||
                   c.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   (c.skills && c.skills.join(" ").toLowerCase().includes(searchQuery.toLowerCase()))
-              )
+              ))
               .map((candidate) => (
                 <div
                   key={candidate.id}
@@ -1652,6 +1721,13 @@ ${extText}`;
                   <p className="text-sm text-slate-500 truncate mb-4">
                     {candidate.email || "No email provided"}
                   </p>
+
+                  {candidate.aiSearchReason && (
+                    <div className="mb-4 bg-indigo-50 border border-indigo-100 p-2 rounded text-[10px] text-indigo-700 font-medium">
+                      <Sparkles className="w-3 h-3 inline mr-1" />
+                      {candidate.aiSearchReason}
+                    </div>
+                  )}
 
                   <div className="mt-auto pt-4 border-t border-slate-100">
                     <div className="flex flex-wrap gap-1.5">

@@ -19,6 +19,7 @@ import {
   Check,
   Server,
   Mail,
+  MessageSquare,
   Shield,
   Layers,
   Bot,
@@ -45,12 +46,15 @@ import {
   Users,
   UserCheck
 } from "lucide-react";
-import { collection, query, limit, getDocs, doc, onSnapshot, orderBy, addDoc } from "firebase/firestore";
+import { collection, query, limit, getDocs, doc, onSnapshot, orderBy, addDoc, where } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import axios from "axios";
+import { useSystemStore } from "../stores/SystemStore";
+import { FirebaseProjectionService } from "../lib/services/firebase/FirebaseProjectionService";
 
 // Define strict types for our robust office state
-interface OfficeRuntimeState {
+export interface OfficeRuntimeState {
   id: string;
   name: string;
   description: string;
@@ -81,6 +85,11 @@ interface OfficeRuntimeState {
 
 export default function AutonomousOperationsTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
+  const { pilotMode, togglePilotMode } = useSystemStore();
+  
+  // Unified Office States
+  const [offices, setOffices] = useState<OfficeRuntimeState[]>([]);
+  const [terminalLogs, setTerminalLogs] = useState<any[]>([]);
 
   const [activeTab, setActiveTab] = useState<'control' | 'release' | 'commercial' | 'engineering'>('control');
   const [controlSubTab, setControlSubTab] = useState<'brief' | 'timeline' | 'rules' | 'approvals'>('brief');
@@ -297,229 +306,33 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     { name: "Business Graph Validation", interval: "Hourly", nextRun: "12:00", lastRun: "11:00", duration: "1.8s", status: "NOMINAL" }
   ]);
 
-  // AI COO Strategic Recommendation Queue
-  const [cooRecommendations, setCooRecommendations] = useState([
-    {
-      id: "rec-1",
-      priority: "HIGH",
-      recommendation: "Increase Vendor Broadcast",
-      reason: "No candidate submissions received after 18 hrs for REQ-2026-109 (Senior Java Developer)",
-      impact: "+₹12L expected revenue",
-      confidence: 94,
-      status: "PENDING" // PENDING, APPROVED, IGNORED, MODIFIED
-    },
-    {
-      id: "rec-2",
-      priority: "MEDIUM",
-      recommendation: "Auto-Escalate Candidate Interview SLA",
-      reason: "Client 'Globex Corp' silent for 48 hrs on candidate 'Aarav Mehta'",
-      impact: "Retain placement probability & candidate satisfaction",
-      confidence: 88,
-      status: "PENDING"
-    },
-    {
-      id: "rec-3",
-      priority: "LOW",
-      recommendation: "Optimize AI Parser Models",
-      reason: "Average resume extraction confidence score dipped to 84% for French-language profiles",
-      impact: "Improve extraction recall rate +6%",
-      confidence: 91,
-      status: "PENDING"
-    }
-  ]);
-
-  // Unified Office States
-  const [offices, setOffices] = useState<OfficeRuntimeState[]>([
-    {
-      id: 'recruitment-office',
-      name: 'Recruitment Office',
-      description: 'PARSES RESUMES, MAPS DISPATCH MATCHES',
-      status: 'RUNNING',
-      state: 'Processing Queue',
-      queueCount: 23,
-      workers: 4,
-      currentJob: 'Matching Candidates',
-      startedAt: '09:32:11',
-      lastHeartbeatSec: 3,
-      avgRuntimeMs: 241,
-      failuresToday: 0,
-      retriesToday: 2,
-      currentExecution: {
-        requirement: 'Senior Java Developer',
-        candidate: 'Rahul Sharma',
-        step: 'Matching algorithm pass 2',
-        progress: 67,
-        estimatedFinishSec: 8
-      },
-      conversations: [
-        { time: '09:34:02', log: 'Requirement REQ-2026-109 has only one active submission.' },
-        { time: '09:35:15', log: 'Searching talent repository for viable alternatives...' },
-        { time: '09:36:30', log: 'Found 4 suitable candidates based on semantic match.' },
-        { time: '09:36:58', log: 'Candidate Amit Patel filtered. Reason: Target salary mismatch.' },
-        { time: '09:37:12', log: 'Broadcasting matching profiles to primary vendor lists.' }
-      ]
-    },
-    {
-      id: 'vendor-office',
-      name: 'Vendor Office',
-      description: 'COACHES PARTNERS, HARNESSES VENDOR BENCH',
-      status: 'RUNNING',
-      state: 'Verifying Submissions',
-      queueCount: 12,
-      workers: 3,
-      currentJob: 'Coaching Partners',
-      startedAt: '09:15:04',
-      lastHeartbeatSec: 7,
-      avgRuntimeMs: 185,
-      failuresToday: 1,
-      retriesToday: 1,
-      currentExecution: {
-        requirement: 'Cloud Solutions Architect',
-        candidate: 'Priyanka Sen',
-        step: 'Verifying vendor authorization',
-        progress: 40,
-        estimatedFinishSec: 12
-      },
-      conversations: [
-        { time: '09:15:10', log: 'Vendor partner Zenith Systems requested update on candidate Priyanka Sen.' },
-        { time: '09:16:45', log: 'Analyzing profile completeness & compliance checks.' },
-        { time: '09:18:20', log: 'Initiated skill assessment questionnaire dispatch.' }
-      ]
-    },
-    {
-      id: 'client-office',
-      name: 'Client Office',
-      description: 'MONITORS SLAs, ENFORCES TIMELINES',
-      status: 'RUNNING',
-      state: 'Monitoring SLAs',
-      queueCount: 5,
-      workers: 2,
-      currentJob: 'Generating Insights',
-      startedAt: '09:00:22',
-      lastHeartbeatSec: 12,
-      avgRuntimeMs: 310,
-      failuresToday: 0,
-      retriesToday: 0,
-      currentExecution: {
-        requirement: 'React Native Developer',
-        candidate: 'Anil Deshmukh',
-        step: 'Calculating SLA response time matrix',
-        progress: 90,
-        estimatedFinishSec: 3
-      },
-      conversations: [
-        { time: '09:02:11', log: 'Client feedback SLA timer expired for REQ-2026-102.' },
-        { time: '09:03:00', log: 'Pushed nudge notification to hiring manager dashboard.' }
-      ]
-    },
-    {
-      id: 'founder-office',
-      name: 'Finance & Founder Office',
-      description: 'MONITORS INVOICES, TRACES SAVED REVENUE',
-      status: 'RUNNING',
-      state: 'Aggregating Financials',
-      queueCount: 2,
-      workers: 2,
-      currentJob: 'Validating Placements',
-      startedAt: '08:45:10',
-      lastHeartbeatSec: 21,
-      avgRuntimeMs: 420,
-      failuresToday: 0,
-      retriesToday: 0,
-      currentExecution: {
-        requirement: 'Product Manager',
-        candidate: 'Siddharth Roy',
-        step: 'Generating pro-forma invoice PDF',
-        progress: 15,
-        estimatedFinishSec: 25
-      },
-      conversations: [
-        { time: '08:46:15', log: 'Placement approved for candidate Siddharth Roy.' },
-        { time: '08:48:30', log: 'Verifying tax structures and billing addresses.' }
-      ]
-    },
-    {
-      id: 'marketplace-office',
-      name: 'Marketplace Office',
-      description: 'MAPS GLOBAL ECOSYSTEM DEMAND AND BENCH',
-      status: 'RUNNING',
-      state: 'Scanning Ecosystem',
-      queueCount: 8,
-      workers: 3,
-      currentJob: 'Mapping Skillsets',
-      startedAt: '09:20:15',
-      lastHeartbeatSec: 19,
-      avgRuntimeMs: 195,
-      failuresToday: 0,
-      retriesToday: 1,
-      currentExecution: {
-        requirement: 'Golang Engineer',
-        candidate: 'Meera Nair',
-        step: 'Ecosystem supply analysis pass',
-        progress: 55,
-        estimatedFinishSec: 15
-      },
-      conversations: [
-        { time: '09:21:05', log: 'Scanning cross-tenant developer benches for skill overlap.' },
-        { time: '09:22:40', log: 'Identified 12 passive developers with matching traits.' }
-      ]
-    },
-    {
-      id: 'ai-coo',
-      name: 'AI COO Office',
-      description: 'PERFORMS QUEUE AUDITS, DETECTS SLA BREACHES',
-      status: 'RUNNING',
-      state: 'Analyzing Performance',
-      queueCount: 0,
-      workers: 1,
-      currentJob: 'Formulating Directives',
-      startedAt: '09:30:00',
-      lastHeartbeatSec: 5,
-      avgRuntimeMs: 820,
-      failuresToday: 0,
-      retriesToday: 0,
-      currentExecution: {
-        requirement: 'System-wide Queue Audit',
-        candidate: 'N/A',
-        step: 'SLA breach probability assessment',
-        progress: 80,
-        estimatedFinishSec: 4
-      },
-      conversations: [
-        { time: '09:31:12', log: 'Initiating hourly autonomous sanity check.' },
-        { time: '09:32:00', log: 'Verified Business Graph integrity: Nominal state.' }
-      ]
-    }
-  ]);
-
-  // Selected office for deep dive state tracking
-  const [selectedOfficeId, setSelectedOfficeId] = useState<string>('recruitment-office');
-
   // Interactive Queue Drill-down State
   const [activeQueueDrilldown, setActiveQueueDrilldown] = useState<string | null>(null);
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>('recruitment-office');
 
   // Find currently selected office
-  const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
-
-  // Terminal logs with system traces, filtered by tags & search query
-  const [terminalLogs, setTerminalLogs] = useState<any[]>([
-    { time: '09:30:00', type: 'Runtime', text: 'Workforce OS kernel build 4.2 initialized successfully.', trace: 'TR-101' },
-    { time: '09:30:05', type: 'Firestore', text: 'Connected to Firestore database: default (nominal).', trace: 'TR-102' },
-    { time: '09:30:12', type: 'Event Bus', text: 'Event Bus dispatch channel active. Routing 14 active topics.', trace: 'TR-103' },
-    { time: '09:31:00', type: 'MailOS', text: 'MailOS Workspace API syncing candidate mailboxes. Checked 15 inboxes.', trace: 'TR-104' },
-    { time: '09:32:11', type: 'Office Logs', text: '[Recruitment Office] Worker thread assigned to Rahul Sharma (REQ-2026-109).', trace: 'TR-105' },
-    { time: '09:34:02', type: 'AI Decisions', text: '[Decision Engine] Formulated recruitment backup recommendation due to low submission count.', trace: 'TR-106' },
-    { time: '09:35:45', type: 'Errors', text: '[MailOS] SLA reminder dispatch failed to client: Globex. Will retry in 60s.', trace: 'TR-107' },
-    { time: '09:36:12', type: 'Decision Engine', text: 'Candidate Aarav Mehta match score calibrated at 94%.', trace: 'REQ-2026-109' },
-    { time: '09:37:00', type: 'Runtime', text: 'Active queue depth decreased from 28 to 23 items.', trace: 'TR-908' }
-  ]);
+  const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0] || {
+    id: 'loading',
+    name: 'Initializing...',
+    description: 'CONNECTING TO EVENT BUS...',
+    status: 'STOPPED',
+    state: 'Waiting',
+    queueCount: 0,
+    workers: 0,
+    currentJob: 'Loading...',
+    startedAt: '-',
+    lastHeartbeatSec: 0,
+    avgRuntimeMs: 0,
+    failuresToday: 0,
+    retriesToday: 0,
+    conversations: []
+  };
 
   // Syncing status indicator
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbState, setDbState] = useState<any>(null);
 
   // Dynamic Pilot Mode and Real Collections Metrics
-  const [pilotMode, setPilotMode] = useState<boolean>(true);
   const [liveRequirements, setLiveRequirements] = useState<any[]>([]);
   const [liveCandidates, setLiveCandidates] = useState<any[]>([]);
   const [liveSubmissions, setLiveSubmissions] = useState<any[]>([]);
@@ -529,53 +342,39 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   const [liveCandidateMatches, setLiveCandidateMatches] = useState<any[]>([]);
   const [liveAIFeedback, setLiveAIFeedback] = useState<any[]>([]);
 
-  // Real-time snapshot listeners for business metrics
+  // AI COO Strategic Recommendation Queue
+  const [cooRecommendations, setCooRecommendations] = useState<any[]>([]);
+
   useEffect(() => {
-    if (!db) return;
+    const projectionService = FirebaseProjectionService.getInstance();
+    
+    // Listen to offices
+    const unsubOffices = projectionService.listenToOffices((newOffices) => {
+        if (newOffices.length > 0) {
+            setOffices(newOffices);
+        }
+    });
 
-    const unsubReqs = onSnapshot(collection(db, "requirements_public"), (snap) => {
-      setLiveRequirements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live reqs error:", err));
+    // Listen to logs
+    const unsubLogs = projectionService.listenToSystemLogs((newLogs) => {
+        if (newLogs.length > 0) {
+            setTerminalLogs(newLogs);
+        }
+    });
 
-    const unsubCandidates = onSnapshot(collection(db, "candidatePool"), (snap) => {
-      setLiveCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live candidates error:", err));
-
-    const unsubSubs = onSnapshot(collection(db, "submissions"), (snap) => {
-      setLiveSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live submissions error:", err));
-
-    const unsubPlacements = onSnapshot(collection(db, "placements"), (snap) => {
-      setLivePlacements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live placements error:", err));
-
-    const unsubInterviews = onSnapshot(collection(db, "interviews"), (snap) => {
-      setLiveInterviews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live interviews error:", err));
-
-    const unsubRev = onSnapshot(collection(db, "revenue_pipeline"), (snap) => {
-      setLiveRevenuePipeline(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live revenue error:", err));
-
-    const unsubMatches = onSnapshot(collection(db, "candidate_matches"), (snap) => {
-      setLiveCandidateMatches(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live matches error:", err));
-
-    const unsubFeedback = onSnapshot(collection(db, "aiFeedback"), (snap) => {
-      setLiveAIFeedback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => console.warn("Live feedback error:", err));
+    // Listen to COO recommendations
+    const unsubRecs = projectionService.listenToCOORecommendations((newRecs) => {
+        if (newRecs.length > 0) {
+            setCooRecommendations(newRecs);
+        }
+    });
 
     return () => {
-      unsubReqs();
-      unsubCandidates();
-      unsubSubs();
-      unsubPlacements();
-      unsubInterviews();
-      unsubRev();
-      unsubMatches();
-      unsubFeedback();
+        unsubOffices();
+        unsubLogs();
+        unsubRecs();
     };
-  }, [db]);
+  }, []);
 
   // Derived aggregates for Pilot Mode (with fallback to simulations)
   const reqCount = pilotMode ? (liveRequirements.length || 128) : 128;
@@ -1400,7 +1199,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                 <div className="flex items-center gap-1.5">
                   <button 
                     onClick={() => {
-                      setPilotMode(true);
+                      togglePilotMode(true);
                       addLog("Runtime", "Pilot Mode activated. Bypassing simulation mode, displaying live production aggregates from Firestore.", "TR-PILOT-ON");
                     }}
                     className={cn(
@@ -1413,7 +1212,7 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
                   </button>
                   <button 
                     onClick={() => {
-                      setPilotMode(false);
+                      togglePilotMode(false);
                       addLog("Runtime", "Simulation Mode activated. Displaying active telemetry test beds.", "TR-PILOT-OFF");
                     }}
                     className={cn(
@@ -1739,7 +1538,132 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
 
                 </div>
 
-                {/* 2. Business-First Outcomes HUD Grid */}
+                {/* 2b. Unified Intake Pipeline (Milestone Phase 4) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                  <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-tight text-slate-800 flex items-center gap-2">
+                        <Zap className="text-amber-500" size={16} />
+                        Unified Autonomous Intake Pipeline
+                      </h3>
+                      <p className="text-[10px] text-slate-500 font-medium">Direct ingestion from Email, WhatsApp, and API into the Event Bus.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[8px] font-black uppercase rounded">v1.0 Frozen</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+                    {/* Visual Connector Lines (Desktop) */}
+                    <div className="hidden md:block absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
+                    
+                    {[
+                      { 
+                        title: "1. Intake Source", 
+                        desc: "Email / WhatsApp / API", 
+                        icon: <Mail size={18} className="text-indigo-500" />,
+                        active: true 
+                      },
+                      { 
+                        title: "2. Intelligent Parser", 
+                        desc: "JD or Resume Extract", 
+                        icon: <Cpu size={18} className="text-purple-500" />,
+                        active: true 
+                      },
+                      { 
+                        title: "3. Entity Factory", 
+                        desc: "Requirement / Candidate", 
+                        icon: <Database size={18} className="text-emerald-500" />,
+                        active: true 
+                      },
+                      { 
+                        title: "4. Event Bus", 
+                        desc: "INTAKE_COMPLETED", 
+                        icon: <Zap size={18} className="text-amber-500" />,
+                        active: true 
+                      }
+                    ].map((step, idx) => (
+                      <div key={idx} className="relative z-10 flex flex-col items-center text-center space-y-3">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all shadow-sm",
+                          step.active ? "bg-white border-indigo-500" : "bg-slate-50 border-slate-200 opacity-50"
+                        )}>
+                          {step.icon}
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{step.title}</h4>
+                          <p className="text-[10px] text-slate-500 font-mono">{step.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                        <Play size={10} />
+                        Run Autonomous Simulation
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        <button 
+                          onClick={async () => {
+                            addLog("Runtime", "Triggering Simulated Client JD Email Intake [Client: Acme Corp | Role: Java Architect]", "TR-INTAKE-SIM");
+                            try {
+                              await axios.post('/api/ops/runtime/simulate', { 
+                                eventType: 'UNIFIED_INTAKE', 
+                                details: { intakeType: 'REQUIREMENT', source: 'EMAIL' } 
+                              });
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }}
+                          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 transition-all shadow-sm"
+                        >
+                          <Mail size={12} className="text-indigo-500" />
+                          Simulate JD Email
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            addLog("Runtime", "Triggering Simulated Vendor Resume WhatsApp Intake [Vendor: ZenStaff | Candidate: Amit Kumar]", "TR-INTAKE-SIM");
+                            try {
+                              await axios.post('/api/ops/runtime/simulate', { 
+                                eventType: 'UNIFIED_INTAKE', 
+                                details: { intakeType: 'CANDIDATE', source: 'WHATSAPP' } 
+                              });
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }}
+                          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 transition-all shadow-sm"
+                        >
+                          <MessageSquare size={12} className="text-emerald-500" />
+                          Simulate Resume WhatsApp
+                        </button>
+                      </div>
+                    </div>
+
+                        <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 relative overflow-hidden">
+                           <div className="absolute -right-4 -top-4 opacity-10">
+                              <Zap size={80} className="text-indigo-600" />
+                           </div>
+                           <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Protocol Enforcement</h4>
+                           <p className="text-[10px] text-indigo-700 leading-relaxed font-medium mb-3">
+                             The <span className="px-1 py-0.5 bg-indigo-600 text-white rounded text-[8px] font-mono">INTAKE_COMPLETED</span> event acts as the universal trigger. Any office subscribed to this event will automatically wake up and process the new entity.
+                           </p>
+                           <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                 <span className="text-[9px] font-mono text-indigo-600 font-bold uppercase">Event Bus Listener: ACTIVE</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[8px] font-black text-indigo-300 uppercase">
+                                 <Shield size={10} /> Zero-Trust
+                              </div>
+                           </div>
+                        </div>
+                  </div>
+                </div>
+
+                {/* 2c. Business-First Outcomes HUD Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 font-sans">
                   
                   {/* Placements Today */}

@@ -1,3 +1,5 @@
+import { AIGateway } from "../services/AIGateway.js";
+
 const logAiUsage = async (
   metricName: string,
   orgId: string,
@@ -139,9 +141,36 @@ export default async function handler(req: any, res: any) {
         domainScore * 0.1,
     );
 
-    let recommendation = "CONSIDER";
+    let recommendation: 'STRONG_FIT' | 'CONSIDER' | 'NOT_SUITABLE' = "CONSIDER";
     if (totalScore >= 80) recommendation = "STRONG_FIT";
     if (totalScore < 60) recommendation = "NOT_SUITABLE";
+
+    // 4. OPTIONAL AI EXPLANATION PASS (Gemini is LAST, for reasoning only)
+    let aiReasoning = "";
+    const explainWithAI = req.body.explainWithAI === true;
+
+    if (explainWithAI) {
+      try {
+        const aiResponse = await AIGateway.analyze({
+          prompt: `SYSTEM INSTRUCTION: You are a technical hiring expert. 
+Provide a 1-2 sentence explanation of why this candidate is a match (or not) for the given Job Description.
+Base your reasoning on these deterministic results:
+- Score: ${totalScore}%
+- Matched Skills: ${foundSkills.join(", ")}
+- Missing Skills: ${missingSkills.join(", ")}
+- Experience Fit: ${candidateExp} yrs vs ${requiredExp} yrs required.
+
+JD: ${jdLower.substring(0, 1000)}
+RESUME: ${resumeLower.substring(0, 1000)}`,
+          modelPreference: "fast"
+        });
+        if (aiResponse.outcome === "success") {
+          aiReasoning = aiResponse.data.text || "";
+        }
+      } catch (e) {
+        console.warn("[AI_EXPLAIN_FAILED]", e);
+      }
+    }
 
     const parsedData = {
       matchScore: totalScore,
@@ -153,7 +182,7 @@ export default async function handler(req: any, res: any) {
         bonusScore: candidateExp > requiredExp + 3 ? 10 : 0,
         totalScore,
       },
-      summary: `Deterministic profile evaluation completed. Overall match scored at ${totalScore}%.`,
+      summary: aiReasoning || `Deterministic profile evaluation completed. Overall match scored at ${totalScore}%.`,
       strengths:
         foundSkills.length > 0
           ? foundSkills.map(
@@ -162,13 +191,14 @@ export default async function handler(req: any, res: any) {
           : ["General baseline capability mapped"],
       gaps:
         missingSkills.length > 0
-          ? ["Lacks specialized critical technologies"]
+          ? missingSkills.map(s => `Missing ${s.toUpperCase()}`)
           : ["No major technical gaps detected"],
       missingSkills: missingSkills,
-      recruiterAssessment:
+      recruiterAssessment: aiReasoning || (
         recommendation === "STRONG_FIT"
           ? "High alignment on deterministic matching. Prioritize interview scheduling."
-          : "Evaluate missing skills before progressing. Candidate lacks density in required stack.",
+          : "Evaluate missing skills before progressing. Candidate lacks density in required stack."
+      ),
       recommendation: recommendation,
       nextSteps:
         missingSkills.length > 0

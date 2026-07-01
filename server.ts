@@ -45,6 +45,7 @@ import copilotHandler from './src/api-lib/handlers/copilot';
 
 import analyticsHandler from './src/api-lib/handlers/analytics';
 import opsHandler from './src/api-lib/handlers/ops';
+import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
 
 const __dirname = process.cwd();
 
@@ -196,6 +197,9 @@ async function createServer() {
         case 'matching/global':
         case 'matching-global':
           return await matchingGlobalHandler(req, res);
+
+        case 'search/candidates':
+          return await searchCandidatesHandler(req, res);
 
         case 'deal-intelligence':
         case 'intel':

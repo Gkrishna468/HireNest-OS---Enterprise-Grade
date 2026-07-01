@@ -41,6 +41,19 @@ export interface Candidate {
   createdBy: string;
   dedupeFingerprint?: string;
   matchScore?: number; // Optional for view layers
+  
+  // Candidate Intelligence
+  yearsOfExperience?: number;
+  currentRole?: string;
+  currentCompany?: string;
+  expectedSalary?: number;
+  noticePeriod?: string;
+  location?: string;
+  availability?: 'IMMEDIATE' | '15_DAYS' | '30_DAYS' | '60_DAYS' | '90_DAYS';
+  industries?: string[];
+  projects?: string[];
+  trustScore?: number;
+  history?: any[];
 }
 
 export enum CandidateLifecycleStatus {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, getDocs, limit, where } from "firebase/firestore";
+import { collection, query, getDocs, limit, where, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
   Star,
@@ -9,146 +9,145 @@ import {
   Zap,
   TrendingUp,
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Activity
 } from "lucide-react";
 import { useSystemStore } from "../stores/SystemStore";
+import { ExplainableEvidenceCard } from "../components/ExplainableEvidenceCard";
+import { cn } from "../lib/utils";
+import { LifecycleTimeline, TimelineEvent } from "../components/LifecycleTimeline";
 
 export default function MatchIntelligenceTab() {
   const { userData } = useSystemStore();
+  const roleIsAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userData?.role || "");
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"requirements" | "candidates">(
-    "requirements",
-  );
+  const [viewMode, setViewMode] = useState<"requirements" | "candidates">("requirements");
   const [matches, setMatches] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<Record<string, any>>({});
   const [candidates, setCandidates] = useState<Record<string, any>>({});
   const [processingMatch, setProcessingMatch] = useState<string | null>(null);
+  const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
 
+  const [matchTimelines, setMatchTimelines] = useState<Record<string, TimelineEvent[]>>({});
   const [scanProgress, setScanProgress] = useState<string>("");
 
+  const handleExpandMatch = (matchId: string) => {
+    const isExpanding = expandedMatch !== matchId;
+    setExpandedMatch(isExpanding ? matchId : null);
+
+    if (isExpanding && !matchTimelines[matchId]) {
+      const simulatedEvents: TimelineEvent[] = [
+        { id: '1', type: 'INTAKE', title: 'Intake Completed', description: 'Entity ingested via MailOS and parsed into Business Graph.', timestamp: '10:05 AM', status: 'COMPLETED' },
+        { id: '2', type: 'MATCH', title: 'Autonomous Matching', description: 'Deterministic skill mapping matched 85% of core stack.', timestamp: '10:06 AM', status: 'COMPLETED' },
+        { id: '3', type: 'SYSTEM', title: 'AI Evidence Generated', description: 'Gemini generated reasoning and fit assessment.', timestamp: '10:06 AM', status: 'COMPLETED' }
+      ];
+      setMatchTimelines(prev => ({ ...prev, [matchId]: simulatedEvents }));
+    }
+  };
+
   const handleCreateDealRoom = async (match: any, req: any, cand: any) => {
-      if (processingMatch) return;
-      setProcessingMatch(match.id);
-      try {
-          const { addDoc, updateDoc, doc } = await import("firebase/firestore");
-          // 1. Create deal room
-          const roomData = {
-              candidateId: match.candidateId,
-              candidateName: cand?.name || cand?.candidateName || match.candidateId,
-              candidateEmail: cand?.email || "",
-              candidatePhone: cand?.phone || "",
-              requirementId: match.requirementId,
-              requirementTitle: req?.title || "Unknown Requirement",
-              clientId: req?.clientId || "",
-              vendorId: cand?.vendorId || match.vendorId || "Direct",
-              status: "submitted",
-              createdAt: new Date().toISOString(),
-              createdBy: userData?.uid || "system",
-              matchScore: match.score || match.matchScore || 0,
-              expectedFee: match.expectedRevenue || 0
-          };
-          
-          await addDoc(collection(db, "dealRooms"), roomData);
-          
-          // 2. Update match status
-          await updateDoc(doc(db, "candidate_matches", match.id), {
-              status: "SUBMITTED"
-          });
-          
-          // 3. Update local state
-          setMatches(prev => prev.map(m => m.id === match.id ? { ...m, status: "SUBMITTED" } : m));
-          
-          // 4. Log AI event
-          await addDoc(collection(db, "agent_executions"), {
-              agentName: "Recruiter Action",
-              agentType: "DEAL_ROOM",
-              status: "success",
-              task: `Created Deal Room for ${roomData.candidateName}`,
-              targetId: match.candidateId,
-              createdAt: new Date(),
-          });
-          
-      } catch (e) {
-          console.error("Failed to create deal room", e);
-      } finally {
-          setProcessingMatch(null);
-      }
+    if (processingMatch) return;
+    setProcessingMatch(match.id);
+    try {
+      const { addDoc, updateDoc, doc } = await import("firebase/firestore");
+      // 1. Create deal room
+      const roomData = {
+        candidateId: match.candidateId,
+        candidateName: cand?.name || cand?.candidateName || match.candidateId,
+        candidateEmail: cand?.email || "",
+        candidatePhone: cand?.phone || "",
+        requirementId: match.requirementId,
+        requirementTitle: req?.title || "Unknown Requirement",
+        clientId: req?.clientId || "",
+        vendorId: cand?.vendorId || match.vendorId || "Direct",
+        status: "submitted",
+        createdAt: new Date().toISOString(),
+        createdBy: userData?.uid || "system",
+        matchScore: match.score || match.matchScore || 0,
+        expectedFee: match.expectedRevenue || 0
+      };
+
+      await addDoc(collection(db, "dealRooms"), roomData);
+
+      // 2. Update match status
+      await updateDoc(doc(db, "candidate_matches", match.id), {
+        status: "SUBMITTED"
+      });
+
+      // 3. Update local state
+      setMatches(prev => prev.map(m => m.id === match.id ? { ...m, status: "SUBMITTED" } : m));
+
+      // 4. Log AI event
+      await addDoc(collection(db, "agent_executions"), {
+        agentName: "Recruiter Action",
+        agentType: "DEAL_ROOM",
+        status: "success",
+        task: `Created Deal Room for ${roomData.candidateName}`,
+        targetId: match.candidateId,
+        createdAt: new Date(),
+      });
+
+    } catch (e) {
+      console.error("Failed to create deal room", e);
+    } finally {
+      setProcessingMatch(null);
+    }
   };
 
   useEffect(() => {
-    let active = true;
-    const fetchData = async () => {
-      if (!userData) return;
-      setLoading(true);
-      try {
-        const role = userData?.role || "";
-        const isAdmin = role === "admin" || role === "hq" || role === "super_admin" || role === "ops_admin";
-        const isClient = role === "client" || role === "client_admin" || role === "client_hm" || role === "client_finance" || role === "client_recruiter";
-        const isVendor = role === "vendor" || role === "vendor_admin" || role === "vendor_recruiter";
-        const orgId = userData?.organizationId;
+    if (!userData) return;
+    setLoading(true);
 
-        let q;
-        if (isAdmin) {
-          q = query(collection(db, "candidate_matches"), limit(100));
-        } else if (isClient && orgId) {
-          q = query(
-            collection(db, "candidate_matches"),
-            where("clientId", "==", orgId),
-            limit(100),
-          );
-        } else if (isVendor && orgId) {
-          q = query(
-            collection(db, "candidate_matches"),
-            where("vendorId", "==", orgId),
-            limit(100),
-          );
-        } else {
-          q = query(collection(db, "candidate_matches"), limit(1));
-        }
+    const role = userData?.role || "";
+    const isClient = role === "client" || role === "client_admin" || role === "client_hm" || role === "client_finance" || role === "client_recruiter";
+    const isVendor = role === "vendor" || role === "vendor_admin" || role === "vendor_recruiter";
+    const orgId = userData?.organizationId;
 
-        const snapshot = await getDocs(q);
-        const fetchedMatches = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as object),
-        }));
+    let q;
+    if (roleIsAdmin) {
+      q = query(collection(db, "candidate_matches"), limit(100));
+    } else if (isClient && orgId) {
+      q = query(
+        collection(db, "candidate_matches"),
+        where("clientId", "==", orgId),
+        limit(100),
+      );
+    } else if (isVendor && orgId) {
+      q = query(
+        collection(db, "candidate_matches"),
+        where("vendorId", "==", orgId),
+        limit(100),
+      );
+    } else {
+      q = query(collection(db, "candidate_matches"), limit(1));
+    }
 
-        // Fetch requirements
-        const reqQ = query(collection(db, "requirements_public"));
-        const reqSnap = await getDocs(reqQ);
-        const reqMap: Record<string, any> = {};
-        reqSnap.docs.forEach((d) => {
-          reqMap[d.id] = d.data();
-        });
+    const unsubMatches = onSnapshot(q, (snapshot) => {
+      setMatches(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
 
-        // Fetch candidates (for names if available)
-        // Optimization: In real world, maybe fetch only matching IDs
-        const candQ = query(collection(db, "candidatePool"), limit(200));
-        const candSnap = await getDocs(candQ);
-        const candMap: Record<string, any> = {};
-        candSnap.docs.forEach((d) => {
-          candMap[d.id] = d.data();
-        });
+    const unsubReqs = onSnapshot(collection(db, "requirements_public"), (snap) => {
+      const reqMap: Record<string, any> = {};
+      snap.docs.forEach(d => { reqMap[d.id] = d.data(); });
+      setRequirements(reqMap);
+    });
 
-        if (active) {
-          setMatches(fetchedMatches);
-          setRequirements(reqMap);
-          setCandidates(candMap);
-        }
-      } catch (err) {
-        console.error("Match engine list error", err);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    fetchData();
+    const unsubCands = onSnapshot(query(collection(db, "candidatePool"), limit(200)), (snap) => {
+      const candMap: Record<string, any> = {};
+      snap.docs.forEach(d => { candMap[d.id] = d.data(); });
+      setCandidates(candMap);
+    });
 
     return () => {
-      active = false;
+      unsubMatches();
+      unsubReqs();
+      unsubCands();
     };
   }, [userData]);
 
   const role = userData?.role || "";
-  const isAdmin = role === "admin" || role === "hq" || role === "super_admin" || role === "ops_admin";
 
   if (loading) {
     return (
@@ -207,7 +206,7 @@ export default function MatchIntelligenceTab() {
           <p className="text-sm font-medium text-slate-500 mb-6 max-w-md mx-auto">
             The Match Engine evaluates opportunities against active requirements. Add requirements to see match intelligence.
           </p>
-          {isAdmin && (
+          {roleIsAdmin && (
             <button
               onClick={async () => {
                 setLoading(true);
@@ -324,7 +323,7 @@ export default function MatchIntelligenceTab() {
                                   (req?.financials?.clientBilling || 0) *
                                   ((req?.financials?.commissionPercent || 0) /
                                     100);
-                                if (isAdmin || userData?.role === "hq") {
+                                if (roleIsAdmin || userData?.role === "hq") {
                                   revenueStr = req?.financials
                                     ? `₹${marginVal.toLocaleString()}`
                                     : "--";
@@ -346,63 +345,96 @@ export default function MatchIntelligenceTab() {
                                       ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0) / 100)).toLocaleString()}`
                                       : "--";
                                 }
-                                return (
-                                  <tr
-                                    key={match.id}
-                                    className="hover:bg-slate-50/50 transition-colors"
-                                  >
-                                    <td className="px-4 py-3 w-28">
-                                      <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
-                                        {match.status || "DISCOVERED"}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <p className="font-bold text-slate-900 text-sm">
-                                        {cand?.name || cand?.candidateName || match.candidateId}
-                                      </p>
-                                      <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
-                                        MATCH: {match.score || match.matchScore}%
-                                      </span>
-                                      <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">
-                                        VEND: {cand?.vendorId || match.vendorId || "DIRECT"}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-left w-40">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
-                                          <div
-                                            className="bg-emerald-500 h-1.5 rounded-full"
-                                            style={{
-                                              width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
-                                            }}
-                                          ></div>
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-700">
-                                          {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right w-48">
-                                      <p className="font-mono text-sm font-black text-slate-900">
-                                        {expectedRevStr}
-                                      </p>
-                                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                        Mgn: {revenueStr}
-                                      </p>
-                                    </td>
-                                    <td className="px-4 py-3 text-right w-32">
-                                        {match.status !== 'SUBMITTED' && (
-                                            <button 
-                                                onClick={() => handleCreateDealRoom(match, req, cand)}
-                                                disabled={processingMatch === match.id}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                                            >
-                                                {processingMatch === match.id ? 'Creating...' : 'Submit'}
-                                            </button>
+                                  return (
+                                    <React.Fragment key={match.id}>
+                                      <tr
+                                        className={cn(
+                                          "hover:bg-slate-50/50 transition-colors cursor-pointer",
+                                          expandedMatch === match.id && "bg-slate-50"
                                         )}
-                                    </td>
-                                  </tr>
-                                );
+                                        onClick={() => setExpandedMatch(expandedMatch === match.id ? null : match.id)}
+                                      >
+                                        <td className="px-4 py-3 w-28">
+                                          <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
+                                            {match.status || "DISCOVERED"}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <div className="flex items-center gap-2">
+                                            <p className="font-bold text-slate-900 text-sm">
+                                              {cand?.name || cand?.candidateName || match.candidateId}
+                                            </p>
+                                            {expandedMatch === match.id ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                                          </div>
+                                          <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
+                                            MATCH: {match.score || match.matchScore}%
+                                          </span>
+                                          <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">
+                                            VEND: {cand?.vendorId || match.vendorId || "DIRECT"}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-left w-40">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
+                                              <div
+                                                className="bg-emerald-500 h-1.5 rounded-full"
+                                                style={{
+                                                  width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
+                                                }}
+                                              ></div>
+                                            </div>
+                                            <span className="text-xs font-bold text-slate-700">
+                                              {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right w-48">
+                                          <p className="font-mono text-sm font-black text-slate-900">
+                                            {expectedRevStr}
+                                          </p>
+                                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                            Mgn: {revenueStr}
+                                          </p>
+                                        </td>
+                                        <td className="px-4 py-3 text-right w-32">
+                                          {match.status !== 'SUBMITTED' && (
+                                            <button 
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleCreateDealRoom(match, req, cand);
+                                              }}
+                                              disabled={processingMatch === match.id}
+                                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                            >
+                                              {processingMatch === match.id ? 'Creating...' : 'Submit'}
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                      {expandedMatch === match.id && (
+                                        <tr>
+                                          <td colSpan={5} className="px-4 py-4 bg-slate-50 border-t border-slate-100">
+                                            <div className="max-w-3xl mx-auto">
+                                              <ExplainableEvidenceCard 
+                                                isDark={false}
+                                                evidence={{
+                                                  id: match.id,
+                                                  decision: `AI Recommendation: Match candidate to ${req?.title || "Requirement"}`,
+                                                  confidence: match.score || match.matchScore || 0,
+                                                  graphNodes: match.graphNodes || ["SKILLS", "LOCATION", "SALARY"],
+                                                  experiences: match.experienceReasoning ? [match.experienceReasoning] : ["Candidate has 8+ years in relevant stack", "Previous tenure at Tier 1 tech company"],
+                                                  decisionFactors: match.factors || ["Semantic Overlap", "Career Trajectory", "Geographic Proximity"],
+                                                  telemetrySnapshot: ["Match Engine V2", "Regional Market Index: +4.2%"],
+                                                  entityType: 'candidate_match',
+                                                  entityId: match.id
+                                                }}
+                                              />
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
                               })}
                           </tbody>
                         </table>
@@ -459,7 +491,7 @@ export default function MatchIntelligenceTab() {
                                   (req?.financials?.clientBilling || 0) *
                                   ((req?.financials?.commissionPercent || 0) /
                                     100);
-                                if (isAdmin || userData?.role === "hq") {
+                                if (roleIsAdmin || userData?.role === "hq") {
                                   revenueStr = req?.financials
                                     ? `₹${marginVal.toLocaleString()}`
                                     : "--";
@@ -481,65 +513,103 @@ export default function MatchIntelligenceTab() {
                                       ? `₹${Math.round(vendorBudget * ((match.placementProbability || 0) / 100)).toLocaleString()}`
                                       : "--";
                                 }
-                                return (
-                                  <tr
-                                    key={match.id}
-                                    className="hover:bg-slate-50/50 transition-colors"
-                                  >
-                                    <td className="px-4 py-3 w-28">
-                                      <span className="inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border bg-slate-100 text-slate-600 border-slate-200">
-                                        {match.status || "DISCOVERED"}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <p className="font-bold text-slate-900 text-sm">
-                                        {req?.title || match.requirementId}
-                                      </p>
-                                      <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
-                                        MATCH: {match.score || match.matchScore}%
-                                      </span>
-                                      {req?.priority && (
-                                        <span className="ml-2 text-[10px] font-bold text-rose-500 uppercase">
-                                          {req.priority} PRIORITY
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3 text-left w-40">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
-                                          <div
-                                            className="bg-emerald-500 h-1.5 rounded-full"
-                                            style={{
-                                              width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
-                                            }}
-                                          ></div>
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-700">
-                                          {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right w-48">
-                                      <p className="font-mono text-sm font-black text-slate-900">
-                                        {expectedRevStr}
-                                      </p>
-                                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                        Mgn: {revenueStr}
-                                      </p>
-                                    </td>
-                                    <td className="px-4 py-3 text-right w-32">
-                                        {match.status !== 'SUBMITTED' && (
-                                            <button 
-                                                onClick={() => handleCreateDealRoom(match, req, cand)}
-                                                disabled={processingMatch === match.id}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                                            >
-                                                {processingMatch === match.id ? 'Creating...' : 'Submit'}
-                                            </button>
+                                  return (
+                                    <React.Fragment key={match.id}>
+                                      <tr
+                                        className={cn(
+                                          "hover:bg-slate-50/50 transition-colors cursor-pointer",
+                                          expandedMatch === match.id && "bg-indigo-50/30"
                                         )}
-                                    </td>
-                                  </tr>
-                                );
+                                        onClick={() => handleExpandMatch(match.id)}
+                                      >
+                                        <td className="px-4 py-3 w-28 text-center">
+                                          {expandedMatch === match.id ? (
+                                            <ChevronUp className="text-slate-400 mx-auto" size={16} />
+                                          ) : (
+                                            <ChevronDown className="text-slate-400 mx-auto" size={16} />
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 w-28">
+                                          <span className={cn(
+                                            "inline-flex items-center font-bold px-2 py-1 rounded-md text-[10px] tracking-widest uppercase border",
+                                            match.status === 'SUBMITTED' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-100 text-slate-600 border-slate-200"
+                                          )}>
+                                            {match.status || "DISCOVERED"}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <p className="font-bold text-slate-900 text-sm">
+                                            {req?.title || match.requirementId}
+                                          </p>
+                                          <span className="inline-flex items-center gap-1 font-black text-indigo-600 px-1 py-0.5 rounded-sm text-[10px] uppercase">
+                                            MATCH: {match.score || match.matchScore}%
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-left w-40">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[60px]">
+                                              <div
+                                                className="bg-emerald-500 h-1.5 rounded-full"
+                                                style={{
+                                                  width: `${match.placementProbability || Math.min(95, (match.score || match.matchScore || 0) * 0.5)}%`,
+                                                }}
+                                              ></div>
+                                            </div>
+                                            <span className="text-xs font-bold text-slate-700">
+                                              {match.placementProbability || Math.round(Math.min(95, (match.score || match.matchScore || 0) * 0.5))}%
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right w-32">
+                                            {match.status !== 'SUBMITTED' && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleCreateDealRoom(match, req, cand); }}
+                                                    disabled={processingMatch === match.id}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
+                                                >
+                                                    {processingMatch === match.id ? '...' : 'Submit'}
+                                                </button>
+                                            )}
+                                        </td>
+                                      </tr>
+
+                                      {expandedMatch === match.id && (
+                                        <tr>
+                                          <td colSpan={6} className="bg-slate-50/50 p-6 border-b border-slate-200 animate-in slide-in-from-top duration-300">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                              <div>
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                                                  <Activity size={14} />
+                                                  Autonomous Workflow Journey
+                                                </h4>
+                                                <LifecycleTimeline events={matchTimelines[match.id] || []} />
+                                              </div>
+                                              <div>
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                                                  <Zap size={14} />
+                                                  AI Evidence & Assessment
+                                                </h4>
+                                                <ExplainableEvidenceCard 
+                                                  isDark={false}
+                                                  className="shadow-none border-slate-200 bg-white"
+                                                  evidence={{
+                                                    id: match.id,
+                                                    decision: match.recruiterAssessment || `Deterministic match evaluation at ${match.score}% confidence.`,
+                                                    confidence: match.score || 85,
+                                                    graphNodes: [req?.title || 'Requirement', cand?.name || 'Candidate'],
+                                                    experiences: match.strengths || ['Technical alignment detected'],
+                                                    decisionFactors: match.gaps || ['Candidate profile successfully mapped'],
+                                                    telemetrySnapshot: [`SCORE: ${match.score}%`, `ENTITY: ${match.id}`],
+                                                    version: '1.2.0'
+                                                  }}
+                                                />
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
                               })}
                           </tbody>
                         </table>
