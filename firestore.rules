@@ -1073,6 +1073,15 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // EARLY ACCESS LEADS
+    // =====================================================
+
+    match /early_access_leads/{leadId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // =====================================================
     // OFFICE HEARTBEATS
     // =====================================================
 

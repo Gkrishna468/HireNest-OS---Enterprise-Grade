@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { adminDb } from "../../lib/firebase-admin.js";
 import crypto from "crypto";
 
 export type Severity = "INFO" | "WARN" | "ERROR" | "CRITICAL";
@@ -44,7 +45,7 @@ export class ObservabilityService {
   private db: FirebaseFirestore.Firestore;
 
   constructor(db?: FirebaseFirestore.Firestore) {
-    this.db = db || getFirestore();
+    this.db = db || adminDb || getFirestore();
   }
 
   async logRuntimeError(params: RuntimeErrorParams) {

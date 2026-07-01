@@ -110,6 +110,9 @@ import { ExperienceEngine } from "./components/ExperienceEngine";
 import { LiveToaster } from "./components/LiveToaster";
 import SignalsTab from "./views/SignalsTab";
 import { NotificationCenter } from "./components/NotificationCenter";
+import LandingPage from "./views/LandingPage";
+import AuthPage from "./views/AuthPage";
+import { TermsPage, PrivacyPage } from "./views/LegalPages";
 
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -252,12 +255,24 @@ const AppContent = () => {
 
   if (!user) {
     return (
-      <Onboarding
-        onComplete={async () => {
-          await auth.currentUser?.getIdToken(true);
-          window.location.reload();
-        }}
-      />
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route
+          path="/onboarding"
+          element={
+            <Onboarding
+              onComplete={async () => {
+                await auth.currentUser?.getIdToken(true);
+                window.location.reload();
+              }}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     );
   }
 
@@ -939,6 +954,8 @@ const AppContent = () => {
             {isAdmin && <Route path="/contracts" element={<ContractsTab />} />}
             <Route path="/timesheets" element={<TimesheetsTab />} />
             <Route path="/invoices" element={<InvoicesTab />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route
               path="/usage"
               element={<TenantUsageDashboard orgData={userData} />}

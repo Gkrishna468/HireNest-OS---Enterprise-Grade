@@ -88,7 +88,7 @@ try {
     const tryAppDefault = () => {
       console.log("[Firebase Admin] Attempting applicationDefault...");
       try {
-        return initializeApp({ credential: applicationDefault(), projectId }, "fallback");
+        return initializeApp({ credential: applicationDefault(), projectId });
       } catch (e: any) {
         console.warn("[Firebase Admin] applicationDefault failed:", e.message);
         return null;
@@ -102,7 +102,7 @@ try {
       }
       console.log("[Firebase Admin] Attempting manual credentials for project:", projectId);
       try {
-        const manualApp = initializeApp({ credential: cert(credentials), projectId }, "primary");
+        const manualApp = initializeApp({ credential: cert(credentials), projectId });
         console.log("[Firebase Admin] Manual credentials SDK init success.");
         return manualApp;
       } catch (e: any) {
@@ -112,9 +112,9 @@ try {
     };
 
     if (isManagedEnv && !credentials) {
-      app = tryAppDefault() || initializeApp({ projectId }, "degraded");
+      app = tryAppDefault() || initializeApp({ projectId });
     } else {
-      app = tryManual() || tryAppDefault() || initializeApp({ projectId }, "degraded");
+      app = tryManual() || tryAppDefault() || initializeApp({ projectId });
     }
   } else {
     app = getApps()[0];
