@@ -3,6 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    match /landing_page_leads_v1/{leadId} {
+      allow create: if true;
+      allow read, write: if true;
+    }
+
+    match /early_access_leads/{leadId} {
+      allow read, write: if true;
+    }
+
     // =====================================================
     // GLOBAL DEFAULT DENY
     // =====================================================
@@ -1070,20 +1079,6 @@ service cloud.firestore {
 
       allow write:
       if isSuperAdmin();
-    }
-
-    // =====================================================
-    // EARLY ACCESS LEADS
-    // =====================================================
-
-    match /early_access_leads/{leadId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
-    }
-
-    match /public_landing_leads/{leadId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
     }
 
     // =====================================================

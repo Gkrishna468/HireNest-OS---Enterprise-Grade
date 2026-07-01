@@ -552,6 +552,7 @@
     "security_events/{eventId}": { "schema": { "$ref": "SecurityEvent" }, "description": "Security-related events" },
     "vendor_performance/{vendorId}": { "schema": { "$ref": "VendorPerformance" }, "description": "Vendor intelligence and performance scorecards" },
     "invoices/{invoiceId}": { "schema": { "$ref": "Invoice" }, "description": "Client invoices" },
-    "vendor_payouts/{payoutId}": { "schema": { "$ref": "VendorPayout" }, "description": "Vendor payouts" }
+    "vendor_payouts/{payoutId}": { "schema": { "$ref": "VendorPayout" }, "description": "Vendor payouts" },
+    "landing_page_leads_v1/{leadId}": { "schema": { "type": "object" }, "description": "Leads from the public landing page" }
   }
 }

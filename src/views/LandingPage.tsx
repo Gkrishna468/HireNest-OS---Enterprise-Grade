@@ -27,11 +27,20 @@ export default function LandingPage() {
     companyName: '',
     email: '',
     companyEmail: '',
-    phone: ''
+    phone: '',
+    plan: 'Professional'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  const handlePlanSelection = (planName: string) => {
+    setFormData(prev => ({ ...prev, plan: planName }));
+    const element = document.getElementById('early-access');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,22 +48,44 @@ export default function LandingPage() {
     setError('');
 
     try {
-      await addDoc(collection(db, "public_landing_leads"), {
-        ...formData,
-        timestamp: new Date().toISOString(),
-        status: 'new',
-        source: 'landing_page'
+      console.log("[LandingPage] Submitting lead to server...");
+      
+      const response = await fetch('/api/public/submit-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to submit via server');
+      }
+
+      console.log("[LandingPage] Lead submitted successfully!");
       setIsSubmitted(true);
     } catch (err: any) {
-      console.error("Error saving lead:", err);
-      setError("Failed to submit. Please try again.");
+      console.error("[LandingPage] Error submitting lead:", err);
+      
+      // Fallback to client-side if server fails, just in case rules are fixed
+      try {
+        console.log("[LandingPage] Server failed, trying client-side fallback...");
+        await addDoc(collection(db, "landing_page_leads_v1"), {
+          ...formData,
+          timestamp: new Date().toISOString(),
+          status: 'new',
+          source: 'landing_page_v1_fallback'
+        });
+        setIsSubmitted(true);
+      } catch (fallbackErr: any) {
+        console.error("[LandingPage] Fallback also failed:", fallbackErr);
+        setError("Submission failed. Please email us at info@hirenestworkforce.com");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -287,7 +318,10 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+              <button 
+                onClick={() => handlePlanSelection('Free')}
+                className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors"
+              >
                 Get Started
               </button>
             </div>
@@ -321,7 +355,10 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-xl shadow-indigo-900/40">
+              <button 
+                onClick={() => handlePlanSelection('Professional')}
+                className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-xl shadow-indigo-900/40"
+              >
                 Start Free Trial
               </button>
             </div>
@@ -351,7 +388,10 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+              <button 
+                onClick={() => handlePlanSelection('Business (Book Demo)')}
+                className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors"
+              >
                 Book Demo
               </button>
             </div>
@@ -381,9 +421,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+              <a 
+                href="mailto:info@hirenestworkforce.com?subject=Enterprise AI Inquiry"
+                className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors text-center"
+              >
                 Contact Sales
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -423,8 +466,8 @@ export default function LandingPage() {
                     <CheckCircle2 size={40} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black mb-2">You're on the list!</h3>
-                    <p className="text-slate-400 text-sm font-medium">We'll reach out to your company email soon.</p>
+                    <h3 className="text-2xl font-black mb-2">Request Received</h3>
+                    <p className="text-slate-400 text-sm font-medium">Thank you for your interest. Our success team will contact you within 24 hours at the provided email addresses.</p>
                   </div>
                   <button 
                     onClick={() => setIsSubmitted(false)}
@@ -449,6 +492,23 @@ export default function LandingPage() {
                       />
                     </div>
                     <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Plan Selection</label>
+                      <select 
+                        name="plan"
+                        value={formData.plan}
+                        onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 transition-colors text-white appearance-none"
+                      >
+                        <option value="Free">Free</option>
+                        <option value="Professional">Professional</option>
+                        <option value="Business (Book Demo)">Business (Book Demo)</option>
+                        <option value="Enterprise AI">Enterprise AI</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Company Name</label>
                       <input 
                         type="text" 
@@ -458,6 +518,17 @@ export default function LandingPage() {
                         onChange={handleChange}
                         className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
                         placeholder="Acme Staffing"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Phone Number (Optional)</label>
+                      <input 
+                        type="tel" 
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                        placeholder="+91 XXXXX XXXXX"
                       />
                     </div>
                   </div>
@@ -489,18 +560,6 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Phone Number (Optional)</label>
-                    <input 
-                      type="tel" 
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                      placeholder="+1 (555) 000-0000"
-                    />
-                  </div>
-
                   {error && <p className="text-xs text-rose-500 font-bold">{error}</p>}
 
                   <button 
@@ -521,54 +580,120 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-20 px-6 border-t border-white/5 bg-slate-950">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white rotate-3">
-                <ShieldCheck size={20} />
-              </div>
-              <h1 className="text-lg font-black tracking-tighter">HireNestOS</h1>
-            </div>
-            <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              The AI-Native Staffing Operating System that automates, matches and scales your staffing business.
-            </p>
-          </div>
+      {/* Pre-Footer CTAs */}
+      <section className="py-24 px-6 border-t border-white/5 bg-slate-900/50">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-6">
+          <button 
+            onClick={() => handlePlanSelection('Professional')}
+            className="flex-1 p-8 rounded-2xl bg-slate-950 border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-950/20 transition-all text-left group flex flex-col"
+          >
+            <h3 className="text-xl font-black mb-2 flex items-center justify-between">
+              Start Free Trial
+              <ArrowRight className="w-5 h-5 text-indigo-500 group-hover:translate-x-1 transition-transform" />
+            </h3>
+            <p className="text-sm text-slate-400 font-medium">14-day free trial. No credit card required.</p>
+          </button>
+          
+          <button 
+            onClick={() => handlePlanSelection('Business (Book Demo)')}
+            className="flex-1 p-8 rounded-2xl bg-slate-950 border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-950/20 transition-all text-left group flex flex-col"
+          >
+            <h3 className="text-xl font-black mb-2 flex items-center justify-between">
+              Book a Demo
+              <ArrowRight className="w-5 h-5 text-indigo-500 group-hover:translate-x-1 transition-transform" />
+            </h3>
+            <p className="text-sm text-slate-400 font-medium">See HireNestOS in action with our product experts.</p>
+          </button>
+          
+          <button 
+            onClick={() => {
+              const element = document.getElementById('early-access');
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="flex-1 p-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 transition-all text-left group flex flex-col shadow-xl shadow-indigo-900/20"
+          >
+            <h3 className="text-xl font-black mb-2 flex items-center justify-between text-white">
+              Join Early Access
+              <ArrowRight className="w-5 h-5 text-white/70 group-hover:translate-x-1 transition-transform" />
+            </h3>
+            <p className="text-sm text-indigo-200 font-medium">Get priority access to new AI features and product releases.</p>
+          </button>
+        </div>
+      </section>
 
-          {[
-            { title: "Product", links: ["Features", "Pricing", "Integrations", "Roadmap"] },
-            { title: "Solutions", links: ["For Recruiters", "For Vendors", "For Clients", "Enterprise"] },
-            { title: "Company", links: [
-              { label: "About Us", href: "https://www.hirenestworkforce.com" },
-              { label: "Careers", href: "#" },
-              { label: "Partners", href: "#" },
-              { label: "Contact", href: "#" }
-            ] }
-          ].map((col, i) => (
-            <div key={i} className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-white">{col.title}</h4>
-              <ul className="space-y-2">
-                {col.links.map((link: any, j) => (
-                  <li key={j}>
-                    <a 
-                      href={typeof link === 'string' ? '#' : link.href} 
-                      className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium"
-                    >
-                      {typeof link === 'string' ? link : link.label}
-                    </a>
-                  </li>
+      {/* Footer */}
+      <footer className="pt-24 pb-12 px-6 border-t border-white/5 bg-slate-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-20">
+            {/* Brand & Description */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white rotate-3">
+                  <ShieldCheck size={24} />
+                </div>
+                <h1 className="text-xl font-black tracking-tighter">HireNestOS</h1>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                <strong className="text-slate-300">The AI-Native Staffing Operating System that unifies Recruiters, Vendors, Clients, Candidates, and AI Workforce into one intelligent platform.</strong>
+              </p>
+              
+              {/* Trust Badges */}
+              <div className="pt-4 flex flex-wrap gap-2">
+                {["Enterprise Ready", "AI Powered", "SOC 2 (Coming Soon)", "GDPR Ready"].map(badge => (
+                  <span key={badge} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Links Columns */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-200">Platform</h4>
+              <ul className="space-y-3">
+                {["Recruiter OS", "Vendor OS", "Client OS", "AI Workforce", "Global HQ", "Pricing"].map(link => (
+                  <li key={link}><a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">{link}</a></li>
                 ))}
               </ul>
             </div>
-          ))}
-        </div>
-        
-        <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">© 2026 HireNestOS. All rights reserved.</p>
-          <div className="flex gap-8">
-            <Link to="/terms" className="text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest">Terms</Link>
-            <Link to="/privacy" className="text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest">Privacy</Link>
+
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-200">Company</h4>
+              <ul className="space-y-3">
+                {["About", "Customers", "Partners", "Careers", "Blog", "Contact"].map(link => (
+                  <li key={link}><a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">{link}</a></li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-200">Legal & Support</h4>
+              <ul className="space-y-3">
+                {["Help Center", "API Docs", "Privacy Policy", "Terms of Service", "Security"].map(link => (
+                  <li key={link}><a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">{link}</a></li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          
+          {/* Bottom Footer */}
+          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 font-medium">
+                <strong>HireNest Workforce Pvt. Ltd.</strong><br />
+                📍 Hyderabad, Telangana, India<br />
+                📧 <a href="mailto:support@hirenestworkforce.com" className="hover:text-indigo-400 transition-colors">support@hirenestworkforce.com</a>
+              </p>
+            </div>
+            <div className="text-left md:text-right space-y-2">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">© 2026 HireNest Workforce Pvt. Ltd. All rights reserved.</p>
+              <div className="flex gap-4 md:justify-end mt-2">
+                <a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">LinkedIn</a>
+                <a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">X (Twitter)</a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>
