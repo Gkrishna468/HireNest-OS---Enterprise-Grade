@@ -15,7 +15,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Static Imports for all Handlers & Admin
-import { adminAuth } from './src/lib/firebase-admin';
+import { adminAuth, db as adminDb } from './src/lib/firebase-admin';
 import adminHandler from './src/api-lib/handlers/admin';
 import userHandler from './src/api-lib/handlers/user';
 import candidatesHandler from './src/api-lib/handlers/candidates';

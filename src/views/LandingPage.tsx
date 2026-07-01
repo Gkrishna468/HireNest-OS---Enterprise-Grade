@@ -17,7 +17,7 @@ import {
   Lock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export default function LandingPage() {
@@ -39,14 +39,15 @@ export default function LandingPage() {
     setError('');
 
     try {
-      await addDoc(collection(db, "early_access_leads"), {
+      await addDoc(collection(db, "public_landing_leads"), {
         ...formData,
         timestamp: new Date().toISOString(),
-        status: 'new'
+        status: 'new',
+        source: 'landing_page'
       });
       setIsSubmitted(true);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, "early_access_leads");
+      console.error("Error saving lead:", err);
       setError("Failed to submit. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -73,6 +74,7 @@ export default function LandingPage() {
 
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Features</a>
+            <a href="#pricing" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Pricing</a>
             <a href="#early-access" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Early Access</a>
             <Link to="/login" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Login</Link>
             <button 
@@ -245,6 +247,144 @@ export default function LandingPage() {
                 <p className="text-sm text-slate-400 leading-relaxed font-medium">{feature.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-32 px-6 bg-slate-950/50 border-t border-white/5 relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-20">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-4">Pricing</h3>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-6">Scale with AI Intelligence</h2>
+            <p className="text-slate-400 font-medium leading-relaxed">
+              An affordable AI-native Staffing Operating System combining ATS, CRM, VMS, and AI Matching in one platform.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Free */}
+            <div className="p-8 bg-slate-900/30 border border-white/5 rounded-[2rem] flex flex-col hover:bg-slate-900 hover:border-white/10 transition-all">
+              <div className="mb-8">
+                <h4 className="text-lg font-black mb-2">Free</h4>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black">₹0</span>
+                  <span className="text-xs text-slate-500 font-bold uppercase">/month</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-4 font-medium">Explore the platform</p>
+              </div>
+              <ul className="space-y-4 mb-8 flex-1">
+                {[
+                  "1 Recruiter",
+                  "50 Candidates",
+                  "5 Requirements",
+                  "Basic AI Matching"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-300">
+                    <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+                Get Started
+              </button>
+            </div>
+
+            {/* Professional */}
+            <div className="p-8 bg-slate-900 border border-indigo-500/30 rounded-[2rem] flex flex-col relative transform lg:-translate-y-4 shadow-2xl shadow-indigo-500/10">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                ⭐ Most Popular
+              </div>
+              <div className="mb-8">
+                <h4 className="text-lg font-black mb-2 text-indigo-400">Professional</h4>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black">₹499</span>
+                  <span className="text-xs text-slate-500 font-bold uppercase">/month</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-4 font-medium">Flagship plan for growing agencies</p>
+              </div>
+              <ul className="space-y-4 mb-8 flex-1">
+                {[
+                  "5 Recruiters",
+                  "Vendor OS",
+                  "Client OS",
+                  "MailOS",
+                  "AI Copilot",
+                  "Workflow Automation",
+                  "Calendar Integration"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-200">
+                    <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-xl shadow-indigo-900/40">
+                Start Free Trial
+              </button>
+            </div>
+
+            {/* Business */}
+            <div className="p-8 bg-slate-900/30 border border-white/5 rounded-[2rem] flex flex-col hover:bg-slate-900 hover:border-white/10 transition-all">
+              <div className="mb-8">
+                <h4 className="text-lg font-black mb-2">Business</h4>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black">₹999</span>
+                  <span className="text-xs text-slate-500 font-bold uppercase">/month</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-4 font-medium">For scaling agencies</p>
+              </div>
+              <ul className="space-y-4 mb-8 flex-1">
+                {[
+                  "20 Recruiters",
+                  "AI Workforce",
+                  "Vendor Intelligence",
+                  "Client Intelligence",
+                  "Executive Dashboard",
+                  "Priority Support"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-300">
+                    <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+                Book Demo
+              </button>
+            </div>
+
+            {/* Enterprise AI */}
+            <div className="p-8 bg-slate-900/30 border border-white/5 rounded-[2rem] flex flex-col hover:bg-slate-900 hover:border-white/10 transition-all">
+              <div className="mb-8">
+                <h4 className="text-lg font-black mb-2">Enterprise AI</h4>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black">₹1,999</span>
+                  <span className="text-xs text-slate-500 font-bold uppercase">/month</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-4 font-medium">Large staffing firms & GCC partners</p>
+              </div>
+              <ul className="space-y-4 mb-8 flex-1">
+                {[
+                  "Unlimited Users",
+                  "AI COO & Global HQ",
+                  "Business Graph",
+                  "White Label",
+                  "API Access",
+                  "Dedicated Success Manager"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-300">
+                    <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest border border-white/10 hover:bg-white/5 transition-colors">
+                Contact Sales
+              </button>
+            </div>
           </div>
         </div>
       </section>

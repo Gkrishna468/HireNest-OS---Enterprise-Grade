@@ -1081,6 +1081,11 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    match /public_landing_leads/{leadId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
     // =====================================================
     // OFFICE HEARTBEATS
     // =====================================================
