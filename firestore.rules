@@ -465,8 +465,8 @@ service cloud.firestore {
     // =====================================================
 
     match /candidateOwnership/{ownershipId} {
-      allow read: if isAuth(); // Used for conflict checking
-      allow write: if isAuth(); 
+      allow read: if isSignedIn(); // Used for conflict checking
+      allow write: if isSignedIn(); 
     }
 
     match /candidatePool/{candidateId} {

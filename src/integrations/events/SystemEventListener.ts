@@ -79,6 +79,8 @@ export class SystemEventListener {
             }
           }
         });
+      }, (err) => {
+        console.warn("[SystemEventListener] Snapshot listener failed:", err.message);
       });
     } catch (e) {
       console.warn("[SystemEventListener] Permission issue or offline, skipping remote subscriptions setup.");

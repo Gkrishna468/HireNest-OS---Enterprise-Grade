@@ -17,7 +17,7 @@ import {
   Lock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export default function LandingPage() {
@@ -46,7 +46,7 @@ export default function LandingPage() {
       });
       setIsSubmitted(true);
     } catch (err: any) {
-      console.error("Error saving lead:", err);
+      handleFirestoreError(err, OperationType.CREATE, "early_access_leads");
       setError("Failed to submit. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -162,15 +162,61 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Trusted By */}
-      <section className="py-20 border-y border-white/5 bg-slate-950/30">
-        <div className="max-w-7xl mx-auto px-6">
-          <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-12">Trusted by Staffing Leaders</p>
-          <div className="flex flex-wrap justify-center gap-12 md:gap-24 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
-            {/* Logos placeholder - using text for mockup feel */}
-            {['INFOSYS', 'TCS', 'WIPRO', 'HCL', 'ACCENTURE'].map((logo, i) => (
-              <span key={i} className="text-xl font-black tracking-tighter">{logo}</span>
-            ))}
+      {/* Trusted By / Partner Network */}
+      <section className="py-24 border-y border-white/5 bg-slate-950/20 relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-16 space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-500">The Network</p>
+            <h3 className="text-2xl font-black tracking-tighter text-white">Trusted by IT Staffing Partners</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Partner 1: Mapout */}
+            <div className="group p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:bg-white/[0.05] hover:border-indigo-500/30 transition-all duration-500 flex flex-col items-center justify-center text-center gap-6">
+              <div className="h-16 w-16 bg-indigo-600/10 rounded-2xl flex items-center justify-center text-indigo-400 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                <Globe size={32} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h4 className="text-lg font-black tracking-tight text-white mb-1">Mapout Inc</h4>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-indigo-400 transition-colors">Global Client Partner</p>
+              </div>
+            </div>
+
+            {/* Partner 2: Worknexa */}
+            <div className="group p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:bg-white/[0.05] hover:border-indigo-500/30 transition-all duration-500 flex flex-col items-center justify-center text-center gap-6">
+              <div className="h-16 w-16 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-400 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500">
+                <Users size={32} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h4 className="text-lg font-black tracking-tight text-white mb-1">Worknexa</h4>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-purple-400 transition-colors">Strategic Vendor</p>
+              </div>
+            </div>
+
+            {/* Partner 3: Shreeji */}
+            <div className="group p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:bg-white/[0.05] hover:border-indigo-500/30 transition-all duration-500 flex flex-col items-center justify-center text-center gap-6">
+              <div className="h-16 w-16 bg-emerald-600/10 rounded-2xl flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:rotate-12 transition-all duration-500">
+                <Building2 size={32} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h4 className="text-lg font-black tracking-tight text-white mb-1">Shreeji Consulting</h4>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-emerald-400 transition-colors">Platform Beta Partner</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-16 flex flex-col items-center gap-4">
+            <div className="flex -space-x-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-10 w-10 rounded-full border-2 border-slate-950 bg-slate-900 flex items-center justify-center text-[10px] font-black text-slate-500">
+                  +
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] animate-pulse">
+              100+ Vendors & Clients joining the ecosystem soon
+            </p>
           </div>
         </div>
       </section>
@@ -353,14 +399,24 @@ export default function LandingPage() {
           {[
             { title: "Product", links: ["Features", "Pricing", "Integrations", "Roadmap"] },
             { title: "Solutions", links: ["For Recruiters", "For Vendors", "For Clients", "Enterprise"] },
-            { title: "Company", links: ["About Us", "Careers", "Partners", "Contact"] }
+            { title: "Company", links: [
+              { label: "About Us", href: "https://www.hirenestworkforce.com" },
+              { label: "Careers", href: "#" },
+              { label: "Partners", href: "#" },
+              { label: "Contact", href: "#" }
+            ] }
           ].map((col, i) => (
             <div key={i} className="space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-white">{col.title}</h4>
               <ul className="space-y-2">
-                {col.links.map((link, j) => (
+                {col.links.map((link: any, j) => (
                   <li key={j}>
-                    <a href="#" className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium">{link}</a>
+                    <a 
+                      href={typeof link === 'string' ? '#' : link.href} 
+                      className="text-xs text-slate-500 hover:text-indigo-400 transition-colors font-medium"
+                    >
+                      {typeof link === 'string' ? link : link.label}
+                    </a>
                   </li>
                 ))}
               </ul>
