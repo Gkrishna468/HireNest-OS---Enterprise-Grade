@@ -439,7 +439,7 @@ const AppContent = () => {
               <SidebarItem
                 to="/emails"
                 icon={MessageSquare}
-                label="Work Email"
+                label="Intake Dashboard"
                 active={location.pathname === "/emails"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />

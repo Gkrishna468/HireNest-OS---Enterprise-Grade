@@ -129,13 +129,17 @@ oauthHandler.get("/callback", async (req, res) => {
         "[OAuth] Workspace verification failed during callback:",
         verifyErr.message,
       );
-      await db.collection("workspace_connections").doc(state.uid).set(
-        {
-          connected: false,
-          error: verifyErr.message,
-        },
-        { merge: true },
-      );
+      try {
+        await db.collection("workspace_connections").doc(state.uid).set(
+          {
+            connected: false,
+            error: verifyErr.message,
+          },
+          { merge: true },
+        );
+      } catch (innerErr) {
+        console.error("[OAuth] Failed to set disconnected state:", innerErr);
+      }
     }
 
     observabilityService

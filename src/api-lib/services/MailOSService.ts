@@ -6,6 +6,7 @@ import { createOAuthClient } from '../handlers/oauth.js';
 import { EventBus } from './EventBus.js';
 import { GraphRepository } from './GraphRepository.js';
 import { ProprietaryMatchingEngine } from './ProprietaryMatchingEngine.js';
+import { IntakeEngine } from '../intake/IntakeEngine.js';
 
 export class MailOSService {
     static async syncInbox(uid: string, orgId: string) {
@@ -96,107 +97,34 @@ export class MailOSService {
                 const body = plainText || htmlBody || msgData.data.snippet || '';
                 if (!body && attachments.length === 0) continue;
 
-                // 1. Resolve or Create Canonical Conversation Thread (Refinement 1)
-                const conversationId = gmailThreadId; // Canonical link
-                const conversationRef = db.collection('conversation_threads').doc(conversationId);
-                const convDoc = await conversationRef.get();
+                // Pass to Universal Intake Platform
+                const rawPayload = {
+                    id: msg.id,
+                    tenantId: orgId,
+                    correlationId: `corr-${msg.id}`,
+                    channel: "email",
+                    sender: from,
+                    subject: subject,
+                    body: body,
+                    attachments: attachments,
+                    receivedAt: date || new Date().toISOString(),
+                    metadata: { gmailThreadId, msgId: msg.id }
+                };
 
-                if (!convDoc.exists) {
-                    await conversationRef.set({
-                        conversationId,
-                        gmailThreadId,
-                        workspaceId: orgId,
-                        primaryEntity: null,
-                        primaryIntent: 'NEW',
-                        ownerOffice: 'GTM Office', // Initial triage
-                        currentStage: 'NEW', // Initial state machine (Refinement 4)
-                        status: 'ACTIVE',
-                        subject,
-                        lastMessageAt: new Date(date || Date.now()),
-                        participantCount: 1,
-                        linkedEntities: [],
-                        summary: {
-                            vendor: 'Detecting...',
-                            requirement: 'Detecting...',
-                            candidate: 'Detecting...',
-                            currentStage: 'NEW',
-                            lastAction: 'Email Received',
-                            nextAction: 'Triage & Identity Resolution'
-                        },
-                        memory: {
-                            observations: ['First message received.'],
-                            experiences: [],
-                            recommendations: ['Perform AI classification and resolve identity.'],
-                            outcome: 'Pending triage',
-                            learning: ''
-                        },
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                } else {
-                    const currentConv = convDoc.data() || {};
-                    await conversationRef.update({
-                        lastMessageAt: new Date(date || Date.now()),
-                        participantCount: (currentConv.participantCount || 1) + 1,
-                        updatedAt: new Date()
-                    });
-                }
-
-                // 2. Save Mail Message
+                // Save basic Mail Message for idempotency
                 await db.collection('mail_messages').doc(msg.id).set({
                     gmailMessageId: msg.id,
-                    gmailThreadId: gmailThreadId,
-                    conversationId: conversationId,
-                    historyId: msgData.data.historyId || '',
                     workspaceId: orgId,
-                    status: 'RECEIVED',
-                    processingState: 'RECEIVED',
-                    rawPayload: { 
-                        subject, 
-                        from, 
-                        date: date, 
-                        snippet: msgData.data.snippet,
-                        plainText: plainText,
-                        html: htmlBody,
-                        body: body,
-                        attachments: attachments
-                    },
+                    status: 'PROCESSED_BY_INTAKE',
                     createdAt: new Date()
                 });
 
-                // 3. Log Initial Received Trace
-                await db.collection('mail_events').add({
-                    messageId: msg.id,
-                    conversationId: conversationId,
-                    workspaceId: orgId,
-                    eventType: 'EMAIL_RECEIVED',
-                    title: 'Email Received',
-                    description: `Email successfully ingested from ${from}. Ready for classification.`,
-                    timestamp: new Date()
+                // Process via Intake Engine asynchronously to not block sync
+                IntakeEngine.process(rawPayload, "gmail").catch(e => {
+                    console.error(`[MailOS] IntakeEngine processing failed for ${msg.id}:`, e);
                 });
 
-                // 4. Publish Event
-                try {
-                    await EventBus.publish('EMAIL_RECEIVED', {
-                        messageId: msg.id,
-                        conversationId: conversationId,
-                        subject,
-                        from,
-                        workspaceId: orgId
-                    }, 'MAILOS_SYNC', orgId);
-                } catch (busErr) {
-                    console.error(`[MailOS] Failed to publish EMAIL_RECEIVED event:`, busErr);
-                }
-
-                // 5. Automatic Email Parsing (MailOS 2.0)
-                // We analyze the message asynchronously without blocking the sync loop
-                setTimeout(() => {
-                    this.analyzeMessage(uid, orgId, msg.id).catch(e => {
-                        console.error(`[MailOS] Automatic analysis failed for ${msg.id}:`, e);
-                    });
-                }, 1000);
-
-                processed.push({ type: 'RECEIVED', id: msg.id, subject, summary: 'Ingested raw email successfully.' });
+                processed.push({ type: 'RECEIVED', id: msg.id, subject, summary: 'Sent to Universal Intake Engine.' });
 
             } catch (msgErr: any) {
                 console.error(`[MailOS] Sync error processing email ${msg.id}:`, msgErr);

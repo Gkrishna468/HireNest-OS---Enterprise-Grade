@@ -14,6 +14,19 @@ export type AICapability =
   | 'salary_analysis'
   | 'market_trends'
   | 'email_drafting'
+  | 'intake.classify'
+  | 'intake.extract_entities'
+  | 'intake.normalize'
+  | 'intake.validate'
+  | 'intake.audit'
+  | 'intake.relationships'
+  | 'intake.metrics'
+  | 'resume.extract'
+  | 'jd.extract'
+  | 'vendor.resolve'
+  | 'client.resolve'
+  | 'duplicate.detect'
+  | 'relationship.build'
   | 'general';
 
 export interface AIRuntimeRequest {

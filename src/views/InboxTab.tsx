@@ -1,770 +1,233 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Mail, Inbox, Send, RefreshCw, AlertCircle, FileText, 
-  LayoutDashboard, Zap, Shield, CheckCircle, TrendingUp, 
-  Clock, DollarSign, Users, Check, FileCheck, Activity, Award, Briefcase 
-} from 'lucide-react';
+import { Mail, RefreshCw, AlertCircle, TrendingUp, CheckCircle, Clock, FileText, Database, GitMerge, FileQuestion, Users } from 'lucide-react';
+import { auth } from '../lib/firebase';
 import { Badge } from '../lib/Badge';
 import { Button } from '../lib/Button';
 import { EmptyState } from '../components/EmptyState';
-import { auth } from '../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import DOMPurify from 'dompurify';
 
-import { ErrorBoundary } from '../components/ErrorBoundary';
-
 export default function InboxTab() {
-  const [emails, setEmails] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any>({});
+  const [reviewQueue, setReviewQueue] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
-  const categories = [
-    'ALL', 'REQUIREMENT', 'RESUME', 'VENDOR_RESPONSE', 'CLIENT_RESPONSE', 
-    'AI_DRAFTS', 'APPROVALS', 'TEMPLATES'
-  ];
-
-  const displayNames: Record<string, string> = {
-    'ALL': 'Inbox',
-    'REQUIREMENT': 'Requirements',
-    'RESUME': 'Candidate Emails',
-    'VENDOR_RESPONSE': 'Vendor Emails',
-    'CLIENT_RESPONSE': 'Client Emails',
-    'AI_DRAFTS': 'AI Drafts',
-    'APPROVALS': 'Approvals',
-    'TEMPLATES': 'Templates'
-  };
-
-  const filteredEmails = emails.filter(email => {
-    if (activeCategory === 'ALL') return true;
-    const type = email.classification?.type || 'OTHER';
-    
-    // Normalize type aliases
-    const normType = type.toUpperCase().replace(' ', '_');
-    const normCategory = activeCategory.toUpperCase();
-
-    if (normCategory === 'RESUME' && (normType === 'CANDIDATE' || normType === 'CANDIDATE_SUBMISSION' || normType === 'RESUME')) return true;
-    return normType === normCategory;
-  });
-
-  const [selectedEmail, setSelectedEmail] = useState<any>(null);
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const unsub = onAuthStateChanged(auth, async (user) => {
-       if (!user) {
-         if (active) setIsConnected(false);
-         return;
-       }
-       try {
-          const token = await user.getIdToken();
-          const res = await fetch('/api/workspace/status', {
-             headers: { 'Authorization': `Bearer ${token}` }
-          });
-          const data = await res.json();
-          if (active) {
-            setIsConnected(data.connected);
-            if (data.connected) {
-               fetchEmails(token);
-            }
-          }
-       } catch (e) {
-          console.error(e);
-       }
-    });
-    return () => {
-      active = false;
-      unsub();
-    };
-  }, []);
-
-  const fetchEmails = async (providedToken?: string) => {
+  const fetchDashboardData = async () => {
     setLoading(true);
-    setError('');
     try {
-      const token = providedToken || await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("Not authenticated");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
 
-      let shouldSync = true;
-      try {
-        const res = await fetch('/api/workspace/status', {
-           headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const statusData = await res.json();
-          setIsConnected(statusData.connected);
-          if (statusData.connected) {
-             const lastSyncStr = statusData.mailSync?.lastSync;
-             if (lastSyncStr) {
-                const lastSyncTime = new Date(lastSyncStr).getTime();
-                const diffMs = Date.now() - lastSyncTime;
-                if (diffMs < 2 * 60 * 1000) {
-                   shouldSync = false;
-                   console.log(`[InboxTab] Synced ${Math.floor(diffMs / 1000)}s ago. Skipping sync.`);
-                }
-             }
-          } else {
-             shouldSync = false;
-          }
-        }
-      } catch (statusErr) {
-        console.warn("[InboxTab] Status check failed:", statusErr);
-      }
+      const [metricsRes, queueRes, auditRes] = await Promise.all([
+        fetch('/api/workspace/intake/metrics', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/workspace/intake/review-queue', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/workspace/intake/audit', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
 
-      if (shouldSync) {
-        try {
-          await fetch('/api/workspace/mailos/sync', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            }
-          });
-        } catch (syncErr) {
-          console.error("[InboxTab] Sync error:", syncErr);
-        }
-      }
+      const [metricsData, queueData, auditData] = await Promise.all([
+        metricsRes.json(),
+        queueRes.json(),
+        auditRes.json()
+      ]);
 
-      const response = await fetch(`/api/google/gmail/messages`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch emails via proxy.');
-      }
-
-      const data = await response.json();
-      setEmails(data.messages || []);
-    } catch (err: any) {
-      setError(err.message);
+      setMetrics(metricsData.metrics || {});
+      setReviewQueue(queueData.queue || []);
+      setAuditLogs(auditData.audit || []);
+    } catch (e: any) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const analyzeEmail = async (emailId: string) => {
-    setAnalyzing(true);
-    setAnalysis(null);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("Not authenticated");
-
-      const response = await fetch(`/api/workspace/mailos/analyze/${emailId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze email.');
+  const handleSync = async () => {
+      setSyncing(true);
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        await fetch('/api/workspace/mailos/sync', { 
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` } 
+        });
+        await fetchDashboardData();
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setSyncing(false);
       }
-
-      const data = await response.json();
-      setAnalysis(data.analysis);
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setAnalyzing(false);
-    }
   };
 
-  const handleAction = async (action: string) => {
-    console.log(`Executing action: ${action}`);
-    
-    if (action === 'Create Requirement' || action === 'Add to Pool' || action === 'Process Request') {
-       // Since MailOS already auto-ingests these, we just trigger a refresh/re-analysis
-       // or notify the user that it's being processed.
-       await analyzeEmail(selectedEmail.id);
-       alert(`${action} triggered. Intelligence engine is resolving entities in the background.`);
-    } else if (action === 'Archive') {
-       alert("Conversation archived in Global Ledger.");
-    } else {
-       alert(`Action "${action}" acknowledged by GTM Office.`);
-    }
-  };
-
-  // Helper for rendering Stage badges
-  const getStageBadge = (stage: string) => {
-    const s = (stage || 'NEW').toUpperCase();
-    const colors: Record<string, string> = {
-      'NEW': 'bg-blue-50 text-blue-700 border-blue-200',
-      'IDENTIFIED': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      'CLASSIFIED': 'bg-purple-50 text-purple-700 border-purple-200',
-      'ENTITY_LINKED': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      'ACTION_CREATED': 'bg-amber-50 text-amber-700 border-amber-200',
-      'OFFICE_ROUTED': 'bg-rose-50 text-rose-700 border-rose-200',
-      'PROCESSING': 'bg-orange-50 text-orange-700 border-orange-200',
-      'COMPLETED': 'bg-teal-50 text-teal-700 border-teal-200',
-      'ARCHIVED': 'bg-slate-50 text-slate-700 border-slate-200'
-    };
-    return colors[s] || colors['NEW'];
-  };
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#F8FAFC] overflow-hidden">
-      <header className="p-4 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between shrink-0">
-         <div className="flex items-center gap-3">
-             <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                <Mail size={20} />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-[#F8FAFC]">
+      <header className="p-6 bg-white border-b border-slate-200">
+         <div className="flex items-center justify-between">
+             <div className="flex items-center gap-4">
+                 <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                    <Database size={24} />
+                 </div>
+                 <div>
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">Intake Dashboard</h1>
+                    <p className="text-sm text-slate-500 font-medium">Universal Intake Platform</p>
+                 </div>
              </div>
-             <div>
-                <h1 className="text-xl font-black text-slate-800 tracking-tight">MailOS v2</h1>
-                <p className="text-xs text-slate-500 font-medium">Enterprise Communication Intelligence Layer</p>
-             </div>
+             <Button onClick={handleSync} disabled={syncing} className="gap-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl px-5 py-2.5 shadow-sm text-sm font-bold">
+                 <RefreshCw size={16} className={cn(syncing && "animate-spin")} />
+                 {syncing ? 'Processing Intake...' : 'Sync Channels'}
+             </Button>
          </div>
-         {isConnected && (
-            <div className="flex items-center gap-6">
-                <div className="hidden md:flex gap-4 text-xs font-medium text-slate-500">
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.length}</span> Ingested</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type?.toUpperCase() === 'REQUIREMENT').length}</span> Requirements</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => ['RESUME', 'CANDIDATE', 'CANDIDATE_SUBMISSION'].includes(e.classification?.type?.toUpperCase())).length}</span> Candidates</div>
-                    <div className="flex flex-col"><span className="text-slate-800 font-bold">{emails.filter(e => e.classification?.type?.toUpperCase() === 'INVOICE').length}</span> Invoices</div>
-                </div>
-                <div className="flex flex-col items-end">
-                   <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
-                       <span className="relative flex h-2 w-2">
-                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                       </span>
-                       Intelligence Core Online
-                   </div>
-                   <div className="text-[10px] text-slate-400 font-medium">Synced {loading ? 'just now' : 'Synced'}</div>
-                </div>
-                <Button onClick={() => fetchEmails()} variant="outline" className="gap-2 h-9 text-xs ml-2" disabled={loading}>
-                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                </Button>
-            </div>
-         )}
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        {!isConnected ? (
-           <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center mt-12 space-y-4">
-              <Mail className="mx-auto h-12 w-12 text-slate-300" />
-              <h2 className="text-lg font-bold text-slate-800">No Email Integration connected</h2>
-              <p className="text-sm text-slate-500">Connect your Google Workspace in the Integrations settings to enable inbox synchronization.</p>
-           </div>
-        ) : error ? (
-           <div className="max-w-md mx-auto bg-red-50 p-6 rounded-2xl border border-red-200 text-center mt-12 space-y-3">
-              <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
-              <h2 className="text-sm font-bold text-red-800">Connection Error</h2>
-              <p className="text-xs text-red-600">{error}</p>
-           </div>
-        ) : (
-            <div className="flex h-full w-full">
-                {/* Column 1: Mailboxes */}
-                <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto hidden md:flex">
-                  <div className="p-4">
-                      <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm mb-6">+ Compose</Button>
-                      
-                      <div className="space-y-1 mb-6">
-                          <button onClick={() => setActiveCategory('ALL')} className={cn("w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors", activeCategory === 'ALL' ? "bg-indigo-100 text-indigo-700" : "text-slate-600 hover:bg-slate-100")}>
-                              <Inbox size={16} className="mr-3" /> All Inbox
-                          </button>
-                      </div>
+      <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+        {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
+                <AlertCircle size={20} />
+                <span className="font-semibold text-sm">{error}</span>
+            </div>
+        )}
 
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-3">Triage Intents</h4>
-                      <div className="space-y-1">
-                          {categories.filter(c => c !== 'ALL').map(cat => (
-                              <button key={cat} onClick={() => setActiveCategory(cat)} className={cn("w-full flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors text-left truncate", activeCategory === cat ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100")}>
-                                  <span className={cn("w-2 h-2 rounded-full mr-3", 
-                                      cat === 'REQUIREMENT' ? 'bg-blue-400' :
-                                      cat === 'RESUME' ? 'bg-emerald-400' :
-                                      cat === 'VENDOR_RESPONSE' ? 'bg-purple-400' :
-                                      cat === 'CLIENT_RESPONSE' ? 'bg-orange-400' :
-                                      cat === 'AI_DRAFTS' ? 'bg-indigo-400' :
-                                      cat === 'APPROVALS' ? 'bg-rose-400' :
-                                      cat === 'TEMPLATES' ? 'bg-teal-400' : 'bg-slate-400'
-                                  )}></span> 
-                                  {displayNames[cat]}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
+        {/* METRICS ROW */}
+        <section>
+            <h2 className="text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase mb-4">Today's Intake</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <Mail size={20} className="text-slate-400 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.source_gmail || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Emails</span>
                 </div>
-                
-                {/* Column 2: Conversation List */}
-                <div className="w-[320px] bg-white border-r border-slate-200 flex flex-col shrink-0">
-                  <div className="p-3 border-b border-slate-100 bg-white shadow-sm z-10 shrink-0">
-                      <input 
-                         type="text" 
-                         placeholder="Search conversations..." 
-                         className="w-full bg-slate-100 border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                  </div>
-                  <div className="flex-1 overflow-y-auto scrollbar-thin">
-                     {loading && emails.length === 0 ? (
-                        <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-slate-300" /></div>
-                     ) : filteredEmails.length === 0 ? (
-                        <EmptyState icon={Mail} title="No Conversations" description={`No threads classified under ${displayNames[activeCategory]}.`} />
-                     ) : (
-                        filteredEmails.map(email => (
-                           <div key={email.id} 
-                                onClick={() => { setSelectedEmail(email); analyzeEmail(email.id); }}
-                                className={cn("p-4 border-b border-slate-100 cursor-pointer transition-colors relative", selectedEmail?.id === email.id ? "bg-indigo-50/50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-indigo-600" : "bg-white hover:bg-slate-50")}>
-                              <div className="flex justify-between items-baseline mb-1">
-                                  <div className="text-sm font-bold text-slate-900 truncate pr-2">{email.from?.split('<')[0]?.trim()}</div>
-                                  <div className="text-[10px] font-medium text-slate-400 shrink-0">Today</div>
-                              </div>
-                              <div className="text-[13px] font-bold text-slate-700 truncate mb-1">{email.subject}</div>
-                              <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-2">{email.snippet}</div>
-                              
-                              <div className="flex items-center gap-2">
-                                  <Badge className="bg-slate-100 text-slate-700 text-[9px] py-0 px-1.5 uppercase font-black">
-                                      {email.classification?.type || 'Other'}
-                                  </Badge>
-                              </div>
-                           </div>
-                        ))
-                     )}
-                  </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <FileText size={20} className="text-emerald-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.type_requirement || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Requirements</span>
                 </div>
-                
-                {/* Column 3: Full Email Viewer */}
-                <div className="flex-1 bg-white flex flex-col min-w-0">
-                   {!selectedEmail ? (
-                      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F8FAFC]">
-                         <Mail className="h-16 w-16 text-slate-200 mb-4" />
-                         <h3 className="text-xl font-bold text-slate-400">Select a Conversation Thread</h3>
-                         <p className="text-sm text-slate-400 mt-2">Activate the identity resolver & intent engine by selecting any stream item.</p>
-                      </div>
-                   ) : (
-                      <div className="flex-1 flex flex-col overflow-hidden relative">
-                          <div className="p-6 border-b border-slate-100 shrink-0 bg-white">
-                              <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-4">{selectedEmail.subject}</h2>
-                              <div className="flex justify-between items-start">
-                                  <div className="flex items-center gap-3">
-                                      <div className="h-10 w-10 bg-indigo-100 text-indigo-700 font-bold rounded-full flex items-center justify-center">
-                                          {selectedEmail.from?.charAt(0)?.toUpperCase()}
-                                      </div>
-                                      <div>
-                                          <div className="font-bold text-sm text-slate-900">{selectedEmail.from}</div>
-                                          <div className="text-xs text-slate-500">Thread ID: {selectedEmail.id}</div>
-                                      </div>
-                                  </div>
-                                  <div className="text-xs font-semibold text-slate-400">
-                                      Today
-                                  </div>
-                              </div>
-                          </div>
-                          <div className="flex-1 overflow-y-auto p-6 bg-white">
-                              <div className="prose prose-sm max-w-none text-slate-700">
-                                  {analyzing ? (
-                                       <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
-                                           <RefreshCw className="animate-spin h-8 w-8 text-indigo-500" />
-                                           <div className="text-xs font-medium">Extracting business entities and resolving graph credentials...</div>
-                                       </div>
-                                   ) : analysis?.html ? (
-                                       <div 
-                                           className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6 overflow-x-auto max-w-full"
-                                           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(analysis.html) }}
-                                       />
-                                   ) : (
-                                       <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6 whitespace-pre-wrap leading-relaxed text-sm">
-                                           {analysis?.plainText || analysis?.body || selectedEmail.snippet || "No body content available."}
-                                       </div>
-                                   )}
-                              </div>
-                              
-                              {analysis?.attachments?.length > 0 && (
-                                 <div className="mt-8 border-t border-slate-100 pt-6">
-                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Attachments ({analysis.attachments.length})</h4>
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                         {analysis.attachments.map((att: any, idx: number) => (
-                                             <div key={idx} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3 group hover:border-indigo-300 hover:bg-slate-50 transition-colors">
-                                                 <div className="flex items-center gap-3">
-                                                     <div className="h-10 w-10 bg-indigo-50 text-indigo-600 flex items-center justify-center rounded-lg shrink-0">
-                                                         <FileText size={20} />
-                                                     </div>
-                                                     <div className="min-w-0">
-                                                         <div className="text-sm font-bold text-slate-700 truncate">{typeof att === 'object' ? att.filename : att}</div>
-                                                         <div className="text-[10px] text-slate-400">{typeof att === 'object' ? (att.mimeType || 'Document') : 'Document'}</div>
-                                                     </div>
-                                                 </div>
-                                                 <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                     <Button className="h-7 text-[10px] px-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm">Preview</Button>
-                                                     <Button className="h-7 text-[10px] px-3 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 shadow-sm">✨ AI Summary</Button>
-                                                 </div>
-                                             </div>
-                                         ))}
-                                     </div>
-                                 </div>
-                              )}
-                          </div>
-                          <div className="p-6 border-t border-slate-200 bg-white shrink-0">
-                              <div className="border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 shadow-sm transition-all">
-                                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex gap-2">
-                                      <Button onClick={() => handleAction('Open Templates')} variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Templates</Button>
-                                      <Button onClick={() => handleAction('Insert Variables')} variant="outline" className="h-7 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Variables</Button>
-                                      <Button onClick={() => handleAction('Generate AI Draft')} variant="outline" className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100 shadow-sm gap-1">✨ AI Draft</Button>
-                                  </div>
-                                  <textarea 
-                                     className="w-full h-24 p-4 text-sm resize-none outline-none text-slate-700" 
-                                     placeholder="Write your email... (or click AI Draft)"
-                                  ></textarea>
-                                  <div className="px-4 py-3 bg-white flex justify-between items-center border-t border-slate-100">
-                                      <Button onClick={() => handleAction('Attach Document')} variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 border-none shadow-none gap-2">
-                                          <FileText size={14} /> Attach File
-                                      </Button>
-                                      <div className="flex gap-2">
-                                          <Button onClick={() => handleAction('Discard Draft')} variant="outline" className="h-8 text-xs bg-white text-slate-700 hover:bg-slate-100 shadow-sm">Discard</Button>
-                                          <Button onClick={() => handleAction('Send Email')} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-6">Send</Button>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                   )}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <Users size={20} className="text-blue-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.type_candidate || metrics.type_resume || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Candidates</span>
                 </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <CheckCircle size={20} className="text-purple-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.status_success || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Processed</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <FileQuestion size={20} className="text-orange-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.status_manual_review || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Review</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <GitMerge size={20} className="text-slate-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.status_duplicate || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Duplicates</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <AlertCircle size={20} className="text-red-500 mb-2" />
+                    <span className="text-2xl font-black text-slate-800">{metrics.status_failed || 0}</span>
+                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Failures</span>
+                </div>
+            </div>
+        </section>
 
-                {/* Column 4: AI Workspace */}
-                {selectedEmail && (
-                <div className="w-[360px] lg:w-[400px] bg-slate-50 border-l border-slate-200 flex flex-col shrink-0 overflow-y-auto">
-                    {analyzing ? (
-                         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                             <RefreshCw className="animate-spin text-indigo-500 w-8 h-8" />
-                             <span className="text-sm font-bold text-slate-600">Resolving Conversation...</span>
-                         </div>
-                    ) : analysis ? (
-                         <div className="p-5 flex flex-col gap-6">
-                             
-                             {/* 1. Conversation Stage & Office Routing Banner (Refinement 4 & 6 & Smart Owner) */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-4">
-                                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registry Stage</span>
-                                     <Badge className={cn("uppercase tracking-wider text-[10px] font-bold border", getStageBadge(analysis.conversation?.currentStage))}>
-                                         {analysis.conversation?.currentStage || 'CLASSIFIED'}
-                                     </Badge>
-                                 </div>
-                                 
-                                 <div className="grid grid-cols-2 gap-3 pb-1">
-                                     <div className="flex items-center gap-2.5 font-sans">
-                                         <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                             <Briefcase size={16} />
-                                         </div>
-                                         <div className="min-w-0">
-                                             <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Routed Office</h4>
-                                             <p className="text-[11px] text-slate-800 font-bold leading-tight truncate">{analysis.ownerOffice || 'GTM Office'}</p>
-                                         </div>
-                                     </div>
-                                     <div className="flex items-center gap-2.5 font-sans">
-                                         <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-mono font-black text-xs shrink-0">
-                                             {(analysis.ownerName || 'System AI').split(' ').map((n: string) => n[0]).join('')}
-                                         </div>
-                                         <div className="min-w-0">
-                                             <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Smart Owner</h4>
-                                             <p className="text-[11px] text-slate-800 font-bold leading-tight truncate">{analysis.ownerName || 'System AI'}</p>
-                                         </div>
-                                     </div>
-                                 </div>
-                             </div>
-
-                             {/* 2. Heuristic Conversation Health Score & Sentiment Meter */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                 <div className="flex items-center justify-between">
-                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Conversation Health</h4>
-                                     <Badge className={cn("text-[9px] font-black tracking-widest uppercase px-2 py-0.5 border-none", 
-                                         (analysis.healthScore || 0) >= 80 ? 'bg-emerald-50 text-emerald-700' : 
-                                         (analysis.healthScore || 0) >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
-                                     )}>
-                                         {(analysis.healthScore || 0) >= 80 ? 'Healthy' : 
-                                          (analysis.healthScore || 0) >= 60 ? 'Warning' : 'Critical'}
-                                     </Badge>
-                                 </div>
-                                 
-                                 <div className="space-y-2">
-                                     <div className="flex justify-between text-xs font-sans">
-                                         <span className="font-bold text-slate-500">Health Index</span>
-                                         <span className="font-black text-slate-800">{analysis.healthScore || 85}%</span>
-                                     </div>
-                                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                         <div 
-                                             className={cn("h-full transition-all duration-500", 
-                                                 (analysis.healthScore || 0) >= 80 ? 'bg-emerald-500' : 
-                                                 (analysis.healthScore || 0) >= 60 ? 'bg-amber-500' : 'bg-rose-500'
-                                             )}
-                                             style={{ width: `${analysis.healthScore || 85}%` }}
-                                         ></div>
-                                     </div>
-                                 </div>
-
-                                 <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs font-sans">
-                                     <span className="font-bold text-slate-400">Heuristic Sentiment:</span>
-                                     <span className={cn("font-black uppercase tracking-widest text-[10px]", 
-                                         analysis.sentiment === 'Positive' ? 'text-emerald-600' : 
-                                         analysis.sentiment === 'Negative' ? 'text-rose-600' : 'text-slate-500'
-                                     )}>
-                                         {analysis.sentiment || 'Neutral'}
-                                     </span>
-                                 </div>
-                             </div>
-
-                             {/* 3. Automatic Deal Room Spawned Alert & Status Card */}
-                             {analysis.spawnedDealRoomId && (
-                                 <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 text-white rounded-[24px] p-4 shadow-lg border border-indigo-950 space-y-4 relative overflow-hidden">
-                                     <div className="absolute right-0 top-0 w-24 h-24 bg-white/5 rounded-full blur-xl -translate-y-6 translate-x-6 animate-pulse"></div>
-                                     
-                                     <div className="flex items-center justify-between">
-                                         <div className="flex items-center gap-1.5">
-                                             <Zap size={14} className="text-amber-300 animate-pulse" />
-                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Automated Deal Room</h4>
-                                         </div>
-                                         <Badge className="bg-emerald-500/25 border-none text-emerald-300 text-[8px] font-black tracking-widest uppercase">
-                                             ACTIVE
-                                         </Badge>
-                                     </div>
-
-                                     <div className="space-y-3 bg-white/5 p-3 rounded-xl border border-white/10 text-xs font-sans">
-                                         <div>
-                                             <span className="text-[10px] text-indigo-300 block font-bold uppercase tracking-wider">Candidate</span>
-                                             <span className="font-black text-white">{analysis.classification?.data?.Name || analysis.classification?.data?.name || 'Extracted Candidate'}</span>
-                                         </div>
-                                         <div className="border-t border-white/5 pt-2 flex items-center justify-between">
-                                             <div>
-                                                 <span className="text-[10px] text-indigo-300 block font-bold uppercase tracking-wider">Matched Role</span>
-                                                 <span className="font-black text-white max-w-[160px] block truncate">Strategic Tech Requirement</span>
-                                             </div>
-                                             <div className="text-right">
-                                                 <span className="text-[10px] text-indigo-300 block font-bold uppercase tracking-wider">Match Score</span>
-                                                 <span className="font-black text-amber-300">92%</span>
-                                             </div>
-                                         </div>
-                                         <div className="border-t border-white/5 pt-2 flex items-center justify-between font-mono text-[10px] text-indigo-200">
-                                             <span className="flex items-center gap-1"><DollarSign size={10} className="text-indigo-400" /> Est Fee: $18,500</span>
-                                             <span className="text-slate-400">ID: {analysis.spawnedDealRoomId}</span>
-                                         </div>
-                                     </div>
-
-                                     <div className="space-y-1.5 text-[10px] font-medium text-indigo-200 font-sans">
-                                         <div className="flex items-center gap-1.5">
-                                             <CheckCircle size={12} className="text-emerald-400" />
-                                             <span>CRM Sync Certified</span>
-                                         </div>
-                                         <div className="flex items-center gap-1.5">
-                                             <CheckCircle size={12} className="text-emerald-400" />
-                                             <span>Compliance Ledger Appended</span>
-                                         </div>
-                                     </div>
-                                 </div>
-                             )}
-
-                             {/* 4. CRM Ingestion Shield & Compliance Certificate */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3">
-                                 <div className="flex items-center justify-between">
-                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Enterprise Sync Status</h4>
-                                     <Badge className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[9px] font-black flex items-center gap-1 px-2.5 py-1">
-                                         <Shield size={10} className="shrink-0" />
-                                         SECURE GATEWAY
-                                     </Badge>
-                                 </div>
-                                 <div className="flex items-center gap-3 p-3 bg-indigo-50/20 border border-indigo-500/10 rounded-2xl font-sans">
-                                     <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 shrink-0">
-                                         <Shield size={18} />
-                                     </div>
-                                     <div>
-                                         <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">CRM Sync Certified</span>
-                                         <p className="text-[10px] text-slate-500 font-semibold leading-normal">
-                                             Matched identity node published to Workforce OS Graph and synced to active opportunity CRM ledgers.
-                                         </p>
-                                     </div>
-                                 </div>
-                             </div>
-
-                             {/* 5. Confidence-Based Identity Resolution */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3">
-                                 <div className="flex items-center justify-between">
-                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Identity Resolution</h4>
-                                     <Badge className={cn("text-[10px] font-bold border", 
-                                        (analysis.classification?.confidence || 0) >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                                     )}>
-                                         {analysis.classification?.confidence || 0}% Confidence
-                                     </Badge>
-                                 </div>
-                                 
-                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-2">
-                                     <div className="flex items-center gap-2">
-                                         <Shield size={14} className="text-indigo-600" />
-                                         <span className="text-xs font-black text-slate-800 truncate">
-                                             {analysis.conversation?.summary?.vendor !== 'Not Applicable' ? analysis.conversation?.summary?.vendor : selectedEmail.from?.split('<')[0]?.trim()}
-                                         </span>
-                                     </div>
-                                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed italic">
-                                         "{analysis.classification?.confidenceReason || 'Domain match only. Needs HQ Review.'}"
-                                     </p>
-                                 </div>
-                             </div>
-
-                             {/* 6. Business Document Intelligence Matrix */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Document Intelligence Matrix</h4>
-                                 <div className="grid grid-cols-2 gap-2 text-xs font-sans">
-                                     {[
-                                         { name: 'Resume / CV', key: 'Resume' },
-                                         { name: 'Job Description', key: 'JD' },
-                                         { name: 'Vendor Agreement', key: 'Vendor Agreement' },
-                                         { name: 'NDA', key: 'NDA' },
-                                         { name: 'Rate Card', key: 'Rate Card' },
-                                         { name: 'MSA', key: 'MSA' }
-                                     ].map(docType => {
-                                         const detected = analysis.classification?.detectedDocuments?.some((d: any) => d.type === docType.key);
-                                         return (
-                                             <div key={docType.key} className={cn("p-2 rounded-xl border flex items-center justify-between transition-all duration-300", 
-                                                detected ? "bg-emerald-50 border-emerald-100 text-emerald-800 font-bold" : "bg-slate-50 border-slate-100 text-slate-400"
-                                             )}>
-                                                 <span className="truncate max-w-[120px]">{docType.name}</span>
-                                                 {detected ? <CheckCircle size={14} className="text-emerald-600 shrink-0" /> : <Clock size={12} className="text-slate-400 shrink-0" />}
-                                             </div>
-                                         );
-                                     })}
-                                 </div>
-                             </div>
-
-                             {/* 7. Live Vendor Snapshot Metrics */}
-                             {analysis.metricsSnapshot && (
-                                 <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                     <div className="flex items-center justify-between">
-                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor Performance Snapshot</h4>
-                                         <Badge className="bg-emerald-100 text-emerald-800 border-none text-[9px] font-black tracking-widest">LIVE</Badge>
-                                     </div>
-                                     <div className="grid grid-cols-3 gap-2 text-center font-sans">
-                                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                             <span className="text-lg font-black text-slate-800 block">{analysis.metricsSnapshot.totalSubmissions || 0}</span>
-                                             <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Submissions</span>
-                                         </div>
-                                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                             <span className="text-lg font-black text-slate-800 block">{analysis.metricsSnapshot.interviewsCount || 0}</span>
-                                             <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Interviews</span>
-                                         </div>
-                                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                             <span className="text-lg font-black text-slate-800 block">{analysis.metricsSnapshot.conversionRate || 0}%</span>
-                                             <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Conversion</span>
-                                         </div>
-                                     </div>
-                                 </div>
-                             )}
-
-                             {/* 8. Operational Confidence Dashboard */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Operational Confidence Overview</h4>
-                                 <div className="space-y-3 text-xs font-sans">
-                                     <div className="flex justify-between items-center">
-                                         <span className="font-bold text-slate-500">Identity Resolution (SSOT)</span>
-                                         <span className="font-black text-emerald-600">98% Accuracy</span>
-                                     </div>
-                                     <div className="flex justify-between items-center">
-                                         <span className="font-bold text-slate-500">Intent Ingestion Gate</span>
-                                         <span className="font-black text-emerald-600">{analysis.classification?.confidence || 95}% Precision</span>
-                                     </div>
-                                     <div className="flex justify-between items-center">
-                                         <span className="font-bold text-slate-500">Smart Office Routing</span>
-                                         <span className="font-black text-indigo-600">96% Reliable</span>
-                                     </div>
-                                 </div>
-                             </div>
-
-                             {/* 9. AI Memory & Learnings (Refinement 11) */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">AI Memory & Learnings</h4>
-                                 <div className="space-y-3 text-xs text-slate-700 font-sans">
-                                     <div>
-                                         <span className="font-black text-slate-400 block text-[9px] uppercase tracking-wider">Observations</span>
-                                         <ul className="list-disc pl-4 space-y-1 mt-1 text-[11px] text-slate-600 font-medium leading-relaxed">
-                                             {(analysis.classification?.memory?.observations || []).map((o: string, i: number) => (
-                                                 <li key={i}>{o}</li>
-                                             ))}
-                                         </ul>
-                                     </div>
-                                     <div className="border-t border-slate-100 pt-2.5">
-                                         <span className="font-black text-slate-400 block text-[9px] uppercase tracking-wider">Experiences</span>
-                                         <p className="text-[11px] text-slate-700 font-semibold mt-1 leading-relaxed">
-                                             {analysis.classification?.memory?.learning || "Sender behaves consistently within expected operational parameters."}
-                                         </p>
-                                     </div>
-                                     <div className="border-t border-slate-100 pt-2.5">
-                                         <span className="font-black text-slate-400 block text-[9px] uppercase tracking-wider">Recommendations</span>
-                                         <ul className="list-disc pl-4 space-y-1 mt-1 text-[11px] text-indigo-700 font-bold">
-                                             {(analysis.classification?.memory?.recommendations || []).map((r: string, i: number) => (
-                                                 <li key={i}>{r}</li>
-                                             ))}
-                                         </ul>
-                                     </div>
-                                 </div>
-                             </div>
-
-                             {/* 10. Suggested Action Controls */}
-                             <div className="space-y-2">
-                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Suggested Action Workflow</h4>
-                                 <div className="space-y-2 font-sans">
-                                 {analysis.classification?.suggestedActions && analysis.classification.suggestedActions.length > 0 ? (
-                                     analysis.classification.suggestedActions.map((action: string, idx: number) => {
-                                         let btnClass = "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50";
-                                         const actionLower = action.toLowerCase();
-                                         if (actionLower.includes('submit')) btnClass = "bg-emerald-600 hover:bg-emerald-700 text-white border-none";
-                                         else if (actionLower.includes('match')) btnClass = "bg-blue-600 hover:bg-blue-700 text-white border-none";
-                                         else if (actionLower.includes('deal room')) btnClass = "bg-purple-600 hover:bg-purple-700 text-white border-none";
-                                         else if (actionLower.includes('broadcast')) btnClass = "bg-orange-600 hover:bg-orange-700 text-white border-none";
-                                         else if (actionLower.includes('email') || actionLower.includes('reply')) btnClass = "bg-indigo-600 hover:bg-indigo-700 text-white border-none";
-                                         else if (actionLower.includes('archive')) btnClass = "bg-slate-100 text-slate-700 hover:bg-slate-200 border-none";
-                                         else if (idx === 0) btnClass = "bg-indigo-600 hover:bg-indigo-700 text-white border-none";
-
-                                         return <Button key={idx} onClick={() => handleAction(action)} className={cn("w-full justify-start text-xs shadow-sm font-bold", btnClass)}>{action}</Button>;
-                                     })
-                                 ) : (
-                                     <Button onClick={() => handleAction('Process Request')} className="w-full justify-start text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold">Process Request</Button>
-                                 )}
-                                 </div>
-                             </div>
-
-                             {/* 11. Unified Conversation Event Chain (AI Timeline) */}
-                             <div className="bg-white border border-slate-200 rounded-[20px] p-4 shadow-sm space-y-3.5">
-                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unified Conversation Event Chain</h4>
-                                 <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[5px] before:w-[2px] before:bg-slate-150 ml-1">
-                                     {analysis.classification?.timeline && analysis.classification.timeline.length > 0 ? (
-                                         analysis.classification.timeline.map((event: any, idx: number) => (
-                                             <div key={idx} className="relative pl-6 group">
-                                                 <div className={cn(
-                                                     "absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white shadow-sm transition-all duration-300", 
-                                                     idx === analysis.classification.timeline.length - 1 ? "bg-indigo-600 scale-110" : "bg-slate-300"
-                                                 )}></div>
-                                                 <div className="flex flex-col font-sans">
-                                                     <div className="flex items-center justify-between">
-                                                         <p className={cn("text-[9px] font-mono font-bold", idx === analysis.classification.timeline.length - 1 ? "text-indigo-600" : "text-slate-400")}>{event.time}</p>
-                                                     </div>
-                                                     <p className={cn("text-xs font-black leading-tight mt-0.5", idx === analysis.classification.timeline.length - 1 ? "text-slate-900" : "text-slate-700")}>{event.title}</p>
-                                                     <p className="text-[10px] text-slate-500 mt-1 leading-normal font-medium">{event.description}</p>
-                                                 </div>
-                                             </div>
-                                         ))
-                                     ) : (
-                                         <div className="relative pl-6">
-                                             <div className="absolute left-0 top-1.5 w-3 h-3 bg-slate-400 rounded-full border-2 border-white shadow-sm"></div>
-                                             <div className="flex flex-col font-sans">
-                                                 <p className="text-[10px] font-bold text-slate-400 mb-0.5 font-mono">Just now</p>
-                                                 <p className="text-xs font-bold text-slate-600">Email Received</p>
-                                             </div>
-                                         </div>
-                                     )}
-                                 </div>
-                             </div>
-                         </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* MANUAL REVIEW QUEUE */}
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
+                        <FileQuestion size={16} className="text-orange-500" />
+                        Needs Review
+                    </h3>
+                    <Badge className="bg-orange-100 text-orange-700 border-none font-bold">{reviewQueue.length}</Badge>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                    {reviewQueue.length === 0 ? (
+                        <EmptyState icon={CheckCircle} title="All Caught Up" description="No items require manual review." />
                     ) : (
-                         <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-500 text-sm">
-                             No insights available. Click any thread to run intelligence analysis.
-                         </div>
+                        <div className="space-y-2 p-2">
+                            {reviewQueue.map(item => (
+                                <div key={item.id} className="p-4 rounded-xl border border-slate-200 hover:border-orange-300 transition-colors bg-white group cursor-pointer shadow-sm">
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge className={cn(
+                                                    "text-[10px] uppercase font-black tracking-wider border-none",
+                                                    item.confidence < 50 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
+                                                )}>
+                                                    {item.classificationType} - {item.confidence}% Conf
+                                                </Badge>
+                                                <span className="text-xs text-slate-500 font-medium capitalize">{item.source}</span>
+                                            </div>
+                                            <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{item.envelopeSummary?.subject || '(No Subject)'}</h4>
+                                            <p className="text-xs text-slate-500 font-medium truncate">{item.envelopeSummary?.sender}</p>
+                                        </div>
+                                        <Button className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 text-xs font-bold">
+                                            Review
+                                        </Button>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100 text-xs font-medium text-slate-600 flex items-center gap-2">
+                                        <AlertCircle size={14} className="text-slate-400" />
+                                        {item.reason}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
-                )}
-            </div>
-         )}
+            </section>
+
+            {/* INTAKE AUDIT LOG */}
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
+                        <Clock size={16} className="text-slate-400" />
+                        Intake Audit
+                    </h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                    {auditLogs.length === 0 ? (
+                        <EmptyState icon={Database} title="No Logs Yet" description="Process intake to see audit logs." />
+                    ) : (
+                        <div className="space-y-2 p-2">
+                            {auditLogs.map(log => (
+                                <div key={log.id} className="p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Badge className={cn(
+                                                "text-[9px] uppercase font-black tracking-widest border-none",
+                                                log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-800" :
+                                                log.status === 'DUPLICATE' ? "bg-slate-200 text-slate-700" :
+                                                "bg-orange-100 text-orange-700"
+                                            )}>
+                                                {log.status}
+                                            </Badge>
+                                            <span className="text-xs text-slate-400 font-mono">{log.correlationId}</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.executionTimeMs}ms</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-slate-800 mb-2">
+                                        <span className="capitalize">{log.source}</span> Intake Processed
+                                    </div>
+                                    {log.createdEntities && log.createdEntities.length > 0 && (
+                                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Created:</span>
+                                            {log.createdEntities.map((entity: any, i: number) => (
+                                                <Badge key={i} className="bg-white border-slate-200 text-slate-600 text-[10px] font-bold">
+                                                    {entity.type}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
+        </div>
       </div>
     </div>
   );
