@@ -846,16 +846,68 @@ export default async function opsHandler(req: Request, res: Response) {
         await AICOORuntime.processInbox();
         return res.json({ success: true });
       }
+      if (action === "register_offices") {
+        const { OfficeCapabilityRegistry } = await import("../os/kernel/OfficeCapabilityRegistry.js");
+        
+        const { IntakeOffice } = await import("../os/kernel/IntakeOffice.js");
+        const intakeOffice = new IntakeOffice();
+        await OfficeCapabilityRegistry.registerOffice(intakeOffice.name, intakeOffice.policy);
+
+        const { MatchingOffice } = await import("../os/kernel/MatchingOffice.js");
+        const matchingOffice = new MatchingOffice();
+        await OfficeCapabilityRegistry.registerOffice(matchingOffice.name, matchingOffice.policy);
+
+        const { RecruitmentOffice } = await import("../os/kernel/RecruitmentOffice.js");
+        const recruitmentOffice = new RecruitmentOffice();
+        await OfficeCapabilityRegistry.registerOffice(recruitmentOffice.name, recruitmentOffice.policy);
+
+        const { VendorOffice } = await import("../os/kernel/VendorOffice.js");
+        const vendorOffice = new VendorOffice();
+        await OfficeCapabilityRegistry.registerOffice(vendorOffice.name, vendorOffice.policy);
+
+        const { SubmissionOffice } = await import("../os/kernel/SubmissionOffice.js");
+        const submissionOffice = new SubmissionOffice();
+        await OfficeCapabilityRegistry.registerOffice(submissionOffice.name, submissionOffice.policy);
+
+        const { ClientOffice } = await import("../os/kernel/ClientOffice.js");
+        const clientOffice = new ClientOffice();
+        await OfficeCapabilityRegistry.registerOffice(clientOffice.name, clientOffice.policy);
+
+        const { FounderOffice } = await import("../os/kernel/FounderOffice.js");
+        const founderOffice = new FounderOffice();
+        await OfficeCapabilityRegistry.registerOffice(founderOffice.name, founderOffice.policy);
+
+        return res.json({ success: true, message: "Offices registered" });
+      }
+
       if (action === "process_offices") {
-        const { MatchingOffice } =
-          await import("../os/kernel/MatchingOffice.js");
+        const { MatchingOffice } = await import("../os/kernel/MatchingOffice.js");
         const matchingOffice = new MatchingOffice();
         await matchingOffice.processQueue();
 
-        const { RecruitmentOffice } =
-          await import("../os/kernel/RecruitmentOffice.js");
+        const { RecruitmentOffice } = await import("../os/kernel/RecruitmentOffice.js");
         const recruitmentOffice = new RecruitmentOffice();
         await recruitmentOffice.processQueue();
+
+        const { IntakeOffice } = await import("../os/kernel/IntakeOffice.js");
+        const intakeOffice = new IntakeOffice();
+        await intakeOffice.processQueue();
+
+        const { VendorOffice } = await import("../os/kernel/VendorOffice.js");
+        const vendorOffice = new VendorOffice();
+        await vendorOffice.processQueue();
+
+        const { SubmissionOffice } = await import("../os/kernel/SubmissionOffice.js");
+        const submissionOffice = new SubmissionOffice();
+        await submissionOffice.processQueue();
+
+        const { ClientOffice } = await import("../os/kernel/ClientOffice.js");
+        const clientOffice = new ClientOffice();
+        await clientOffice.processQueue();
+
+        const { FounderOffice } = await import("../os/kernel/FounderOffice.js");
+        const founderOffice = new FounderOffice();
+        await founderOffice.processQueue();
 
         return res.json({ success: true });
       }

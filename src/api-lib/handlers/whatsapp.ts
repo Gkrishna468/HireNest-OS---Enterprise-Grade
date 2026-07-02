@@ -8,8 +8,18 @@ const whatsappHandler = express.Router();
 whatsappHandler.post("/webhook", async (req, res) => {
   try {
     const payload = req.body;
-    await IntakeEngine.process(payload, "whatsapp");
-    res.status(200).json({ success: true, message: "Processed by Universal Intake" });
+    
+    // Publish WHATSAPP_MESSAGE_RECEIVED event to EventBus to trigger AI Workforce
+    const { EventBus } = await import("../../api-lib/services/EventBus.js");
+    await EventBus.publish("WHATSAPP_MESSAGE_RECEIVED", {
+        messageId: payload.id || `wa-${Date.now()}`,
+        body: payload.text || payload.body || '',
+        workspaceId: payload.workspaceId,
+        sender: payload.from,
+        raw: payload
+    }, "WHATSAPP", payload.workspaceId);
+
+    res.status(200).json({ success: true, message: "Accepted by AI Workforce" });
   } catch (error) {
     console.error("WhatsApp Webhook Error:", error);
     res.status(500).json({ error: "Internal Server Error" });

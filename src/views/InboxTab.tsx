@@ -69,8 +69,8 @@ export default function InboxTab() {
                     <Mail size={20} />
                  </div>
                  <div>
-                    <h1 className="text-xl font-black text-slate-800 tracking-tight">MailOS Operations</h1>
-                    <p className="text-xs text-slate-500 font-medium">Intake & Routing Center</p>
+                    <h1 className="text-xl font-black text-slate-800 tracking-tight">Business Inbox</h1>
+                    <p className="text-xs text-slate-500 font-medium">Requirement & Candidate Processing Pipeline</p>
                  </div>
              </div>
              <div className="flex items-center gap-6">
@@ -283,7 +283,7 @@ export default function InboxTab() {
                             {/* Processing Timeline */}
                             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <Clock size={14} /> Intake Timeline
+                                    <Clock size={14} /> Business Flow
                                 </h3>
                                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
@@ -292,34 +292,34 @@ export default function InboxTab() {
                                         </div>
                                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
                                             <div className="flex items-center justify-between mb-1">
-                                                <div className="font-bold text-slate-800 text-xs">Received</div>
+                                                <div className="font-bold text-slate-800 text-xs">AI Parsed</div>
                                                 <time className="font-medium text-[10px] text-slate-400">{new Date(selectedMessage.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</time>
                                             </div>
-                                            <div className="text-[10px] font-medium text-slate-500">Ingested from Gmail</div>
+                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.classification?.type || 'Ingested'}</div>
                                         </div>
                                     </div>
                                     
-                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.classification?.type ? "is-active" : "")}>
+                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.classification?.type === 'Requirement' ? "is-active" : "")}>
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                                            {selectedMessage.classification?.type ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                                            {selectedMessage.classification?.type === 'Requirement' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
                                         </div>
                                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
                                             <div className="flex items-center justify-between mb-1">
-                                                <div className="font-bold text-slate-800 text-xs">Classified</div>
+                                                <div className="font-bold text-slate-800 text-xs">Candidates Found</div>
                                             </div>
-                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.classification?.type || 'Pending analysis'}</div>
+                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.classification?.type === 'Requirement' ? 'Matched with Global Pool' : 'Waiting for Req'}</div>
                                         </div>
                                     </div>
                                     
-                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? "is-active" : "")}>
+                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.classification?.type === 'Requirement' ? "is-active" : "")}>
                                         <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-blue-500 text-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                                            {selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? <CheckCircle2 size={12} /> : (selectedMessage.status === 'FAILED' ? <XCircle size={12} className="text-red-100"/> : <Clock size={12} />)}
+                                            {selectedMessage.classification?.type === 'Requirement' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
                                         </div>
                                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
                                             <div className="flex items-center justify-between mb-1">
-                                                <div className="font-bold text-slate-800 text-xs">Entity Creation</div>
+                                                <div className="font-bold text-slate-800 text-xs">Vendor Broadcast</div>
                                             </div>
-                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? 'Created and linked' : (selectedMessage.status === 'FAILED' ? 'Creation failed' : 'Pending creation')}</div>
+                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.classification?.type === 'Requirement' ? 'Published to Vendor Hub' : 'Pending'}</div>
                                         </div>
                                     </div>
                                 </div>

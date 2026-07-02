@@ -62,14 +62,16 @@ export class IntakeEngine {
     }
 
     // 5. Deduplicate
-    const isDup = await DuplicateResolver.isDuplicate(
+    const dupResult = await DuplicateResolver.isDuplicate(
       envelope.body,
       classification.type,
       envelope.tenantId,
     );
-    if (isDup) {
+    if (dupResult.isDuplicate) {
       await this.logEvent(envelope, IntakeEventType.INTAKE_FAILED, {
         reason: "Duplicate Detected",
+        mergeCandidate: dupResult.matchedEntityId,
+        confidence: dupResult.confidence
       });
       await IntakeMetrics.increment(envelope.tenantId, `status_duplicate`);
       
@@ -84,7 +86,20 @@ export class IntakeEngine {
           relationships: []
       });
       
-      return { status: "duplicate", envelope };
+      // Save merge preview for UI
+      if (adminDb) {
+        await adminDb.collection("merge_previews").add({
+            tenantId: envelope.tenantId,
+            type: classification.type,
+            status: 'PENDING_REVIEW',
+            incoming: { envelope, classification },
+            existing: { id: dupResult.matchedEntityId, data: dupResult.matchedEntity },
+            confidence: dupResult.confidence,
+            createdAt: new Date().toISOString()
+        });
+      }
+      
+      return { status: "duplicate", envelope, mergePreviewId: dupResult.matchedEntityId };
     }
 
     // 6. Create Entities (Placeholder)

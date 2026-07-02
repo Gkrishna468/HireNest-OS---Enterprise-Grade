@@ -36,6 +36,16 @@ function getCredentials() {
 
   if (projectId && clientEmail && privateKey) {
     if (isPlaceholder(clientEmail) || isPlaceholder(privateKey)) return null;
+    if (!clientEmail.includes('gserviceaccount.com')) {
+      console.error("\n=======================================================");
+      console.error("🚨 FIREBASE CONFIGURATION ERROR 🚨");
+      console.error(`FIREBASE_CLIENT_EMAIL is currently set to: ${clientEmail}`);
+      console.error("This appears to be a personal email address, which will NOT work.");
+      console.error("It MUST be a valid Firebase Service Account email (ending with @gserviceaccount.com).");
+      console.error("Please generate a JSON key from Firebase Console -> Project Settings -> Service Accounts.");
+      console.error("=======================================================\n");
+      return null;
+    }
     return { projectId, clientEmail, privateKey: sanitizePrivateKey(privateKey) };
   }
 
@@ -50,7 +60,12 @@ function getCredentials() {
       }
       return sa;
     } catch (e: any) {
-      console.warn("[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON.", e.message);
+      console.error("\n=======================================================");
+      console.error("🚨 FIREBASE CONFIGURATION ERROR 🚨");
+      console.error("The FIREBASE_SERVICE_ACCOUNT environment variable is invalid.");
+      console.error("It appears you provided an email address or raw string, but it MUST be a complete JSON object.");
+      console.error("Please generate a new JSON Private Key from the Firebase Console -> Project Settings -> Service Accounts, and paste the ENTIRE JSON content into the FIREBASE_SERVICE_ACCOUNT secret.");
+      console.error("=======================================================\n");
     }
   }
 
@@ -159,5 +174,19 @@ if (adminDb) {
 }
 
 export const getAdminApp = () => app;
-export const db = adminDb;
-export const auth = adminAuth;
+
+export const db = new Proxy({}, {
+  get: (target, prop) => {
+    if (!adminDb) return undefined;
+    const val = adminDb[prop];
+    return typeof val === 'function' ? val.bind(adminDb) : val;
+  }
+}) as any;
+
+export const auth = new Proxy({}, {
+  get: (target, prop) => {
+    if (!adminAuth) return undefined;
+    const val = adminAuth[prop];
+    return typeof val === 'function' ? val.bind(adminAuth) : val;
+  }
+}) as any;

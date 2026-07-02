@@ -47,6 +47,7 @@ import copilotHandler from './src/api-lib/handlers/copilot';
 import analyticsHandler from './src/api-lib/handlers/analytics';
 import opsHandler from './src/api-lib/handlers/ops';
 import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
+import billingHandler from './src/api-lib/handlers/billing';
 
 const __dirname = process.cwd();
 
@@ -169,7 +170,8 @@ async function createServer() {
   // Mount OAuth and Google Proxy BEFORE global catch-all
   app.use('/api/oauth', oauthHandler);
   app.use('/api/workspace', workspaceHandler);
-  app.use('/api/whatsapp', whatsappHandler);
+  app.use("/api/whatsapp", whatsappHandler);
+  app.use("/api/billing", billingHandler);
   app.use('/api/cron', cronHandler);
   app.use('/api/events', eventsHandler);
   app.use('/api/google', googleProxyHandler);

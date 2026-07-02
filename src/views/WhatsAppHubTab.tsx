@@ -95,8 +95,8 @@ export default function WhatsAppHubTab() {
             <MessageSquare size={20} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight">WhatsApp Hub</h1>
-            <p className="text-xs text-slate-500 font-medium">Unified Messaging & Communications</p>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">Business Threads</h1>
+            <p className="text-xs text-slate-500 font-medium">Requirement & Candidate Conversations</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -173,83 +173,143 @@ export default function WhatsAppHubTab() {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-[#F8FAFC]">
             {activeChat ? (
-                <>
-                    {/* Chat Header */}
-                    <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
-                                {(activeChat.name || activeChat.phone || 'U').charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900">{activeChat.name || activeChat.phone || 'Unknown Contact'}</h3>
-                                <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    {activeChat.phone} • WhatsApp Business
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex gap-2 text-slate-400">
-                            <Button variant="ghost" size="icon" className="hover:bg-slate-100"><Zap size={18}/></Button>
-                            <Button variant="ghost" size="icon" className="hover:bg-slate-100"><MoreVertical size={18}/></Button>
-                        </div>
-                    </div>
-
-                    {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                        {loading ? (
-                            <div className="flex justify-center text-slate-400 font-medium text-sm">Loading messages...</div>
-                        ) : messages.length === 0 ? (
-                            <div className="flex justify-center text-slate-400 font-medium text-sm">Send a message to start the conversation.</div>
-                        ) : (
-                            messages.map((msg, idx) => (
-                                <div key={msg.id || idx} className={cn("flex", msg.sender === 'AGENT' ? "justify-end" : "justify-start")}>
-                                    <div className={cn(
-                                        "max-w-[70%] rounded-2xl px-4 py-2 shadow-sm relative",
-                                        msg.sender === 'AGENT' ? "bg-emerald-600 text-white rounded-br-none" : "bg-white border border-slate-200 text-slate-800 rounded-bl-none"
-                                    )}>
-                                        <p className="text-sm">{msg.text}</p>
-                                        <span className={cn(
-                                            "text-[9px] font-medium block mt-1",
-                                            msg.sender === 'AGENT' ? "text-emerald-200 text-right" : "text-slate-400"
-                                        )}>
-                                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </span>
-                                    </div>
+                <div className="flex flex-1 overflow-hidden">
+                    <div className="flex-1 flex flex-col relative min-w-0">
+                        {/* Chat Header */}
+                        <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold shrink-0">
+                                    {(activeChat.name || activeChat.phone || 'U').charAt(0).toUpperCase()}
                                 </div>
-                            ))
-                        )}
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Chat Input */}
-                    <div className="p-4 bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
-                        <Button variant="ghost" size="icon" className="shrink-0 text-slate-400 hover:text-slate-600 mb-1">
-                            <Paperclip size={20} />
-                        </Button>
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 min-h-[44px] max-h-32 overflow-y-auto">
-                            <textarea 
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage();
-                                    }
-                                }}
-                                placeholder="Type a message..."
-                                className="w-full bg-transparent border-none focus:outline-none resize-none text-sm leading-relaxed"
-                                rows={1}
-                            />
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-slate-900 truncate">{activeChat.name || activeChat.phone || 'Unknown Contact'}</h3>
+                                    <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                        <span className="truncate">{activeChat.phone} • WhatsApp Business</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2 text-slate-400 shrink-0">
+                                <Button variant="ghost" size="icon" className="hover:bg-slate-100"><Zap size={18}/></Button>
+                            </div>
                         </div>
-                        <Button 
-                            onClick={handleSendMessage}
-                            disabled={!inputText.trim()}
-                            className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 rounded-xl flex items-center justify-center mb-0.5"
-                        >
-                            <Send size={18} className="ml-1" />
-                        </Button>
+
+                        {/* Chat Messages */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {loading ? (
+                                <div className="flex justify-center text-slate-400 font-medium text-sm">Loading messages...</div>
+                            ) : messages.length === 0 ? (
+                                <div className="flex justify-center text-slate-400 font-medium text-sm">Send a message to start the conversation.</div>
+                            ) : (
+                                messages.map((msg, idx) => (
+                                    <div key={msg.id || idx} className={cn("flex", msg.sender === 'AGENT' ? "justify-end" : "justify-start")}>
+                                        <div className={cn(
+                                            "max-w-[85%] rounded-2xl px-4 py-2 shadow-sm relative",
+                                            msg.sender === 'AGENT' ? "bg-emerald-600 text-white rounded-br-none" : "bg-white border border-slate-200 text-slate-800 rounded-bl-none"
+                                        )}>
+                                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                                            <span className={cn(
+                                                "text-[9px] font-medium block mt-1",
+                                                msg.sender === 'AGENT' ? "text-emerald-200 text-right" : "text-slate-400"
+                                            )}>
+                                                {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Chat Input */}
+                        <div className="p-4 bg-white border-t border-slate-200 flex items-end gap-2 shrink-0">
+                            <Button variant="ghost" size="icon" className="shrink-0 text-slate-400 hover:text-slate-600 mb-1">
+                                <Paperclip size={20} />
+                            </Button>
+                            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 min-h-[44px] max-h-32 overflow-y-auto">
+                                <textarea 
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                    placeholder="Type a message..."
+                                    className="w-full bg-transparent border-none focus:outline-none resize-none text-sm leading-relaxed"
+                                    rows={1}
+                                />
+                            </div>
+                            <Button 
+                                onClick={handleSendMessage}
+                                disabled={!inputText.trim()}
+                                className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 rounded-xl flex items-center justify-center mb-0.5"
+                            >
+                                <Send size={18} className="ml-1" />
+                            </Button>
+                        </div>
                     </div>
-                </>
+                    {/* Business Context Sidebar */}
+                    <div className="hidden lg:flex w-80 bg-white border-l border-slate-200 flex-col shrink-0">
+                        <div className="p-4 border-b border-slate-200">
+                            <h3 className="font-black text-slate-800 text-sm flex items-center gap-2"><Database size={16}/> Business Context</h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            {/* Associated Requirement */}
+                            <div>
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Linked Requirement</h4>
+                                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <h5 className="font-bold text-indigo-900 text-sm">Senior Java Developer</h5>
+                                        <Badge className="bg-indigo-100 text-indigo-700 border-none text-[9px] px-1.5 py-0">ACTIVE</Badge>
+                                    </div>
+                                    <p className="text-xs text-indigo-700/80 mb-2">ABC Technologies • 5 Openings</p>
+                                    <Button variant="outline" size="sm" className="w-full bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold text-xs">
+                                        View Details
+                                    </Button>
+                                </div>
+                            </div>
+                            
+                            {/* Candidate Pipeline */}
+                            <div>
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Candidate Pipeline</h4>
+                                <div className="space-y-2">
+                                    {[
+                                        { name: 'Sarah Connor', status: 'INTERVIEWING', color: 'bg-blue-100 text-blue-700' },
+                                        { name: 'John Smith', status: 'SUBMITTED', color: 'bg-slate-100 text-slate-700' }
+                                    ].map((c, i) => (
+                                        <div key={i} className="p-2 border border-slate-100 rounded-lg flex items-center justify-between bg-slate-50">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                                    {c.name.charAt(0)}
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-700">{c.name}</span>
+                                            </div>
+                                            <Badge className={cn("text-[9px] border-none px-1.5 py-0", c.color)}>{c.status}</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Quick Actions */}
+                            <div>
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h4>
+                                <div className="space-y-2">
+                                    <Button variant="outline" size="sm" className="w-full justify-start text-xs font-bold text-slate-600">
+                                        <UserPlus size={14} className="mr-2 text-emerald-600" /> Propose Candidate
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="w-full justify-start text-xs font-bold text-slate-600">
+                                        <FileText size={14} className="mr-2 text-blue-600" /> Request Resume
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="w-full justify-start text-xs font-bold text-slate-600">
+                                        <CheckCircle2 size={14} className="mr-2 text-indigo-600" /> Schedule Interview
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <div className="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-4">

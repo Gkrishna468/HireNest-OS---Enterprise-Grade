@@ -44,6 +44,7 @@
     "react-markdown": "latest",
     "react-router-dom": "latest",
     "recharts": "latest",
+    "stripe": "^22.3.0",
     "tailwind-merge": "latest",
     "zod": "latest",
     "zustand": "latest"

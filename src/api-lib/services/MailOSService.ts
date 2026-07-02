@@ -111,11 +111,11 @@ export class MailOSService {
                     metadata: { gmailThreadId, msgId: msg.id }
                 };
 
-                // Save basic Mail Message for idempotency
+                // 1. Save basic Mail Message for idempotency
                 await db.collection('mail_messages').doc(msg.id).set({
                     gmailMessageId: msg.id,
                     workspaceId: orgId,
-                    status: 'PROCESSED_BY_INTAKE',
+                    status: 'PENDING_INTAKE', // Handled by AI Workforce IntakeOffice
                     createdAt: new Date(),
                     rawPayload: {
                         subject,
@@ -126,12 +126,7 @@ export class MailOSService {
                     }
                 }, { merge: true });
 
-                // Process via Intake Engine asynchronously to not block sync
-                IntakeEngine.process(rawPayload, "gmail").catch(e => {
-                    console.error(`[MailOS] IntakeEngine processing failed for ${msg.id}:`, e);
-                });
-
-                // Publish EMAIL_RECEIVED event to EventBus to trigger AI Workforce
+                // 2. Publish EMAIL_RECEIVED event to EventBus to trigger AI Workforce IntakeOffice
                 EventBus.publish("EMAIL_RECEIVED", {
                     messageId: msg.id,
                     subject,
