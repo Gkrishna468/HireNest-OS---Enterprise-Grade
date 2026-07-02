@@ -121,7 +121,7 @@ async function createServer() {
       next();
     } catch (err: any) {
       console.error('[AuthMiddleware] Token verification failed:', err.message);
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+      console.error('Auth Error:', err); return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
     }
   };
 

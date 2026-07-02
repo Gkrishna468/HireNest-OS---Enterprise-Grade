@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any) {
             const decoded = await adminAuth.verifyIdToken(token);
             req.user = decoded;
          } catch (err: any) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+            console.error('Auth Error:', err); return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
          }
       } else {
          req.user = { uid: 'dev-mode' };

@@ -1,5 +1,5 @@
 import { adminDb } from "../../lib/firebase-admin.js";
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
@@ -95,7 +95,7 @@ Return JSON strictly in this format:
 {"matchScore": 85, "summary": "Strong fit based on React and Node.js experience.", "strengths": ["skill 1"], "missingSkills": ["skill 2"], "breakdown": {"skillsScore": 90, "experienceScore": 80, "domainScore": 80, "locationScore": 100}}`;
 
         try {
-          const aiResponse = await AIGateway.analyze({
+          const aiResponse = await AIRuntime.analyze({
             prompt: prompt,
             modelPreference: "fast",
             schema: true,

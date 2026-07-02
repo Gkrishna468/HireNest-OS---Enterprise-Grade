@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { headroomOptimizer } from "../../services/HeadroomOptimizer.js";
 
 export interface ModelRequest {
   prompt: string;
@@ -6,6 +7,7 @@ export interface ModelRequest {
   temperature?: number;
   systemInstruction?: string;
   schema?: any;
+  compressContext?: boolean; // Uses Headroom if true
 }
 
 export interface ModelResponse {
@@ -13,6 +15,7 @@ export interface ModelResponse {
   tokensUsed: number;
   model: string;
   estimatedCost: number;
+  tokensSaved?: number; // Headroom metrics
 }
 
 // Global instance since ModelGateway is static
@@ -36,6 +39,16 @@ export class ModelGateway {
     const modelName =
       modelAlias === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
+    let finalPrompt = request.prompt;
+    let tokensSaved = 0;
+
+    if (request.compressContext) {
+      const compressed = await headroomOptimizer.compress(request.prompt);
+      finalPrompt = compressed.data;
+      tokensSaved = compressed.metrics.savedTokens;
+      console.log(`[ModelGateway] Headroom compression saved ${tokensSaved} tokens.`);
+    }
+
     try {
       const config: any = {
         temperature,
@@ -50,7 +63,7 @@ export class ModelGateway {
 
       const response = await aiClient!.models.generateContent({
         model: modelName,
-        contents: request.prompt,
+        contents: finalPrompt,
         config,
       });
 
@@ -80,6 +93,7 @@ export class ModelGateway {
         tokensUsed: totalTokens,
         model: modelName,
         estimatedCost,
+        tokensSaved,
       };
     } catch (err: any) {
       console.error("[ModelGateway] Generation error:", err);

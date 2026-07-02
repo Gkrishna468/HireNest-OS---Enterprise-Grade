@@ -56,7 +56,13 @@ export default function FounderControlTower() {
     avgTimeToMatch: "14m",
     avgTimeToInterview: "2.4h",
     proprietaryMatches: 1240,
-    llmRefinements: 450
+    llmRefinements: 450,
+    headroomSaved: "61%",
+    deterministicSaved: "73%",
+    cacheHits: "81%",
+    totalRequests: 320,
+    avgResponseTime: "840ms",
+    geminiCost: 41
   });
 
   useEffect(() => {
@@ -213,14 +219,16 @@ export default function FounderControlTower() {
                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-6">
                 {[
+                  { label: "Today's Requests", val: efficiency.totalRequests, sub: "Total AI Calls", icon: <Cpu size={18} />, color: "text-slate-200" },
+                  { label: "Gemini Cost", val: `₹${efficiency.geminiCost}`, sub: "Actual Billed", icon: <DollarSign size={18} />, color: "text-rose-400" },
+                  { label: "Saved by Headroom", val: efficiency.headroomSaved, sub: "Token Compression", icon: <Zap size={18} />, color: "text-emerald-400" },
+                  { label: "Deterministic Saved", val: efficiency.deterministicSaved, sub: "Rule Engine Hits", icon: <ShieldCheck size={18} />, color: "text-emerald-400" },
+                  { label: "Cache Hits", val: efficiency.cacheHits, sub: "Duplicate Queries", icon: <Cloud size={18} />, color: "text-amber-400" },
+                  { label: "Avg Response", val: efficiency.avgResponseTime, sub: "AI Latency", icon: <Clock size={18} />, color: "text-indigo-300" },
                   { label: "Workforce Velocity", val: `${efficiency.workforceVelocity}%`, sub: "SLA Adherence", icon: <Activity size={18} />, color: "text-indigo-300" },
-                  { label: "Proprietary Engine", val: efficiency.proprietaryMatches, sub: "Deterministic", icon: <CheckCircle2 size={18} />, color: "text-emerald-400" },
-                  { label: "LLM Refinements", val: efficiency.llmRefinements, sub: "Explanation Only", icon: <BrainCircuit size={18} />, color: "text-amber-400" },
-                  { label: "Avg Time to Match", val: efficiency.avgTimeToMatch, sub: "Auto-Intake Flow", icon: <Clock size={18} />, color: "text-indigo-300" },
-                  { label: "Avg Time to Interview", val: efficiency.avgTimeToInterview, sub: "Schedule Office", icon: <Calendar size={18} />, color: "text-indigo-300" },
-                  { label: "LLM Dependency", val: "18%", sub: "-42% this month", icon: <Cpu size={18} />, color: "text-emerald-400" }
+                  { label: "LLM Refinements", val: efficiency.llmRefinements, sub: "Explanation Only", icon: <BrainCircuit size={18} />, color: "text-amber-400" }
                 ].map((item, idx) => (
                   <div key={idx} className="flex flex-col">
                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">

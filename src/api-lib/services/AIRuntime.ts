@@ -1,19 +1,33 @@
 import { GoogleGenAI } from '@google/genai';
 import * as crypto from 'crypto';
 import { db } from '../../lib/firebase-admin.js';
+import { headroomOptimizer } from './HeadroomOptimizer.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
 
-export interface AIGatewayRequest {
+export type AICapability = 
+  | 'resume_parsing'
+  | 'candidate_matching'
+  | 'jd_extraction'
+  | 'semantic_reasoning'
+  | 'executive_summary'
+  | 'salary_analysis'
+  | 'market_trends'
+  | 'email_drafting'
+  | 'general';
+
+export interface AIRuntimeRequest {
     prompt: string;
+    capability?: AICapability;
     schema?: any;
     modelPreference?: 'fast' | 'accurate' | 'large_context';
     cacheKeyStr?: string;
     imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>;
     fallbackRuleEngine?: (text: string) => any;
+    compressContext?: boolean; // NEW: Should we compress the prompt?
 }
 
-export interface AIGatewayResponse {
+export interface AIRuntimeResponse {
     provider: string;
     model: string;
     confidence: number;
@@ -22,13 +36,16 @@ export interface AIGatewayResponse {
     cacheHit: boolean;
     outcome: 'success' | 'failed';
     retryCount: number;
+    tokensSaved?: number; // NEW: Metrics from Headroom
+    compressionRatio?: number;
+    originalTokens?: number;
 }
 
-export class AIGateway {
+export class AIRuntime {
     /**
      * Centralized AI analysis endpoint with fallback and caching.
      */
-    static async analyze(request: AIGatewayRequest): Promise<AIGatewayResponse> {
+    static async analyze(request: AIRuntimeRequest): Promise<AIRuntimeResponse> {
         const startTime = Date.now();
         let retryCount = 0;
 
@@ -56,7 +73,21 @@ export class AIGateway {
         // 2. Try Primary Provider (Gemini)
         try {
             const modelToUse = request.modelPreference === 'accurate' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
-            const contentParts: any[] = [request.prompt];
+            let contentParts: any[] = [];
+            let tokensSaved = 0;
+            let compressionRatio = 1.0;
+            let originalTokens = 0;
+
+            if (request.compressContext) {
+                 const compressed = await headroomOptimizer.compress(request.prompt);
+                 contentParts.push(compressed.data);
+                 tokensSaved = compressed.metrics.savedTokens;
+                 compressionRatio = compressed.metrics.compressionRatio;
+                 originalTokens = compressed.metrics.originalTokens;
+                 console.log(`[AIRuntime] Headroom compression saved ${tokensSaved} tokens.`);
+            } else {
+                 contentParts.push(request.prompt);
+            }
             
             if (request.imageParts && request.imageParts.length > 0) {
                 contentParts.push(...request.imageParts);
@@ -91,7 +122,7 @@ export class AIGateway {
 
             const confidence = parsedData.confidence || 95;
 
-            const finalResponse: AIGatewayResponse = {
+            const finalResponse: AIRuntimeResponse = {
                 provider: 'Google',
                 model: modelToUse,
                 confidence: confidence,
@@ -99,8 +130,29 @@ export class AIGateway {
                 latency: Date.now() - startTime,
                 cacheHit: false,
                 outcome: 'success',
-                retryCount: 0
+                retryCount: 0,
+                tokensSaved: tokensSaved,
+                compressionRatio: compressionRatio,
+                originalTokens: originalTokens
             };
+
+            // AI Explainability Ledger
+            try {
+                db.collection('ai_metrics_ledger').add({
+                    timestamp: new Date(),
+                    provider: 'Google',
+                    model: modelToUse,
+                    latency: finalResponse.latency,
+                    tokensSaved: tokensSaved,
+                    compressionRatio: compressionRatio,
+                    originalTokens: originalTokens,
+                    cacheHit: false,
+                    capability: request.capability || 'general',
+                    confidence: confidence
+                }).catch(e => console.error("Ledger log failed", e));
+            } catch (e) {
+                // non-blocking
+            }
 
             // Save to cache asynchronously
             if (request.cacheKeyStr) {

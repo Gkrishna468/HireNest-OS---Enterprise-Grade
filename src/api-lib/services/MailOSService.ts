@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { db } from '../../lib/firebase-admin.js';
 import { decryptText } from '../../lib/encryption.js';
-import { AIGateway } from './AIGateway.js';
+import { AIRuntime } from './AIRuntime.js';
 import { createOAuthClient } from '../handlers/oauth.js';
 import { EventBus } from './EventBus.js';
 import { GraphRepository } from './GraphRepository.js';
@@ -493,7 +493,7 @@ export class MailOSService {
             };
         };
 
-        const response = await AIGateway.analyze({
+        const response = await AIRuntime.analyze({
             prompt: prompt,
             modelPreference: 'fast',
             cacheKeyStr: cacheKeyStr,
@@ -544,7 +544,7 @@ export class MailOSService {
         
         const cacheKeyStr = `resume-${subject}-${body.length}`;
         
-        const response = await AIGateway.analyze({
+        const response = await AIRuntime.analyze({
             prompt: prompt,
             modelPreference: 'accurate',
             cacheKeyStr: cacheKeyStr,
@@ -553,7 +553,7 @@ export class MailOSService {
         });
         
         if (response.outcome === 'failed' || !response.data) {
-            console.warn("AIGateway resume parsing failed", response);
+            console.warn("AIRuntime resume parsing failed", response);
             return null;
         }
         
@@ -631,7 +631,7 @@ export class MailOSService {
             // 1. Resolve Identity and Confidence (Refinement 2 & 3)
             const identity = await this.resolveIdentity(orgId, senderEmail, senderName);
 
-            // 2. Classify via AIGateway with Expanded Business Rules (Refinement 5 & 11)
+            // 2. Classify via AIRuntime with Expanded Business Rules (Refinement 5 & 11)
             const aiClass = await this.classifyEmail(subject, body, from, attachments);
             classification = aiClass;
             entityType = aiClass.intent;

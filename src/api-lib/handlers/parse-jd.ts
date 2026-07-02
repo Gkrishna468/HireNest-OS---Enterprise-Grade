@@ -1,7 +1,7 @@
 import { Type } from "@google/genai";
 import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 
 const generateAIPayload = async (
   orgId: string,
@@ -9,12 +9,14 @@ const generateAIPayload = async (
   prompt: string,
   options: any,
 ) => {
-  const aiResponse = await AIGateway.analyze({
+  const aiResponse = await AIRuntime.analyze({
     prompt: `${systemInstruction}\n\n${prompt}`,
+    capability: 'jd_extraction',
     modelPreference: "fast",
     schema: true,
+    compressContext: true // NEW: Use Headroom for JD compression
   });
-  if (aiResponse.outcome === "failed") throw new Error("AIGateway failed");
+  if (aiResponse.outcome === "failed") throw new Error("AIRuntime failed");
   return JSON.stringify(aiResponse.data);
 };
 

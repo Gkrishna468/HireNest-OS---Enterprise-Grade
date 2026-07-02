@@ -610,6 +610,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/users"
+                icon={Users}
+                label="Users"
+                active={location.pathname === "/users"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/settings"
                 icon={Settings}
                 label="Settings"

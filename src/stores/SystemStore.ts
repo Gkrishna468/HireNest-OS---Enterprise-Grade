@@ -45,6 +45,16 @@ export const useSystemStore = create<SystemState>((set, get) => ({
 
           const hasSeenDemo = data.hasSeenDemo;
           const pilotMode = data.pilotMode || false;
+          
+          try {
+            await ServiceProvider.identityService.updateUserProfile(u.uid, {
+              lastLoginAt: new Date().toISOString(),
+              isOnline: true
+            });
+          } catch (err) {
+            console.error("Failed to update lastLoginAt", err);
+          }
+
           set({ 
             userData: data,
             showDemo: !hasSeenDemo && Object.keys(data).length > 0,

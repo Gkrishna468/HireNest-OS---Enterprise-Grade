@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getDynamicGreeting } from "../../lib/greetings";
 import {
   Briefcase,
@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
+import { db } from "../../lib/firebase";
+import { collection, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 
 export default function RecruiterWorkspace({
   userName,
@@ -34,6 +36,22 @@ export default function RecruiterWorkspace({
   orgId?: string;
   metrics?: any;
 }) {
+  const [activeChannels, setActiveChannels] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchChannels = async () => {
+      if (!orgId) return;
+      try {
+        const q = query(collection(db, "requirements_public"), where("organizationId", "==", orgId), limit(5));
+        const snap = await getDocs(q);
+        const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setActiveChannels(reqs);
+      } catch (err) {
+        console.error("Failed to load active channels", err);
+      }
+    };
+    fetchChannels();
+  }, [orgId]);
   return (
     <div className="flex-1 bg-slate-950 flex flex-col h-full overflow-y-auto text-slate-100 font-sans">
       
@@ -141,23 +159,31 @@ export default function RecruiterWorkspace({
                   <h4 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold">Active Sourcing Channels</h4>
                   
                   <div className="space-y-3">
-                    {[
-                      { title: "Senior React Developer", org: "Acme Corp", pay: "₹35LPA", openDays: "3 Days Open", badge: "HIGH DEMAND", badgeColor: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20" },
-                      { title: "Frontend Tech Lead", org: "Global IT Partners", pay: "$120k", openDays: "14 Days Open", badge: "SLA ALERT", badgeColor: "text-rose-400 bg-rose-500/10 border-rose-500/20" }
-                    ].map((pipe, idx) => (
-                      <div key={idx} className="p-4 rounded-2xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all duration-200">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <span className={`text-[8px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${pipe.badgeColor}`}>{pipe.badge}</span>
-                            <h4 className="text-xs font-black text-white mt-2 leading-tight">{pipe.title}</h4>
-                            <p className="text-[10px] text-slate-400 font-mono mt-1">{pipe.org} • {pipe.pay} • {pipe.openDays}</p>
-                          </div>
-                          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-mono uppercase tracking-widest px-3 h-8 self-center shrink-0">
-                            Inspect
-                          </Button>
-                        </div>
+                    {activeChannels.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-500 border border-slate-800 rounded-xl bg-slate-900/40">
+                        No active channels.
                       </div>
-                    ))}
+                    ) : (
+                      activeChannels.map((pipe, idx) => {
+                        const isHighPriority = pipe.priority === 'High';
+                        const badgeColor = isHighPriority ? "text-rose-400 bg-rose-500/10 border-rose-500/20" : "text-indigo-400 bg-indigo-500/10 border-indigo-500/20";
+                        const badgeText = isHighPriority ? "SLA ALERT" : "OPEN";
+                        
+                        return (
+                        <div key={idx} className="p-4 rounded-2xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all duration-200">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <span className={`text-[8px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${badgeColor}`}>{badgeText}</span>
+                              <h4 className="text-xs font-black text-white mt-2 leading-tight">{pipe.title || pipe.role}</h4>
+                              <p className="text-[10px] text-slate-400 font-mono mt-1">{pipe.organizationId} • {pipe.budget || 'Standard Budget'} • {pipe.status || 'Active'}</p>
+                            </div>
+                            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-mono uppercase tracking-widest px-3 h-8 self-center shrink-0">
+                              Inspect
+                            </Button>
+                          </div>
+                        </div>
+                      )})
+                    )}
                   </div>
                 </div>
               </div>
@@ -218,12 +244,12 @@ export default function RecruiterWorkspace({
                   <Zap size={14} />
                   <span className="text-[9px] font-mono uppercase font-bold tracking-widest">Sourcing Advisory</span>
                 </div>
-                <h4 className="text-xs font-bold text-white">Broadcast to TechNova</h4>
+                <h4 className="text-xs font-bold text-white">Optimize Vendor Routing</h4>
                 <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
-                  Why? They have 14 engineers on bench with similar skill sets and 98% SLA compliance.
+                  Review top-performing vendors for this requirement based on historic SLA compliance to accelerate shortlisting.
                 </p>
                 <Button variant="outline" className="w-full text-[10px] font-mono uppercase tracking-widest h-8 border-slate-800 text-slate-300 hover:bg-slate-900">
-                  Send Broadcast
+                  Review Recommendations
                 </Button>
               </div>
 

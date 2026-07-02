@@ -298,7 +298,7 @@ export default function AdminOverview() {
                 {data.businessEvents.length > 0 ? (
                   data.businessEvents.map((evt: any, idx: number) => {
                     const timeString = new Date(evt.timestamp || evt.createdAt || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    const isAI = evt.source === 'AI' || evt.source === 'AIGateway' || evt.type?.includes('AUTO');
+                    const isAI = evt.source === 'AI' || evt.source === 'AIRuntime' || evt.type?.includes('AUTO');
                     return (
                       <div key={evt.id || idx} className="flex gap-6 group">
                         <div className="w-16 text-right shrink-0 pt-1">

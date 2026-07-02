@@ -1,4 +1,4 @@
-import { AIGateway } from '../../services/AIGateway.js';
+import { AIRuntime } from '../../services/AIRuntime.js';
 
 export interface CapabilityRequest {
     type: 'RESUME_PARSING' | 'MATCH_CANDIDATE' | 'JD_ANALYSIS' | 'WORK_PRIORITIZATION';
@@ -58,7 +58,7 @@ export class CapabilityBroker {
 
         // 1. CACHE ONLY Strategy
         if (preference === 'CACHE_ONLY') {
-            const cachedResult = await AIGateway.analyze({ prompt: text, cacheKeyStr: cacheKey });
+            const cachedResult = await AIRuntime.analyze({ prompt: text, cacheKeyStr: cacheKey });
             if (cachedResult && cachedResult.cacheHit) {
                 return { success: true, strategyUsed: 'CACHE', data: cachedResult.data };
             }
@@ -91,13 +91,13 @@ export class CapabilityBroker {
         // 4. AUTO/GEMINI Strategy
         if (preference === 'AUTO' || preference === 'GEMINI') {
             // First check cache anyway to save tokens
-            const cachedResult = await AIGateway.analyze({ prompt: text, cacheKeyStr: cacheKey });
+            const cachedResult = await AIRuntime.analyze({ prompt: text, cacheKeyStr: cacheKey });
             if (cachedResult && cachedResult.cacheHit) {
                 return { success: true, strategyUsed: 'CACHE', data: cachedResult.data };
             }
 
             // Fallback rule engine to inject if Gemini fails
-            const result = await AIGateway.analyze({
+            const result = await AIRuntime.analyze({
                 prompt: `You are an expert resume parsing model. Extract contact information, skills, experience, and education from this resume in JSON format. Return a schema matching { name: string, email: string, phone: string, skills: string[], experienceYears: number, currentTitle: string }:\n\n${text}`,
                 schema: {
                     type: 'object',
@@ -167,7 +167,7 @@ export class CapabilityBroker {
 
         // Gemini matching
         const prompt = `Assess the matching score between the candidate skills and the requirement skills. Candidate Skills: ${JSON.stringify(candidateSkills)}. Requirement Skills: ${JSON.stringify(requirementSkills)}. Respond in JSON: { "score": number (0-100), "matchedSkills": string[], "confidence": number (0-1), "justification": string }`;
-        const result = await AIGateway.analyze({
+        const result = await AIRuntime.analyze({
             prompt,
             modelPreference: 'fast'
         });
@@ -181,7 +181,7 @@ export class CapabilityBroker {
 
     private async handleJDAnalysis(payload: any, preference: string): Promise<CapabilityResponse> {
         const jdText = payload.text || '';
-        const result = await AIGateway.analyze({
+        const result = await AIRuntime.analyze({
             prompt: `Parse this job description and extract required skills, ideal experience years, target salary, and job role:\n\n${jdText}`,
             modelPreference: 'fast'
         });

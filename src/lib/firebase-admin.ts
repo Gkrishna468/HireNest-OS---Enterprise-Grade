@@ -71,12 +71,8 @@ try {
   // 1. Explicit FIREBASE_PROJECT_ID (unless it is the placeholder 'hirenest-os' in a managed env)
   // 2. System GOOGLE_CLOUD_PROJECT
   // 3. Blueprint config
-  let projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || firebaseConfig.projectId;
+  let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
   
-  if (isManagedEnv && projectId === "hirenest-os" && process.env.GOOGLE_CLOUD_PROJECT) {
-    console.log("[Firebase Admin] Detected managed environment with hirenest-os placeholder. Switching to GOOGLE_CLOUD_PROJECT:", process.env.GOOGLE_CLOUD_PROJECT);
-    projectId = process.env.GOOGLE_CLOUD_PROJECT;
-  }
 
   console.log("[Firebase Admin] Init attempt. Project:", projectId);
 

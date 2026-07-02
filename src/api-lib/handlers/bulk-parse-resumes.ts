@@ -1,4 +1,4 @@
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 import { Type } from "@google/genai";
 import { adminDb } from "../../lib/firebase-admin.js";
 import crypto from "crypto";
@@ -10,13 +10,15 @@ const generateAIPayload = async (
   options: any,
 ) => {
   try {
-    const aiResponse = await AIGateway.analyze({
+    const aiResponse = await AIRuntime.analyze({
       prompt: `${systemInstruction}\n\n${prompt}`,
+      capability: options.capability || 'resume_parsing',
       modelPreference: "accurate",
       schema: options.responseSchema ? true : false,
+      compressContext: true // NEW: Use Headroom for Resume compression
     });
 
-    if (aiResponse.outcome === "failed") throw new Error("AIGateway failed");
+    if (aiResponse.outcome === "failed") throw new Error("AIRuntime failed");
     return JSON.stringify(aiResponse.data);
   } catch (err: any) {
     console.error("[AI GATEWAY] Gemini generation error:", err);

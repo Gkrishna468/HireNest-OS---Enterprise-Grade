@@ -4,7 +4,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Trash2, Check, Save, Lock } from "lucide-react";
+import { Trash2, Check, Save, Lock, Clock } from "lucide-react";
 
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [users, setUsers] = useState<any[]>([]);
@@ -17,7 +17,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     lastCheck: '-' 
   });
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE" | "ONBOARDING">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE" | "ONBOARDING" | "PERMISSIONS">("ALL");
   const [onboardingRequests, setOnboardingRequests] = useState<any[]>([]);
   
   // Form state
@@ -27,12 +27,14 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [userToDelete, setUserToDelete] = useState<{ id: string, orgId: string, email: string, name: string, role: string } | null>(null);
+  const [userToDelete, setUserToDelete] = useState<{ id: string, orgId: string, email: string, name: string, role: string, data?: any } | null>(null);
+  const [selectedUserForTracking, setSelectedUserForTracking] = useState<any>(null);
 
   const roles = [
     { value: 'super_admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
     { value: 'client_admin', label: 'Client', category: 'DEMAND' },
-    { value: 'vendor_admin', label: 'Vendor', category: 'SUPPLY' },
+    { value: 'vendor_admin', label: 'Vendor HQ', category: 'SUPPLY' },
+    { value: 'vendor_recruiter', label: 'Vendor Recruiter', category: 'SUPPLY' },
     { value: 'recruiter', label: 'Recruiter', category: 'SUPPLY' },
     { value: 'independent', label: 'Independent', category: 'SUPPLY' },
     { value: 'ACCOUNT_MANAGER', label: 'account manager', category: 'DEMAND' },
@@ -509,7 +511,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
         <div className="lg:col-span-3 space-y-6">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY", "ONBOARDING"] as const).map(tab => (
+            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY", "ONBOARDING", "PERMISSIONS"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -530,6 +532,32 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
             <div className="space-y-4">
               {loading ? (
                 <div className="py-32 text-center text-[10px] font-black lowercase tracking-[0.3em] text-slate-400">syncing matrix...</div>
+              ) : activeTab === "PERMISSIONS" ? (
+                <div className="space-y-6">
+                   <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
+                      <h3 className="text-sm font-black lowercase italic tracking-tight">saas capability matrix</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Pricing & Variations</p>
+                   </div>
+                   <div className="space-y-4">
+                     {[
+                       { role: "super_admin", access: "Full System Write & Read, Billing, Orchestration", tier: "Global HQ" },
+                       { role: "vendor_admin", access: "Vendor OS, Master Agency Settings, Sub-recruiter Management, Job Visibility", tier: "Enterprise Vendor" },
+                       { role: "vendor_recruiter", access: "Candidate Submission, Job Matching, Deal Rooms", tier: "Sub-seat (Vendor)" },
+                       { role: "client_admin", access: "Client OS, Requisition Creation, Candidate Review, Offers", tier: "Enterprise Client" },
+                       { role: "independent", access: "Single-seat Recruiting, Job Matching, Candidate Submission", tier: "Pro Seat" },
+                     ].map((item, idx) => (
+                       <div key={idx} className="flex flex-col md:flex-row justify-between p-6 bg-slate-50 rounded-[28px] border-2 border-slate-100 items-start md:items-center gap-4">
+                         <div>
+                           <div className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-1">{item.role}</div>
+                           <div className="text-sm font-medium text-slate-700">{item.access}</div>
+                         </div>
+                         <div className="bg-white px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase border border-slate-200">
+                           {item.tier}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                </div>
               ) : activeTab === "ONBOARDING" ? (
                 <div className="space-y-6">
                    <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
@@ -611,12 +639,19 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                         </div>
                         <div>
                           <div className="font-black text-slate-900 lowercase tracking-tight flex items-center gap-2">
-                            {u.email}
+                            <button onClick={() => setSelectedUserForTracking(u)} className="hover:text-indigo-600 transition-colors text-left underline decoration-slate-200 underline-offset-4">
+                              {u.email}
+                            </button>
                             {u.role === 'admin' && <Check size={12} className="text-indigo-600" />}
                           </div>
                           <div className="flex items-center gap-3 mt-1">
                              <span className="text-[10px] text-slate-400 font-bold lowercase tracking-widest">
                                {u.org?.companyName?.toLowerCase() || 'unmapped entity'}
+                               {u.org?.plan && (
+                                 <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] uppercase font-black">
+                                   {u.org.plan}
+                                 </span>
+                               )}
                              </span>
                              <span className="h-1 w-1 rounded-full bg-slate-200" />
                              <span className={cn(
@@ -627,8 +662,16 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                                {getRoleLabel(u.role).toLowerCase()}
                              </span>
                           </div>
-                          <div className="mt-2">
+                          <div className="mt-2 flex items-center gap-4">
                              <VerificationBadge verification={u.verification} role={u.role} email={u.email} />
+                             <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                               <Clock size={12} className="text-slate-400" />
+                               {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
+                             </div>
+                             <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                               <span className={cn("w-1.5 h-1.5 rounded-full", u.disabled ? "bg-red-500" : "bg-emerald-500")} />
+                               {u.disabled ? 'Disabled' : 'Active'}
+                             </div>
                           </div>
                         </div>
                       </div>
@@ -663,7 +706,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                             <Lock size={16} />
                          </button>
                          <button 
-                            onClick={() => setUserToDelete({ id: u.id, orgId: u.organizationId, email: u.email, name: u.name || "Unknown", role: u.role })}
+                            onClick={() => setUserToDelete({ id: u.id, orgId: u.organizationId, email: u.email, name: u.name || "Unknown", role: u.role, data: u })}
                             className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm"
                          >
                             <Trash2 size={16} />
@@ -694,7 +737,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
               </div>
             </div>
             
-            <h2 className="text-xl font-bold text-center text-slate-900 mb-2">Delete User</h2>
+            <h2 className="text-xl font-bold text-center text-slate-900 mb-2">Delete User Permanently</h2>
             
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6">
               <div className="flex justify-between py-2 border-b border-slate-200">
@@ -711,24 +754,113 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
               </div>
             </div>
             
-            <p className="text-center text-sm font-semibold text-red-600 mb-8">
-              ⚠️ This action cannot be undone.
+            <p className="text-center text-sm font-semibold text-red-600 mb-6 px-4">
+              ⚠️ This action cannot be undone. It is highly recommended to export their data before permanent deletion.
             </p>
             
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3">
               <button 
-                onClick={() => setUserToDelete(null)}
-                className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                onClick={() => {
+                  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userToDelete.data || userToDelete, null, 2));
+                  const dlAnchorElem = document.createElement('a');
+                  dlAnchorElem.setAttribute("href", dataStr);
+                  dlAnchorElem.setAttribute("download", `user_export_${userToDelete.email}.json`);
+                  dlAnchorElem.click();
+                }}
+                className="w-full py-3 px-4 rounded-xl border-2 border-indigo-100 bg-indigo-50 text-indigo-700 font-black tracking-widest uppercase text-[10px] hover:bg-indigo-100 transition-colors"
                 disabled={isSubmitting}
               >
-                Cancel
+                Export Data (JSON)
               </button>
+              
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setUserToDelete(null)}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={executeDeleteUser}
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 px-4 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? "Deleting..." : "Delete Permanently"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Real-time Tracking Modal */}
+      {selectedUserForTracking && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+            
+            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 lowercase italic">identity telemetry</h2>
+              <span className={cn(
+                "px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest",
+                selectedUserForTracking.isOnline ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+              )}>
+                {selectedUserForTracking.isOnline ? "Active Session" : "Offline"}
+              </span>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                <div className={cn(
+                  "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl text-white",
+                  getRoleCategory(selectedUserForTracking.role) === 'GOVERNANCE' ? 'bg-slate-900' :
+                  getRoleCategory(selectedUserForTracking.role) === 'DEMAND' ? 'bg-indigo-600' : 'bg-amber-500'
+                )}>
+                  {selectedUserForTracking.email.charAt(0).toLowerCase()}
+                </div>
+                <div>
+                  <div className="font-black text-slate-900 lowercase text-lg">{selectedUserForTracking.email}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    {getRoleLabel(selectedUserForTracking.role)} Node
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Login</div>
+                  <div className="font-bold text-slate-700 text-sm">
+                    {selectedUserForTracking.lastLoginAt ? new Date(selectedUserForTracking.lastLoginAt).toLocaleString() : 'Never'}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Created At</div>
+                  <div className="font-bold text-slate-700 text-sm">
+                    {selectedUserForTracking.createdAt ? new Date(selectedUserForTracking.createdAt).toLocaleString() : 'Unknown'}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Organization</div>
+                  <div className="font-bold text-slate-700 text-sm">
+                    {selectedUserForTracking.org?.companyName || 'Unmapped'}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">UID</div>
+                  <div className="font-mono text-slate-700 text-[10px] truncate">
+                    {selectedUserForTracking.uid || selectedUserForTracking.id}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-8 flex justify-end">
               <button 
-                onClick={executeDeleteUser}
-                disabled={isSubmitting}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+                onClick={() => setSelectedUserForTracking(null)}
+                className="py-3 px-8 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px] hover:bg-slate-800 transition-colors"
               >
-                {isSubmitting ? "Deleting..." : "Delete Permanently"}
+                Close Telemetry
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST")
@@ -53,7 +53,7 @@ User Role: ${type}`;
     }
 
     try {
-      const aiResponse = await AIGateway.analyze({
+      const aiResponse = await AIRuntime.analyze({
         prompt: userPrompt,
         schema: !isCopilot,
       });

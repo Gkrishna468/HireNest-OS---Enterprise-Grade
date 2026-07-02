@@ -1,4 +1,5 @@
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
+import { PromptRegistry } from "../services/PromptRegistry.js";
 
 const logAiUsage = async (
   metricName: string,
@@ -151,18 +152,21 @@ export default async function handler(req: any, res: any) {
 
     if (explainWithAI) {
       try {
-        const aiResponse = await AIGateway.analyze({
-          prompt: `SYSTEM INSTRUCTION: You are a technical hiring expert. 
-Provide a 1-2 sentence explanation of why this candidate is a match (or not) for the given Job Description.
-Base your reasoning on these deterministic results:
-- Score: ${totalScore}%
-- Matched Skills: ${foundSkills.join(", ")}
-- Missing Skills: ${missingSkills.join(", ")}
-- Experience Fit: ${candidateExp} yrs vs ${requiredExp} yrs required.
+        const prompt = PromptRegistry.getPrompt('candidate_match', 'v1', {
+          totalScore,
+          foundSkills,
+          missingSkills,
+          candidateExp,
+          requiredExp,
+          jdText: jdLower.substring(0, 1000),
+          resumeText: resumeLower.substring(0, 1000)
+        });
 
-JD: ${jdLower.substring(0, 1000)}
-RESUME: ${resumeLower.substring(0, 1000)}`,
-          modelPreference: "fast"
+        const aiResponse = await AIRuntime.analyze({
+          prompt: prompt,
+          capability: 'candidate_matching',
+          modelPreference: "fast",
+          compressContext: true
         });
         if (aiResponse.outcome === "success") {
           aiReasoning = aiResponse.data.text || "";

@@ -1,5 +1,5 @@
 import { adminDb } from "../../lib/firebase-admin.js";
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 import { EventBus } from "../services/EventBus.js"; // Assume EventBus exists or we'll mock it if it doesn't
 
 export default async function copilotHandler(req: any, res: any) {
@@ -115,10 +115,11 @@ Format your response as a JSON object with the following properties:
 
 JSON format only.`;
 
-    const aiResponse = await AIGateway.analyze({
+    const aiResponse = await AIRuntime.analyze({
       prompt: prompt,
       modelPreference: "fast",
       schema: true,
+      compressContext: true // Uses Headroom
     });
 
     if (aiResponse.outcome === "failed") {

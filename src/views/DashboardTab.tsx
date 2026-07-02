@@ -910,7 +910,13 @@ export default function DashboardTab() {
                   <div>
                     <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400">AI Recruiter OS Advisor recommendation:</span>
                     <p className="text-xs text-slate-300 font-medium leading-relaxed mt-0.5">
-                      Sourcing velocity of partner <strong className="text-indigo-300">TechNova</strong> is high. Reassign the new <strong className="text-white">Java Backend</strong> requirement immediately to accelerate shortlisting.
+                      {cooDecisions.length > 0 ? (
+                        <>
+                          <strong className="text-white">{cooDecisions[0].title}</strong>: {cooDecisions[0].reason}
+                        </>
+                      ) : (
+                        <span className="text-slate-500 italic">Listening for market signals and operational drift...</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1127,23 +1133,33 @@ export default function DashboardTab() {
                     </div>
 
                     <div className="p-5 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-4">
-                      <p className="text-xs text-indigo-300 font-semibold leading-relaxed">
-                        "SLA compliance threshold warnings detected on Requirement R-102 (React Developer). Sourcing speed of vendor Global IT Talent is below 78% target."
-                      </p>
-                      <div className="border-t border-indigo-500/10 pt-3 flex flex-col gap-2">
-                        <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">Recommended Action:</span>
-                        <p className="text-xs text-white font-bold flex items-center gap-1">
-                          <CornerDownRight size={14} className="text-indigo-400 shrink-0" />
-                          Reassign Senior Recruiter Raj Kumar to oversee Acme Corp portfolio directly.
+                      {cooDecisions.length > 0 ? (
+                        <>
+                          <p className="text-xs text-indigo-300 font-semibold leading-relaxed">
+                            "{cooDecisions[0].reason}"
+                          </p>
+                          <div className="border-t border-indigo-500/10 pt-3 flex flex-col gap-2">
+                            <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">Recommended Action:</span>
+                            <p className="text-xs text-white font-bold flex items-center gap-1">
+                              <CornerDownRight size={14} className="text-indigo-400 shrink-0" />
+                              {cooDecisions[0].title}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-indigo-300 font-semibold leading-relaxed">
+                          "System architecture is fully synchronized. Awaiting further operational metrics to generate strategic briefings."
                         </p>
-                      </div>
+                      )}
                     </div>
 
                     <div className="mt-6 flex flex-col gap-3">
                       <div className="flex items-center gap-3 p-3 bg-slate-950 border border-slate-800/60 rounded-xl">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-black text-xs">A+</div>
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-black text-xs">
+                          {cooDecisions.length > 0 ? (cooDecisions[0].confidence >= 90 ? 'A+' : 'A') : 'A+'}
+                        </div>
                         <div>
-                          <span className="text-[10px] font-bold text-slate-200">Confidence Match Score: 94%</span>
+                          <span className="text-[10px] font-bold text-slate-200">Confidence Match Score: {cooDecisions.length > 0 ? cooDecisions[0].confidence : 98}%</span>
                           <p className="text-[9px] text-slate-500 font-mono">Calculated by Decision Engine v2</p>
                         </div>
                       </div>
@@ -1259,25 +1275,35 @@ export default function DashboardTab() {
               </div>
 
               <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                {[
-                  { time: "09:20", badge: "AI RANKER", badgeColor: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20", msg: "AI ranked 82 candidates for Senior React Developer", detail: "8 matching high-confidence scores synced to client_match_index" },
-                  { time: "09:31", badge: "VENDOR PARTNER", badgeColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", msg: "Vendor Partner TechNova submitted 3 new resumes", detail: "Resumes passed static screening rules and compiled directly to database" },
-                  { time: "09:45", badge: "OFFICE WORKFLOW", badgeColor: "text-amber-400 bg-amber-500/10 border-amber-500/20", msg: "Technical interview Round 1 scheduled with John Doe", detail: "Availability validated; Google Calendar invite dispatched successfully" },
-                  { time: "10:05", badge: "REVENUE GENERAL", badgeColor: "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20", msg: "Placement completed successfully for Acme Corp Lead", detail: "Invoice INV-2026-04 drafted and dispatch workflow initiated to client" },
-                  { time: "10:22", badge: "AI COO", badgeColor: "text-purple-400 bg-purple-500/10 border-purple-500/20", msg: "Autonomous workspace queue load balanced", detail: "Reassigned priority tickets and verified compliance with client SLA targets" },
-                ].map((act, idx) => (
-                  <div key={idx} className="flex items-start gap-4 p-4 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 hover:bg-slate-900/40 transition-all duration-200 text-left">
-                    <span className="text-xs font-mono font-bold text-slate-500 whitespace-nowrap pt-0.5">{act.time}</span>
-                    <div className="h-2 w-2 rounded-full bg-indigo-500 mt-2 shrink-0 animate-pulse" />
-                    <div className="flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${act.badgeColor}`}>{act.badge}</span>
-                        <h4 className="text-xs font-bold text-white leading-tight">{act.msg}</h4>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-medium font-mono">{act.detail}</p>
-                    </div>
+                {recentEvents.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-mono text-slate-500 bg-slate-900/20 border border-slate-800 rounded-xl">
+                    No recent events on the enterprise channel.
                   </div>
-                ))}
+                ) : (
+                  recentEvents.slice(0, 10).map((act, idx) => {
+                    const timeStr = act.timestamp?.toDate ? act.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "Just now";
+                    const badgeStr = act.type.replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+                    let badgeColor = "text-slate-400 bg-slate-500/10 border-slate-500/20";
+                    if (act.type === 'CandidateMatched' || act.type === 'AI') badgeColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/20";
+                    else if (act.type === 'CandidateUploaded' || act.type === 'SubmissionCreated') badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                    else if (act.type === 'InterviewScheduled' || act.type === 'DealRoomOpened') badgeColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                    else if (act.type === 'PlacementCompleted') badgeColor = "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20";
+                    
+                    return (
+                      <div key={idx} className="flex items-start gap-4 p-4 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 hover:bg-slate-900/40 transition-all duration-200 text-left">
+                        <span className="text-xs font-mono font-bold text-slate-500 whitespace-nowrap pt-0.5">{timeStr}</span>
+                        <div className="h-2 w-2 rounded-full bg-indigo-500 mt-2 shrink-0 animate-pulse" />
+                        <div className="flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${badgeColor}`}>{badgeStr}</span>
+                            <h4 className="text-xs font-bold text-white leading-tight">{act.message || badgeStr}</h4>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium font-mono">{act.detail || `Event recorded from ${act.source || 'system'} module`}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 

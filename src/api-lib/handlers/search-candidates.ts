@@ -1,15 +1,6 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { getScopedCandidateUniverse } from "../utils/governance.js";
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
+import { AIRuntime } from "../services/AIRuntime.js";
 
 export default async function searchCandidatesHandler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -70,23 +61,18 @@ export default async function searchCandidatesHandler(req: any, res: any) {
       Return ONLY the JSON array.
     `;
 
-    const result = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
+    const result = await AIRuntime.analyze({
+      prompt: prompt,
+      modelPreference: 'fast',
+      schema: true,
+      compressContext: true // Uses Headroom
     });
     
-    const responseText = result.text || "[]";
-    
-    let rankings = [];
-    try {
-      rankings = JSON.parse(responseText);
-    } catch (e) {
-      console.error("[SEARCH_AI_PARSE_ERR] Failed to parse Gemini response", responseText);
-      // Fallback to simple matching if AI fails
-      return res.status(200).json({ candidates });
+    let rankings = result.data || [];
+
+    if (!Array.isArray(rankings)) {
+      console.warn("[SEARCH_AI_PARSE_WARN] Expected array, got something else", rankings);
+      rankings = [];
     }
 
     // 3. Merge rankings back into candidate data

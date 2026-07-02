@@ -5,7 +5,7 @@ import "../temporal/workflows/ai-copilot.js";
 import "../temporal/workflows/sla-escalation.js";
 import "../temporal/workflows/interview-coordination.js";
 import { adminDb } from "../../lib/firebase-admin.js";
-import { AIGateway } from "../services/AIGateway.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 
 export default async function workflowsHandler(req: any, res: any) {
   if (req.method === "POST") {
@@ -68,7 +68,7 @@ Return a raw JSON object with these fields (and no markdown formatting wrapped e
 }`;
 
         try {
-          const aiResponse = await AIGateway.analyze({
+          const aiResponse = await AIRuntime.analyze({
             prompt: prompt,
             modelPreference: "fast",
             schema: true

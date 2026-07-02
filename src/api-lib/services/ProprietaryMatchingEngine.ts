@@ -1,5 +1,5 @@
 import { db } from '../../lib/firebase-admin.js';
-import { AIGateway } from './AIGateway.js';
+import { AIRuntime } from './AIRuntime.js';
 
 export interface MatchResult {
   candidateId: string;
@@ -124,7 +124,7 @@ export class ProprietaryMatchingEngine {
       }
     `;
 
-    const response = await AIGateway.analyze({
+    const response = await AIRuntime.analyze({
       prompt,
       modelPreference: 'fast',
       schema: true

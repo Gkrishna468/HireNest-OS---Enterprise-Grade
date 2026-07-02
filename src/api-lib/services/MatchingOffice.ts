@@ -1,6 +1,6 @@
 import { db } from '../../lib/firebase-admin.js';
 import { EventBus } from './EventBus.js';
-import { AIGateway } from './AIGateway.js';
+import { AIRuntime } from './AIRuntime.js';
 import { BusinessGraphService } from './BusinessGraphService.js';
 import { ProprietaryMatchingEngine } from './ProprietaryMatchingEngine.js';
 
