@@ -1,4 +1,4 @@
-import { adminDb } from "../../lib/firebase-admin";
+import { adminDb } from "../../lib/firebase-admin.js";
 
 export class IntakeMetrics {
     static async increment(tenantId: string, metricKey: string, count: number = 1) {

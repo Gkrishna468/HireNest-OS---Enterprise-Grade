@@ -1,7 +1,7 @@
 import { db } from "../../lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, setDoc } from "firebase/firestore";
 import { EventDispatcher } from "../../events/EventDispatcher";
-import { EventEnvelope } from '../../../packages/shared-integration/index';
+import { EventEnvelope } from '../../events/types/EventEnvelope';
 import { CRMEventBridge } from "../crm/CRMEventBridge";
 
 export class SystemEventListener {
@@ -58,7 +58,7 @@ export class SystemEventListener {
       onSnapshot(eventsQ, (snap) => {
         snap.docChanges().forEach(async (change) => {
           if (change.type === "added") {
-            const evt = change.doc.data() as EventEnvelope;
+            const evt = change.doc.data() as EventEnvelope<any>;
             
             if (subscribedTypes.includes(evt.type)) {
               console.log(`[SystemEventListener] Routing system event to OS EventBus: ${evt.type}`);
@@ -66,7 +66,7 @@ export class SystemEventListener {
                 id: evt.id,
                 type: evt.type,
                 timestamp: new Date(evt.timestamp || Date.now()).toISOString(),
-                tenantId: evt.context?.tenantId || "system",
+                tenantId: evt.tenantId || "system",
                 payload: evt.payload
               });
 

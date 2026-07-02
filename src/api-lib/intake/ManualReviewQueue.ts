@@ -1,6 +1,6 @@
-import { IntakeEnvelope } from "./IntakeEnvelope";
-import { ClassificationResult } from "./EntityClassifier";
-import { adminDb } from "../../lib/firebase-admin";
+import { IntakeEnvelope } from "./IntakeEnvelope.js";
+import { ClassificationResult } from "./EntityClassifier.js";
+import { adminDb } from "../../lib/firebase-admin.js";
 
 export class ManualReviewQueue {
     static async enqueue(

@@ -1,4 +1,4 @@
-import { IntakeAttachment } from "./IntakeEnvelope";
+import { IntakeAttachment } from "./IntakeEnvelope.js";
 
 export class AttachmentProcessor {
   static async process(attachment: IntakeAttachment): Promise<string> {

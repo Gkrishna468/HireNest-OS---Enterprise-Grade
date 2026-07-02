@@ -1,15 +1,15 @@
-import { IntakeEnvelope } from "./IntakeEnvelope";
-import { SourceNormalizer } from "./SourceNormalizer";
-import { EntityClassifier } from "./EntityClassifier";
-import { IntakeValidator } from "./IntakeValidator";
-import { DuplicateResolver } from "./DuplicateResolver";
-import { OrganizationResolver } from "./OrganizationResolver";
-import { IntakeEventType } from "./IntakeEvents";
-import { adminDb } from "../../lib/firebase-admin";
-import { IntakeMetrics } from "./IntakeMetrics";
-import { IntakeAudit } from "./IntakeAudit";
-import { ManualReviewQueue } from "./ManualReviewQueue";
-import { RelationshipBuilder } from "./RelationshipBuilder";
+import { IntakeEnvelope } from "./IntakeEnvelope.js";
+import { SourceNormalizer } from "./SourceNormalizer.js";
+import { EntityClassifier } from "./EntityClassifier.js";
+import { IntakeValidator } from "./IntakeValidator.js";
+import { DuplicateResolver } from "./DuplicateResolver.js";
+import { OrganizationResolver } from "./OrganizationResolver.js";
+import { IntakeEventType } from "./IntakeEvents.js";
+import { adminDb } from "../../lib/firebase-admin.js";
+import { IntakeMetrics } from "./IntakeMetrics.js";
+import { IntakeAudit } from "./IntakeAudit.js";
+import { ManualReviewQueue } from "./ManualReviewQueue.js";
+import { RelationshipBuilder } from "./RelationshipBuilder.js";
 
 export class IntakeEngine {
   static async process(rawPayload: any, source: string): Promise<any> {

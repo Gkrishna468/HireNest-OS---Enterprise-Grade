@@ -1,5 +1,5 @@
-import { IntakeEnvelope } from "./IntakeEnvelope";
-import { AIRuntime } from "../services/AIRuntime";
+import { IntakeEnvelope } from "./IntakeEnvelope.js";
+import { AIRuntime } from "../services/AIRuntime.js";
 
 export type EntityClassification =
   | "Requirement"

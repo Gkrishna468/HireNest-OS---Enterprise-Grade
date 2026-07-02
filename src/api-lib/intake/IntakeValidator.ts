@@ -1,5 +1,5 @@
-import { IntakeEnvelope } from "./IntakeEnvelope";
-import { ClassificationResult } from "./EntityClassifier";
+import { IntakeEnvelope } from "./IntakeEnvelope.js";
+import { ClassificationResult } from "./EntityClassifier.js";
 
 export class IntakeValidator {
   static validate(

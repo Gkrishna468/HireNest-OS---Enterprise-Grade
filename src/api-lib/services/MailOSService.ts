@@ -116,12 +116,31 @@ export class MailOSService {
                     gmailMessageId: msg.id,
                     workspaceId: orgId,
                     status: 'PROCESSED_BY_INTAKE',
-                    createdAt: new Date()
-                });
+                    createdAt: new Date(),
+                    rawPayload: {
+                        subject,
+                        from,
+                        snippet: msgData.data.snippet || '',
+                        body,
+                        attachments
+                    }
+                }, { merge: true });
 
                 // Process via Intake Engine asynchronously to not block sync
                 IntakeEngine.process(rawPayload, "gmail").catch(e => {
                     console.error(`[MailOS] IntakeEngine processing failed for ${msg.id}:`, e);
+                });
+
+                // Publish EMAIL_RECEIVED event to EventBus to trigger AI Workforce
+                EventBus.publish("EMAIL_RECEIVED", {
+                    messageId: msg.id,
+                    subject,
+                    from,
+                    body,
+                    workspaceId: orgId,
+                    description: body.substring(0, 500)
+                }, "MAILOS", orgId).catch(e => {
+                    console.error(`[MailOS] EventBus publish failed for ${msg.id}:`, e);
                 });
 
                 processed.push({ type: 'RECEIVED', id: msg.id, subject, summary: 'Sent to Universal Intake Engine.' });

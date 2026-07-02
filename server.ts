@@ -99,7 +99,7 @@ async function createServer() {
       req.originalUrl === '/api/audit' || 
       req.originalUrl.includes('/oauth/callback') || 
       req.originalUrl.includes('/api/oauth/url') ||
-      req.originalUrl.startsWith('/api/public')
+      req.originalUrl.startsWith('/api/public') || req.originalUrl.includes('/api/workspace/gmail/webhook') || req.originalUrl.includes('/api/whatsapp/webhook')
     ) {
       return next();
     }

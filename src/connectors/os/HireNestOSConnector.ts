@@ -10,13 +10,9 @@ export class HireNestOSConnector {
     await EventPublisher.publish({
       id: `evt-${Date.now()}`,
       type: "OPPORTUNITY_WON",
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
+      tenantId: tenantId,
       payload: { opportunityId },
-      context: {
-        tenantId,
-        organizationId: tenantId,
-        traceId: `trace-${Date.now()}`
-      }
     });
   }
 

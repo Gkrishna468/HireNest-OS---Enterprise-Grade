@@ -1,4 +1,4 @@
-import { IntakeEnvelope } from "./IntakeEnvelope";
+import { IntakeEnvelope } from "./IntakeEnvelope.js";
 
 export class SourceNormalizer {
   static normalize(rawPayload: any, source: string): IntakeEnvelope {

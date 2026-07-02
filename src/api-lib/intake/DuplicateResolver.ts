@@ -1,4 +1,4 @@
-import { adminDb } from "../../lib/firebase-admin";
+import { adminDb } from "../../lib/firebase-admin.js";
 import crypto from "crypto";
 
 export class DuplicateResolver {

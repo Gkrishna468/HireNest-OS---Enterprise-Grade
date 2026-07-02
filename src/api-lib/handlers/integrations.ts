@@ -1,12 +1,12 @@
-import { EventEnvelope } from "../../../packages/shared-integration";
-import { EventDispatcher } from "../../events/EventDispatcher";
+import { EventEnvelope } from "../../events/types/EventEnvelope.js";
+import { EventDispatcher } from "../../events/EventDispatcher.js";
 
 export default async function integrationsHandler(req: any, res: any) {
   const { path } = req;
   const endpoint = path.replace(/^\/api\/integrations\//, "");
 
   if (endpoint === "events") {
-    const event: EventEnvelope = req.body;
+    const event: EventEnvelope<any> = req.body;
     console.log(`[Integration API] Received event: ${event.type}`);
 
     // Check connector Auth (stubbed)
@@ -17,7 +17,7 @@ export default async function integrationsHandler(req: any, res: any) {
       id: event.id,
       type: event.type,
       timestamp: new Date(event.timestamp).toISOString(),
-      tenantId: event.context?.tenantId || "system",
+      tenantId: event.tenantId || "system",
       payload: event.payload,
     });
 
