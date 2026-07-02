@@ -107,6 +107,78 @@ export default function FounderControlTower() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
+        {/* AI CEO Morning Briefing */}
+        <div className="bg-indigo-950 p-6 rounded-2xl shadow-xl border border-indigo-800 text-white lg:col-span-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600 rounded-full blur-[100px] opacity-20 -mr-10 -mt-10 pointer-events-none"></div>
+            <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start justify-between">
+                <div className="flex-1">
+                    <h2 className="text-2xl font-black mb-1 flex items-center gap-2 text-white">
+                        Good Morning, Gopal
+                    </h2>
+                    <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest mb-6">Your AI CEO Briefing • Yesterday's Performance</p>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-6 pb-6 border-b border-indigo-800/50">
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Requirements</p>
+                            <p className="text-xl font-black">43</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Candidates Parsed</p>
+                            <p className="text-xl font-black">214</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">AI Matches</p>
+                            <p className="text-xl font-black">81</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Interviews</p>
+                            <p className="text-xl font-black">17</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Offers</p>
+                            <p className="text-xl font-black">3</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Placement</p>
+                            <p className="text-xl font-black text-emerald-400">1</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-8">
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">Revenue Pipeline</p>
+                            <p className="text-2xl font-black text-emerald-400">₹24.8L</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">AI Time Saved</p>
+                            <p className="text-2xl font-black text-amber-400">5.4 Hrs</p>
+                            <p className="text-[9px] text-indigo-300 mt-0.5">Recruiter Hours</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="w-full md:w-80 bg-indigo-900/50 border border-indigo-800/50 rounded-xl p-5 shrink-0">
+                    <h3 className="text-xs font-black text-indigo-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <Zap size={14} className="text-amber-400" /> Recommended Actions
+                    </h3>
+                    <div className="space-y-3">
+                        <button className="w-full text-left bg-indigo-900 hover:bg-indigo-800 border border-indigo-700/50 p-3 rounded-lg transition-colors group">
+                            <p className="text-[10px] text-indigo-300 font-bold uppercase mb-1 group-hover:text-white transition-colors">Client Action</p>
+                            <p className="text-sm font-bold">Follow up with ABC Client</p>
+                        </button>
+                        <button className="w-full text-left bg-indigo-900 hover:bg-indigo-800 border border-indigo-700/50 p-3 rounded-lg transition-colors group">
+                            <p className="text-[10px] text-rose-300 font-bold uppercase mb-1 group-hover:text-rose-200 transition-colors">Vendor Action</p>
+                            <p className="text-sm font-bold text-rose-100">Escalate Vendor XYZ</p>
+                        </button>
+                        <button className="w-full text-left bg-indigo-900 hover:bg-indigo-800 border border-indigo-700/50 p-3 rounded-lg transition-colors group">
+                            <p className="text-[10px] text-emerald-300 font-bold uppercase mb-1 group-hover:text-emerald-200 transition-colors">Broadcast</p>
+                            <p className="text-sm font-bold text-emerald-100">Increase broadcast on REQ-881</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {/* Financial Health */}
         <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 text-white lg:col-span-1">
            <h3 className="font-bold text-slate-100 uppercase tracking-widest text-xs mb-6 border-b border-slate-800 pb-2 flex justify-between">

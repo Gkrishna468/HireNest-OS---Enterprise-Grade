@@ -1,6 +1,8 @@
 import multer from "multer";
 import mammoth from "mammoth";
 import path from "path";
+import { ErrorMonitor } from "../telemetry/errorMonitor.js";
+import { AuditLogger } from "../telemetry/auditLogger.js";
 
 // Configure multer storage in memory with size limits to prevent Denial of Service (DoS)
 const multerFunc =
@@ -67,6 +69,15 @@ export default async function handler(req: any, res: any) {
       const isSecurityOrLimit =
         err.message.includes("Security Alert") ||
         err.code === "LIMIT_FILE_SIZE";
+        
+      await ErrorMonitor.captureError({
+          requestId: req.requestId,
+          context: '/api/extract-text',
+          errorType: 'OCR_FAILURE',
+          errorMessage: err.message || "File upload validation failed",
+          metadata: { isSecurityOrLimit }
+      });
+
       return res.status(isSecurityOrLimit ? 400 : 500).json({
         message: isSecurityOrLimit
           ? "Validation/Security constraints violated"
@@ -85,6 +96,12 @@ export default async function handler(req: any, res: any) {
     console.log(
       `[EXTRACTION] Processing file: ${originalname}, Type: ${mimetype}, Ext: ${fileExtension}`,
     );
+
+    await AuditLogger.log({
+        action: 'RESUME_UPLOADED',
+        details: `File uploaded for extraction: ${originalname}`,
+        metadata: { mimetype, size: buffer.length }
+    });
 
     try {
       let extractedText = "";
@@ -129,6 +146,13 @@ export default async function handler(req: any, res: any) {
             "[EXTRACTION] pdfjs-dist parser failed, reverting to binary clean parsing fallback...",
             pdfErr,
           );
+          await ErrorMonitor.captureError({
+              requestId: req.requestId,
+              context: '/api/extract-text (pdfjs)',
+              errorType: 'OCR_FAILURE',
+              errorMessage: pdfErr.message || "PDF parse error",
+              metadata: { originalname }
+          });
           extractedText = cleanBufferText(buffer);
         }
       } else if (
@@ -182,6 +206,15 @@ export default async function handler(req: any, res: any) {
         `[EXTRACTION] Parser had an unexpected failure for ${originalname}. Recovering with synthetic profile:`,
         parseError,
       );
+      
+      await ErrorMonitor.captureError({
+          requestId: req.requestId,
+          context: '/api/extract-text (fallback)',
+          errorType: 'OCR_FAILURE',
+          errorMessage: parseError.message || "Fatal parse error",
+          metadata: { originalname }
+      });
+
       const recoveredText = generateSyntheticProfile(originalname);
       return res.status(200).json({ text: recoveredText });
     }

@@ -94,10 +94,6 @@ export default function InboxTab() {
                     <span className="block text-[10px] uppercase font-bold text-slate-400">Review</span>
                   </div>
                 </div>
-                <Button onClick={handleSync} disabled={syncing} className="gap-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl px-5 py-2.5 shadow-sm text-sm font-bold">
-                    <RefreshCw size={16} className={cn(syncing && "animate-spin")} />
-                    {syncing ? 'Syncing...' : 'Sync Inbox'}
-                </Button>
              </div>
          </div>
       </header>

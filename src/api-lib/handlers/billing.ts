@@ -59,9 +59,49 @@ billingHandler.get("/status", async (req, res) => {
   }
 });
 
-billingHandler.post("/webhook", async (req, res) => {
-    // Basic stub for Stripe / Razorpay Webhooks
-    const event = req.body;
+billingHandler.get("/usage", async (req, res) => {
+  try {
+    const workspace = await WorkspaceResolver.resolve(req);
+    const billingPeriod = new Date().toISOString().substring(0, 7);
+    const snap = await db.collection("billingLedgers").doc(`${workspace.orgId}_${billingPeriod}`).get();
+    
+    res.json({
+        success: true,
+        period: billingPeriod,
+        usage: snap.exists ? snap.data() : {
+            workflowExecutions: 0,
+            aiTokens: 0,
+            vectorQueries: 0
+        }
+    });
+  } catch (error: any) {
+    console.error("[BILLING] Usage fetch failed", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+billingHandler.post("/webhook", express.raw({type: 'application/json'}), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    let event;
+
+    try {
+        if (endpointSecret && sig) {
+            const stripe = getStripe();
+            if (stripe) {
+                event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+            } else {
+                event = JSON.parse(req.body.toString());
+            }
+        } else {
+            event = JSON.parse(req.body.toString());
+        }
+    } catch (err: any) {
+        console.error(`[BILLING WEBHOOK] Webhook Error: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
     try {
         console.log("[BILLING WEBHOOK] Received event", event.type);
         

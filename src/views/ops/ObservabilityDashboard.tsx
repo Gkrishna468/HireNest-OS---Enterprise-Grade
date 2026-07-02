@@ -1,69 +1,58 @@
 import React, { useState, useEffect } from "react";
-import { Activity, Server, AlertTriangle, ShieldAlert, Key, Clock, ListFilter } from "lucide-react";
+import { Activity, Server, AlertTriangle, ShieldAlert, Key, Clock, ListFilter, Cpu, Bug } from "lucide-react";
 import { collection, query, orderBy, limit, onSnapshot, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 
 export default function ObservabilityDashboard() {
-  const [runtimeErrors, setRuntimeErrors] = useState<any[]>([]);
-  const [workflowFailures, setWorkflowFailures] = useState<any[]>([]);
-  const [oauthEvents, setOauthEvents] = useState<any[]>([]);
-  const [securityEvents, setSecurityEvents] = useState<any[]>([]);
-
+  const [errorLogs, setErrorLogs] = useState<any[]>([]);
+  const [aiMetrics, setAiMetrics] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  
   useEffect(() => {
-    // 1. Runtime Errors
-    const q1 = query(collection(db, "runtime_errors"), orderBy("timestamp", "desc"), limit(50));
-    const u1 = onSnapshot(q1, (snap) => setRuntimeErrors(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    // 2. Workflow Failures
-    const q2 = query(collection(db, "workflow_failures"), orderBy("timestamp", "desc"), limit(50));
-    const u2 = onSnapshot(q2, (snap) => setWorkflowFailures(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    // 3. OAuth Events (Failures only for metric)
-    const q3 = query(collection(db, "oauth_events"), orderBy("timestamp", "desc"), limit(50));
-    const u3 = onSnapshot(q3, (snap) => setOauthEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    // 4. Security Events
-    const q4 = query(collection(db, "security_events"), orderBy("timestamp", "desc"), limit(50));
-    const u4 = onSnapshot(q4, (snap) => setSecurityEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // 1. Error Monitoring Logs
+    const q1 = query(collection(db, "error_monitoring_logs"), orderBy("timestamp", "desc"), limit(50));
+    const u1 = onSnapshot(q1, (snap) => setErrorLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    // 2. AI Metrics Ledger
+    const q2 = query(collection(db, "ai_metrics_ledger"), orderBy("timestamp", "desc"), limit(50));
+    const u2 = onSnapshot(q2, (snap) => setAiMetrics(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    // 3. Audit Logs
+    const q3 = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(50));
+    const u3 = onSnapshot(q3, (snap) => setAuditLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     return () => {
-      u1(); u2(); u3(); u4();
+      u1(); u2(); u3();
     };
   }, []);
 
   const todayStr = new Date().toISOString().split("T")[0];
-
-  const errorsToday = runtimeErrors.filter(e => e.timestamp?.startsWith(todayStr)).length;
-  const wfFailuresToday = workflowFailures.filter(e => e.timestamp?.startsWith(todayStr)).length;
-  const oauthFailuresToday = oauthEvents.filter(e => e.status === "failure" && e.timestamp?.startsWith(todayStr)).length;
-  const securityToday = securityEvents.filter(e => e.timestamp?.startsWith(todayStr)).length;
+  const errorsToday = errorLogs.filter(e => e.timestamp?.startsWith(todayStr)).length;
+  const aiCallsToday = aiMetrics.filter(e => e.timestamp && new Date(e.timestamp.seconds * 1000).toISOString().startsWith(todayStr)).length;
+  const auditEventsToday = auditLogs.filter(e => e.timestamp?.startsWith(todayStr)).length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
         <div className="bg-white p-4 border border-slate-200 rounded-sm">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
-            <Server className="w-3 h-3 mr-1" /> Runtime Errors Today
+            <Bug className="w-3 h-3 mr-1" /> API & System Errors
           </div>
           <div className="text-3xl font-black text-rose-600">{errorsToday}</div>
         </div>
+        
         <div className="bg-white p-4 border border-slate-200 rounded-sm">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
-            <Activity className="w-3 h-3 mr-1" /> Workflow Failures Today
+            <Cpu className="w-3 h-3 mr-1" /> AI Executions Today
           </div>
-          <div className="text-3xl font-black text-amber-600">{wfFailuresToday}</div>
+          <div className="text-3xl font-black text-indigo-600">{aiCallsToday}</div>
         </div>
+        
         <div className="bg-white p-4 border border-slate-200 rounded-sm">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
-            <Key className="w-3 h-3 mr-1" /> OAuth Failures Today
+            <ShieldAlert className="w-3 h-3 mr-1" /> Audit Events Today
           </div>
-          <div className="text-3xl font-black text-purple-600">{oauthFailuresToday}</div>
-        </div>
-        <div className="bg-white p-4 border border-slate-200 rounded-sm">
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
-            <ShieldAlert className="w-3 h-3 mr-1" /> Security Events Today
-          </div>
-          <div className="text-3xl font-black text-indigo-600">{securityToday}</div>
+          <div className="text-3xl font-black text-purple-600">{auditEventsToday}</div>
         </div>
       </div>
 
@@ -72,16 +61,15 @@ export default function ObservabilityDashboard() {
         <div className="w-full flex flex-col">
           <div className="px-4 py-3 border-b flex justify-between items-center bg-slate-50/50">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center">
-              <ListFilter className="w-4 h-4 mr-2 text-slate-400" /> Recent Telemetry
+              <ListFilter className="w-4 h-4 mr-2 text-slate-400" /> Production Telemetry Stream
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto p-0">
             <div className="divide-y divide-slate-100">
-              {[...runtimeErrors.map(e => ({ ...e, _tag: "Runtime", _icon: Server, _color: "text-rose-500", _bg: "bg-rose-50" })),
-                ...workflowFailures.map(e => ({ ...e, _tag: "Workflow", _icon: Activity, _color: "text-amber-500", _bg: "bg-amber-50" })),
-                ...oauthEvents.map(e => ({ ...e, _tag: "OAuth", _icon: Key, _color: "text-purple-500", _bg: "bg-purple-50" })),
-                ...securityEvents.map(e => ({ ...e, _tag: "Security", _icon: ShieldAlert, _color: "text-indigo-500", _bg: "bg-indigo-50" }))
-              ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+              {[...errorLogs.map(e => ({ ...e, _ts: e.timestamp, _tag: e.errorType || "Error", _icon: Bug, _color: "text-rose-500", _bg: "bg-rose-50" })),
+                ...aiMetrics.map(e => ({ ...e, _ts: e.timestamp?.seconds ? new Date(e.timestamp.seconds*1000).toISOString() : new Date().toISOString(), _tag: "AI_CALL", _icon: Cpu, _color: "text-indigo-500", _bg: "bg-indigo-50" })),
+                ...auditLogs.map(e => ({ ...e, _ts: e.timestamp, _tag: "AUDIT", _icon: ShieldAlert, _color: "text-purple-500", _bg: "bg-purple-50" }))
+              ].sort((a, b) => new Date(b._ts).getTime() - new Date(a._ts).getTime())
                .slice(0, 100)
                .map((event, idx) => {
                  const Icon = event._icon;
@@ -94,30 +82,32 @@ export default function ObservabilityDashboard() {
                        <div className="flex items-center justify-between mb-1">
                          <div className="flex items-center gap-2">
                            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{event._tag}</span>
-                           <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase ${
-                             event.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' : 
-                             event.severity === 'ERROR' ? 'bg-rose-100 text-rose-700' :
-                             event.severity === 'WARN' ? 'bg-amber-100 text-amber-700' :
-                             'bg-slate-100 text-slate-700'
-                           }`}>
-                             {event.severity || 'INFO'}
-                           </span>
+                           {event.model && (
+                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase bg-slate-100 text-slate-700">
+                               {event.model}
+                             </span>
+                           )}
+                           {event.confidence && (
+                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase bg-indigo-100 text-indigo-700">
+                               Conf: {event.confidence}%
+                             </span>
+                           )}
                          </div>
                          <div className="text-[10px] font-mono text-slate-400">
-                           {new Date(event.timestamp).toLocaleString()}
+                           {new Date(event._ts).toLocaleString()}
                          </div>
                        </div>
                        <div className="text-sm text-slate-600 truncate">
-                         {event._tag === "Runtime" && (event.message || "Unknown error")}
-                         {event._tag === "Workflow" && `${event.workflowType}: ${event.failureReason || "Failed"}`}
-                         {event._tag === "OAuth" && `${event.provider} - ${event.status}`}
-                         {event._tag === "Security" && `${event.action} on ${event.resource}`}
+                         {event._tag === "AI_CALL" && `Latency: ${event.latency}ms | Provider: ${event.provider} | Capability: ${event.capability || 'general'}`}
+                         {event._tag === "AUDIT" && `${event.action}: ${event.details}`}
+                         {event._tag !== "AI_CALL" && event._tag !== "AUDIT" && (event.errorMessage || event.message || "System Event")}
                        </div>
-                       {(event.tenantId || event.orgId) && (
+                       {(event.userId || event.workspaceId || event.context) && (
                          <div className="text-[10px] font-mono text-slate-400 mt-1 flex items-center gap-2">
-                           {event.tenantId && <span>TENANT: {event.tenantId}</span>}
-                           {event.orgId && <span>ORG: {event.orgId}</span>}
-                           {event.traceId && <span>TRACE: {event.traceId}</span>}
+                           {event.userId && <span>USER: {event.userId}</span>}
+                           {event.workspaceId && <span>WORKSPACE: {event.workspaceId}</span>}
+                           {event.context && <span>CONTEXT: {event.context}</span>}
+                           {event.requestId && <span>REQ: {event.requestId}</span>}
                          </div>
                        )}
                      </div>

@@ -16,6 +16,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Static Imports for all Handlers & Admin
 import { adminAuth, db as adminDb } from './src/lib/firebase-admin';
+import { verifyAuth } from './src/api-lib/middlewares/authMiddleware.js';
 import adminHandler from './src/api-lib/handlers/admin';
 import userHandler from './src/api-lib/handlers/user';
 import candidatesHandler from './src/api-lib/handlers/candidates';
@@ -24,6 +25,7 @@ import intelHandler from './src/api-lib/handlers/intel';
 import parseJdHandler from './src/api-lib/handlers/parse-jd';
 import extractTextHandler from './src/api-lib/handlers/extract-text';
 import matchDetailedHandler from './src/api-lib/handlers/match-candidates-detailed';
+import matchV2Handler from './src/api-lib/handlers/match-v2';
 import bulkParseHandler from './src/api-lib/handlers/bulk-parse-resumes';
 import workflowsHandler from './src/api-lib/handlers/workflows';
 import rescanMatchesHandler from './src/api-lib/handlers/rescan-matches';
@@ -67,18 +69,84 @@ async function createServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+  // --- Health Endpoints ---
+  app.get('/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));
+  app.get('/ready', (req, res) => {
+      if (adminDb) {
+          res.status(200).json({ status: 'ready' });
+      } else {
+          res.status(503).json({ status: 'not_ready' });
+      }
+  });
+  app.get('/live', (req, res) => res.status(200).json({ status: 'alive' }));
+  app.get('/metrics', (req, res) => {
+      res.set('Content-Type', 'text/plain');
+      res.status(200).send(`
+# HELP node_uptime_seconds The uptime of the Node.js process.
+# TYPE node_uptime_seconds counter
+node_uptime_seconds ${process.uptime()}
+# HELP hirenest_active_requests Current active requests
+# TYPE hirenest_active_requests gauge
+hirenest_active_requests 0
+      `.trim());
+  });
+
   // --- Rate Limiting ---
+  const keyGenerator = (req: any) => {
+      if (req.user?.uid) {
+          // vendors get higher limits or different limits
+          return `${req.user.uid}-${req.user.role || 'guest'}`;
+      }
+      return req.ip; // fallback to IP for anonymous
+  };
+
   const standardLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window`
+    max: (req: any) => {
+        if (req.user?.role === 'super_admin' || req.user?.role === 'admin') return 1000;
+        if (req.user?.role === 'recruiter') return 500;
+        return 100; // Limit each IP/user to 100 requests per `window`
+    }, 
+    keyGenerator,
     message: { error: 'Too many requests, please try again later.' }
+  });
+
+  // --- Structured Logging Middleware ---
+  app.use((req: any, res: any, next: any) => {
+    const requestId = req.headers['x-request-id'] || Math.random().toString(36).substring(2, 15);
+    req.requestId = requestId;
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        requestId,
+        method: req.method,
+        url: req.originalUrl,
+        status: res.statusCode,
+        durationMs: duration,
+        ip: req.ip
+      }));
+    });
+    next();
   });
 
   const aiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
-    max: 10, // Strict limit for AI
+    max: (req: any) => {
+        if (req.user?.role === 'super_admin' || req.user?.role === 'admin') return 100;
+        if (req.user?.role === 'recruiter') return 50;
+        return 10; 
+    },
+    keyGenerator,
     message: { error: 'AI request limit reached, please try again later.' }
   });
+
+  // --- Auth Middleware ---
+  // verifyAuth is now imported from src/api-lib/middlewares/authMiddleware.js
+  
+  // Skip auth for oauth callback etc, then enforce it
+  app.use('/api', verifyAuth);
 
   // Apply standard limits to all /api
   app.use('/api/', standardLimiter);
@@ -88,44 +156,10 @@ async function createServer() {
   app.use('/api/extract-text', aiLimiter);
   app.use('/api/match-candidates', aiLimiter);
   app.use('/api/match-candidates-detailed', aiLimiter);
+  app.use('/api/match-v2', aiLimiter);
   app.use('/api/matching-global', aiLimiter);
   app.use('/api/rescan-matches', aiLimiter);
   app.use('/api/rebuild-matrix', aiLimiter);
-
-  // --- Auth Middleware ---
-  const verifyAuth = async (req: any, res: any, next: any) => {
-    if (
-      req.method === 'OPTIONS' ||
-      req.path === '/audit' || 
-      req.originalUrl === '/api/audit' || 
-      req.originalUrl.includes('/oauth/callback') || 
-      req.originalUrl.includes('/api/oauth/url') ||
-      req.originalUrl.startsWith('/api/public') || req.originalUrl.includes('/api/workspace/gmail/webhook') || req.originalUrl.includes('/api/whatsapp/webhook')
-    ) {
-      return next();
-    }
-    try {
-      const token = req.headers.authorization?.split('Bearer ')[1];
-      if (!token) {
-        console.error(`[AuthMiddleware] No token provided for path ${req.path}`);
-        return res.status(401).json({ error: 'Unauthorized: No token provided' });
-      }
-
-      if (!adminAuth) {
-        // Fallback for development if admin SDK isn't configured
-        console.warn('adminAuth not initialized, skipping strict token validation');
-        req.user = { uid: 'dev-mode' }; 
-        return next();
-      }
-
-      const decoded = await adminAuth.verifyIdToken(token);
-      req.user = decoded;
-      next();
-    } catch (err: any) {
-      console.error('[AuthMiddleware] Token verification failed:', err.message);
-      console.error('Auth Error:', err); return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
-    }
-  };
 
   // Public endpoints (no auth)
   app.post('/api/public/submit-lead', async (req: any, res: any) => {
@@ -163,9 +197,6 @@ async function createServer() {
       return res.json({ success: true, warning: 'DB save failed, but lead captured' });
     }
   });
-
-  // Skip auth for oauth callback etc, then enforce it
-  app.use('/api', verifyAuth);
 
   // Mount OAuth and Google Proxy BEFORE global catch-all
   app.use('/api/oauth', oauthHandler);
@@ -265,6 +296,10 @@ async function createServer() {
           if (matchDetailedHandler) return await matchDetailedHandler(req, res);
           break;
 
+        case 'match-v2':
+          if (matchV2Handler) return await matchV2Handler(req, res);
+          break;
+
         case 'bulk-parse-resumes':
           if (bulkParseHandler) return await bulkParseHandler(req, res);
           break;
@@ -362,11 +397,27 @@ async function createServer() {
   const port = 3000;
   
   // Global Error Handler to guarantee JSON for API errors
-  app.use((err: any, req: any, res: any, next: any) => {
+  app.use(async (err: any, req: any, res: any, next: any) => {
     console.error("[Global Error Handler]", err);
+    
+    // Asynchronous error tracking for production readiness
+    try {
+        const { ErrorMonitor } = await import("./src/api-lib/telemetry/errorMonitor.js");
+        await ErrorMonitor.captureError({
+            requestId: req.requestId,
+            context: req.path,
+            errorType: 'BACKEND_EXCEPTION',
+            errorMessage: err.message || "A server error occurred",
+            stackTrace: err.stack,
+            metadata: { method: req.method, ip: req.ip }
+        });
+    } catch (e) {
+        console.error("Failed to log error to telemetry", e);
+    }
+
     if (!res.headersSent) {
       if (req.path.startsWith('/api/')) {
-         return res.status(err.status || 500).json({ success: false, error: err.message || "A server error occurred" });
+         return res.status(err.status || 500).json({ success: false, error: err.message || "A server error occurred", requestId: req.requestId });
       }
       next(err);
     }

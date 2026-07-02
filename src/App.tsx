@@ -49,7 +49,8 @@ import {
   Bot,
   CheckCircle2,
   Globe,
-  MessageCircle
+  MessageCircle,
+  Store
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -87,6 +88,7 @@ import WhatsAppHubTab from "./views/WhatsAppHubTab";
 import WorkflowOperationsTab from "./views/WorkflowOperationsTab";
 import OperationalHealthTab from "./views/OperationalHealthTab";
 import FinancialsTab from "./views/FinancialsTab";
+import MarketplaceTab from "./views/MarketplaceTab";
 import RevenueIntelligenceTab from "./views/RevenueIntelligenceTab";
 import TrustEngineTab from "./views/TrustEngineTab";
 import NotificationsTab from "./views/NotificationsTab";
@@ -420,6 +422,13 @@ const AppContent = () => {
                 icon={Video}
                 label="Interviews"
                 active={location.pathname === "/interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/marketplace"
+                icon={Store}
+                label="Marketplace"
+                active={location.pathname === "/marketplace"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -931,6 +940,7 @@ const AppContent = () => {
               />
             )}
             <Route path="/deal-rooms" element={<DealRoomsTab />} />
+            <Route path="/marketplace" element={<MarketplaceTab />} />
             <Route path="/placements" element={<PlacementsTab />} />
             <Route path="/interviews" element={<InterviewsTab />} />
             <Route path="/emails" element={<InboxTab />} />

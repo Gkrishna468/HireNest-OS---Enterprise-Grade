@@ -2,8 +2,21 @@ import { GoogleGenAI } from '@google/genai';
 import * as crypto from 'crypto';
 import { db } from '../../lib/firebase-admin.js';
 import { headroomOptimizer } from './HeadroomOptimizer.js';
+import { AITelemetry } from '../telemetry/aiTelemetry.js';
+import { ErrorMonitor } from '../telemetry/errorMonitor.js';
+import { AIGuardrails } from './AIGuardrails.js';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
+import { SecretManager } from '../../lib/secretManager.js';
+
+let aiInstance: GoogleGenAI | null = null;
+
+async function getAIClient(): Promise<GoogleGenAI> {
+    if (!aiInstance) {
+        const apiKey = await SecretManager.getSecret('GEMINI_API_KEY') || 'dummy';
+        aiInstance = new GoogleGenAI({ apiKey });
+    }
+    return aiInstance;
+}
 
 export type AICapability = 
   | 'resume_parsing'
@@ -61,6 +74,15 @@ export class AIRuntime {
     static async analyze(request: AIRuntimeRequest): Promise<AIRuntimeResponse> {
         const startTime = Date.now();
         let retryCount = 0;
+        const requestId = Math.random().toString(36).substring(2, 15);
+
+        // 0. Pre-flight Guardrails (PII & Toxicity)
+        if (AIGuardrails.detectPII(request.prompt)) {
+             throw new Error("AI Guardrails: Blocked request due to sensitive PII detection.");
+        }
+        if (AIGuardrails.detectToxicity(request.prompt)) {
+             throw new Error("AI Guardrails: Blocked request due to toxicity detection.");
+        }
 
         // 1. Check Cache
         if (request.cacheKeyStr) {
@@ -106,7 +128,8 @@ export class AIRuntime {
                 contentParts.push(...request.imageParts);
             }
 
-            const response = await ai.models.generateContent({
+            const client = await getAIClient();
+            const response = await client.models.generateContent({
                 model: modelToUse,
                 contents: contentParts,
                 config: { 
@@ -133,14 +156,21 @@ export class AIRuntime {
                 parsedData = { text: response.text };
             }
 
+            // Output Validation Guardrail
+            const validation = AIGuardrails.validateOutput(parsedData, !!request.schema);
+            if (!validation.isValid) {
+                throw new Error(`AI Guardrails: Output validation failed - ${validation.reason}`);
+            }
+
             const confidence = parsedData.confidence || 95;
+            const latency = Date.now() - startTime;
 
             const finalResponse: AIRuntimeResponse = {
                 provider: 'Google',
                 model: modelToUse,
                 confidence: confidence,
                 data: parsedData,
-                latency: Date.now() - startTime,
+                latency: latency,
                 cacheHit: false,
                 outcome: 'success',
                 retryCount: 0,
@@ -148,6 +178,36 @@ export class AIRuntime {
                 compressionRatio: compressionRatio,
                 originalTokens: originalTokens
             };
+
+            // AI Observability logging (Production Readiness)
+            try {
+                // approximate token counts if not provided by SDK
+                const approxPromptTokens = Math.ceil(request.prompt.length / 4);
+                const approxResponseTokens = Math.ceil((response.text?.length || 0) / 4);
+                
+                await AITelemetry.logExecution({
+                    requestId,
+                    workspaceId: 'system', // we can pass this if available
+                    model: modelToUse,
+                    promptVersion: '1.0',
+                    promptText: request.prompt,
+                    responseText: response.text || '',
+                    latencyMs: latency,
+                    tokenUsage: {
+                        promptTokens: approxPromptTokens,
+                        completionTokens: approxResponseTokens,
+                        totalTokens: approxPromptTokens + approxResponseTokens
+                    },
+                    confidenceScore: confidence,
+                    metadata: {
+                        capability: request.capability,
+                        tokensSaved,
+                        compressionRatio
+                    }
+                });
+            } catch (e) {
+                console.error("AI Telemetry failed", e);
+            }
 
             // AI Explainability Ledger
             try {
@@ -178,9 +238,17 @@ export class AIRuntime {
 
             return finalResponse;
 
-        } catch (error) {
+        } catch (error: any) {
             console.warn(`Primary AI Provider Failed (Google):`, error);
             
+            await ErrorMonitor.captureError({
+                requestId,
+                context: 'AIRuntime.analyze',
+                errorType: 'AI_FAILURE',
+                errorMessage: error.message || "Failed to generate content",
+                metadata: { capability: request.capability }
+            });
+
             // 3. Fallback to Secondary AI Provider (OpenRouter/OpenAI)
             if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
                 console.log("Attempting secondary AI provider fallback (OpenRouter/OpenAI)...");

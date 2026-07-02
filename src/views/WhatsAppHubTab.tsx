@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MessageSquare, Users, Phone, Video, Search, UserPlus, FileText, CheckCircle2, QrCode, Send, Paperclip, MoreVertical, ShieldCheck, Zap } from 'lucide-react';
+import { MessageSquare, Users, Phone, Video, Search, UserPlus, FileText, CheckCircle2, QrCode, Send, Paperclip, MoreVertical, ShieldCheck, Zap, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../lib/Button';
 import { Badge } from '../lib/Badge';
