@@ -97,6 +97,10 @@
       "destination": "/api/index?path=admin&action=client-ai-matches"
     },
     {
+      "source": "/api/public/:path*",
+      "destination": "/api/public/:path*"
+    },
+    {
       "source": "/api/oauth/:path*",
       "destination": "/api/index?path=oauth&action=:path*"
     },

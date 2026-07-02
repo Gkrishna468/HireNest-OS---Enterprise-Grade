@@ -5,11 +5,26 @@ export default async function handler(req: any, res: any) {
     const { path } = req.query;
     const action = req.query.action || req.body?.action;
 
+    console.log("=== API INDEX ENTRY ===");
+    console.log("Method:", req.method);
+    console.log("URL:", req.url);
+    console.log("Path query:", req.query?.path);
+
     // --- Authentication ---
     const urlStr = req.url || '';
-    if (path !== 'audit' && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url')) {
+    
+    const isPublic = 
+      urlStr.includes('/api/public') || 
+      path?.startsWith('public');
+      
+    if (isPublic) {
+      console.log("PUBLIC ROUTE BYPASS ACTIVATED");
+    }
+
+    if (path !== 'audit' && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url') && !isPublic) {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
+        console.log("AUTH MIDDLEWARE REJECTING - No token provided", { url: req.url, path });
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
       }
       if (adminAuth) {
@@ -52,6 +67,7 @@ export default async function handler(req: any, res: any) {
     else if (path?.startsWith('google'))   targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
     else if (path?.startsWith('workspace')) targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
     else if (path?.startsWith('cron'))      targetHandler = (await import('../src/api-lib/handlers/cron.js')).default;
+    else if (path?.startsWith('public'))    targetHandler = (await import('../src/api-lib/handlers/public.js')).default;
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
