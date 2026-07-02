@@ -1,3 +1,4 @@
+import aiHandler from "./src/api-lib/handlers/ai";
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
