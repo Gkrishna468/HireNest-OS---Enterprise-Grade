@@ -155,6 +155,7 @@ hirenest_active_requests 0
   // Apply strict limits to AI operations
   app.use('/api/parse-jd', aiLimiter);
   app.use('/api/extract-text', aiLimiter);
+  app.use("/api/ai", aiLimiter);
   app.use('/api/match-candidates', aiLimiter);
   app.use('/api/match-candidates-detailed', aiLimiter);
   app.use('/api/match-v2', aiLimiter);
@@ -284,6 +285,10 @@ hirenest_active_requests 0
         case 'deal-intelligence':
         case 'intel':
           return await intelHandler(req, res);
+
+          case "ai/chat":
+          case "ai":
+    return await aiHandler(req, res);
 
         case 'parse-jd':
           if (parseJdHandler) return await parseJdHandler(req, res);
