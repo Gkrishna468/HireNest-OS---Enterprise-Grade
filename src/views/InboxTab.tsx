@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, RefreshCw, AlertCircle, TrendingUp, CheckCircle, Clock, FileText, Database, GitMerge, FileQuestion, Users } from 'lucide-react';
+import { Mail, RefreshCw, AlertCircle, FileText, Database, GitMerge, FileQuestion, Users, Search, Paperclip, ChevronRight, Play, CheckCircle2, XCircle, ArrowRight, Clock, Plus } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { Badge } from '../lib/Badge';
 import { Button } from '../lib/Button';
@@ -8,34 +8,31 @@ import { cn } from '../lib/utils';
 import DOMPurify from 'dompurify';
 
 export default function InboxTab() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<any>({});
-  const [reviewQueue, setReviewQueue] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchDashboardData = async () => {
+  const fetchInbox = async () => {
     setLoading(true);
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
 
-      const [metricsRes, queueRes, auditRes] = await Promise.all([
+      const [metricsRes, messagesRes] = await Promise.all([
         fetch('/api/workspace/intake/metrics', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/workspace/intake/review-queue', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/workspace/intake/audit', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/google/gmail/messages', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      const [metricsData, queueData, auditData] = await Promise.all([
+      const [metricsData, messagesData] = await Promise.all([
         metricsRes.json(),
-        queueRes.json(),
-        auditRes.json()
+        messagesRes.json()
       ]);
 
       setMetrics(metricsData.metrics || {});
-      setReviewQueue(queueData.queue || []);
-      setAuditLogs(auditData.audit || []);
+      setMessages(messagesData.messages || []);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -51,7 +48,7 @@ export default function InboxTab() {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` } 
         });
-        await fetchDashboardData();
+        await fetchInbox();
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -60,173 +57,281 @@ export default function InboxTab() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchInbox();
   }, []);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-[#F8FAFC]">
-      <header className="p-6 bg-white border-b border-slate-200">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#F8FAFC]">
+      <header className="p-4 bg-white border-b border-slate-200 shrink-0">
          <div className="flex items-center justify-between">
              <div className="flex items-center gap-4">
-                 <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
-                    <Database size={24} />
+                 <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                    <Mail size={20} />
                  </div>
                  <div>
-                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">Intake Dashboard</h1>
-                    <p className="text-sm text-slate-500 font-medium">Universal Intake Platform</p>
+                    <h1 className="text-xl font-black text-slate-800 tracking-tight">MailOS Operations</h1>
+                    <p className="text-xs text-slate-500 font-medium">Intake & Routing Center</p>
                  </div>
              </div>
-             <Button onClick={handleSync} disabled={syncing} className="gap-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl px-5 py-2.5 shadow-sm text-sm font-bold">
-                 <RefreshCw size={16} className={cn(syncing && "animate-spin")} />
-                 {syncing ? 'Processing Intake...' : 'Sync Channels'}
-             </Button>
+             <div className="flex items-center gap-6">
+                <div className="flex gap-4 items-center mr-4">
+                  <div className="text-center">
+                    <span className="block text-xl font-black text-slate-800">{metrics.source_gmail || 0}</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Emails</span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="text-center">
+                    <span className="block text-xl font-black text-emerald-600">{metrics.type_requirement || 0}</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Reqs</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-xl font-black text-blue-600">{metrics.type_candidate || metrics.type_resume || 0}</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Cands</span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="text-center">
+                    <span className="block text-xl font-black text-orange-500">{metrics.status_manual_review || 0}</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Review</span>
+                  </div>
+                </div>
+                <Button onClick={handleSync} disabled={syncing} className="gap-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl px-5 py-2.5 shadow-sm text-sm font-bold">
+                    <RefreshCw size={16} className={cn(syncing && "animate-spin")} />
+                    {syncing ? 'Syncing...' : 'Sync Inbox'}
+                </Button>
+             </div>
          </div>
       </header>
 
-      <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-        {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
-                <AlertCircle size={20} />
-                <span className="font-semibold text-sm">{error}</span>
-            </div>
-        )}
+      {error && (
+          <div className="bg-red-50 border-b border-red-200 text-red-700 p-3 flex items-center gap-3 shrink-0">
+              <AlertCircle size={18} />
+              <span className="font-semibold text-sm">{error}</span>
+          </div>
+      )}
 
-        {/* METRICS ROW */}
-        <section>
-            <h2 className="text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase mb-4">Today's Intake</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <Mail size={20} className="text-slate-400 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.source_gmail || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Emails</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <FileText size={20} className="text-emerald-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.type_requirement || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Requirements</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <Users size={20} className="text-blue-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.type_candidate || metrics.type_resume || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Candidates</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <CheckCircle size={20} className="text-purple-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.status_success || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Processed</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <FileQuestion size={20} className="text-orange-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.status_manual_review || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Review</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <GitMerge size={20} className="text-slate-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.status_duplicate || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Duplicates</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <AlertCircle size={20} className="text-red-500 mb-2" />
-                    <span className="text-2xl font-black text-slate-800">{metrics.status_failed || 0}</span>
-                    <span className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Failures</span>
+      <div className="flex flex-1 overflow-hidden">
+        {/* INBOX LIST */}
+        <div className="w-1/3 border-r border-slate-200 bg-white flex flex-col">
+            <div className="p-3 border-b border-slate-100">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                        type="text" 
+                        placeholder="Search inbox..." 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
                 </div>
             </div>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* MANUAL REVIEW QUEUE */}
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
-                        <FileQuestion size={16} className="text-orange-500" />
-                        Needs Review
-                    </h3>
-                    <Badge className="bg-orange-100 text-orange-700 border-none font-bold">{reviewQueue.length}</Badge>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2">
-                    {reviewQueue.length === 0 ? (
-                        <EmptyState icon={CheckCircle} title="All Caught Up" description="No items require manual review." />
-                    ) : (
-                        <div className="space-y-2 p-2">
-                            {reviewQueue.map(item => (
-                                <div key={item.id} className="p-4 rounded-xl border border-slate-200 hover:border-orange-300 transition-colors bg-white group cursor-pointer shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Badge className={cn(
-                                                    "text-[10px] uppercase font-black tracking-wider border-none",
-                                                    item.confidence < 50 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
-                                                )}>
-                                                    {item.classificationType} - {item.confidence}% Conf
-                                                </Badge>
-                                                <span className="text-xs text-slate-500 font-medium capitalize">{item.source}</span>
+            <div className="flex-1 overflow-y-auto">
+                {messages.length === 0 && !loading ? (
+                    <EmptyState icon={Mail} title="Inbox Zero" description="No messages to process." />
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {messages.map((msg) => (
+                            <div 
+                                key={msg.id} 
+                                onClick={() => setSelectedMessage(msg)}
+                                className={cn(
+                                    "p-4 cursor-pointer hover:bg-slate-50 transition-colors group",
+                                    selectedMessage?.id === msg.id ? "bg-indigo-50/50 border-l-4 border-l-indigo-500" : "border-l-4 border-l-transparent"
+                                )}
+                            >
+                                <div className="flex justify-between items-start mb-1">
+                                    <h3 className={cn("font-bold text-sm truncate pr-2", selectedMessage?.id === msg.id ? "text-indigo-900" : "text-slate-800")}>
+                                        {msg.from.split('<')[0].trim()}
+                                    </h3>
+                                    <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+                                        {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                </div>
+                                <h4 className="text-sm font-semibold text-slate-700 truncate mb-1">{msg.subject}</h4>
+                                <p className="text-xs text-slate-500 line-clamp-2">{msg.snippet || msg.body?.substring(0, 100)}</p>
+                                
+                                <div className="mt-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Badge className={cn(
+                                            "text-[9px] uppercase font-black tracking-wider border-none px-1.5 py-0.5",
+                                            msg.classification?.type === 'Requirement' ? "bg-emerald-100 text-emerald-700" :
+                                            msg.classification?.type === 'Candidate' || msg.classification?.type === 'Candidate Submission' ? "bg-blue-100 text-blue-700" :
+                                            "bg-slate-100 text-slate-600"
+                                        )}>
+                                            {msg.classification?.type || 'Unknown'}
+                                        </Badge>
+                                        {msg.attachments && msg.attachments.length > 0 && (
+                                            <div className="flex items-center text-slate-400">
+                                                <Paperclip size={12} />
+                                                <span className="text-[10px] font-bold ml-1">{msg.attachments.length}</span>
                                             </div>
-                                            <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{item.envelopeSummary?.subject || '(No Subject)'}</h4>
-                                            <p className="text-xs text-slate-500 font-medium truncate">{item.envelopeSummary?.sender}</p>
-                                        </div>
-                                        <Button className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 text-xs font-bold">
-                                            Review
-                                        </Button>
+                                        )}
                                     </div>
-                                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100 text-xs font-medium text-slate-600 flex items-center gap-2">
-                                        <AlertCircle size={14} className="text-slate-400" />
-                                        {item.reason}
+                                    <Badge className={cn(
+                                        "text-[9px] uppercase font-bold border-none px-1.5 py-0.5",
+                                        msg.status === 'PROCESSED' || msg.status === 'PROCESSED_BY_INTAKE' ? "bg-green-100 text-green-700" :
+                                        msg.status === 'FAILED' ? "bg-red-100 text-red-700" :
+                                        "bg-orange-100 text-orange-700"
+                                    )}>
+                                        {msg.status === 'PROCESSED_BY_INTAKE' ? 'INTAKE' : msg.status}
+                                    </Badge>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* THREAD VIEW */}
+        <div className="w-2/3 bg-[#F8FAFC] flex flex-col">
+            {selectedMessage ? (
+                <>
+                    <div className="p-6 bg-white border-b border-slate-200 shrink-0">
+                        <div className="flex items-start justify-between mb-4">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 mb-1">{selectedMessage.subject}</h2>
+                                <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
+                                    <span className="font-bold text-slate-800">{selectedMessage.from}</span>
+                                    <span>•</span>
+                                    <span>{new Date(selectedMessage.createdAt).toLocaleString()}</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" className="font-bold">
+                                    <Play size={14} className="mr-2" /> Re-Process
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 flex gap-6">
+                        {/* EMAIL BODY & ATTACHMENTS */}
+                        <div className="flex-1 space-y-6">
+                            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Original Message</h3>
+                                <div 
+                                    className="text-sm text-slate-700 whitespace-pre-wrap font-medium font-sans leading-relaxed"
+                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedMessage.body || "No body content available.") }}
+                                />
+                            </div>
+
+                            {selectedMessage.attachments && selectedMessage.attachments.length > 0 && (
+                                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Attachments ({selectedMessage.attachments.length})</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {selectedMessage.attachments.map((att: any, idx: number) => (
+                                            <div key={idx} className="flex items-center p-3 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50 cursor-pointer group">
+                                                <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                                                    <FileText size={16} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-bold text-slate-800 truncate group-hover:text-indigo-700">{att.filename || 'Document'}</p>
+                                                    <p className="text-xs text-slate-500 truncate">{att.mimeType}</p>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    )}
-                </div>
-            </section>
 
-            {/* INTAKE AUDIT LOG */}
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
-                        <Clock size={16} className="text-slate-400" />
-                        Intake Audit
-                    </h3>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2">
-                    {auditLogs.length === 0 ? (
-                        <EmptyState icon={Database} title="No Logs Yet" description="Process intake to see audit logs." />
-                    ) : (
-                        <div className="space-y-2 p-2">
-                            {auditLogs.map(log => (
-                                <div key={log.id} className="p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className={cn(
-                                                "text-[9px] uppercase font-black tracking-widest border-none",
-                                                log.status === 'SUCCESS' ? "bg-emerald-100 text-emerald-800" :
-                                                log.status === 'DUPLICATE' ? "bg-slate-200 text-slate-700" :
-                                                "bg-orange-100 text-orange-700"
-                                            )}>
-                                                {log.status}
-                                            </Badge>
-                                            <span className="text-xs text-slate-400 font-mono">{log.correlationId}</span>
-                                        </div>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.executionTimeMs}ms</span>
+                        {/* AI CLASSIFICATION & TIMELINE PANEL */}
+                        <div className="w-80 space-y-6 shrink-0">
+                            {/* Classification Panel */}
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                                        <Database size={14} /> AI Classification
+                                    </h3>
+                                    <Badge className="bg-indigo-200 text-indigo-800 border-none font-bold">
+                                        {selectedMessage.classification?.confidence || 0}% Conf
+                                    </Badge>
+                                </div>
+                                <div className="p-4 space-y-4">
+                                    <div>
+                                        <p className="text-xs text-slate-500 font-bold mb-1">Intent</p>
+                                        <p className="text-sm font-black text-slate-800">{selectedMessage.classification?.type || 'Unknown'}</p>
                                     </div>
-                                    <div className="text-sm font-bold text-slate-800 mb-2">
-                                        <span className="capitalize">{log.source}</span> Intake Processed
-                                    </div>
-                                    {log.createdEntities && log.createdEntities.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Created:</span>
-                                            {log.createdEntities.map((entity: any, i: number) => (
-                                                <Badge key={i} className="bg-white border-slate-200 text-slate-600 text-[10px] font-bold">
-                                                    {entity.type}
-                                                </Badge>
-                                            ))}
+                                    {selectedMessage.classification?.summary && (
+                                        <div>
+                                            <p className="text-xs text-slate-500 font-bold mb-1">AI Summary</p>
+                                            <p className="text-sm text-slate-700 font-medium leading-snug">{selectedMessage.classification?.summary}</p>
                                         </div>
                                     )}
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <h4 className="text-xs font-bold text-slate-800 mb-2">Suggested Actions</h4>
+                                        <div className="space-y-2">
+                                            {selectedMessage.classification?.suggestedActions ? (
+                                                selectedMessage.classification.suggestedActions.map((action: string, i: number) => (
+                                                    <Button key={i} variant="outline" size="sm" className="w-full justify-start text-xs font-bold">
+                                                        <Plus size={14} className="mr-2 text-indigo-600" /> {action}
+                                                    </Button>
+                                                ))
+                                            ) : (
+                                                <>
+                                                    <Button variant="outline" size="sm" className="w-full justify-start text-xs font-bold">
+                                                        <Plus size={14} className="mr-2 text-emerald-600" /> Create Requirement
+                                                    </Button>
+                                                    <Button variant="outline" size="sm" className="w-full justify-start text-xs font-bold">
+                                                        <Plus size={14} className="mr-2 text-blue-600" /> Create Candidate
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Processing Timeline */}
+                            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <Clock size={14} /> Intake Timeline
+                                </h3>
+                                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-indigo-600 text-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                            <CheckCircle2 size={12} />
+                                        </div>
+                                        <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="font-bold text-slate-800 text-xs">Received</div>
+                                                <time className="font-medium text-[10px] text-slate-400">{new Date(selectedMessage.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</time>
+                                            </div>
+                                            <div className="text-[10px] font-medium text-slate-500">Ingested from Gmail</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.classification?.type ? "is-active" : "")}>
+                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                            {selectedMessage.classification?.type ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                                        </div>
+                                        <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="font-bold text-slate-800 text-xs">Classified</div>
+                                            </div>
+                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.classification?.type || 'Pending analysis'}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className={cn("relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group", selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? "is-active" : "")}>
+                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-blue-500 text-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                            {selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? <CheckCircle2 size={12} /> : (selectedMessage.status === 'FAILED' ? <XCircle size={12} className="text-red-100"/> : <Clock size={12} />)}
+                                        </div>
+                                        <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded-lg border border-slate-100 bg-slate-50 shadow-sm">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="font-bold text-slate-800 text-xs">Entity Creation</div>
+                                            </div>
+                                            <div className="text-[10px] font-medium text-slate-500">{selectedMessage.status === 'PROCESSED' || selectedMessage.status === 'PROCESSED_BY_INTAKE' ? 'Created and linked' : (selectedMessage.status === 'FAILED' ? 'Creation failed' : 'Pending creation')}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    </div>
+                </>
+            ) : (
+                <div className="flex-1 flex items-center justify-center">
+                    <EmptyState icon={Mail} title="Select a Message" description="Choose a message from the list to view details and process it." />
                 </div>
-            </section>
+            )}
         </div>
       </div>
     </div>

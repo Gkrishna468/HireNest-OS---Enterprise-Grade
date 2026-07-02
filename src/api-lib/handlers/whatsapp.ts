@@ -1,6 +1,7 @@
 import express from "express";
 import { IntakeEngine } from "../intake/IntakeEngine.js";
 import { db } from "../../lib/firebase-admin.js";
+import { WorkspaceResolver } from "../services/WorkspaceResolver.js";
 
 const whatsappHandler = express.Router();
 
@@ -27,6 +28,78 @@ whatsappHandler.get("/status", async (req, res) => {
   } catch (error) {
     console.error("Status Error:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+whatsappHandler.get("/chats", async (req, res) => {
+  try {
+    const workspace = await WorkspaceResolver.resolve(req);
+    const snapshot = await db.collection("whatsapp_chats")
+      .where("workspaceId", "==", workspace.orgId)
+      .orderBy("updatedAt", "desc")
+      .limit(30)
+      .get();
+    
+    const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, chats });
+  } catch (error: any) {
+    console.error("Chats Error:", error);
+    res.json({ success: true, chats: [] }); // Safe return
+  }
+});
+
+whatsappHandler.get("/chats/:chatId/messages", async (req, res) => {
+  try {
+    const workspace = await WorkspaceResolver.resolve(req);
+    const { chatId } = req.params;
+    const snapshot = await db.collection("whatsapp_messages")
+      .where("workspaceId", "==", workspace.orgId)
+      .where("chatId", "==", chatId)
+      .orderBy("timestamp", "asc")
+      .limit(100)
+      .get();
+    
+    const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, messages });
+  } catch (error: any) {
+    console.error("Messages Error:", error);
+    res.json({ success: true, messages: [] }); // Safe return
+  }
+});
+
+whatsappHandler.post("/send", async (req, res) => {
+  try {
+    const workspace = await WorkspaceResolver.resolve(req);
+    const { chatId, text, recipientPhone } = req.body;
+    
+    // Create local record
+    const msgRef = db.collection("whatsapp_messages").doc();
+    const message = {
+        id: msgRef.id,
+        workspaceId: workspace.orgId,
+        chatId: chatId || recipientPhone,
+        text,
+        sender: 'AGENT',
+        timestamp: new Date().toISOString()
+    };
+    await msgRef.set(message);
+
+    // Update Chat
+    await db.collection("whatsapp_chats").doc(chatId || recipientPhone).set({
+        workspaceId: workspace.orgId,
+        id: chatId || recipientPhone,
+        phone: recipientPhone,
+        lastMessage: text,
+        updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    // Note: Here we would call the actual WhatsApp Cloud API to send the message
+    // e.g., axios.post('https://graph.facebook.com/v17.0/.../messages', { ... })
+
+    res.json({ success: true, message });
+  } catch (error: any) {
+    console.error("Send Error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

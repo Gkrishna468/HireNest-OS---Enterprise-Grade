@@ -95,7 +95,11 @@ googleProxyHandler.get("/gmail/messages", async (req, res) => {
         snippet: d.rawPayload?.snippet,
         subject: d.rawPayload?.subject || "(No Subject)",
         from: d.rawPayload?.from || "(Unknown Sender)",
-        classification: { type: d.entityType },
+        body: d.rawPayload?.body || "",
+        attachments: d.rawPayload?.attachments || [],
+        classification: d.classification || { type: d.entityType || "UNKNOWN" },
+        status: d.status || "UNKNOWN",
+        createdAt: d.createdAt ? (d.createdAt.toDate ? d.createdAt.toDate().toISOString() : new Date(d.createdAt).toISOString()) : new Date().toISOString()
       };
     });
 
