@@ -33,6 +33,7 @@ import matchHealthHandler from './src/api-lib/handlers/match-health';
 import clientAiMatchesHandler from './src/api-lib/handlers/client-ai-matches';
 import oauthHandler from './src/api-lib/handlers/oauth';
 import workspaceHandler from './src/api-lib/handlers/workspace';
+import whatsappHandler from './src/api-lib/handlers/whatsapp';
 import googleProxyHandler from './src/api-lib/handlers/google-proxy';
 import cronHandler from './src/api-lib/handlers/cron';
 import eventsHandler from './src/api-lib/handlers/events';
@@ -168,6 +169,7 @@ async function createServer() {
   // Mount OAuth and Google Proxy BEFORE global catch-all
   app.use('/api/oauth', oauthHandler);
   app.use('/api/workspace', workspaceHandler);
+  app.use('/api/whatsapp', whatsappHandler);
   app.use('/api/cron', cronHandler);
   app.use('/api/events', eventsHandler);
   app.use('/api/google', googleProxyHandler);

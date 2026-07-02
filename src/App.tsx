@@ -48,7 +48,8 @@ import {
   Terminal,
   Bot,
   CheckCircle2,
-  Globe
+  Globe,
+  MessageCircle
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -441,6 +442,13 @@ const AppContent = () => {
                 icon={MessageSquare}
                 label="Intake Dashboard"
                 active={location.pathname === "/emails"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/whatsapp"
+                icon={MessageCircle}
+                label="WhatsApp Hub"
+                active={location.pathname === "/whatsapp"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
             </>
