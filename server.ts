@@ -92,7 +92,14 @@ async function createServer() {
 
   // --- Auth Middleware ---
   const verifyAuth = async (req: any, res: any, next: any) => {
-    if (req.path === '/audit' || req.originalUrl === '/api/audit' || req.originalUrl.includes('/oauth/callback') || req.originalUrl.includes('/api/oauth/url')) {
+    if (
+      req.method === 'OPTIONS' ||
+      req.path === '/audit' || 
+      req.originalUrl === '/api/audit' || 
+      req.originalUrl.includes('/oauth/callback') || 
+      req.originalUrl.includes('/api/oauth/url') ||
+      req.originalUrl.startsWith('/api/public')
+    ) {
       return next();
     }
     try {

@@ -5,9 +5,18 @@ import './index.css';
 import { auth } from './lib/firebase';
 import { initializeWorkflows } from './workflows';
 import { initializeEventBus } from './events';
+import { onAuthStateChanged } from 'firebase/auth';
 
-initializeWorkflows();
-initializeEventBus();
+let isInitialized = false;
+
+onAuthStateChanged(auth, (user) => {
+  if (user && !isInitialized) {
+    console.log("[Runtime] User authenticated, initializing AI & workflows...");
+    initializeWorkflows();
+    initializeEventBus();
+    isInitialized = true;
+  }
+});
 
 const originalFetch = window.fetch;
 Object.defineProperty(window, 'fetch', {

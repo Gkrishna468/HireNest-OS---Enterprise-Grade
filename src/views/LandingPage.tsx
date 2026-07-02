@@ -65,21 +65,7 @@ export default function LandingPage() {
       setIsSubmitted(true);
     } catch (err: any) {
       console.error("[LandingPage] Error submitting lead:", err);
-      
-      // Fallback to client-side if server fails, just in case rules are fixed
-      try {
-        console.log("[LandingPage] Server failed, trying client-side fallback...");
-        await addDoc(collection(db, "landing_page_leads_v1"), {
-          ...formData,
-          timestamp: new Date().toISOString(),
-          status: 'new',
-          source: 'landing_page_v1_fallback'
-        });
-        setIsSubmitted(true);
-      } catch (fallbackErr: any) {
-        console.error("[LandingPage] Fallback also failed:", fallbackErr);
-        setError("Submission failed. Please email us at info@hirenestworkforce.com");
-      }
+      setError("Submission failed. Please email us at info@hirenestworkforce.com");
     } finally {
       setIsSubmitting(false);
     }
