@@ -1,4 +1,3 @@
-import aiHandler from "./src/api-lib/handlers/ai";
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
@@ -51,6 +50,7 @@ import analyticsHandler from './src/api-lib/handlers/analytics';
 import opsHandler from './src/api-lib/handlers/ops';
 import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
 import billingHandler from './src/api-lib/handlers/billing';
+import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 
 const __dirname = process.cwd();
 
@@ -155,13 +155,13 @@ hirenest_active_requests 0
   // Apply strict limits to AI operations
   app.use('/api/parse-jd', aiLimiter);
   app.use('/api/extract-text', aiLimiter);
-  app.use("/api/ai", aiLimiter);
   app.use('/api/match-candidates', aiLimiter);
   app.use('/api/match-candidates-detailed', aiLimiter);
   app.use('/api/match-v2', aiLimiter);
   app.use('/api/matching-global', aiLimiter);
   app.use('/api/rescan-matches', aiLimiter);
   app.use('/api/rebuild-matrix', aiLimiter);
+  app.use('/api/ai', aiLimiter);
 
   // Public endpoints (no auth)
   app.post('/api/public/submit-lead', async (req: any, res: any) => {
@@ -286,10 +286,6 @@ hirenest_active_requests 0
         case 'intel':
           return await intelHandler(req, res);
 
-          case "ai/chat":
-          case "ai":
-    return await aiHandler(req, res);
-
         case 'parse-jd':
           if (parseJdHandler) return await parseJdHandler(req, res);
           break;
@@ -308,6 +304,11 @@ hirenest_active_requests 0
 
         case 'bulk-parse-resumes':
           if (bulkParseHandler) return await bulkParseHandler(req, res);
+          break;
+
+        case 'ai/chat':
+        case 'ai-gateway':
+          if (aiGatewayHandler) return await aiGatewayHandler(req, res);
           break;
           
         case 'rescan-matches':
