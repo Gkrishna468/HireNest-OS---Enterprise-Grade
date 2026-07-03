@@ -407,15 +407,9 @@ export default function CandidatePortalWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await (await import("../../lib/firebase")).auth.currentUser?.getIdToken() || "") },
         body: JSON.stringify({
-          query: userMsgText,
-          context: "candidate_career_coach",
-          pageData: JSON.stringify({
-            candidateName: profile.name,
-            skills: profile.skills,
-            targetRoles: profile.targetRoles,
-            experienceYears: profile.experienceYears,
-            hasResumeUploaded: !!resumeAnalysis
-          })
+          prompt: `Candidate: ${profile.name}, Skills: ${profile.skills.join(', ')}. Target Roles: ${profile.targetRoles.join(', ')}. Query: ${userMsgText}`,
+          feature: "candidate_coach",
+          promptVersion: "v1.0"
         })
       });
 
