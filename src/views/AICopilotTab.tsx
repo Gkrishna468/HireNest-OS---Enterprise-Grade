@@ -145,18 +145,26 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
     try {
         const { auth } = await import("../lib/firebase");
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch("/api/copilot", {
+        const res = await fetch("/api/ai", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify({ query: activeQuery })
+            body: JSON.stringify({ prompt: activeQuery, feature: "copilot", promptVersion: "v1.0" })
         });
         
         if (!res.ok) throw new Error(await res.text());
         
-        const data = await res.json();
+        const dataRaw = await res.json();
+        let data = dataRaw;
+        if (dataRaw.response) {
+            try {
+                data = JSON.parse(dataRaw.response);
+            } catch(e) {
+                data = { answer: dataRaw.response };
+            }
+        }
         
         // Append Copilot Response
         const copilotMsg: Message = {

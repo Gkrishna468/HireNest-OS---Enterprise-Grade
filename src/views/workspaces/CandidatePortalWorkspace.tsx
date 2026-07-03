@@ -403,9 +403,9 @@ export default function CandidatePortalWorkspace({
     setIsCoachTyping(true);
 
     try {
-      const response = await fetch("/api/copilot", {
+      const response = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await (await import("../../lib/firebase")).auth.currentUser?.getIdToken() || "") },
         body: JSON.stringify({
           query: userMsgText,
           context: "candidate_career_coach",
@@ -420,7 +420,15 @@ export default function CandidatePortalWorkspace({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const dataRaw = await response.json();
+      let data = dataRaw;
+      if (dataRaw.response) {
+          try {
+              data = JSON.parse(dataRaw.response);
+          } catch(e) {
+              data = { insight: dataRaw.response };
+          }
+      }
         setChatMessages(prev => [
           ...prev,
           {

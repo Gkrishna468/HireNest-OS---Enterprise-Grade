@@ -149,22 +149,30 @@ export function UniversalAIChatDrawer({
       const { auth } = await import("../lib/firebase");
       const token = await auth.currentUser?.getIdToken();
       
-      const res = await fetch("/api/copilot", {
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          query: activeQuery,
-          context: context.name,
-          pageData: `Active route: ${location.pathname}`
+          prompt: `Context: ${context.name}, Route: ${location.pathname}. Query: ${activeQuery}`,
+          feature: "copilot",
+          promptVersion: "copilot-v1.0"
         })
       });
       
       if (!res.ok) throw new Error(await res.text());
       
-      const data = await res.json();
+      const dataRaw = await res.json();
+      let data = dataRaw;
+      if (dataRaw.response) {
+          try {
+              data = JSON.parse(dataRaw.response);
+          } catch(e) {
+              data = { insight: dataRaw.response };
+          }
+      }
       
       // Append Copilot Response
       const copilotMsg: Message = {

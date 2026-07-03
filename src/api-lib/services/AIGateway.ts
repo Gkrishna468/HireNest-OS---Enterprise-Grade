@@ -25,27 +25,33 @@ export class AIGateway {
      * Determines which model to route to based on feature
      */
     static getModelRouting(feature: string): { provider: string, model: string }[] {
+        const ollamaFast = process.env.OLLAMA_MODEL_FAST || 'qwen3:8b';
+        const ollamaAccurate = process.env.OLLAMA_MODEL_ACCURATE || 'deepseek-r1';
+        
         switch (feature) {
             case 'resume_parsing':
             case 'executive_summary':
             case 'email_drafting':
+            case 'copilot':
+            case 'candidate_coach':
                 return [
-                    { provider: 'ollama', model: 'qwen3:8b' },
+                    { provider: 'ollama', model: ollamaFast },
                     { provider: 'google', model: 'gemini-2.5-flash' }
                 ];
             case 'candidate_matching':
             case 'semantic_reasoning':
                 return [
                     { provider: 'google', model: 'gemini-2.5-pro' },
-                    { provider: 'ollama', model: 'deepseek-r1' }
+                    { provider: 'ollama', model: ollamaAccurate }
                 ];
             default:
                 return [
                     { provider: 'google', model: 'gemini-2.5-flash' },
-                    { provider: 'ollama', model: 'qwen3:8b' }
+                    { provider: 'ollama', model: ollamaFast }
                 ];
         }
     }
+
 
     /**
      * Calls a local Ollama instance

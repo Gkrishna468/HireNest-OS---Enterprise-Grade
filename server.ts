@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
@@ -72,6 +72,10 @@ async function createServer() {
 
   // --- Health Endpoints ---
   app.get('/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));
+  app.get('/health/ai', async (req, res) => {
+      const aiHealthHandler = (await import('./src/api-lib/handlers/ai-health')).default;
+      return await aiHealthHandler(req, res);
+  });
   app.get('/ready', (req, res) => {
       if (adminDb) {
           res.status(200).json({ status: 'ready' });
@@ -93,12 +97,12 @@ hirenest_active_requests 0
   });
 
   // --- Rate Limiting ---
-  const keyGenerator = (req: any) => {
+  const keyGenerator = (req: any, res: any) => {
       if (req.user?.uid) {
           // vendors get higher limits or different limits
           return `${req.user.uid}-${req.user.role || 'guest'}`;
       }
-      return req.ip; // fallback to IP for anonymous
+      return ipKeyGenerator(req.ip); // fallback to IP for anonymous
   };
 
   const standardLimiter = rateLimit({

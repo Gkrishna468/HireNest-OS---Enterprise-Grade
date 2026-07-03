@@ -15,6 +15,18 @@ async function getOrgId() {
   return currentUser.uid;
 }
 
+export async function getAuthHeaders() {
+  const orgId = await getOrgId();
+  const token = await auth.currentUser?.getIdToken();
+  const headers: Record<string, string> = { 
+    "Content-Type": "application/json", 
+    "x-org-id": orgId 
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export interface CandidateMatchResult {
   matchScore: number;
@@ -43,13 +55,12 @@ export interface CandidateMatchResult {
 
 export async function analyzeCandidateMatch(jd: string, candidateProfile: string): Promise<CandidateMatchResult> {
   try {
-    const orgId = await getOrgId();
+    const headers = await getAuthHeaders();
     const response = await fetch("/api/match-candidates-detailed", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-org-id": orgId },
+      headers,
       body: JSON.stringify({ jd, candidateProfile }),
     });
-
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -66,17 +77,32 @@ export async function analyzeCandidateMatch(jd: string, candidateProfile: string
 
 export async function parseBulkResumes(resumeTexts: string[]): Promise<any[]> {
   try {
-    const orgId = await getOrgId();
+    const headers = await getAuthHeaders();
     const response = await fetch("/api/bulk-parse-resumes", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-org-id": orgId },
+      headers,
       body: JSON.stringify({ resumeTexts }),
     });
-
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
     return await response.json();
   } catch (e) {
     console.error("Bulk parse proxy failed:", e);
     return [];
+  }
+}
+
+export async function queryAIGateway(prompt: string, feature: string = 'general', promptVersion: string = 'v1.0') {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch("/api/ai", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ prompt, feature, promptVersion }),
+    });
+    if (!response.ok) throw new Error(`AI Gateway returned ${response.status}`);
+    return await response.json();
+  } catch (e) {
+    console.error("AI Gateway proxy failed:", e);
+    return null;
   }
 }
