@@ -51,6 +51,7 @@ import opsHandler from './src/api-lib/handlers/ops';
 import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
 import billingHandler from './src/api-lib/handlers/billing';
 import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
+import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
 
 const __dirname = process.cwd();
 
@@ -313,6 +314,11 @@ hirenest_active_requests 0
         case 'ai/chat':
         case 'ai-gateway':
           if (aiGatewayHandler) return await aiGatewayHandler(req, res);
+          break;
+
+        case 'agents/list':
+        case 'agents/execute':
+          if (agentsExecuteHandler) return await agentsExecuteHandler(req, res);
           break;
           
         case 'rescan-matches':

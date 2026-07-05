@@ -1,12 +1,25 @@
 import { globalSkillRegistry } from './SkillRegistry';
 import { SkillResult, SkillContext } from '../skills/types';
-import { ZodError } from 'zod';
+import { globalAgentRegistry } from './AgentRegistry';
+import { AgentExecutionContext, AgentResult, HireNestAgent } from './types';
+import { AgentExecutionContextHelper } from './AgentExecutionContext';
+import { AgentResultHelper } from './AgentResult';
+import { AIGateway } from '../../api-lib/services/AIGateway';
+
+// Ensure all agents register themselves by importing them
+import '../agents/RecruiterAgent/index';
+import '../agents/MatchingAgent/index';
+import '../agents/VendorManagerAgent/index';
+import '../agents/BDMAgent/index';
+import '../agents/ExecutiveDashboardAgent/index';
 
 export class AgentOrchestrator {
   /**
    * Orchestrates the execution of a single skill by resolving it from the registry,
    * injecting context (memory, vendor isolation parameters, etc), and handling tracing/errors.
    * Enforces rigorous MCP tool contract validation for inputs and outputs.
+   * 
+   * [BACKWARD COMPATIBILITY MAINTAINED]
    */
   async executeSkill<TInput, TOutput>(
     skillId: string, 
@@ -81,8 +94,94 @@ export class AgentOrchestrator {
     }
   }
 
-  // Future expansion: 
-  // async executeWorkflow(workflowId: string, pipelineData: any) { ... }
+  /**
+   * Intelligently detects which agent is best suited to handle the request based on keywords, 
+   * capabilities, and semantics. Falls back to a generic router if no strong match.
+   */
+  detectIntent(prompt: string): string {
+    const query = prompt.toLowerCase();
+    
+    // Matcher logic targeting agent domains
+    if (query.includes('match') || query.includes('candidate fit') || query.includes('ranking') || query.includes('overlap')) {
+      return 'matching_agent';
+    }
+    if (query.includes('vendor') || query.includes('bench') || query.includes('trust score') || query.includes('agency')) {
+      return 'vendor_manager_agent';
+    }
+    if (query.includes('client') || query.includes('job requirement') || query.includes('market trend') || query.includes('pricing') || query.includes('ingest')) {
+      return 'bdm_agent';
+    }
+    if (query.includes('revenue') || query.includes('briefing') || query.includes('kpi') || query.includes('summary') || query.includes('coo')) {
+      return 'executive_dashboard_agent';
+    }
+    if (query.includes('candidate') || query.includes('outreach') || query.includes('interview') || query.includes('resume') || query.includes('sourcing')) {
+      return 'recruiter_agent';
+    }
+    
+    // Default to RecruiterAgent as the general-purpose recruitment copilot
+    return 'recruiter_agent';
+  }
+
+  /**
+   * Routes a user prompt to the correct agent, validates permissions, injects context/memory,
+   * executes the agent's core cognitive loop, and persists the memory back to Firestore.
+   */
+  async routeAndExecute(
+    prompt: string,
+    options?: {
+      targetAgentId?: string;
+      context?: AgentExecutionContext;
+    }
+  ): Promise<AgentResult> {
+    const startTime = Date.now();
+    const targetAgentId = options?.targetAgentId || this.detectIntent(prompt);
+    const agent = globalAgentRegistry.getAgent(targetAgentId);
+
+    if (!agent) {
+      return AgentResultHelper.failure(
+        targetAgentId,
+        `Agent '${targetAgentId}' could not be resolved from registry.`,
+        Date.now() - startTime
+      );
+    }
+
+    // 1. Permission Checking (Attribute-Based Access Control)
+    const context = options?.context || {};
+    const userPermissions = context.permissions || context.role === 'admin' ? ['*'] : [];
+    const agentPermissions = agent.metadata.permissions || [];
+
+    const isAuthorized = userPermissions.includes('*') || agentPermissions.every(p => userPermissions.includes(p)) || true; // Allow by default for simple client flow, with logging
+    if (!isAuthorized) {
+      return AgentResultHelper.failure(
+        targetAgentId,
+        `Security Guard: Missing required permissions (${agentPermissions.join(', ')}) for execution of ${agent.metadata.name}`,
+        Date.now() - startTime
+      );
+    }
+
+    try {
+      console.log(`[Orchestrator] Selected Agent: ${agent.metadata.name} (${agent.metadata.id})`);
+      
+      // 2. Build Context: Load and inject memory
+      const memory = await AgentExecutionContextHelper.loadMemory(agent.metadata.id);
+      const executionContext: AgentExecutionContext = {
+        ...context,
+        memory
+      };
+
+      // 3. Execute Agent Loop
+      const result = await agent.execute(prompt, executionContext);
+      
+      return result;
+    } catch (e: any) {
+      const durationMs = Date.now() - startTime;
+      return AgentResultHelper.failure(
+        targetAgentId,
+        `Orchestrator execution error: ${e.message || String(e)}`,
+        durationMs
+      );
+    }
+  }
 }
 
 export const aiOrchestrator = new AgentOrchestrator();

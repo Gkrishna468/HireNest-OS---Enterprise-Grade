@@ -142,3 +142,8 @@ This document details our analysis, checking process, and compliance alignment f
 * **Analysis & Safety Check:**
   - `/PRIVACY_POLICY.md` and `/TERMS_OF_SERVICE.md` established handling GDPR/CCPA alignment and usage SLA rules.
   - Transitioned the core AI workforce infrastructure (Skills & Orchestrators) into **Zod** schema validations (`/src/ai/skills/types.ts`). This ensures input/output payloads are rigorously constrained (MCP style), avoiding hallucinations or prompt-injection edge attacks from polluting backend orchestration.
+
+## Database Performance & Scale Hardening (v1.1)
+- **Checklist Formalized**: Created `docs/21_AI_DEPLOYMENT_CHECKLIST.md` establishing 5 core DB checks: N+1 queries, Pagination limits, Indexes, Connection Pools, and Select * field restriction.
+- **Analytics Isolation Resolved**: Updated `src/api-lib/handlers/analytics.ts` to use `.select()` in large collection scans to prevent fetching full heavy documents (like base64 resumes).
+- **CRON N+1 Queries Patched**: Updated `src/api-lib/handlers/cron.ts` to fetch `MailOS` synch documents concurrently via `Promise.all` instead of sequentially awaiting, and added a `.limit(50)` to prevent OOM errors for massive user bases.

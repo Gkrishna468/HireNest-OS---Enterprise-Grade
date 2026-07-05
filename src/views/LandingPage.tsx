@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Shield,
   MessageSquare,
-  Lock
+  Lock,
+  Menu,
+  X
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
@@ -22,6 +24,7 @@ import { collection, addDoc } from 'firebase/firestore';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     companyName: '',
@@ -78,7 +81,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white selection:bg-indigo-500 selection:text-white overflow-x-hidden">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-slate-950/50 backdrop-blur-md border-b border-white/5">
+      <nav className="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
@@ -89,6 +92,7 @@ export default function LandingPage() {
             </h1>
           </div>
 
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Pricing</a>
@@ -101,7 +105,66 @@ export default function LandingPage() {
               Get Early Access
             </button>
           </div>
+
+          {/* Mobile Actions: Always show Login, and a menu toggle */}
+          <div className="flex md:hidden items-center gap-3">
+            <Link to="/login" className="text-[10px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl border border-white/10 transition-all">
+              Login
+            </Link>
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl border border-white/5"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Navigation Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-slate-950 border-b border-white/5 px-6 py-6 space-y-4 animate-in slide-in-from-top-4 duration-200">
+            <a 
+              href="#features" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white py-2"
+            >
+              Features
+            </a>
+            <a 
+              href="#pricing" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white py-2"
+            >
+              Pricing
+            </a>
+            <a 
+              href="#early-access" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white py-2"
+            >
+              Early Access
+            </a>
+            <div className="pt-2 border-t border-white/5 flex flex-col gap-3">
+              <Link 
+                to="/login" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full text-center py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all border border-white/5"
+              >
+                Login
+              </Link>
+              <button 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  document.getElementById('early-access')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all text-center"
+              >
+                Get Early Access
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}

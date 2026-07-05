@@ -285,9 +285,9 @@ export default async function analyticsHandler(req: any, res: any) {
     }
 
     if (apiPath === "recruiter") {
-      const reqsSnap = await adminDb.collection("requirements_public").get();
-      const candsSnap = await adminDb.collection("candidatePool").get();
-      const subsSnap = await adminDb.collection("submissions").get();
+      const reqsSnap = await adminDb.collection("requirements_public").select("status", "financials").get();
+      const candsSnap = await adminDb.collection("candidatePool").select("assignedRecruiterId", "uploaderId", "vendorId", "status").get();
+      const subsSnap = await adminDb.collection("submissions").select("recruiterId", "vendorId", "status", "candidateId").get();
 
       let activeCandidates = 0;
       let pendingSubmissions = 0;
@@ -350,9 +350,9 @@ export default async function analyticsHandler(req: any, res: any) {
     }
 
     if (apiPath === "hq") {
-      const reqsSnap = await adminDb.collection("requirements_public").get();
-      const candsSnap = await adminDb.collection("candidatePool").get();
-      const subsSnap = await adminDb.collection("submissions").get();
+      const reqsSnap = await adminDb.collection("requirements_public").select("status", "financials").get();
+      const candsSnap = await adminDb.collection("candidatePool").select("assignedRecruiterId", "uploaderId", "vendorId", "status").get();
+      const subsSnap = await adminDb.collection("submissions").select("recruiterId", "vendorId", "status", "candidateId").get();
 
       let platformRevenue = 0;
       reqsSnap.docs.forEach((d: any) => {
@@ -386,9 +386,9 @@ export default async function analyticsHandler(req: any, res: any) {
           .json({ error: "Access Denied. HQ Role required." });
       }
 
-      const reqsSnap = await adminDb.collection("requirements_public").get();
-      const candsSnap = await adminDb.collection("candidatePool").get();
-      const subsSnap = await adminDb.collection("submissions").get();
+      const reqsSnap = await adminDb.collection("requirements_public").select("status", "financials").get();
+      const candsSnap = await adminDb.collection("candidatePool").select("assignedRecruiterId", "uploaderId", "vendorId", "status").get();
+      const subsSnap = await adminDb.collection("submissions").select("recruiterId", "vendorId", "status", "candidateId").get();
 
       const allReqs = reqsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const allCands = candsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));

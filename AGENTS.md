@@ -211,3 +211,11 @@ No single AI agent should perform all roles. Agents must embody the following pe
 - **Developer Agent:** Generates code based strictly on approved implementation plans.
 - **QA Agent:** Regression testing and verification.
 - **Auditor Agent:** Validates that code and configurations adhere to the central Architecture Registry and Governance Rules.
+
+## AI Deployment Checklist (Database Performance)
+When modifying database interactions, refer to `docs/21_AI_DEPLOYMENT_CHECKLIST.md` and explicitly avoid:
+1. **N+1 queries**: Use `Promise.all` or `IN` queries instead of `for...await` loops.
+2. **No pagination**: Never use `.get()` on an unbound collection. Always use `.limit()` or cursor-based pagination.
+3. **Missing indexes**: Use composite indexes for complex filtering.
+4. **No connection pool**: Avoid multiple Firebase app initializations.
+5. **SELECT ***: Use `.select('field1')` when using `firebase-admin` to avoid loading massive documents unnecessarily into memory.

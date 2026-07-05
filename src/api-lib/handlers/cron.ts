@@ -126,11 +126,11 @@ cronHandler.get("/mailos-sync", async (req, res) => {
     console.log("[CRON] Starting MailOS Sync across workspaces");
     const connectionsSnap = await db
       .collection("workspace_connections")
-      .where("gmail", "==", true)
-      .get();
+      .where("gmail", "==", true).limit(50).get(); // VIBE CHECK: Added limit(50) to prevent OOM on large connection sets
 
     const results = [];
-    for (const doc of connectionsSnap.docs) {
+    // VIBE CHECK: Removed sequential loop, processing concurrently to avoid N+1 blocking
+    await Promise.all(connectionsSnap.docs.map(async (doc) => {
       const uid = doc.id;
       // Fetch user's orgId
       const userDoc = await db.collection("users").doc(uid).get();
@@ -159,7 +159,7 @@ cronHandler.get("/mailos-sync", async (req, res) => {
           results.push({ uid, orgId, error: e.message });
         }
       }
-    }
+    }));
 
     res.json({ success: true, executions: results.length, details: results });
   } catch (e: any) {
