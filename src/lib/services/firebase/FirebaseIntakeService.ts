@@ -71,7 +71,14 @@ export class FirebaseIntakeService {
     // In a real system, we'd call the /api/parse-jd here or use the logic directly.
     // For this milestone, we'll simulate the structured extraction or use existing data if provided.
     
-    const requirementData: RequirementInput = {
+    const mappedViaMap: Record<string, 'CRM' | 'OS' | 'PORTAL' | 'API' | 'IMPORT'> = {
+      'EMAIL': 'IMPORT',
+      'WHATSAPP': 'API',
+      'PORTAL': 'PORTAL',
+      'API': 'API'
+    };
+
+    const requirementData: any = {
       clientId: event.orgId,
       title: event.payload.title || 'New Requirement',
       skills: event.payload.skills || [],
@@ -82,14 +89,39 @@ export class FirebaseIntakeService {
       jdText: rawJd,
       mandatorySkills: event.payload.mandatorySkills || [],
       location: event.payload.location || 'Remote',
-      experienceRange: event.payload.experienceRange || '5+ Years'
+      experienceRange: event.payload.experienceRange || '5+ Years',
+      createdFrom: 'CLIENT',
+      createdVia: mappedViaMap[event.source] || 'PORTAL',
+      createdByRole: 'CLIENT'
     };
 
-    const docRef = await addDoc(collection(db, "requirements"), {
+    const { doc, setDoc } = await import('firebase/firestore');
+    const docRef = await addDoc(collection(db, "requirements_public"), {
       ...requirementData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+
+    // Auto-create corresponding Deal Room
+    try {
+      await setDoc(doc(db, "dealRooms", `DR-${docRef.id}`), {
+        id: `DR-${docRef.id}`,
+        requirementId: docRef.id,
+        requirementTitle: requirementData.title,
+        clientId: requirementData.clientId,
+        vendorId: "Direct",
+        candidateId: "",
+        candidateName: "Requirement Room",
+        status: "active",
+        createdAt: new Date().toISOString(),
+        createdBy: "system",
+        matchScore: 100,
+        expectedFee: 0,
+        isActive: true
+      });
+    } catch (e) {
+      console.warn("Deal Room auto-creation deferred in intake:", e);
+    }
 
     return docRef.id;
   }
@@ -106,7 +138,12 @@ export class FirebaseIntakeService {
       visibilityScopes: ['GLOBAL'],
       yearsOfExperience: event.payload.yearsOfExperience || 0,
       currentRole: event.payload.currentRole || 'Professional',
-      trustScore: 80
+      trustScore: 80,
+      ownerType: 'SYSTEM',
+      ownerId: 'SYSTEM',
+      ownerName: 'SYSTEM',
+      acquiredAt: new Date().toISOString(),
+      acquisitionMethod: 'IMPORT'
     };
 
     const docRef = await addDoc(collection(db, "candidatePool"), {

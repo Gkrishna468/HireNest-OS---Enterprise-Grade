@@ -26,10 +26,35 @@ export default function ObservabilityDashboard() {
     };
   }, []);
 
+  // ponytail: robust formatting of Firestore timestamps/dates/strings to ISO format to prevent e.timestamp?.startsWith crashes
+  const formatTimestamp = (ts: any): string => {
+    if (!ts) return new Date().toISOString();
+    if (typeof ts === "string") return ts;
+    if (typeof ts.seconds === "number") {
+      return new Date(ts.seconds * 1000).toISOString();
+    }
+    if (ts.seconds) {
+      return new Date(ts.seconds * 1000).toISOString();
+    }
+    if (ts instanceof Date) {
+      return ts.toISOString();
+    }
+    if (typeof ts.toDate === "function") {
+      try {
+        return ts.toDate().toISOString();
+      } catch (e) {}
+    }
+    try {
+      return new Date(ts).toISOString();
+    } catch (e) {
+      return new Date().toISOString();
+    }
+  };
+
   const todayStr = new Date().toISOString().split("T")[0];
-  const errorsToday = errorLogs.filter(e => e.timestamp?.startsWith(todayStr)).length;
-  const aiCallsToday = aiMetrics.filter(e => e.timestamp && new Date(e.timestamp.seconds * 1000).toISOString().startsWith(todayStr)).length;
-  const auditEventsToday = auditLogs.filter(e => e.timestamp?.startsWith(todayStr)).length;
+  const errorsToday = errorLogs.filter(e => formatTimestamp(e.timestamp).startsWith(todayStr)).length;
+  const aiCallsToday = aiMetrics.filter(e => formatTimestamp(e.timestamp).startsWith(todayStr)).length;
+  const auditEventsToday = auditLogs.filter(e => formatTimestamp(e.timestamp).startsWith(todayStr)).length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -66,9 +91,9 @@ export default function ObservabilityDashboard() {
           </div>
           <div className="flex-1 overflow-y-auto p-0">
             <div className="divide-y divide-slate-100">
-              {[...errorLogs.map(e => ({ ...e, _ts: e.timestamp, _tag: e.errorType || "Error", _icon: Bug, _color: "text-rose-500", _bg: "bg-rose-50" })),
-                ...aiMetrics.map(e => ({ ...e, _ts: e.timestamp?.seconds ? new Date(e.timestamp.seconds*1000).toISOString() : new Date().toISOString(), _tag: "AI_CALL", _icon: Cpu, _color: "text-indigo-500", _bg: "bg-indigo-50" })),
-                ...auditLogs.map(e => ({ ...e, _ts: e.timestamp, _tag: "AUDIT", _icon: ShieldAlert, _color: "text-purple-500", _bg: "bg-purple-50" }))
+              {[...errorLogs.map(e => ({ ...e, _ts: formatTimestamp(e.timestamp), _tag: e.errorType || "Error", _icon: Bug, _color: "text-rose-500", _bg: "bg-rose-50" })),
+                ...aiMetrics.map(e => ({ ...e, _ts: formatTimestamp(e.timestamp), _tag: "AI_CALL", _icon: Cpu, _color: "text-indigo-500", _bg: "bg-indigo-50" })),
+                ...auditLogs.map(e => ({ ...e, _ts: formatTimestamp(e.timestamp), _tag: "AUDIT", _icon: ShieldAlert, _color: "text-purple-500", _bg: "bg-purple-50" }))
               ].sort((a, b) => new Date(b._ts).getTime() - new Date(a._ts).getTime())
                .slice(0, 100)
                .map((event, idx) => {

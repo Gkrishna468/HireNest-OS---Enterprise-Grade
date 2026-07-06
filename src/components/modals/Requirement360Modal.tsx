@@ -171,6 +171,119 @@ export default function Requirement360Modal({
             >
               {activeTab === "SUMMARY" && (
                 <div className="space-y-8">
+                  {/* UOP v2.0 Platform Integration Dashboard */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Column 1: Provenance & Metadata */}
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck size={18} className="text-indigo-600" />
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-700">Unified Operations Provenance</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400 font-medium">Created From:</span>
+                          <Badge className="bg-amber-100 text-amber-700 font-black border-none uppercase text-[9px] tracking-widest">
+                            {job.createdFrom || "RECRUITER"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400 font-medium">Created Via:</span>
+                          <Badge className="bg-blue-100 text-blue-700 font-black border-none uppercase text-[9px] tracking-widest">
+                            {job.createdVia || "OS"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400 font-medium">Created By Role:</span>
+                          <Badge className="bg-indigo-100 text-indigo-700 font-black border-none uppercase text-[9px] tracking-widest">
+                            {job.createdByRole || "RECRUITER"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400 font-medium">Platform Mode:</span>
+                          <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                            Single SSOT
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 2: Assignment Control Room */}
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users size={18} className="text-indigo-600" />
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-700">Assignment Control Room</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Assigned BDM</span>
+                          <select
+                            defaultValue={job.assignedBDM || ""}
+                            onChange={async (e) => {
+                              try {
+                                const { doc, updateDoc } = await import("firebase/firestore");
+                                await updateDoc(doc(db, "requirements_public", job.id), {
+                                  assignedBDM: e.target.value
+                                });
+                              } catch (err) {
+                                console.error("Failed to update BDM", err);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="">Unassigned</option>
+                            <option value="BDM-Amit Kumar">BDM-Amit Kumar</option>
+                            <option value="BDM-Neha Sharma">BDM-Neha Sharma</option>
+                            <option value="BDM-Vikram Singh">BDM-Vikram Singh</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Assigned Recruiter</span>
+                          <select
+                            defaultValue={job.assignedRecruiter || ""}
+                            onChange={async (e) => {
+                              try {
+                                const { doc, updateDoc } = await import("firebase/firestore");
+                                await updateDoc(doc(db, "requirements_public", job.id), {
+                                  assignedRecruiter: e.target.value
+                                });
+                              } catch (err) {
+                                console.error("Failed to update Recruiter", err);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="">Unassigned</option>
+                            <option value="REC-Sarah Jenkins">REC-Sarah Jenkins</option>
+                            <option value="REC-Michael Chang">REC-Michael Chang</option>
+                            <option value="REC-Elena Rostova">REC-Elena Rostova</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 3: Platform Deal Room Linkage */}
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare size={18} className="text-indigo-600" />
+                          <h4 className="text-xs font-black uppercase tracking-widest text-slate-700">Requirement Deal Room</h4>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                          This requirement owns a dedicated real-time Deal Room in the unified operations platform. No duplication or lag.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          onClose();
+                          window.location.hash = "#/deal-rooms"; // Redirect to Deal Rooms view
+                        }}
+                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-indigo-100 hover:scale-[1.02]"
+                      >
+                        Launch Unified Deal Room
+                      </button>
+                    </div>
+                  </div>
+
                   <JDIntelligence job={job} />
                 </div>
               )}

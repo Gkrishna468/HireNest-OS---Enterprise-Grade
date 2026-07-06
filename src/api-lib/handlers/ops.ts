@@ -1,6 +1,43 @@
 import { Request, Response } from "express";
 import { RuntimeMetricsService } from "../services/RuntimeMetricsService.js";
-import { db } from "../../lib/firebase-admin.js";
+import { db as rawDb } from "../../lib/firebase-admin.js";
+
+// Safe Proxy wrapper around db to intercept and automatically initialize system_runtime/state if it doesn't exist.
+const db = new Proxy(rawDb || {}, {
+  get(target, prop, receiver) {
+    if (!rawDb) return undefined;
+    const val = Reflect.get(target, prop, receiver);
+    if (prop === "collection") {
+      return function(collectionName: string) {
+        const colRef = val.call(target, collectionName);
+        if (collectionName === "system_runtime") {
+          const originalDoc = colRef.doc;
+          colRef.doc = function(docId?: string) {
+            const docRef = originalDoc.call(colRef, docId);
+            if (docId === "state") {
+              const originalUpdate = docRef.update;
+              docRef.update = async function(data: any) {
+                try {
+                  return await originalUpdate.call(docRef, data);
+                } catch (err: any) {
+                  if (err && err.message && err.message.includes("NOT_FOUND")) {
+                    console.log("[Firebase Interceptor] system_runtime/state document not found during update. Initializing default state first...");
+                    await initializeRuntimeState("OFFLINE");
+                    return await originalUpdate.call(docRef, data);
+                  }
+                  throw err;
+                }
+              };
+            }
+            return docRef;
+          };
+        }
+        return colRef;
+      };
+    }
+    return typeof val === "function" ? val.bind(target) : val;
+  }
+}) as any;
 
 // ============================================================================
 // SYSTEM RUNTIME STATE SEED & LOG HELPERS

@@ -54,6 +54,23 @@ export class FirebaseEventService implements IEventService {
         correlationId: metadata?.correlationId || metadata?.requirementId || metadata?.jobId || entityId,
         timestamp: serverTimestamp()
       });
+
+      // Unified Activity Timeline: Automatically write to the activities collection
+      await addDoc(collection(db, "activities"), {
+        entityType,
+        entityId,
+        event: type,
+        actor: {
+          id: actorId,
+          role: actorRole,
+          name: metadata?.actorName || actorId
+        },
+        timestamp: serverTimestamp(),
+        metadata: {
+          ...metadata,
+          tenantId: metadata?.tenantId || metadata?.orgId || "default-tenant"
+        }
+      });
     } catch (error: any) {
       if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
         console.warn(`[EventBus] emit deferred (Pending Firebase Rules Update)`);

@@ -24,7 +24,9 @@ export class FirebaseCandidateService implements ICandidateService {
 
   async updateCandidate(id: string, updates: CandidateUpdate): Promise<void> {
     const docRef = doc(db, this.collectionName, id);
-    await updateDoc(docRef, updates as { [x: string]: any });
+    // Immutability Safety: Protect ownership fields from being modified after creation
+    const { ownerType, ownerId, ownerName, acquiredAt, acquisitionMethod, ...safeUpdates } = updates as any;
+    await updateDoc(docRef, safeUpdates as { [x: string]: any });
   }
 
   async archiveCandidate(id: string): Promise<void> {

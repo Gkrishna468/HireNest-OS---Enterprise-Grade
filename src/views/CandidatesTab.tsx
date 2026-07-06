@@ -883,6 +883,14 @@ export default function CandidatesTab() {
            phoneHash: formData.phone,
            skills: getSkillsArray(formData.skills),
            candidateId: finalCandId,
+           createdFrom: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+           createdVia: "OS",
+           createdByRole: (userRole || "vendor").toUpperCase() as any,
+           ownerType: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+           ownerId: userOrgId || auth.currentUser?.uid || "system",
+           ownerName: userRole === "vendor" ? "Vendor Partner" : "Internal Recruiter",
+           acquiredAt: new Date().toISOString(),
+           acquisitionMethod: "MANUAL" as any,
            vendorId: userOrgId,
            pipelineStage: "Candidate Added",
            isDuplicate: false,
@@ -958,6 +966,14 @@ export default function CandidatesTab() {
           resumeText: text,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          createdFrom: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+          createdVia: "IMPORT",
+          createdByRole: (userRole || "vendor").toUpperCase() as any,
+          ownerType: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+          ownerId: userOrgId || auth.currentUser?.uid || "system",
+          ownerName: userRole === "vendor" ? "Vendor Partner" : "Internal Recruiter",
+          acquiredAt: new Date().toISOString(),
+          acquisitionMethod: "IMPORT" as any,
         });
 
         await emitEvent(
@@ -1114,6 +1130,14 @@ ${extText}`;
           distillationStatus: "PROCESSING",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          createdFrom: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+          createdVia: "IMPORT",
+          createdByRole: (userRole || "vendor").toUpperCase() as any,
+          ownerType: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+          ownerId: userOrgId || auth.currentUser?.uid || "system",
+          ownerName: userRole === "vendor" ? "Vendor Partner" : "Internal Recruiter",
+          acquiredAt: new Date().toISOString(),
+          acquisitionMethod: "IMPORT" as any,
         });
 
         await emitEvent(
@@ -1716,6 +1740,18 @@ ${extText}`;
                     <span className="text-xs font-mono text-slate-400 font-normal">
                        {candidate.candidateId || candidate.id || "HN-CAN-PENDING"}
                     </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {candidate.createdFrom && (
+                        <span className="text-[8px] font-black text-indigo-700 bg-indigo-50/70 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          {candidate.createdFrom} / {candidate.createdVia || "OS"}
+                        </span>
+                      )}
+                      {candidate.ownerName && (
+                        <span className="text-[8px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          Owner: {candidate.ownerName}
+                        </span>
+                      )}
+                    </div>
                   </h3>
                   
                   <p className="text-sm text-slate-500 truncate mb-4">
@@ -1801,6 +1837,14 @@ ${extText}`;
                           primaryEmail: "pending@extraction.io",
                           email: "pending@extraction.io",
                           candidateId: candId,
+                          createdFrom: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+                          createdVia: "IMPORT",
+                          createdByRole: (userRole || "vendor").toUpperCase() as any,
+                          ownerType: userRole === "vendor" ? "VENDOR" : "RECRUITER",
+                          ownerId: userOrgId || auth.currentUser?.uid || "system",
+                          ownerName: userRole === "vendor" ? "Vendor Partner" : "Internal Recruiter",
+                          acquiredAt: new Date().toISOString(),
+                          acquisitionMethod: "IMPORT" as any,
                           vendorId: userOrgId || "HQ",
                           sourceOrganizations: [userOrgId || "HQ"],
                           pipelineStage: "Candidate Added",

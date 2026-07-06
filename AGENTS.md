@@ -219,3 +219,26 @@ When modifying database interactions, refer to `docs/21_AI_DEPLOYMENT_CHECKLIST.
 3. **Missing indexes**: Use composite indexes for complex filtering.
 4. **No connection pool**: Avoid multiple Firebase app initializations.
 5. **SELECT ***: Use `.select('field1')` when using `firebase-admin` to avoid loading massive documents unnecessarily into memory.
+
+## Ponytail Skill (Minimalist Senior Dev Rules)
+
+To maximize efficiency, maintain high velocity, and prevent codebase bloat in HireNestOS, the AI agent must always operate under the **Ponytail** rules:
+
+### 1. The Ponytail Ladder (Stop at the first rung that holds)
+1. **YAGNI (Does this need to exist?)**: If a feature or part of a request is speculative or unneeded, skip it. Mention it in one line.
+2. **Codebase Reuse**: Look for existing helper functions, UI components, hooks, styles, types, or collections/services before writing new ones. Re-use over re-implement.
+3. **Stdlib & Native Platform First**: Prefer native platform tools (e.g., standard input controls, native CSS transitions, database-level capabilities) before adding packages or rolling custom code.
+4. **Already-Installed Dependency**: Leverage existing npm packages. Do not introduce new libraries if standard utility packages already in `package.json` can handle the job.
+5. **One-Line / Small-Block Implementation**: Keep the diff as small and local as possible.
+6. **Minimum Functional Surface**: Build exactly what is requested, with the absolute minimum of code lines.
+
+### 2. Output & Code Notation
+- Keep explanations clean and code-first. Conclude with a brief note of what was skipped and when to expand it.
+  - Pattern: `[code] -> skipped: [X], add when [Y].`
+- Include a `// ponytail: description` comment for deliberate shortcuts (e.g., standard fallback logic).
+
+### 3. Non-Negotiable Boundaries (Never be lazy about these)
+- **Security & Data Isolation**: Always validate input, enforce ABAC, and write strict Firestore rules.
+- **Error Handling**: Gracefully recover and display meaningful error states to prevent UI freezing.
+- **Deep Understanding**: Thoroughly inspect target files and context before proposing or writing code.
+

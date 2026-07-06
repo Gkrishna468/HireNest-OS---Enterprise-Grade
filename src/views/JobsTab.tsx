@@ -909,9 +909,35 @@ export default function JobsTab() {
         ownerId: auth.currentUser?.uid,
         createdAt: serverTimestamp(),
         matchProcessingStatus: "pending",
+        
+        // Provenance & Trackability Refinements
+        createdFrom: isClient ? "CLIENT" : "RECRUITER",
+        createdVia: "OS",
+        createdByRole: (userRole || "RECRUITER").toUpperCase(),
       };
 
       await setDoc(doc(db, "requirements_public", reqId), newReq);
+
+      // Auto-create matching Deal Room
+      try {
+        await setDoc(doc(db, "dealRooms", `DR-${reqId}`), {
+          id: `DR-${reqId}`,
+          requirementId: reqId,
+          requirementTitle: newReq.title,
+          clientId: newReq.clientId,
+          vendorId: "Direct",
+          candidateId: "",
+          candidateName: "Requirement Room",
+          status: "active",
+          createdAt: new Date().toISOString(),
+          createdBy: auth.currentUser?.uid || "system",
+          matchScore: 100,
+          expectedFee: 0,
+          isActive: true
+        });
+      } catch (e) {
+        console.warn("Deal Room auto-creation deferred in JobsTab:", e);
+      }
 
       // Ensure import is at the top of the file, not here, I will fix the import later
       await emitEvent(
@@ -1578,9 +1604,21 @@ export default function JobsTab() {
                             >
                               {job.title}
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">
-                              ID: {job.requirementId?.replace("REQ-", "")}
-                            </p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                                ID: {job.requirementId?.replace("REQ-", "")}
+                              </p>
+                              {job.createdFrom && (
+                                <span className="text-[8px] font-extrabold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  {job.createdFrom} / {job.createdVia || "OS"}
+                                </span>
+                              )}
+                              {(job.assignedBDM || job.assignedRecruiter) && (
+                                <span className="text-[8px] font-extrabold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  {job.assignedBDM ? "BDM" : "REC"} Assigned
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">

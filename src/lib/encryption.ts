@@ -21,10 +21,13 @@ function getKey(): Buffer {
      }
   }
 
-  const encryptionKey = Buffer.from(keyStr, 'hex');
+  // Attempt to decode as hex first
+  let encryptionKey = Buffer.from(keyStr, 'hex');
 
-  if (encryptionKey.length !== 32) {
-      throw new Error("ENCRYPTION_KEY must decode to exactly 32 bytes");
+  // If the parsed hex buffer is not exactly 32 bytes, or if the string itself isn't pure hex,
+  // safely derive a 32-byte key from the provided string using SHA-256.
+  if (encryptionKey.length !== 32 || !/^[0-9a-fA-F]+$/.test(keyStr)) {
+      encryptionKey = crypto.createHash('sha256').update(keyStr).digest();
   }
 
   return encryptionKey;

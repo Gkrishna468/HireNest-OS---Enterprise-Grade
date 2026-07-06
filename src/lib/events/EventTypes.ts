@@ -36,5 +36,17 @@ export enum EventTypes {
   RECRUITER_ARCHIVED = 'RECRUITER_ARCHIVED',
 
   DEAL_ROOM_OPENED = 'DEAL_ROOM_OPENED',
-  GOVERNANCE_POLICY_APPLIED = 'GOVERNANCE_POLICY_APPLIED'
+  GOVERNANCE_POLICY_APPLIED = 'GOVERNANCE_POLICY_APPLIED',
+
+  // CamelCase additions for system standards
+  RequirementCreated = 'RequirementCreated',
+  RequirementUpdated = 'RequirementUpdated',
+  CandidateUploaded = 'CandidateUploaded',
+  CandidateOwnershipChanged = 'CandidateOwnershipChanged',
+  SubmissionCreated = 'SubmissionCreated',
+  SubmissionAccepted = 'SubmissionAccepted',
+  InterviewScheduled = 'InterviewScheduled',
+  InterviewCompleted = 'InterviewCompleted',
+  OfferReleased = 'OfferReleased',
+  PlacementConfirmed = 'PlacementConfirmed'
 }

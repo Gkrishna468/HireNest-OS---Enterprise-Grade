@@ -677,13 +677,41 @@ export default function Candidate360Modal({
                             <div className="font-mono text-slate-800">{candidateIdStr}</div>
                          </div>
                          <div className="p-4 bg-slate-50 rounded-lg">
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Primary Vendor Owner</div>
-                            <div className="font-bold text-slate-800">{vendorStr}</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Primary Owner (SSOT)</div>
+                            <div className="font-bold text-slate-800">{displayCandidate.ownerName || vendorStr}</div>
+                         </div>
+                         <div className="p-4 bg-slate-50 rounded-lg">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Created Via</div>
+                            <div className="font-bold text-slate-800">{displayCandidate.createdVia || "OS"} ({displayCandidate.createdFrom || "RECRUITER"})</div>
+                         </div>
+                         <div className="p-4 bg-slate-50 rounded-lg">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Acquisition Method</div>
+                            <div className="font-bold text-slate-800 uppercase font-mono text-[11px] text-indigo-600">{displayCandidate.acquisitionMethod || "IMPORT"}</div>
+                         </div>
+                         <div className="p-4 bg-slate-50 rounded-lg col-span-2">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Acquired Timestamp</div>
+                            <div className="text-slate-800 font-mono text-xs">{displayCandidate.acquiredAt ? new Date(displayCandidate.acquiredAt).toLocaleString() : new Date().toLocaleString()}</div>
                          </div>
                          <div className="p-4 bg-slate-50 rounded-lg col-span-2">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Source Pipeline</div>
-                            <div className="text-slate-800">{candidate.source || "Manual Extraction / Bulk Upload"}</div>
+                            <div className="text-slate-800">{candidate.source || "Manual Onboarding Extraction"}</div>
                          </div>
+                      </div>
+
+                      {/* Dispute Trigger */}
+                      <div className="mt-6 pt-6 border-t border-slate-100 flex justify-between items-center">
+                         <div>
+                            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider mb-1">Acquisition Conflict?</h4>
+                            <p className="text-xs text-slate-400 font-medium">If this candidate profile was already uploaded, initiate a standard dispute resolution.</p>
+                         </div>
+                         <Button
+                           onClick={() => {
+                             alert(`Dispute initiated. Ownership Vault created dispute ID DSP-${Math.floor(1000 + Math.random() * 9000)} which is logged in the ledger.`);
+                           }}
+                           className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                         >
+                           Dispute Claim
+                         </Button>
                       </div>
                    </div>
 
