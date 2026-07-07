@@ -6,16 +6,22 @@ export default async function aiGatewayHandler(req: any, res: any) {
     }
 
     try {
-        const { prompt, feature = 'general', promptVersion = 'v1.0' } = req.body;
+        const { prompt, feature = 'general', promptVersion = 'v1.0', agent } = req.body;
         
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
         }
 
+        const userId = req.user?.uid || req.body.userId || 'system';
+        const office = req.user?.role || req.body.office || 'general';
+
         const result = await AIGateway.processChat({
             prompt,
             feature,
-            promptVersion
+            promptVersion,
+            userId,
+            office,
+            agent: agent || feature
         });
 
         // Add prompt version to the response

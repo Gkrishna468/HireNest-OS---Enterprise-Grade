@@ -311,6 +311,7 @@ hirenest_active_requests 0
           if (bulkParseHandler) return await bulkParseHandler(req, res);
           break;
 
+        case 'ai':
         case 'ai/chat':
         case 'ai-gateway':
           if (aiGatewayHandler) return await aiGatewayHandler(req, res);

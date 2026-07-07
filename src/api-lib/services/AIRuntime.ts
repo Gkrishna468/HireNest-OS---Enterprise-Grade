@@ -107,7 +107,7 @@ export class AIRuntime {
 
         // 2. Try Primary Provider (Gemini)
         try {
-            const modelToUse = request.modelPreference === 'accurate' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+            const modelToUse = request.modelPreference === 'accurate' ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash';
             let contentParts: any[] = [];
             let tokensSaved = 0;
             let compressionRatio = 1.0;
