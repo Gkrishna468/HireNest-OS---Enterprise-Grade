@@ -81,3 +81,28 @@ export interface PlatformActivity {
   status: 'info' | 'warning' | 'success' | 'critical';
   payload?: any;
 }
+
+export interface AIReport {
+  id: string;
+  agentId: string;
+  agentName: string;
+  type: 'daily' | 'weekly' | 'monthly' | 'custom';
+  title: string;
+  content: string;
+  status: 'unread' | 'acknowledged';
+  timestamp: string;
+  acknowledgedAt?: string;
+  acknowledgedBy?: string;
+}
+
+export interface AIPolicy {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  status: 'active' | 'draft' | 'inactive';
+  ruleCount: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  lastUpdated: string;
+}
+

@@ -15,11 +15,15 @@ import {
   Flame, 
   Sparkles,
   RefreshCw,
-  Cpu
+  Cpu,
+  ShieldAlert,
+  Plus,
+  Trash2,
+  CheckCircle2
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { Execution, Agent } from "./AIOpsTypes";
+import { Execution, Agent, AIPolicy } from "./AIOpsTypes";
 
 interface GovernanceAuditProps {
   activeSubTab: string;
@@ -33,6 +37,9 @@ interface GovernanceAuditProps {
   isSimulating: boolean;
   onRunSimulation: () => void;
   simulationResult: any;
+  policies: AIPolicy[];
+  onTogglePolicy: (id: string, status: 'active' | 'draft' | 'inactive') => void;
+  onAddPolicy: (newPol: Omit<AIPolicy, 'id' | 'lastUpdated'>) => void;
 }
 
 export default function GovernanceAudit({
@@ -46,7 +53,10 @@ export default function GovernanceAudit({
   setSimulationPrompt,
   isSimulating,
   onRunSimulation,
-  simulationResult
+  simulationResult,
+  policies = [],
+  onTogglePolicy,
+  onAddPolicy
 }: GovernanceAuditProps) {
   
   // Memory Explorer selected agent
@@ -56,6 +66,21 @@ export default function GovernanceAudit({
   const memoryAgent = useMemo(() => {
     return agents.find(a => a.id === selectedMemoryAgentId) || agents[0] || null;
   }, [agents, selectedMemoryAgentId]);
+
+  // Form states for creating a custom policy
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newCategory, setNewCategory] = useState("Security & IAM");
+  const [newSeverity, setNewSeverity] = useState<"critical" | "high" | "medium" | "low">("medium");
+  const [newDesc, setNewDesc] = useState("");
+  const [newRuleCount, setNewRuleCount] = useState(2);
+
+  // Selected policy in the viewer
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
+
+  const selectedPolicy = useMemo(() => {
+    return policies.find(p => p.id === selectedPolicyId) || policies[0] || null;
+  }, [policies, selectedPolicyId]);
 
   // ABAC permission matrix details
   const iamMatrix = useMemo(() => [
@@ -114,10 +139,32 @@ export default function GovernanceAudit({
     return longTermMemories[selectedMemoryAgentId] || longTermMemories["conrad-recruitment"];
   }, [selectedMemoryAgentId, longTermMemories]);
 
+  // Handle custom policy creation submission
+  const handleCreatePolicy = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newDesc.trim()) return;
+
+    onAddPolicy({
+      title: newTitle,
+      category: newCategory,
+      description: newDesc,
+      status: "active",
+      ruleCount: Number(newRuleCount),
+      severity: newSeverity
+    });
+
+    // Clear form fields
+    setNewTitle("");
+    setNewDesc("");
+    setNewRuleCount(2);
+    setNewSeverity("medium");
+    setShowAddForm(false);
+  };
+
   return (
     <div className="flex flex-col flex-1 gap-6">
       
-      {/* IAM Protocol Matrix view */}
+      {/* 1. IAM Protocol Matrix view */}
       {activeSubTab === 'iam' && (
         <div className="space-y-6 flex-1 flex flex-col">
           <div className="flex justify-between items-center border-b border-slate-900 pb-4">
@@ -169,7 +216,219 @@ export default function GovernanceAudit({
         </div>
       )}
 
-      {/* Cognitive Traces (Cognitive Traces / decision timelines) */}
+      {/* 2. AI Governance Policies view */}
+      {activeSubTab === 'policies' && (
+        <div className="space-y-6 flex-1 flex flex-col">
+          <div className="flex justify-between items-center border-b border-slate-900 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-white">AI Governance Policies</h2>
+              <p className="text-xs text-slate-400">Manage real-time system boundaries, token caps, and verification scopes governing digital employees.</p>
+            </div>
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase flex items-center gap-1.5"
+            >
+              <Plus size={13} />
+              {showAddForm ? "Show Rules Grid" : "Define Policy Blueprint"}
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col xl:flex-row gap-6">
+            
+            {showAddForm ? (
+              /* Create Policy Blueprint Form */
+              <form onSubmit={handleCreatePolicy} className="flex-1 bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-4">
+                <span className="text-xs font-black text-white block border-b border-slate-900 pb-2 uppercase">Define New Policy Directive Blueprint</span>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Policy Title</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g., Sourcing Rate Limit Guard" 
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-900 rounded-xl text-xs font-bold text-white focus:border-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Policy Category</label>
+                    <select 
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-900 rounded-xl text-xs font-bold text-white focus:border-indigo-500 outline-none"
+                    >
+                      <option value="Security & IAM">Security & IAM</option>
+                      <option value="Workflow Oversight">Workflow Oversight</option>
+                      <option value="Cost Governance">Cost Governance</option>
+                      <option value="API Rate Limiting">API Rate Limiting</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Severity Level</label>
+                    <select 
+                      value={newSeverity}
+                      onChange={(e) => setNewSeverity(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-900 rounded-xl text-xs font-bold text-white focus:border-indigo-500 outline-none"
+                    >
+                      <option value="critical">Critical</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Underlying Rules Checked</label>
+                    <input 
+                      type="number" 
+                      min={1} 
+                      max={10}
+                      value={newRuleCount}
+                      onChange={(e) => setNewRuleCount(Number(e.target.value))}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-900 rounded-xl text-xs font-bold text-white focus:border-indigo-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Directive Guideline description</label>
+                  <textarea 
+                    required
+                    rows={3}
+                    placeholder="Describe how the policy is enforced, what rules it evaluates in the Firestore context bounds..."
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    className="w-full p-2.5 bg-slate-950 border border-slate-900 rounded-xl text-xs font-mono text-slate-300 focus:border-indigo-500 outline-none resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="submit" 
+                    className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
+                  >
+                    Register Policy Blueprint
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAddForm(false)}
+                    className="px-4 py-2 bg-slate-950 hover:bg-slate-900 text-slate-400 border border-slate-900 rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Rules Grid Display */
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[460px] overflow-y-auto pr-2">
+                {policies.length === 0 ? (
+                  <div className="col-span-2 p-8 text-center bg-[#070A13] border border-slate-900 rounded-2xl text-slate-500 text-xs">
+                    No active policy directives loaded in this session.
+                  </div>
+                ) : (
+                  policies.map(pol => (
+                    <div 
+                      key={pol.id}
+                      onClick={() => setSelectedPolicyId(pol.id)}
+                      className={cn("p-4 border rounded-2xl cursor-pointer hover:bg-[#0c1122] transition-all relative overflow-hidden",
+                        selectedPolicyId === pol.id ? "bg-[#0B1226] border-indigo-500/40" : "bg-[#070A13] border-slate-900/80"
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-2.5">
+                        <span className={cn("text-[8px] font-black uppercase px-2 py-0.5 rounded border",
+                          pol.severity === 'critical' ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                          pol.severity === 'high' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                        )}>
+                          {pol.severity} Severity
+                        </span>
+
+                        <span className={cn("text-[9px] font-bold uppercase",
+                          pol.status === 'active' ? "text-emerald-400" : "text-slate-500"
+                        )}>
+                          • {pol.status}
+                        </span>
+                      </div>
+
+                      <h4 className="text-xs font-black text-white block mb-1">{pol.title}</h4>
+                      <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed mb-3">{pol.description}</p>
+                      
+                      <div className="flex justify-between items-center border-t border-slate-900/60 pt-2.5 text-[10px]">
+                        <span className="text-slate-500 font-bold">{pol.category}</span>
+                        <span className="font-mono text-indigo-400">{pol.ruleCount} rules active</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Selected Policy Audit Pane */}
+            <div className="w-full xl:w-96 bg-[#070A13] border border-slate-900 rounded-2xl p-5 flex flex-col justify-between min-h-[420px]">
+              {selectedPolicy ? (
+                <div className="space-y-4 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-900 pb-3 flex justify-between items-start">
+                      <div>
+                        <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider block">Policy Blueprint Ledger</span>
+                        <h4 className="text-xs font-black text-white">{selectedPolicy.title}</h4>
+                        <span className="text-[9px] font-mono text-slate-500">{selectedPolicy.id}</span>
+                      </div>
+                      <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 border rounded-full",
+                        selectedPolicy.status === 'active' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-slate-500/10 border-slate-900 text-slate-500"
+                      )}>
+                        {selectedPolicy.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-900/80 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap select-text">
+                        {selectedPolicy.description}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-950 p-2.5 rounded-xl border border-slate-900/60">
+                        <div>
+                          <span className="text-slate-500 uppercase block font-bold">Ruleset Count</span>
+                          <span className="text-white font-bold">{selectedPolicy.ruleCount} checked</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 uppercase block font-bold">Severity Bounds</span>
+                          <span className="text-white font-bold uppercase">{selectedPolicy.severity}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-900/60 pt-3 flex gap-2">
+                    <button
+                      onClick={() => onTogglePolicy(selectedPolicy.id, selectedPolicy.status === 'active' ? 'draft' : 'active')}
+                      className={cn("flex-1 py-2 rounded-xl text-[10px] font-black uppercase border tracking-wider transition-all",
+                        selectedPolicy.status === 'active' 
+                          ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white"
+                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white"
+                      )}
+                    >
+                      {selectedPolicy.status === 'active' ? "Deactivate policy" : "Activate policy"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col justify-center items-center text-center p-6 text-slate-500 space-y-2">
+                  <ShieldAlert size={36} className="text-slate-600 animate-pulse" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-white">Select Policy Directive</p>
+                  <p className="text-[10px] text-slate-500 max-w-[200px]">Click on any registered policy blueprint on the left to audit its specific ruleset boundaries.</p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 3. Cognitive Traces (Cognitive Traces / decision timelines) */}
       {activeSubTab === 'traces' && (
         <div className="space-y-6 flex-1 flex flex-col">
           <div className="flex justify-between items-center border-b border-slate-900 pb-4">
@@ -238,7 +497,7 @@ export default function GovernanceAudit({
                       <div>2. <span className="text-indigo-400">[ABAC Verification]</span> verified agent permissions node.</div>
                       <div>3. <span className="text-indigo-400">[Context Assemble]</span> Context buffer generated (Prompt version: {selectedExec.promptVersion || "v2.1.4"}).</div>
                       <div>4. <span className="text-indigo-400">[RAG Retrieve]</span> Searched semantic long-term memory. 3 associations loaded.</div>
-                      <div>5. <span className="text-indigo-400">[Execution]</span> Invoked Model: {selectedExec.model || "Gemini 2.5 Flash"}.</div>
+                      <div>5. <span className="text-indigo-400">[Execution]</span> Invoked Model: {selectedExec.model || "gemini-1.5-pro"}.</div>
                       {selectedExec.toolsUsed && selectedExec.toolsUsed.map((t, i) => (
                         <div key={i}>6.{i+1} <span className="text-emerald-400">[Tool Call]</span> Executed function: {t}.</div>
                       ))}
@@ -263,7 +522,7 @@ export default function GovernanceAudit({
               ) : (
                 <div className="flex-1 flex flex-col justify-center items-center text-center p-6 text-slate-500 space-y-2">
                   <Workflow size={32} className="text-slate-600" />
-                  <p className="text-xs font-bold uppercase tracking-wider">Select Trace to Audit</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-white">Select Trace to Audit</p>
                   <p className="text-[10px] text-slate-500 max-w-[200px]">Audits direct model variables, token usage, cost indices and step-by-step tool executions.</p>
                 </div>
               )}
@@ -272,7 +531,7 @@ export default function GovernanceAudit({
         </div>
       )}
 
-      {/* AI Memory Explorer */}
+      {/* 4. AI Memory Explorer */}
       {activeSubTab === 'memory_explorer' && (
         <div className="space-y-6 flex-1 flex flex-col">
           <div className="flex justify-between items-center border-b border-slate-900 pb-4">
@@ -298,7 +557,7 @@ export default function GovernanceAudit({
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 max-h-[460px] overflow-y-auto pr-2">
             
-            {/* Left side: Short term context buffer and prompt config */}
+            {/* Left side: Short term active context buffer */}
             <div className="space-y-4">
               <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-5 space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-900 pb-3">
@@ -332,7 +591,7 @@ export default function GovernanceAudit({
               </div>
             </div>
 
-            {/* Right side: Long term memory index and grounding reference sources */}
+            {/* Right side: Long term memory index */}
             <div className="space-y-4">
               <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-5 space-y-4">
                 <span className="text-xs font-bold text-white block border-b border-slate-900 pb-3">Retrieved Semantic Long-Term Memories</span>
@@ -374,7 +633,7 @@ export default function GovernanceAudit({
         </div>
       )}
 
-      {/* Simulation Lab view */}
+      {/* 5. Simulation Lab view */}
       {activeSubTab === 'simulation' && (
         <div className="space-y-6 flex-1 flex flex-col">
           <div className="flex justify-between items-center border-b border-slate-900 pb-4">
@@ -433,7 +692,7 @@ export default function GovernanceAudit({
                   ) : (
                     <div className="flex-1 flex flex-col justify-center items-center text-center p-6 text-slate-600 space-y-2">
                       <Terminal size={32} className="text-slate-700" />
-                      <p className="text-xs font-bold uppercase tracking-wider">No output yet</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-white">No output yet</p>
                       <p className="text-[10px] text-slate-600">Enter simulation parameters and run conduction pass to verify telemetry response.</p>
                     </div>
                   )}

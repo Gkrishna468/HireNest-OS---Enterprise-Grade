@@ -19,7 +19,12 @@ import {
   FileSpreadsheet,
   Network,
   BookOpen,
-  ClipboardList
+  ClipboardList,
+  Inbox,
+  Award,
+  Compass,
+  FolderOpen,
+  Brain
 } from "lucide-react";
 import { 
   collection, 
@@ -29,25 +34,29 @@ import {
   onSnapshot, 
   addDoc, 
   updateDoc, 
-  doc 
+  doc,
+  setDoc
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
 // Import modular types and components
-import { Agent, Execution, BusinessEvent, RequirementOwnership } from "./AIOpsCenter/AIOpsTypes";
+import { Agent, Execution, BusinessEvent, RequirementOwnership, AIReport, AIPolicy } from "./AIOpsCenter/AIOpsTypes";
 import ExecutiveHome from "./AIOpsCenter/ExecutiveHome";
 import PlatformOperations from "./AIOpsCenter/PlatformOperations";
 import BusinessOperations from "./AIOpsCenter/BusinessOperations";
 import AIWorkforce from "./AIOpsCenter/AIWorkforce";
 import GovernanceAudit from "./AIOpsCenter/GovernanceAudit";
+import WorkflowOrchestrator from "./AIOpsCenter/WorkflowOrchestrator";
+import DecisionIntelligence from "./AIOpsCenter/DecisionIntelligence";
+import PredictiveAnalytics from "./AIOpsCenter/PredictiveAnalytics";
 
 export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
   
   // High-level Domain Management
-  const [activeDomain, setActiveDomain] = useState<'executive' | 'platform' | 'business' | 'workforce' | 'governance'>('executive');
+  const [activeDomain, setActiveDomain] = useState<'executive' | 'platform' | 'business' | 'workforce' | 'governance' | 'orchestrator' | 'decision' | 'predictive'>('executive');
   const [activeSubTab, setActiveSubTab] = useState<string>("overview");
   const [loading, setLoading] = useState(true);
   
@@ -76,6 +85,76 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   
   // Manual trigger loading state
   const [triggeringAgentId, setTriggeringAgentId] = useState<Record<string, boolean>>({});
+
+  // Real-time Governance states
+  const [policies, setPolicies] = useState<AIPolicy[]>([]);
+  const [reports, setReports] = useState<AIReport[]>([]);
+
+  // Fallback policies definition
+  const fallbackPolicies = useMemo<AIPolicy[]>(() => [
+    {
+      id: "policy-abac-01",
+      title: "ABAC Token Isolation Policy",
+      category: "Security & IAM",
+      description: "Enforces distinct workspace scoped tokens for Layer 1 digital employees. No cross-organization memory leakage allowed.",
+      status: "active",
+      ruleCount: 3,
+      severity: "critical",
+      lastUpdated: new Date().toISOString()
+    },
+    {
+      id: "policy-ritl-02",
+      title: "Recruiter-in-the-Loop SLA Guardrails",
+      category: "Workflow Oversight",
+      description: "Ensures no candidate is match-notified without explicit human recruiter confirmation and verification override.",
+      status: "active",
+      ruleCount: 2,
+      severity: "high",
+      lastUpdated: new Date().toISOString()
+    },
+    {
+      id: "policy-budget-03",
+      title: "Gemini Model Budget Gate",
+      category: "Cost Governance",
+      description: "Applies severe request circuit-breaking when daily tokens exceed 5,000,000 or individual agent cost exceeds $10.00.",
+      status: "active",
+      ruleCount: 4,
+      severity: "medium",
+      lastUpdated: new Date().toISOString()
+    }
+  ], []);
+
+  // Fallback reports definition
+  const fallbackReports = useMemo<AIReport[]>(() => [
+    {
+      id: "rep-001",
+      agentId: "founder-office",
+      agentName: "Alpha Founder Liaison",
+      type: "daily",
+      title: "Autonomous Placement Velocity Digest",
+      content: `### Executive Daily Summary
+- **Overall Placement Health**: Nominal (98.4%)
+- **Strategic Pipeline Revenue**: $185,000 influenced
+- **Key Actions**: Successfully compiled daily recruiter activity. Cleared 4 strategic routing requests.
+- **Identified SLA Risk**: TechCorp systems integration is pending. BDM Diana Prince has been notified.`,
+      status: "unread",
+      timestamp: new Date(Date.now() - 4 * 60 * 60000).toISOString()
+    },
+    {
+      id: "rep-002",
+      agentId: "vendor-office",
+      agentName: "Vance Vendor Coordinator",
+      type: "weekly",
+      title: "Ecosystem Vendor Partner Trust Report",
+      content: `### Weekly Partner Sourcing Highlights
+- **Active Vendors Tracked**: 12
+- **Average Trust Index**: 96.2%
+- **Top Performer**: Apex Staffing Network (Response rate under 15 mins)
+- **Recommendations**: Increase match allocations to Apex Staffing as SLA fulfillment rates are 100% within the 1-hour window.`,
+      status: "unread",
+      timestamp: new Date(Date.now() - 24 * 60 * 60000).toISOString()
+    }
+  ], []);
 
   // 1. Digital Employee Registry definitions
   const fallbackAgents = useMemo<Agent[]>(() => [
@@ -389,8 +468,8 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   useEffect(() => {
     if (!isAdmin) return;
 
-    // Real-time agents config
-    const qAgents = query(collection(db, "ai_agents"));
+    // Real-time agents config (AI Employees)
+    const qAgents = query(collection(db, "ai_employees"));
     const unsubAgents = onSnapshot(qAgents, (snap) => {
       if (!snap.empty) {
         setAgents(snap.docs.map(doc => {
@@ -430,29 +509,73 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
       setQueue(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
+    // Real-time AI Governance policies
+    const qPolicies = query(collection(db, "ai_policies"));
+    const unsubPolicies = onSnapshot(qPolicies, (snap) => {
+      if (!snap.empty) {
+        setPolicies(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AIPolicy)));
+      } else {
+        setPolicies(fallbackPolicies);
+      }
+    }, (err) => {
+      console.error("Policies subscription error:", err);
+      setPolicies(fallbackPolicies);
+    });
+
+    // Real-time AI Reports (AI Inbox)
+    const qReports = query(collection(db, "ai_reports"), orderBy("timestamp", "desc"));
+    const unsubReports = onSnapshot(qReports, (snap) => {
+      if (!snap.empty) {
+        setReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AIReport)));
+      } else {
+        setReports(fallbackReports);
+      }
+    }, (err) => {
+      console.error("Reports subscription error:", err);
+      setReports(fallbackReports);
+    });
+
     return () => {
       unsubAgents();
       unsubExecs();
       unsubQueue();
+      unsubPolicies();
+      unsubReports();
     };
-  }, [isAdmin, fallbackAgents, fallbackTraces]);
+  }, [isAdmin, fallbackAgents, fallbackTraces, fallbackPolicies, fallbackReports]);
 
   // Synchronize Schema and seed defaults
   const handleSyncAgents = async () => {
     setLoading(true);
     try {
+      // Seed AI Employees
       for (const ag of fallbackAgents) {
-        const docRef = doc(db, "ai_agents", ag.id);
-        await updateDoc(docRef, {
+        const docRef = doc(db, "ai_employees", ag.id);
+        await setDoc(docRef, {
+          ...ag,
           status: 'Healthy',
           lastRun: new Date().toISOString()
-        }).catch(async () => {
-          await addDoc(collection(db, "ai_agents"), {
-            ...ag,
-            lastRun: new Date().toISOString()
-          });
-        });
+        }, { merge: true });
       }
+
+      // Seed baseline AI Policies
+      for (const pol of fallbackPolicies) {
+        const docRef = doc(db, "ai_policies", pol.id);
+        await setDoc(docRef, {
+          ...pol,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      // Seed baseline AI Reports
+      for (const rep of fallbackReports) {
+        const docRef = doc(db, "ai_reports", rep.id);
+        await setDoc(docRef, {
+          ...rep,
+          timestamp: new Date().toISOString()
+        }, { merge: true });
+      }
+
       // Log audit event
       await addDoc(collection(db, "agent_executions"), {
         agentId: 'founder-office',
@@ -471,7 +594,7 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
         confidence: 1.0
       });
       setLoading(false);
-      alert("Schema and AI Employee Registry verified & seeded to Firestore SSOT!");
+      alert("Schema, AI Employee Registry, Reports, and Governance Policies verified & seeded to Firestore SSOT!");
     } catch (err) {
       console.error("Failed to seed agents:", err);
       setLoading(false);
@@ -481,11 +604,55 @@ export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   // Toggle agent state
   const handleToggleAgent = async (id: string, enabled: boolean) => {
     try {
-      const docRef = doc(db, "ai_agents", id);
+      const docRef = doc(db, "ai_employees", id);
       await updateDoc(docRef, { enabled });
     } catch (err) {
       // Offline state update
       setAgents(prev => prev.map(a => a.id === id ? { ...a, enabled } : a));
+    }
+  };
+
+  // Toggle policy state
+  const handleTogglePolicy = async (id: string, status: 'active' | 'draft' | 'inactive') => {
+    try {
+      const docRef = doc(db, "ai_policies", id);
+      await updateDoc(docRef, { status, lastUpdated: new Date().toISOString() });
+    } catch (err) {
+      console.error("Failed to toggle policy:", err);
+      setPolicies(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    }
+  };
+
+  // Add new governance policy
+  const handleAddPolicy = async (newPol: Omit<AIPolicy, 'id' | 'lastUpdated'>) => {
+    try {
+      const polId = "policy-custom-" + Math.floor(1000 + Math.random() * 9000);
+      const policyData: AIPolicy = {
+        ...newPol,
+        id: polId,
+        lastUpdated: new Date().toISOString()
+      };
+      const docRef = doc(db, "ai_policies", polId);
+      await setDoc(docRef, policyData);
+    } catch (err) {
+      console.error("Failed to add policy:", err);
+      const polId = "policy-custom-" + Math.floor(1000 + Math.random() * 9000);
+      setPolicies(prev => [...prev, { ...newPol, id: polId, lastUpdated: new Date().toISOString() }]);
+    }
+  };
+
+  // Acknowledge AI report
+  const handleAcknowledgeReport = async (reportId: string) => {
+    try {
+      const docRef = doc(db, "ai_reports", reportId);
+      await updateDoc(docRef, {
+        status: 'acknowledged',
+        acknowledgedAt: new Date().toISOString(),
+        acknowledgedBy: auth.currentUser?.email || 'Admin Manager'
+      });
+    } catch (err) {
+      console.error("Failed to acknowledge report:", err);
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'acknowledged' } : r));
     }
   };
 
@@ -677,6 +844,31 @@ SLA ACCELERATION:
 
     setReportResult(content);
     setIsGeneratingReport(false);
+
+    // Persist to Firestore ai_reports collection
+    try {
+      const repId = "rep-" + Math.floor(1000 + Math.random() * 9000);
+      const reportTitle = type === "daily" || type === "requirements" 
+        ? "Autonomous Intake & SLA Compliance Digest"
+        : type === "weekly" || type === "candidates"
+          ? "Strategic Bench & Sourcing Synergy Roundup"
+          : "Recruiter Productivity & Performance Briefing";
+
+      const reportData: Omit<AIReport, 'id'> = {
+        agentId: type === "daily" || type === "requirements" ? "founder-office" : type === "weekly" || type === "candidates" ? "vendor-office" : "recruitment-office",
+        agentName: type === "daily" || type === "requirements" ? "Alpha Founder Liaison" : type === "weekly" || type === "candidates" ? "Vance Vendor Coordinator" : "Conrad Recruiter Conductor",
+        type: (type === "daily" || type === "requirements") ? "daily" : (type === "weekly" || type === "candidates") ? "weekly" : "custom",
+        title: reportTitle,
+        content: content,
+        status: "unread",
+        timestamp: new Date().toISOString()
+      };
+
+      const docRef = doc(db, "ai_reports", repId);
+      await setDoc(docRef, { ...reportData, id: repId });
+    } catch (dbErr) {
+      console.error("Failed to write report to Firestore:", dbErr);
+    }
   };
 
   // Compute stats across executions
@@ -770,13 +962,13 @@ SLA ACCELERATION:
       </div>
 
       {/* 2. Primary Domain Selection Dashboard */}
-      <div className="px-8 pt-6 pb-2 max-w-[1600px] w-full mx-auto grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="px-8 pt-6 pb-2 max-w-[1600px] w-full mx-auto grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
         
         {/* EXECUTIVE DOMAIN */}
         <button 
           id="domain-executive-btn"
           onClick={() => { setActiveDomain('executive'); setActiveSubTab('overview'); }}
-          className={cn("p-5 border rounded-2xl flex flex-col items-start gap-3 text-left transition-all relative overflow-hidden group col-span-2 md:col-span-1",
+          className={cn("p-5 border rounded-2xl flex flex-col items-start gap-3 text-left transition-all relative overflow-hidden group",
             activeDomain === 'executive' 
               ? "bg-[#0F1424] border-indigo-500/40 text-white shadow-lg shadow-indigo-500/5" 
               : "bg-[#0B0F19] border-slate-900/80 text-slate-400 hover:border-slate-800 hover:bg-[#0d121f]"
@@ -902,6 +1094,84 @@ SLA ACCELERATION:
           </div>
         </button>
 
+        {/* WORKFLOW ORCHESTRATOR */}
+        <button 
+          id="domain-orchestrator-btn"
+          onClick={() => { setActiveDomain('orchestrator'); setActiveSubTab('orchestrator_timelines'); }}
+          className={cn("p-5 border rounded-2xl flex flex-col items-start gap-3 text-left transition-all relative overflow-hidden group",
+            activeDomain === 'orchestrator' 
+              ? "bg-[#0F1424] border-indigo-500/40 text-white shadow-lg shadow-indigo-500/5" 
+              : "bg-[#0B0F19] border-slate-900/80 text-slate-400 hover:border-slate-800 hover:bg-[#0d121f]"
+          )}
+        >
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/10 transition-colors" />
+          <div className={cn("p-2 rounded-xl border text-sm", 
+            activeDomain === 'orchestrator' ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/30" : "bg-slate-900 text-slate-500 border-slate-800"
+          )}>
+            <Workflow size={18} />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Workflow Orchestrator</h3>
+            <span className="text-[10px] text-slate-500 font-medium block mt-0.5">SLA Timelines, Multi-Agent States</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-pulse" />
+            <span className="text-[9px] font-black uppercase text-indigo-400">Orchestrations Live</span>
+          </div>
+        </button>
+
+        {/* DECISION INTELLIGENCE */}
+        <button 
+          id="domain-decision-btn"
+          onClick={() => { setActiveDomain('decision'); setActiveSubTab('decision_scorecards'); }}
+          className={cn("p-5 border rounded-2xl flex flex-col items-start gap-3 text-left transition-all relative overflow-hidden group",
+            activeDomain === 'decision' 
+              ? "bg-[#0F1424] border-indigo-500/40 text-white shadow-lg shadow-indigo-500/5" 
+              : "bg-[#0B0F19] border-slate-900/80 text-slate-400 hover:border-slate-800 hover:bg-[#0d121f]"
+          )}
+        >
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/10 transition-colors" />
+          <div className={cn("p-2 rounded-xl border text-sm", 
+            activeDomain === 'decision' ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/30" : "bg-slate-900 text-slate-500 border-slate-800"
+          )}>
+            <Brain size={18} />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Decision Intelligence</h3>
+            <span className="text-[10px] text-slate-500 font-medium block mt-0.5">Verifiable Rationale, Overrides</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="h-1.5 w-1.5 bg-[#818cf8] rounded-full" />
+            <span className="text-[9px] font-black uppercase text-indigo-400">Matching Decided</span>
+          </div>
+        </button>
+
+        {/* PREDICTIVE ANALYTICS */}
+        <button 
+          id="domain-predictive-btn"
+          onClick={() => { setActiveDomain('predictive'); setActiveSubTab('predictive_projections'); }}
+          className={cn("p-5 border rounded-2xl flex flex-col items-start gap-3 text-left transition-all relative overflow-hidden group",
+            activeDomain === 'predictive' 
+              ? "bg-[#0F1424] border-indigo-500/40 text-white shadow-lg shadow-indigo-500/5" 
+              : "bg-[#0B0F19] border-slate-900/80 text-slate-400 hover:border-slate-800 hover:bg-[#0d121f]"
+          )}
+        >
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/10 transition-colors" />
+          <div className={cn("p-2 rounded-xl border text-sm", 
+            activeDomain === 'predictive' ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/30" : "bg-slate-900 text-slate-500 border-slate-800"
+          )}>
+            <TrendingUp size={18} />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Predictive Analytics</h3>
+            <span className="text-[10px] text-slate-500 font-medium block mt-0.5">SLA Simulators, Trend Curves</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="h-1.5 w-1.5 bg-[#10b981] rounded-full" />
+            <span className="text-[9px] font-black uppercase text-emerald-400">Forecast Live</span>
+          </div>
+        </button>
+
       </div>
 
       {/* 3. Main Dashboard Workspace Layout */}
@@ -967,14 +1237,6 @@ SLA ACCELERATION:
                 <span className="flex items-center gap-2"><Eye size={14} /> Req Observatory</span>
                 <span className="text-[9px] bg-slate-950/40 px-1.5 py-0.5 rounded text-indigo-400 font-bold border border-slate-800">{fallbackRequirements.length}</span>
               </button>
-              
-              <button 
-                onClick={() => setActiveSubTab('business_sla')}
-                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
-                  activeSubTab === 'business_sla' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
-              >
-                <span className="flex items-center gap-2"><TrendingUp size={14} /> Performance & ROI</span>
-              </button>
             </>
           )}
 
@@ -990,12 +1252,63 @@ SLA ACCELERATION:
               </button>
 
               <button 
+                onClick={() => setActiveSubTab('inbox')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'inbox' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Inbox size={14} /> AI Inbox & Briefs</span>
+                <span className={cn("text-[9px] px-1.5 py-0.5 rounded font-bold border", 
+                  reports.filter(r => r.status === 'unread').length > 0 
+                    ? "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse" 
+                    : "bg-slate-950/40 text-slate-500 border-slate-800"
+                )}>
+                  {reports.filter(r => r.status === 'unread').length} New
+                </span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('reviews')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'reviews' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Award size={14} /> Performance Reviews</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">KPI</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('collaboration')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'collaboration' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Network size={14} /> Collaboration Graph</span>
+                <span className="text-[9px] bg-slate-950/40 px-1.5 py-0.5 rounded text-indigo-400 font-bold border border-slate-800">Graph</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('playbooks')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'playbooks' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Compass size={14} /> Playbooks</span>
+                <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1 rounded font-bold uppercase">SOP</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('knowledge')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'knowledge' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><FolderOpen size={14} /> Knowledge Center</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Prompt</span>
+              </button>
+
+              <button 
                 onClick={() => setActiveSubTab('org_chart')}
                 className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
                   activeSubTab === 'org_chart' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
               >
                 <span className="flex items-center gap-2"><Network size={14} /> Hybrid Org Chart</span>
-                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Chart</span>
+                <span className="text-[9px] bg-slate-950/40 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800">Chart</span>
               </button>
               
               <button 
@@ -1018,6 +1331,21 @@ SLA ACCELERATION:
               >
                 <span className="flex items-center gap-2"><UserCheck size={14} /> IAM Protocol Matrix</span>
                 <span className="text-[9px] bg-slate-950/40 px-1.5 py-0.5 rounded text-indigo-400 font-bold border border-slate-800">ABAC</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('policies')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'policies' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><ShieldAlert size={14} /> AI Governance Policies</span>
+                <span className={cn("text-[9px] px-1.5 py-0.5 rounded font-bold border", 
+                  policies.filter(p => p.status === 'active').length > 0 
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                    : "bg-slate-950/40 text-slate-500 border-slate-800"
+                )}>
+                  {policies.filter(p => p.status === 'active').length} Active
+                </span>
               </button>
 
               <button 
@@ -1045,6 +1373,45 @@ SLA ACCELERATION:
               >
                 <span className="flex items-center gap-2"><Terminal size={14} /> Simulation Lab</span>
                 <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 rounded uppercase font-bold">Admin</span>
+              </button>
+            </>
+          )}
+
+          {activeDomain === 'orchestrator' && (
+            <>
+              <button 
+                onClick={() => setActiveSubTab('orchestrator_timelines')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'orchestrator_timelines' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Workflow size={14} /> SLA Timelines</span>
+                <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">ACTIVE</span>
+              </button>
+            </>
+          )}
+
+          {activeDomain === 'decision' && (
+            <>
+              <button 
+                onClick={() => setActiveSubTab('decision_scorecards')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'decision_scorecards' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Brain size={14} /> Scorecards</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">RITL</span>
+              </button>
+            </>
+          )}
+
+          {activeDomain === 'predictive' && (
+            <>
+              <button 
+                onClick={() => setActiveSubTab('predictive_projections')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'predictive_projections' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><TrendingUp size={14} /> Projections</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">PROJ</span>
               </button>
             </>
           )}
@@ -1129,7 +1496,6 @@ SLA ACCELERATION:
                   selectedReq={selectedReq}
                   setSelectedReq={setSelectedReq}
                   fallbackRequirements={fallbackRequirements}
-                  chartData={chartData}
                 />
               </motion.div>
             )}
@@ -1153,6 +1519,8 @@ SLA ACCELERATION:
                   onGenerateReport={handleGenerateReport}
                   reportResult={reportResult}
                   isGeneratingReport={isGeneratingReport}
+                  reports={reports}
+                  onAcknowledgeReport={handleAcknowledgeReport}
                 />
               </motion.div>
             )}
@@ -1178,7 +1546,49 @@ SLA ACCELERATION:
                   isSimulating={isRunningPlayground}
                   onRunSimulation={handleExecutePlayground}
                   simulationResult={playgroundResult}
+                  policies={policies}
+                  onTogglePolicy={handleTogglePolicy}
+                  onAddPolicy={handleAddPolicy}
                 />
+              </motion.div>
+            )}
+
+            {/* DOMAIN 5: WORKFLOW ORCHESTRATOR */}
+            {activeDomain === 'orchestrator' && (
+              <motion.div 
+                key="workflow_orchestrator"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-6 flex-1 flex flex-col"
+              >
+                <WorkflowOrchestrator />
+              </motion.div>
+            )}
+
+            {/* DOMAIN 6: DECISION INTELLIGENCE */}
+            {activeDomain === 'decision' && (
+              <motion.div 
+                key="decision_intelligence"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-6 flex-1 flex flex-col"
+              >
+                <DecisionIntelligence />
+              </motion.div>
+            )}
+
+            {/* DOMAIN 7: PREDICTIVE ANALYTICS */}
+            {activeDomain === 'predictive' && (
+              <motion.div 
+                key="predictive_analytics"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-6 flex-1 flex flex-col"
+              >
+                <PredictiveAnalytics />
               </motion.div>
             )}
 

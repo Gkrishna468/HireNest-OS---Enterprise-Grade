@@ -907,6 +907,43 @@ service cloud.firestore {
     // COGNITIVE INFRASTRUCTURE & GOVERNANCE COLLECTIONS
     // =====================================================
 
+    function isValidAIEmployee(data) {
+      return (!data.keys().hasAny(['name']) || (data.name is string && data.name.size() <= 100)) &&
+        (!data.keys().hasAny(['department']) || data.department is string) &&
+        (!data.keys().hasAny(['status']) || data.status is string);
+    }
+
+    function isValidAIReport(data) {
+      return (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200)) &&
+        (!data.keys().hasAny(['content']) || data.content is string) &&
+        (!data.keys().hasAny(['status']) || data.status in ['unread', 'acknowledged']);
+    }
+
+    function isValidAIPolicy(data) {
+      return (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 150)) &&
+        (!data.keys().hasAny(['status']) || data.status in ['active', 'draft', 'inactive']) &&
+        (!data.keys().hasAny(['severity']) || data.severity in ['low', 'medium', 'high', 'critical']);
+    }
+
+    match /ai_employees/{docId} {
+      allow read: if isVerified();
+      allow create, update: if isPlatformAuthority() && isValidAIEmployee(incoming());
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ai_reports/{docId} {
+      allow read: if isVerified();
+      allow create: if isVerified() && isValidAIReport(incoming());
+      allow update: if isVerified() && isValidAIReport(incoming());
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ai_policies/{docId} {
+      allow read: if isVerified();
+      allow create, update: if isPlatformAuthority() && isValidAIPolicy(incoming());
+      allow delete: if isSuperAdmin();
+    }
+
     match /governanceEvents/{docId} {
       allow read: if isAdmin();
       allow write: if isPlatformAuthority();
