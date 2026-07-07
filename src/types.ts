@@ -54,6 +54,18 @@ export interface Candidate {
   projects?: string[];
   trustScore?: number;
   history?: any[];
+
+  // Immutable Ownership Metadata Fields
+  ownerType?: 'VENDOR' | 'RECRUITER' | 'SYSTEM' | string;
+  ownerId?: string;
+  ownerName?: string;
+  acquiredAt?: string;
+  acquisitionMethod?: 'UPLOAD' | 'SOURCED' | 'IMPORT' | 'REFERRAL' | string;
+  
+  // Provenance Fields
+  createdFrom?: 'CLIENT' | 'VENDOR' | 'RECRUITER' | 'SYSTEM' | string;
+  createdVia?: 'CRM' | 'OS' | 'PORTAL' | 'API' | 'IMPORT' | string;
+  createdByRole?: 'CLIENT' | 'VENDOR' | 'BDM' | 'RECRUITER' | 'ADMIN' | string;
 }
 
 export enum CandidateLifecycleStatus {

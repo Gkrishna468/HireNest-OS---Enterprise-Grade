@@ -613,6 +613,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/ai-operations"
+                icon={Bot}
+                label="AI Operations"
+                active={location.pathname === "/ai-operations"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/ops"
                 icon={Briefcase}
                 label="Operations"
@@ -907,6 +914,12 @@ const AppContent = () => {
             {isAdmin && (
               <Route
                 path="/ai-ops-center"
+                element={<AIOpsCenterTab userRole={role || ""} />}
+              />
+            )}
+            {isAdmin && (
+              <Route
+                path="/ai-operations"
                 element={<AIOpsCenterTab userRole={role || ""} />}
               />
             )}
