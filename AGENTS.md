@@ -130,6 +130,8 @@ HireNestOS is an AI-Native Staffing Operating System.
 - Vendor Workspace
 - Client Workspace
 
+11. **UOP Data Model v1-RC1 Freeze**: No new Firestore collections may be introduced unless they represent a genuinely new business domain. New functionality must first attempt to extend existing entities or react to `system_events`. Keep deprecated collections (such as `requirements_public`) frozen and intact as per conservative migration policy (Freeze → Migrate → Archive → Delete) to prevent any hidden dependencies in CRM or OS from breaking.
+
 ### Feature Implementation Flow
 
 Before writing code for new features, reference these document blueprints:
