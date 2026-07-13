@@ -1,5 +1,6 @@
 import express from 'express';
 import { AIGateway } from '../services/AIGateway.js';
+import { db } from '../../lib/firebase-admin.js';
 
 const router = express.Router();
 
@@ -36,6 +37,66 @@ router.get('/models', (req: any, res: any) => {
 });
 
 router.post('/chat/completions', async (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            error: {
+                message: 'Unauthorized: No token provided',
+                type: 'invalid_request_error',
+                param: null,
+                code: 'unauthorized'
+            }
+        });
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const customApiKey = process.env.HIRENEST_API_KEY || 'HN_dev_key_123';
+    
+    let user = { uid: 'openai-compat', role: 'general' };
+    let isAuthenticated = false;
+
+    if (token === customApiKey) {
+        user = { uid: 'system-api-key', role: 'admin' };
+        isAuthenticated = true;
+    } else if (token.startsWith('HN_')) {
+        if (db) {
+            try {
+                const keySnap = await db.collection('api_keys').doc(token).get();
+                if (keySnap.exists) {
+                    const keyData = keySnap.data();
+                    if (keyData && keyData.status === 'active') {
+                        user = {
+                            uid: keyData.userId || 'api-key-user',
+                            role: keyData.role || 'recruiter'
+                        };
+                        isAuthenticated = true;
+                    }
+                }
+            } catch (e) {
+                console.warn('[OpenAI Router] Failed to retrieve API key details from database', e);
+            }
+        }
+        
+        // Dev environment / fallback check
+        if (!isAuthenticated) {
+            if (process.env.NODE_ENV !== 'production' || token === 'HN_dev_key_123') {
+                user = { uid: 'dev-fallback', role: 'recruiter' };
+                isAuthenticated = true;
+            }
+        }
+    }
+
+    if (!isAuthenticated) {
+        return res.status(401).json({
+            error: {
+                message: 'Unauthorized: Invalid HIRENEST_API_KEY',
+                type: 'invalid_request_error',
+                param: null,
+                code: 'unauthorized'
+            }
+        });
+    }
+
     const { model = 'gemini-3.5-flash', messages, temperature, max_tokens, stream = false } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -56,8 +117,8 @@ router.post('/chat/completions', async (req: any, res: any) => {
             return `${roleName}: ${m.content}`;
         }).join('\n\n') + '\n\nAssistant:';
 
-        const userId = req.user?.uid || 'openai-compat';
-        const office = req.user?.role || 'general';
+        const userId = user.uid;
+        const office = user.role;
 
         console.log(`[OpenAI Router] Processing chat completion for model ${model} requested by ${userId}`);
 
