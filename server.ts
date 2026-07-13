@@ -52,7 +52,7 @@ import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
 import billingHandler from './src/api-lib/handlers/billing';
 import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
-import openaiCompatHandler from './src/api-lib/handlers/openai-compat';
+import openAIRouter from './src/api-lib/handlers/openai';
 
 const __dirname = process.cwd();
 
@@ -216,8 +216,8 @@ hirenest_active_requests 0
   app.use('/api/google', googleProxyHandler);
 
   // OpenAI-Compatible API Gateway routes
-  app.use('/v1', verifyAuth, aiLimiter, openaiCompatHandler);
-  app.use('/api/v1', verifyAuth, aiLimiter, openaiCompatHandler);
+  app.use('/v1', verifyAuth, aiLimiter, openAIRouter);
+  app.use('/api/v1', verifyAuth, aiLimiter, openAIRouter);
 
   // API Route Handler
   app.use('/api', async (req: any, res: any) => {
