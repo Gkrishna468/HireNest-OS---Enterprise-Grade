@@ -52,6 +52,7 @@ import searchCandidatesHandler from './src/api-lib/handlers/search-candidates';
 import billingHandler from './src/api-lib/handlers/billing';
 import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
+import openaiCompatHandler from './src/api-lib/handlers/openai-compat';
 
 const __dirname = process.cwd();
 
@@ -213,6 +214,10 @@ hirenest_active_requests 0
   app.use('/api/cron', cronHandler);
   app.use('/api/events', eventsHandler);
   app.use('/api/google', googleProxyHandler);
+
+  // OpenAI-Compatible API Gateway routes
+  app.use('/v1', verifyAuth, aiLimiter, openaiCompatHandler);
+  app.use('/api/v1', verifyAuth, aiLimiter, openaiCompatHandler);
 
   // API Route Handler
   app.use('/api', async (req: any, res: any) => {

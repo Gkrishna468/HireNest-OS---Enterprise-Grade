@@ -37,13 +37,7 @@ function getCredentials() {
   if (projectId && clientEmail && privateKey) {
     if (isPlaceholder(clientEmail) || isPlaceholder(privateKey)) return null;
     if (!clientEmail.includes('gserviceaccount.com')) {
-      console.error("\n=======================================================");
-      console.error("🚨 FIREBASE CONFIGURATION ERROR 🚨");
-      console.error(`FIREBASE_CLIENT_EMAIL is currently set to: ${clientEmail}`);
-      console.error("This appears to be a personal email address, which will NOT work.");
-      console.error("It MUST be a valid Firebase Service Account email (ending with @gserviceaccount.com).");
-      console.error("Please generate a JSON key from Firebase Console -> Project Settings -> Service Accounts.");
-      console.error("=======================================================\n");
+      console.warn(`[Firebase Admin] FIREBASE_CLIENT_EMAIL (${clientEmail}) is not a service account email. Skipping manual credentials to allow default service account credentials fallback.`);
       return null;
     }
     return { projectId, clientEmail, privateKey: sanitizePrivateKey(privateKey) };
@@ -52,6 +46,10 @@ function getCredentials() {
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (saJson) {
     if (isPlaceholder(saJson)) return null;
+    if (!saJson.trim().startsWith('{')) {
+      console.warn(`[Firebase Admin] FIREBASE_SERVICE_ACCOUNT does not start with '{'. Skipping parsing as JSON to allow default credentials fallback.`);
+      return null;
+    }
     try {
       const sa = JSON.parse(saJson);
       if (sa.private_key) {
@@ -60,12 +58,7 @@ function getCredentials() {
       }
       return sa;
     } catch (e: any) {
-      console.error("\n=======================================================");
-      console.error("🚨 FIREBASE CONFIGURATION ERROR 🚨");
-      console.error("The FIREBASE_SERVICE_ACCOUNT environment variable is invalid.");
-      console.error("It appears you provided an email address or raw string, but it MUST be a complete JSON object.");
-      console.error("Please generate a new JSON Private Key from the Firebase Console -> Project Settings -> Service Accounts, and paste the ENTIRE JSON content into the FIREBASE_SERVICE_ACCOUNT secret.");
-      console.error("=======================================================\n");
+      console.warn(`[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT as JSON: ${e.message}. Skipping manual credentials.`);
     }
   }
 

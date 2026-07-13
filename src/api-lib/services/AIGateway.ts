@@ -12,6 +12,7 @@ export interface AIGatewayRequest {
     userId?: string;
     office?: string;
     agent?: string;
+    model?: string; // Explicit model selection override
 }
 
 export interface AIGatewayResponse {
@@ -265,7 +266,19 @@ export class AIGateway {
         }
 
         // Load dynamic routing registry
-        const routes = await this.getModelRoutingAsync(feature);
+        let routes: { provider: string, model: string }[] = [];
+        if (request.model) {
+            const m = request.model.toLowerCase();
+            if (m.includes('gemini') || m.includes('google')) {
+                routes = [{ provider: 'google', model: request.model }];
+            } else if (m.includes('gpt') || m.includes('openai') || m.includes('o1')) {
+                routes = [{ provider: 'openai', model: request.model }];
+            } else {
+                routes = [{ provider: 'ollama', model: request.model }];
+            }
+        } else {
+            routes = await this.getModelRoutingAsync(feature);
+        }
         let lastError = null;
         let routeIndex = 0;
 
