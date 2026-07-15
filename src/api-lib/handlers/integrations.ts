@@ -3,7 +3,7 @@ import { EventDispatcher } from "../../events/EventDispatcher.js";
 
 export default async function integrationsHandler(req: any, res: any) {
   const { path } = req;
-  const endpoint = path.replace(/^\/api\/integrations\//, "");
+  const endpoint = path.replace(/^\/?(api\/)?integrations\//, "");
 
   if (endpoint === "events") {
     const event: EventEnvelope<any> = req.body;

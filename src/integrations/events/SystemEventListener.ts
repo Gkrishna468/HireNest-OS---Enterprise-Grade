@@ -2,7 +2,6 @@ import { db } from "../../lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, setDoc } from "firebase/firestore";
 import { EventDispatcher } from "../../events/EventDispatcher";
 import { EventEnvelope } from '../../events/types/EventEnvelope';
-import { CRMEventBridge } from "../crm/CRMEventBridge";
 
 export class SystemEventListener {
   private static isInitialized = false;
@@ -12,9 +11,6 @@ export class SystemEventListener {
     this.isInitialized = true;
 
     console.log("[SystemEventListener] Initializing hybrid event bridge...");
-
-    // Initialize OS-side bridges
-    CRMEventBridge.initialize();
 
     // 1. Fetch our subscriptions
     const subQ = query(

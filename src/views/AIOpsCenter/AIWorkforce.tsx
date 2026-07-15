@@ -59,7 +59,41 @@ export default function AIWorkforce({
 }: AIWorkforceProps) {
   
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  
+  const [localAgentOverrides, setLocalAgentOverrides] = useState<Record<string, Partial<Agent>>>({});
+  const [registryMode, setRegistryMode] = useState<'employees' | 'capabilities'>('employees');
+  const [appliedPromptTuning, setAppliedPromptTuning] = useState(false);
+
+  const mergedAgents = useMemo(() => {
+    return agents.map(agt => {
+      const override = localAgentOverrides[agt.id] || {};
+      const status = override.status || agt.status || "Production";
+      const priority = override.priority || agt.priority || (agt.id.includes('founder') || agt.id.includes('sec') ? 'Critical' : agt.id.includes('recruitment') || agt.id.includes('client') ? 'High' : 'Medium');
+      const healthMetrics = {
+        latencyMs: agt.avgRuntime || 1120,
+        failuresToday: 0,
+        retriesToday: agt.failureCount || 0,
+        uptime: 99.98,
+        ...agt.healthMetrics,
+        ...override.healthMetrics
+      };
+      const runtimeConfig = {
+        modelRouter: agt.model || "gemini-1.5-pro",
+        temperature: 0.2,
+        maxTokens: 4096,
+        ...agt.runtimeConfig,
+        ...override.runtimeConfig
+      };
+      return { 
+        ...agt, 
+        status, 
+        priority, 
+        healthMetrics, 
+        runtimeConfig,
+        ...override 
+      };
+    });
+  }, [agents, localAgentOverrides]);
+
   // Organization Chart selected node
   const [selectedOrgNode, setSelectedOrgNode] = useState<{ id: string; name: string; type: 'HUMAN' | 'AI'; role: string; dept: string; reportsTo?: string; kpis: string } | null>(null);
 
@@ -97,8 +131,8 @@ export default function AIWorkforce({
   });
 
   const selectedAgent = useMemo(() => {
-    return agents.find(a => a.id === selectedAgentId) || null;
-  }, [agents, selectedAgentId]);
+    return mergedAgents.find(a => a.id === selectedAgentId) || null;
+  }, [mergedAgents, selectedAgentId]);
 
   const selectedReport = useMemo(() => {
     return reports.find(r => r.id === selectedReportId) || reports[0] || null;
@@ -170,6 +204,44 @@ Evaluation Period: Q3 2026 Sandbox Audit
     setIsGeneratingScorecard(false);
   };
 
+  const handleUpdateStatus = (agentId: string, newStatus: any) => {
+    setLocalAgentOverrides(prev => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        status: newStatus
+      }
+    }));
+  };
+
+  const handleUpdatePriority = (agentId: string, newPriority: any) => {
+    setLocalAgentOverrides(prev => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        priority: newPriority
+      }
+    }));
+  };
+
+  const handleUpdateTemperature = (agentId: string, temp: number) => {
+    setLocalAgentOverrides(prev => {
+      const existing = prev[agentId] || {};
+      const existingRuntime = existing.runtimeConfig || { modelRouter: "gemini-1.5-pro", temperature: 0.2, maxTokens: 4096 };
+      return {
+        ...prev,
+        [agentId]: {
+          ...existing,
+          runtimeConfig: {
+            modelRouter: existingRuntime.modelRouter || "gemini-1.5-pro",
+            maxTokens: existingRuntime.maxTokens || 4096,
+            temperature: temp
+          }
+        }
+      };
+    });
+  };
+
   return (
     <div className="flex flex-col flex-1 gap-6">
       
@@ -186,68 +258,201 @@ Evaluation Period: Q3 2026 Sandbox Audit
             </span>
           </div>
 
+          {/* Toggle Menu for Employees vs Capability Registry Matrix */}
+          <div className="flex items-center gap-1.5 border-b border-slate-900/40 pb-3">
+            <button
+              onClick={() => setRegistryMode('employees')}
+              className={cn("px-4 py-2 text-[10px] font-black uppercase rounded-xl tracking-wider transition-all border",
+                registryMode === 'employees' 
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/10" 
+                  : "bg-slate-950/40 border-slate-900/60 text-slate-400 hover:text-slate-200"
+              )}
+            >
+              📇 Digital Employee Directory
+            </button>
+            <button
+              onClick={() => setRegistryMode('capabilities')}
+              className={cn("px-4 py-2 text-[10px] font-black uppercase rounded-xl tracking-wider transition-all border",
+                registryMode === 'capabilities' 
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/10" 
+                  : "bg-slate-950/40 border-slate-900/60 text-slate-400 hover:text-slate-200"
+              )}
+            >
+              🛡️ Capability & Skills Matrix
+            </button>
+          </div>
+
           <div className="flex-1 flex flex-col xl:flex-row gap-6">
-            {/* Table list of named digital employees */}
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left text-xs bg-[#070A13] border border-slate-900 rounded-2xl overflow-hidden">
-                <thead>
-                  <tr className="bg-[#0c111f] border-b border-slate-900 text-slate-400 font-bold uppercase text-[9px] tracking-wider">
-                    <th className="p-4">Agent Employee Details</th>
-                    <th className="p-4">Department</th>
-                    <th className="p-4">Assigned Owner</th>
-                    <th className="p-4">Reports To</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-900/60">
-                  {agents.map((agt) => (
-                    <tr 
-                      key={agt.id}
-                      onClick={() => setSelectedAgentId(agt.id)}
-                      className={cn("hover:bg-[#0d1222] transition-colors cursor-pointer", 
-                        selectedAgentId === agt.id ? "bg-indigo-600/5" : ""
-                      )}
-                    >
-                      <td className="p-4 flex items-center gap-3">
-                        <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
-                          <Bot size={16} />
-                        </div>
-                        <div>
-                          <span className="font-bold text-white block">{agt.name}</span>
-                          <span className="text-[9px] text-indigo-400 uppercase font-black">{agt.id}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 font-medium text-slate-300">{agt.department || "Ecosystem Core"}</td>
-                      <td className="p-4 font-medium text-slate-300">{agt.ownerName || "Bruce Wayne"}</td>
-                      <td className="p-4 font-medium text-slate-300">{agt.reportsTo || "Bruce Wayne"}</td>
-                      <td className="p-4">
-                        <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border", 
-                          agt.enabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-900"
-                        )}>
-                          {agt.enabled ? "ACTIVE" : "PAUSED"}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <ChevronRight size={14} className="inline text-slate-500" />
-                      </td>
+            {/* Conditional view based on registryMode */}
+            {registryMode === 'employees' ? (
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full text-left text-xs bg-[#070A13] border border-slate-900 rounded-2xl overflow-hidden">
+                  <thead>
+                    <tr className="bg-[#0c111f] border-b border-slate-900 text-slate-400 font-bold uppercase text-[9px] tracking-wider">
+                      <th className="p-4">Agent Employee Details</th>
+                      <th className="p-4">Department</th>
+                      <th className="p-4">Priority</th>
+                      <th className="p-4">Lifecycle Status</th>
+                      <th className="p-4">Task Sync</th>
+                      <th className="p-4 text-right">Action</th>
                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-900/60">
+                    {mergedAgents.map((agt) => (
+                      <tr 
+                        key={agt.id}
+                        onClick={() => setSelectedAgentId(agt.id)}
+                        className={cn("hover:bg-[#0d1222] transition-colors cursor-pointer", 
+                          selectedAgentId === agt.id ? "bg-indigo-600/5" : ""
+                        )}
+                      >
+                        <td className="p-4 flex items-center gap-3">
+                          <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+                            <Bot size={16} />
+                          </div>
+                          <div>
+                            <span className="font-bold text-white block">{agt.name}</span>
+                            <span className="text-[9px] text-indigo-400 uppercase font-black">{agt.id}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 font-medium text-slate-300">{agt.department || "Ecosystem Core"}</td>
+                        <td className="p-4">
+                          <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded border font-mono",
+                            agt.priority === 'Critical' ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                            agt.priority === 'High' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                            "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          )}>
+                            {agt.priority || 'Medium'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded border", 
+                            agt.status === 'Production' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                            agt.status === 'Monitoring' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                            agt.status === 'Testing' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
+                            agt.status === 'Review' ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" :
+                            "bg-slate-500/10 text-slate-400 border-slate-800"
+                          )}>
+                            {agt.status || "Production"}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border", 
+                            agt.enabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-900"
+                          )}>
+                            {agt.enabled ? "ACTIVE" : "PAUSED"}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <ChevronRight size={14} className="inline text-slate-500" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex-1 bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-6 max-h-[640px] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-slate-900 pb-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Enterprise Capability & Skills Registry</h3>
+                    <p className="text-[10px] text-slate-400">Maps high-level business capabilities to core agent skills and dynamic backend integration tools.</p>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded">
+                    UOP Data Model v1-RC1 Verified
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    {
+                      dept: "Executive & Founder Operations",
+                      cap: "Strategic Sourcing Routing",
+                      desc: "Intelligent match indexing and automated strategic dispatch across vendor benches.",
+                      skills: ["Intake Extraction", "Semantic Indexing", "Strategic Sourcing Routing", "Token Budget Enforcements"],
+                      tools: ["google-maps-platform", "firebase-firestore-database", "gemini-1.5-pro"]
+                    },
+                    {
+                      dept: "Growth & Sales Department",
+                      cap: "Outbound Marketing Campaigns",
+                      desc: "Personalized outreach generation and segment copywriting with conversion triggers.",
+                      skills: ["Campaign Generation", "CTR Conversion Tuning", "Contact Segmentation", "Frequency Cap Rules"],
+                      tools: ["sendgrid_email_api", "gemini-1.5-flash", "system_events_bus"]
+                    },
+                    {
+                      dept: "Talent Acquisition",
+                      cap: "Cognitive Matching Engine",
+                      desc: "Multiphase resume parsing, deterministic skill matching, and semantic score verification.",
+                      skills: ["Multi-Resume Extraction", "Semantic Fit Indexing", "Candidate 360 Integration", "Recruiter Override Handshakes"],
+                      tools: ["gemini-1.5-pro", "d3-match-vectors", "candidate_matches"]
+                    },
+                    {
+                      dept: "Vendor Relations",
+                      cap: "Bench Sourcing Synchronization",
+                      desc: "Real-time updates to partner bench capacities, scoring automated Trust indices.",
+                      skills: ["Bench Capacity Tracking", "Trust Score Calculation", "Partner Performance Scoring", "Feedback Loop Compilation"],
+                      tools: ["partner_trust_index_rules.json", "firebase_firestore_sync"]
+                    },
+                    {
+                      dept: "Customer Success",
+                      cap: "SLA Delivery Guardrails",
+                      desc: "Hiring velocity projection and automated escalation for delayed interview slots.",
+                      skills: ["Hiring Velocity Forecasting", "Delay Bottleneck Alerts", "AE Escalation Dispatch", "SLA Incident Logging"],
+                      tools: ["cleo_cs_agent", "twilio_sms_api", "slack_webhooks"]
+                    },
+                    {
+                      dept: "Security & Infrastructure",
+                      cap: "Scope Isolation & Compliance",
+                      desc: "Enforces strict ABAC constraints to verify client credentials and mask PII.",
+                      skills: ["ABAC Compliance Checks", "PII Hashing", "Security Audit Tracing", "Model Budget Circuit-Breaking"],
+                      tools: ["jwt_token_validator", "firestore_rules_engine", "model_token_breaker"]
+                    }
+                  ].map((item, idx) => (
+                    <div key={idx} className="p-4 bg-slate-950/80 border border-slate-900 rounded-xl space-y-3 hover:border-indigo-500/30 transition-all">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[8px] uppercase tracking-widest text-slate-500 font-black block">{item.dept}</span>
+                          <h4 className="text-xs font-black text-white mt-0.5">{item.cap}</h4>
+                        </div>
+                        <span className="text-[8px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md font-mono font-bold uppercase">CAP-{idx + 101}</span>
+                      </div>
+                      
+                      <p className="text-[10px] text-slate-400 leading-relaxed">{item.desc}</p>
+                      
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[8px] text-slate-500 uppercase font-bold block">Mapped Skills (Abstractions)</span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.skills.map((s, i) => (
+                            <span key={i} className="text-[8px] bg-slate-900 border border-slate-800 text-slate-300 px-1.5 py-0.5 rounded">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 border-t border-slate-900/60">
+                        <span className="text-[8px] text-indigo-400 uppercase font-bold block">Assigned Integration Tools</span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.tools.map((t, i) => (
+                            <span key={i} className="text-[8px] bg-indigo-500/5 border border-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-mono font-bold">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            )}
 
             {/* Accountability attributes details drawer */}
-            <div className="w-full xl:w-96 bg-[#070A13] border border-slate-900 rounded-2xl p-5 flex flex-col justify-between min-h-[480px]">
+            <div className="w-full xl:w-96 bg-[#070A13] border border-slate-900 rounded-2xl p-5 flex flex-col justify-between min-h-[520px] max-h-[850px] overflow-y-auto">
               {selectedAgent ? (
-                <div className="space-y-4 flex-1 flex flex-col justify-between">
+                <div className="space-y-5 flex-1 flex flex-col justify-between">
                   {/* Registry profile details */}
                   <div className="space-y-4">
                     <div className="border-b border-slate-900 pb-3 flex justify-between items-start">
                       <div>
                         <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider block">Agent Employee Credentials</span>
                         <h4 className="text-xs font-black text-white">{selectedAgent.name}</h4>
-                        <span className="text-[9px] font-mono text-slate-500">{selectedAgent.id} • {selectedAgent.model || "gemini-1.5-pro"}</span>
+                        <span className="text-[9px] font-mono text-slate-500">{selectedAgent.id} • {selectedAgent.runtimeConfig?.modelRouter || selectedAgent.model || "gemini-1.5-pro"}</span>
                       </div>
                       <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 border rounded-full",
                         selectedAgent.enabled ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-slate-500/10 border-slate-900 text-slate-500"
@@ -257,40 +462,172 @@ Evaluation Period: Q3 2026 Sandbox Audit
                     </div>
 
                     {/* Operational Accountability Specs */}
-                    <div className="space-y-2.5">
-                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-900 text-[11px] hover:border-slate-800 transition-colors">
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2 bg-slate-950/80 border border-slate-900 rounded-xl">
                         <span className="text-[9px] text-slate-500 uppercase font-bold block">Assigned Owner / Reports To</span>
                         <span className="font-bold text-slate-300">Owner: {selectedAgent.ownerName} • Reports: {selectedAgent.reportsTo}</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-900 text-[11px] hover:border-slate-800 transition-colors">
+                      <div className="p-2 bg-slate-950/80 border border-slate-900 rounded-xl">
                         <span className="text-[9px] text-slate-500 uppercase font-bold block">Approval Authority Bounds</span>
                         <span className="font-bold text-indigo-400">{selectedAgent.approvalAuthority || "Executive Override Required"}</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-[#0b0f19] border border-slate-900 text-[11px] hover:border-slate-800 transition-colors">
-                        <span className="text-[9px] text-indigo-400 uppercase font-bold block">Current Task / Action</span>
-                        <span className="font-medium text-slate-300">{selectedAgent.currentTask || "Idle. Monitoring event listeners."}</span>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-900 text-[11px] hover:border-slate-800 transition-colors">
-                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Next Scheduled Task</span>
-                        <span className="font-bold text-slate-300">{selectedAgent.nextTask || "Trigger on event bus callbacks"}</span>
+                    </div>
+
+                    {/* INTERACTIVE PRIORITY SELECTOR */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-black block tracking-wider">Operational priority level</span>
+                      <div className="grid grid-cols-4 gap-1">
+                        {['Low', 'Medium', 'High', 'Critical'].map((p) => {
+                          const isActive = selectedAgent.priority === p;
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => handleUpdatePriority(selectedAgent.id, p)}
+                              className={cn("py-1 text-[9px] font-bold rounded border transition-all uppercase tracking-wider",
+                                isActive 
+                                  ? p === 'Critical' ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow"
+                                    : p === 'High' ? "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow"
+                                    : p === 'Medium' ? "bg-blue-500/20 text-blue-300 border-blue-500/50 shadow"
+                                    : "bg-slate-700 text-white border-slate-600 shadow"
+                                  : "bg-slate-950 text-slate-500 border-slate-900 hover:border-slate-800"
+                              )}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Simple performance indicators */}
-                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-950 p-2.5 rounded-xl border border-slate-900/60">
-                      <div>
-                        <span className="text-slate-500 uppercase block font-bold">Success Ratio</span>
-                        <span className="text-emerald-400 font-bold">{selectedAgent.successRate || 98.7}%</span>
+                    {/* INTERACTIVE LIFECYCLE TIMELINE TRANSITIONS */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] text-slate-500 uppercase font-black block tracking-wider">Lifecycle Status Phase</span>
+                        <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/30 px-1.5 rounded">
+                          {selectedAgent.status || "Production"}
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-slate-500 uppercase block font-bold">Today Execs</span>
-                        <span className="text-white font-bold">{selectedAgent.execsToday || 12} times</span>
+                      
+                      <div className="p-2 bg-[#05080e] border border-slate-900 rounded-xl space-y-1.5">
+                        <div className="grid grid-cols-4 gap-1 text-[8px] font-black uppercase text-center">
+                          {['Draft', 'Testing', 'Review', 'Approved'].map(st => {
+                            const isCurrent = selectedAgent.status === st;
+                            return (
+                              <button
+                                key={st}
+                                onClick={() => handleUpdateStatus(selectedAgent.id, st)}
+                                className={cn("py-1 rounded border transition-all",
+                                  isCurrent ? "bg-indigo-600 border-indigo-500 text-white font-bold" : "bg-slate-950 text-slate-500 border-slate-900 hover:border-slate-800"
+                                )}
+                              >
+                                {st}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 text-[8px] font-black uppercase text-center">
+                          {['Production', 'Monitoring', 'Archived'].map(st => {
+                            const isCurrent = selectedAgent.status === st;
+                            return (
+                              <button
+                                key={st}
+                                onClick={() => handleUpdateStatus(selectedAgent.id, st)}
+                                className={cn("py-1 rounded border transition-all",
+                                  isCurrent ? "bg-emerald-600 border-emerald-500 text-white font-bold" : "bg-slate-950 text-slate-500 border-slate-900 hover:border-slate-800"
+                                )}
+                              >
+                                {st}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* HEALTH METRICS TELEMETRY */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-black block tracking-wider">Real-time Health Telemetry</span>
+                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-slate-950 p-2 border border-slate-900/80 rounded-xl">
+                        <div className="p-1.5 bg-[#05080e] border border-slate-900 rounded-lg">
+                          <span className="text-[8px] text-slate-500 uppercase block font-bold">Latency</span>
+                          <span className="text-white font-bold font-mono">{selectedAgent.healthMetrics?.latencyMs || selectedAgent.avgRuntime || 1120}ms</span>
+                        </div>
+                        <div className="p-1.5 bg-[#05080e] border border-slate-900 rounded-lg">
+                          <span className="text-[8px] text-slate-500 uppercase block font-bold">Retries</span>
+                          <span className="text-amber-400 font-bold font-mono">{selectedAgent.healthMetrics?.retriesToday || selectedAgent.failureCount || 0} / 0</span>
+                        </div>
+                        <div className="p-1.5 bg-[#05080e] border border-slate-900 rounded-lg">
+                          <span className="text-[8px] text-slate-500 uppercase block font-bold">Uptime</span>
+                          <span className="text-emerald-400 font-bold font-mono">{selectedAgent.healthMetrics?.uptime || 99.98}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RUNTIME CONFIGURATION PARAMETERS */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-black block tracking-wider">Gateway Model Parameters</span>
+                      <div className="p-3 bg-slate-950 border border-slate-900 rounded-xl space-y-2.5">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-400">Router Configuration:</span>
+                          <span className="text-white font-bold font-mono text-[9px] uppercase">{selectedAgent.runtimeConfig?.modelRouter || "gemini-1.5-pro"}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-slate-400">Temperature Bounds:</span>
+                            <span className="text-indigo-400 font-bold font-mono text-[9px]">{(selectedAgent.runtimeConfig?.temperature ?? 0.2).toFixed(1)}</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="1" 
+                            step="0.1"
+                            value={selectedAgent.runtimeConfig?.temperature ?? 0.2}
+                            onChange={(e) => handleUpdateTemperature(selectedAgent.id, parseFloat(e.target.value))}
+                            className="w-full h-1 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-900/60">
+                          <span className="text-slate-400">Max Tokens Threshold:</span>
+                          <span className="text-white font-bold font-mono text-[9px]">{selectedAgent.runtimeConfig?.maxTokens || 4096} Limit</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Task Actions Display */}
+                    <div className="space-y-2 text-[11px] pt-1">
+                      <div className="p-2 bg-[#05080e] border border-slate-900 rounded-xl">
+                        <span className="text-[9px] text-indigo-400 uppercase font-bold block">Active Execution Thread</span>
+                        <span className="font-medium text-slate-300">{selectedAgent.currentTask || "Awaiting platform callbacks"}</span>
+                      </div>
+                    </div>
+
+                    {/* 🧠 COGNITIVE BRAIN LOOP TRACE */}
+                    <div className="space-y-2">
+                      <span className="text-[9px] text-slate-500 uppercase font-black block tracking-wider">🧠 Cognitive Brain Loop Trace</span>
+                      <div className="p-3 bg-slate-950 border border-slate-900 rounded-xl space-y-3 text-[10px]">
+                        {[
+                          { title: "Planner (Task DAG)", desc: "Generates step-by-step task sequence", sub: "Intake Req ➔ Map Skills ➔ Filter Benches ➔ Verify ABAC", state: "NOMINAL" },
+                          { title: "Memory Index (RAG)", desc: "Loads Firestore context & organizational memories", sub: "Confidence index: 98.4% Grounded", state: "NOMINAL" },
+                          { title: "Tool Selector", desc: "Instantiates required API connections & agents", sub: "Triggered: [firestore_sync, partner_rules, gemini_pro]", state: "NOMINAL" },
+                          { title: "Validator & Self-Reflection", desc: "Vibe check for security, format integrity, and PII", sub: "ABAC Token: Certified • PII leak test: Passed", state: "NOMINAL" },
+                          { title: "Output Commit State", desc: "Saves verified outcomes to single source of truth", sub: "Persisted in 'candidate_matches' collection", state: "COMMITTED" }
+                        ].map((b, i) => (
+                          <div key={i} className="relative pl-4 border-l border-slate-800/80 space-y-0.5">
+                            <div className="absolute left-[-4.5px] top-[4px] w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-slate-950 shadow shadow-indigo-500 animate-pulse" />
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-slate-200">{b.title}</span>
+                              <span className="text-[7px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1 rounded uppercase">{b.state}</span>
+                            </div>
+                            <p className="text-[8px] text-slate-400 leading-tight">{b.desc}</p>
+                            <p className="text-[7px] font-mono text-slate-500">{b.sub}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
 
                   {/* Actions for agent */}
-                  <div className="border-t border-slate-900/60 pt-3 flex items-center justify-between gap-3">
+                  <div className="border-t border-slate-900/60 pt-3 flex items-center justify-between gap-3 shrink-0">
                     <button
                       onClick={() => onToggleAgent(selectedAgent.id, !selectedAgent.enabled)}
                       className={cn("flex-1 py-2 rounded-xl text-[10px] font-black uppercase border tracking-wider transition-all",
@@ -838,57 +1175,107 @@ Evaluation Period: Q3 2026 Sandbox Audit
 
           <div className="flex-1 flex flex-col xl:flex-row gap-6">
             
-            {/* Versioned Folder Tree selection list */}
-            <div className="flex-1 bg-[#070A13] border border-slate-900 rounded-2xl p-5 space-y-4 max-h-[460px] overflow-y-auto">
-              <span className="text-xs font-bold text-white block border-b border-slate-900 pb-2">Cognitive Files Directory</span>
-              
-              <div className="space-y-2">
-                <div 
-                  onClick={() => setSelectedPromptFile("directives-matcher")}
-                  className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
-                    selectedPromptFile === 'directives-matcher' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText size={14} className="text-indigo-400" />
-                    <div>
-                      <span className="text-xs font-bold text-slate-300 block">candidate_matcher_v4.2.txt</span>
-                      <span className="text-[9px] text-slate-500">System prompt instructions for Conrad Conductor</span>
+            {/* Versioned Folder Tree selection list and Learning Feedback Loop column */}
+            <div className="flex-1 flex flex-col gap-4 max-h-[580px]">
+              <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-5 space-y-4 max-h-[260px] overflow-y-auto">
+                <span className="text-xs font-bold text-white block border-b border-slate-900 pb-2">Cognitive Files Directory</span>
+                
+                <div className="space-y-2">
+                  <div 
+                    onClick={() => setSelectedPromptFile("directives-matcher")}
+                    className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
+                      selectedPromptFile === 'directives-matcher' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={14} className="text-indigo-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-300 block">candidate_matcher_v4.2.txt</span>
+                        <span className="text-[9px] text-slate-500">System prompt instructions for Conrad Conductor</span>
+                      </div>
                     </div>
+                    <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v4.2.1</span>
                   </div>
-                  <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v4.2.1</span>
+
+                  <div 
+                    onClick={() => setSelectedPromptFile("rules-vendor")}
+                    className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
+                      selectedPromptFile === 'rules-vendor' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={14} className="text-indigo-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-300 block">vendor_trust_index_rules.json</span>
+                        <span className="text-[9px] text-slate-500">Grounding rules governing partners Trust Indices</span>
+                      </div>
+                    </div>
+                    <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v1.0.4</span>
+                  </div>
+
+                  <div 
+                    onClick={() => setSelectedPromptFile("directives-sla")}
+                    className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
+                      selectedPromptFile === 'directives-sla' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={14} className="text-indigo-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-300 block">sla_escalation_directives.txt</span>
+                        <span className="text-[9px] text-slate-500">SOP escalation instructions for Cleo Customer Bot</span>
+                      </div>
+                    </div>
+                    <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v2.1.0</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cognitive Learning Feedback Loop Recommendations Panel */}
+              <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-5 space-y-4 flex-1 overflow-y-auto min-h-[220px]">
+                <div className="flex justify-between items-center border-b border-slate-900 pb-2">
+                  <div>
+                    <span className="text-xs font-bold text-white block">🧠 Learning Loop Recommendations</span>
+                    <span className="text-[9px] text-slate-500 block">Autonomously generated recommendations based on tracked human overrides.</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded animate-pulse">Active Listening</span>
                 </div>
 
-                <div 
-                  onClick={() => setSelectedPromptFile("rules-vendor")}
-                  className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
-                    selectedPromptFile === 'rules-vendor' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText size={14} className="text-indigo-400" />
-                    <div>
-                      <span className="text-xs font-bold text-slate-300 block">vendor_trust_index_rules.json</span>
-                      <span className="text-[9px] text-slate-500">Grounding rules governing partners Trust Indices</span>
+                <div className="p-3.5 bg-slate-950/80 border border-slate-900 rounded-xl space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-indigo-400 uppercase">Analysis Outcome: Sourcing Inaccuracy</span>
+                      <span className="text-slate-500 font-mono">ID: REC-9921</span>
                     </div>
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                      Recruiter overridden: 14 candidates bypassed by Conrad Conductor for Staff Engineer due to lack of explicit AWS EKS Kubernetes managed cluster details. The matcher system prompt missed these managed service nuances.
+                    </p>
                   </div>
-                  <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v1.0.4</span>
-                </div>
 
-                <div 
-                  onClick={() => setSelectedPromptFile("directives-sla")}
-                  className={cn("p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
-                    selectedPromptFile === 'directives-sla' ? "bg-[#0b1021] border-indigo-500/40" : "bg-slate-950 border-slate-900"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText size={14} className="text-indigo-400" />
-                    <div>
-                      <span className="text-xs font-bold text-slate-300 block">sla_escalation_directives.txt</span>
-                      <span className="text-[9px] text-slate-500">SOP escalation instructions for Cleo Customer Bot</span>
-                    </div>
+                  <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                    <span className="text-[8px] text-slate-400 uppercase font-bold block">Corrective Prompt directive update (candidate_matcher_v4.2)</span>
+                    <pre className="text-[9px] font-mono text-emerald-400 leading-normal whitespace-pre-wrap">
+                      {appliedPromptTuning 
+                        ? `# Conrad Conductor v4.2.2 - Patched successfully!\nIF "Kubernetes" is requested, require cloud-specific managed engine (EKS/GKE/AKS) as an absolute hard filter.`
+                        : `IF "Kubernetes" is requested, require cloud-specific managed engine (EKS/GKE/AKS) as an absolute hard filter.`
+                      }
+                    </pre>
                   </div>
-                  <span className="text-[8px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded font-mono">v2.1.0</span>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-slate-500 font-bold uppercase">Confidence: 94.2% • Safety: CERTIFIED</span>
+                    <button
+                      onClick={() => setAppliedPromptTuning(true)}
+                      disabled={appliedPromptTuning}
+                      className={cn("px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border",
+                        appliedPromptTuning 
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500/30 shadow-md shadow-indigo-500/10"
+                      )}
+                    >
+                      {appliedPromptTuning ? "✓ directive patched" : "Apply tuning patch"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

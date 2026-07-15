@@ -6,7 +6,7 @@ export interface Agent {
   category: string;
   triggerType: string;
   schedule?: string;
-  status: string;
+  status: 'Draft' | 'Testing' | 'Review' | 'Approved' | 'Production' | 'Monitoring' | 'Archived' | string;
   enabled: boolean;
   desc: string;
   successRate?: number;
@@ -23,6 +23,32 @@ export interface Agent {
   approvalAuthority: string;
   nextTask: string;
   lastReportSent: string;
+
+  // Agent OS additions (Sprint 1 & 2)
+  version?: string;
+  priority?: 'Low' | 'Medium' | 'High' | 'Critical';
+  goal?: string;
+  instructions?: string;
+  knowledgeBase?: string[];
+  memoryType?: 'Platform' | 'Company' | 'Department' | 'Agent' | 'Conversation';
+  memoryKeys?: string[];
+  tools?: string[];
+  permissions?: string[];
+  kpis?: { name: string; target: string; current: string }[];
+  costToday?: number;
+  monthlyBudget?: number;
+  runtimeConfig?: {
+    modelRouter: string;
+    temperature: number;
+    maxTokens: number;
+  };
+  healthMetrics?: {
+    latencyMs: number;
+    retriesToday: number;
+    failuresToday: number;
+    uptime: number;
+  };
+  collaborationChannels?: string[];
 }
 
 export interface Execution {

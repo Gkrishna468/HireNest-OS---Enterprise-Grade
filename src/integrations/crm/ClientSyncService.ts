@@ -1,23 +1,33 @@
-import { CRMAdapter } from "./CRMAdapter";
-import { db } from "../../lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
-import { EventDispatcher } from "../../events/EventDispatcher";
-import { IntegrationMappingService } from "./IntegrationMappingService";
+import { CRMAdapter } from "./CRMAdapter.js";
+import { db } from "../../lib/firebase-admin.js";
+import { EventDispatcher } from "../../events/EventDispatcher.js";
+import { IntegrationMappingService } from "./IntegrationMappingService.js";
 
 export class ClientSyncService {
   static async syncFromWonOpportunity(opportunityId: string) {
     console.log(`[ClientSyncService] Syncing client from won opportunity: ${opportunityId}`);
-    
-    // In a real scenario, fetch opportunity and account from CRM
-    // const opportunity = await CRMAdapter.getOpportunity(opportunityId);
-    // const account = await CRMAdapter.getAccount(opportunity.accountId);
+    if (!db) return;
 
-    const accountId = "acc-" + Date.now(); // Stub
+    const opportunity = await CRMAdapter.getOpportunity(opportunityId);
+    let accountName = "Synced Client " + Date.now();
+    let accountId = "acc-" + Date.now();
+
+    if (opportunity && opportunity.accountId) {
+      accountId = opportunity.accountId;
+      const account = await CRMAdapter.getAccount(accountId);
+      if (account && account.name) {
+        accountName = account.name || account.companyName || accountName;
+      }
+    }
+
     const clientId = "cli-" + accountId;
 
-    // Create HireNest client
-    await setDoc(doc(db, "clients", clientId), {
-      name: "Synced Client " + accountId,
+    // Create HireNest client organization / client document in organizations collection
+    await db.collection("organizations").doc(clientId).set({
+      id: clientId,
+      name: accountName,
+      companyName: accountName,
+      orgType: "CLIENT",
       status: "ACTIVE",
       createdAt: new Date().toISOString()
     });
@@ -43,3 +53,4 @@ export class ClientSyncService {
     });
   }
 }
+

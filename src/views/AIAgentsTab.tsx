@@ -1344,6 +1344,12 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                           const capabilities = agent.metadata?.capabilities || [];
                                           const tools = agent.metadata?.tools || [];
 
+                                          // First-class Agent OS Metadata attributes
+                                          const priority = agent.metadata?.priority || (agent.id.includes('founder') || agent.id.includes('sec') ? 'Critical' : agent.id.includes('recruitment') || agent.id.includes('client') ? 'High' : 'Medium');
+                                          const status = agent.metadata?.status || 'Production';
+                                          const temperature = agent.metadata?.runtimeConfig?.temperature ?? 0.2;
+                                          const modelRouter = agent.metadata?.runtimeConfig?.modelRouter || agent.metadata?.preferredCapability || 'gemini-1.5-pro';
+
                                           return (
                                               <div key={agent.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-4 hover:border-slate-700 transition-colors">
                                                   {/* Agent Header */}
@@ -1362,15 +1368,37 @@ export default function AIAgentsTab({ userRole }: { userRole: string }) {
                                                               <p className="text-[9px] font-mono text-slate-500">{agent.id}</p>
                                                           </div>
                                                       </div>
-                                                      <span className="flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 px-2 py-0.5 rounded-full">
-                                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
-                                                      </span>
+                                                      <div className="flex flex-col items-end gap-1">
+                                                          <span className={cn("text-[8px] font-bold uppercase px-2 py-0.5 border rounded-full font-mono",
+                                                              priority === 'Critical' ? "bg-rose-500/10 border-rose-500/20 text-rose-400" :
+                                                              priority === 'High' ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
+                                                              "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                                                          )}>
+                                                              {priority} Priority
+                                                          </span>
+                                                          <span className={cn("text-[8px] font-bold uppercase px-2 py-0.5 border rounded-full",
+                                                              status === 'Production' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
+                                                              status === 'Monitoring' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
+                                                              status === 'Testing' ? "bg-purple-500/10 border-purple-500/20 text-purple-400" :
+                                                              status === 'Review' ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-400" :
+                                                              "bg-slate-500/10 border-slate-800 text-slate-400"
+                                                          )}>
+                                                              {status}
+                                                          </span>
+                                                      </div>
                                                   </div>
 
                                                   {/* Purpose description */}
                                                   <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
                                                       {agent.metadata?.purpose || 'Autonomous helper with custom workflow integrations.'}
                                                   </p>
+
+                                                  {/* Runtime Config parameters inline stats */}
+                                                  <div className="p-2 bg-slate-900/60 rounded border border-slate-900 flex justify-between items-center text-[9px] text-slate-400 font-mono">
+                                                      <span>Gateway: <span className="text-indigo-400 font-bold uppercase">{modelRouter}</span></span>
+                                                      <span>Temp: <span className="text-white font-bold">{temperature.toFixed(1)}</span></span>
+                                                      <span>Max Tokens: <span className="text-white font-bold">{agent.metadata?.runtimeConfig?.maxTokens || 4096}</span></span>
+                                                  </div>
 
                                                   {/* Capabilities & Tools Tags */}
                                                   <div className="space-y-1.5 pt-1">

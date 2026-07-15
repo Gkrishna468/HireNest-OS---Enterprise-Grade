@@ -53,10 +53,14 @@ import billingHandler from './src/api-lib/handlers/billing';
 import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
 import openAIRouter from './src/api-lib/handlers/openai';
+import { CRMEventBridge } from './src/integrations/crm/CRMEventBridge.js';
 
 const __dirname = process.cwd();
 
 async function createServer() {
+  // Initialize CRM to HireNestOS Event Bridge
+  CRMEventBridge.initialize();
+
   const app = express();
   app.set('trust proxy', 1); // Trust first proxy (required by express-rate-limit behind reverse proxy like Cloud Run)
   

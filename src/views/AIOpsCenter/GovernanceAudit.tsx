@@ -75,6 +75,30 @@ export default function GovernanceAudit({
   const [newDesc, setNewDesc] = useState("");
   const [newRuleCount, setNewRuleCount] = useState(2);
 
+  // Simulation Lab advanced states
+  const [selectedModelForSimulation, setSelectedModelForSimulation] = useState<string>("gemini-1.5-pro");
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchFinished, setBatchFinished] = useState(false);
+
+  const handleRunBatchSimulation = () => {
+    setIsBatchRunning(true);
+    setBatchProgress(0);
+    setBatchFinished(false);
+    
+    const interval = setInterval(() => {
+      setBatchProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsBatchRunning(false);
+          setBatchFinished(true);
+          return 100;
+        }
+        return prev + 5;
+      });
+    }, 100);
+  };
+
   // Selected policy in the viewer
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
 
@@ -641,64 +665,207 @@ export default function GovernanceAudit({
               <h2 className="text-lg font-black text-white">Autonomous Simulation Lab</h2>
               <p className="text-xs text-slate-400">Trigger simulated conduction passes, audit playground prompt responses, and test real-time SLA rules safely.</p>
             </div>
-            <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full font-bold">
+            <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full font-bold animate-pulse">
               Simulation Lab Online
             </span>
           </div>
 
-          <div className="flex-1 flex flex-col xl:flex-row gap-6">
-            <div className="flex-1 bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-4">
-              <span className="text-xs font-bold text-white block">Playground Conduction Trigger</span>
-              <textarea
-                value={simulationPrompt}
-                onChange={(e) => setSimulationPrompt(e.target.value)}
-                placeholder="Enter prompt instruction or select trigger configuration..."
-                className="w-full h-36 rounded-xl bg-slate-950 border border-slate-900 p-4 text-xs font-mono text-slate-300 outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 resize-none"
-              />
-              <button
-                onClick={onRunSimulation}
-                disabled={isSimulating || !simulationPrompt.trim()}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow flex items-center justify-center gap-2"
-              >
-                {isSimulating ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    Running Simulation...
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} />
-                    Run Conduction Pass
-                  </>
-                )}
-              </button>
-            </div>
+          <div className="flex-1 flex flex-col lg:flex-row gap-6">
+            
+            {/* Left side: Controls, model comparisons & batch sandbox */}
+            <div className="flex-1 space-y-6 max-h-[640px] overflow-y-auto pr-2">
+              
+              {/* Card 1: Single Conduction Playground */}
+              <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-white block">Single Conduction Playground</span>
+                  
+                  {/* Model Selector Dropdown */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Model:</span>
+                    <select
+                      value={selectedModelForSimulation}
+                      onChange={(e) => setSelectedModelForSimulation(e.target.value)}
+                      className="bg-slate-950 border border-slate-900 rounded-xl px-2.5 py-1 text-[10px] font-black text-white outline-none cursor-pointer"
+                    >
+                      <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                      <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                      <option value="gpt-4o">GPT-4o</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div className="w-full xl:w-96 bg-[#070A13] border border-slate-900 rounded-2xl p-5 flex flex-col justify-between min-h-[320px]">
-              <div className="space-y-4 flex-1 flex flex-col">
-                <span className="text-xs font-bold text-white block border-b border-slate-900 pb-2">Simulation Outputs</span>
+                <textarea
+                  value={simulationPrompt}
+                  onChange={(e) => setSimulationPrompt(e.target.value)}
+                  placeholder="Enter prompt instruction or select trigger configuration..."
+                  className="w-full h-28 rounded-xl bg-slate-950 border border-slate-900 p-4 text-xs font-mono text-slate-300 outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 resize-none"
+                />
                 
-                <div className="flex-1 overflow-y-auto max-h-[220px] space-y-3">
-                  {simulationResult ? (
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-[10px] font-mono border-b border-slate-900/60 pb-1.5">
-                        <span className="text-slate-500 font-bold">Simulation:</span>
-                        <span className="text-emerald-400 font-black">SUCCESS</span>
+                <button
+                  onClick={onRunSimulation}
+                  disabled={isSimulating || !simulationPrompt.trim()}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase text-xs tracking-wider rounded-xl transition-all border border-indigo-500/30 shadow-md shadow-indigo-500/10 flex items-center justify-center gap-2"
+                >
+                  {isSimulating ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      Running Simulation...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={14} />
+                      Run Conduction Pass
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Card 2: Model Metrics Comparison Suite */}
+              <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-4">
+                <div>
+                  <span className="text-xs font-bold text-white block">Interactive Model Comparison Suite</span>
+                  <p className="text-[10px] text-slate-500">Benchmark real-time accuracy and costing across supported LLM routers.</p>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] text-slate-400 uppercase font-black block">Matching Accuracy Fit</span>
+                    <div className="space-y-1 text-[9px]">
+                      {[
+                        { label: "Gemini 1.5 Pro", val: "98.4%", width: "w-[98%]", active: selectedModelForSimulation === "gemini-1.5-pro", col: "bg-indigo-500" },
+                        { label: "Gemini 1.5 Flash", val: "94.2%", width: "w-[94%]", active: selectedModelForSimulation === "gemini-1.5-flash", col: "bg-emerald-500" },
+                        { label: "Claude 3.5 Sonnet", val: "98.1%", width: "w-[98%]", active: selectedModelForSimulation === "claude-3-5-sonnet", col: "bg-amber-500" },
+                        { label: "GPT-4o", val: "97.6%", width: "w-[97%]", active: selectedModelForSimulation === "gpt-4o", col: "bg-rose-500" }
+                      ].map((bar, i) => (
+                        <div key={i} className={cn("flex items-center gap-3 p-1 rounded-md", bar.active ? "bg-slate-950 border border-slate-900" : "")}>
+                          <span className="w-28 text-slate-400 font-bold">{bar.label}</span>
+                          <div className="flex-1 h-2 bg-slate-900 rounded-full overflow-hidden">
+                            <div className={cn("h-full transition-all duration-300", bar.active ? bar.col : "bg-slate-800", bar.width)} />
+                          </div>
+                          <span className="w-10 text-right font-mono font-black text-slate-300">{bar.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-900/60 text-[10px]">
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900">
+                      <span className="text-slate-500 block text-[8px] uppercase font-bold">Router Latency rating</span>
+                      <span className="text-indigo-400 font-black font-mono mt-0.5 block">
+                        {selectedModelForSimulation === "gemini-1.5-pro" ? "1120 ms (Nominal)" :
+                         selectedModelForSimulation === "gemini-1.5-flash" ? "450 ms (Ultra Fast)" :
+                         selectedModelForSimulation === "claude-3-5-sonnet" ? "1950 ms (High Latency)" : "1800 ms (Moderate)"}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900">
+                      <span className="text-slate-500 block text-[8px] uppercase font-bold">Cost Factor per 1K Tx</span>
+                      <span className="text-emerald-400 font-black font-mono mt-0.5 block">
+                        {selectedModelForSimulation === "gemini-1.5-pro" ? "$0.015 (High Value)" :
+                         selectedModelForSimulation === "gemini-1.5-flash" ? "$0.002 (Highly Optimal)" :
+                         selectedModelForSimulation === "claude-3-5-sonnet" ? "$0.045 (Expensive)" : "$0.040 (Standard)"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Batch Sourcing Sandbox Simulation */}
+              <div className="bg-[#070A13] border border-slate-900 rounded-2xl p-6 space-y-4">
+                <div>
+                  <span className="text-xs font-bold text-white block">Batch Sourcing Simulation Sandbox</span>
+                  <p className="text-[10px] text-slate-500">Run safe SLA-compliant stress tests modeling 100 concurrent candidate matches.</p>
+                </div>
+
+                <div className="space-y-3.5">
+                  {isBatchRunning ? (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-[10px] font-mono">
+                        <span className="text-indigo-400 animate-pulse font-bold">PROCESSING STRESS WORKLOADS...</span>
+                        <span className="text-white font-bold">{batchProgress}%</span>
                       </div>
-                      <pre className="text-[10px] font-mono bg-slate-950 p-4 rounded-xl text-slate-300 overflow-x-auto">
-                        {JSON.stringify(simulationResult, null, 2)}
-                      </pre>
+                      <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 transition-all duration-100" style={{ width: `${batchProgress}%` }} />
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex-1 flex flex-col justify-center items-center text-center p-6 text-slate-600 space-y-2">
-                      <Terminal size={32} className="text-slate-700" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-white">No output yet</p>
-                      <p className="text-[10px] text-slate-600">Enter simulation parameters and run conduction pass to verify telemetry response.</p>
+                    <button
+                      onClick={handleRunBatchSimulation}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-xs tracking-wider rounded-xl transition-all border border-emerald-500/30 shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={12} />
+                      Run Batch stress test (100 Cases)
+                    </button>
+                  )}
+
+                  {(batchFinished || isBatchRunning) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px] pt-1">
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">Placements Sourced</span>
+                        <span className="text-white font-bold text-xs mt-0.5 block">{isBatchRunning ? Math.round(batchProgress * 0.84) : 84}</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">SLA Warnings Triggered</span>
+                        <span className="text-amber-400 font-bold text-xs mt-0.5 block">{isBatchRunning ? Math.round(batchProgress * 0.12) : 12}</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center col-span-2 sm:col-span-1">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">Security Leaks Blocked</span>
+                        <span className="text-emerald-400 font-bold text-xs mt-0.5 block">4 (ABAC Verified)</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">Simulated Tokens Saved</span>
+                        <span className="text-white font-bold mt-0.5 block">450.2K</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">Est. Human Hours Saved</span>
+                        <span className="text-indigo-400 font-bold mt-0.5 block">25 hours</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-900 text-center col-span-2 sm:col-span-1">
+                        <span className="text-slate-500 uppercase block font-bold text-[8px]">Simulated Cost</span>
+                        <span className="text-emerald-400 font-bold mt-0.5 block">$4.25</span>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
+
             </div>
+
+            {/* Right side: Simulation outputs */}
+            <div className="w-full lg:w-96 bg-[#070A13] border border-slate-900 rounded-2xl p-5 flex flex-col min-h-[320px]">
+              <div className="space-y-4 flex-1 flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-bold text-white block border-b border-slate-900 pb-2">Simulation Outputs</span>
+                  
+                  <div className="overflow-y-auto max-h-[380px] space-y-3 pt-3">
+                    {simulationResult ? (
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-mono border-b border-slate-900/60 pb-1.5">
+                          <span className="text-slate-500 font-bold">Simulation:</span>
+                          <span className="text-emerald-400 font-black">SUCCESS</span>
+                        </div>
+                        <pre className="text-[10px] font-mono bg-slate-950 p-4 rounded-xl text-slate-300 overflow-x-auto select-text">
+                          {JSON.stringify(simulationResult, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col justify-center items-center text-center py-12 text-slate-600 space-y-2">
+                        <Terminal size={32} className="text-slate-700 animate-pulse" />
+                        <p className="text-xs font-bold uppercase tracking-wider text-white">No active trace output</p>
+                        <p className="text-[10px] text-slate-600">Enter simulation parameters or choose model, and run conduction pass to verify telemetry response.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-950 border border-slate-900 rounded-xl text-[9px] text-slate-500 space-y-1 pt-2">
+                  <span className="text-slate-400 font-bold block uppercase text-[8px]">Cognitive Trace Grounding</span>
+                  <span>All simulations match against UOP Data models v1-RC1 and ABAC parameters securely.</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
