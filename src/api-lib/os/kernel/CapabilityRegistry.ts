@@ -6,7 +6,12 @@ export interface SystemCapability {
   description: string;
   version: string; // e.g. "2.0.0"
   enabled: boolean;
-  healthStatus: "healthy" | "degraded" | "unhealthy" | "unknown";
+  healthStatus: "READY" | "DEGRADED" | "MAINTENANCE" | "FAILED";
+  lifecycle: "ACTIVE" | "DEPRECATED" | "EXPERIMENTAL" | "MAINTENANCE";
+  category: "Cognitive" | "Operations" | "Data";
+  owner: string; // e.g. "core-platform", "vendor-platform"
+  dependencies: string[]; // e.g. ["ai_gateway", "gemini"]
+  versionState: "Installed" | "Latest" | "Compatible" | "Deprecated";
   lastHeartbeat: string; // ISO String
   averageLatencyMs: number;
   estimatedCostUsd: number;
@@ -29,7 +34,12 @@ export class CapabilityRegistry {
       description: "Cognitive assessment and scoring of candidates against core job requirements.",
       version: "2.0.0",
       enabled: true,
-      healthStatus: "healthy",
+      healthStatus: "READY",
+      lifecycle: "ACTIVE",
+      category: "Cognitive",
+      owner: "core-platform",
+      dependencies: ["ai_gateway", "gemini"],
+      versionState: "Latest",
       lastHeartbeat: new Date().toISOString(),
       averageLatencyMs: 3500,
       estimatedCostUsd: 0.005,
@@ -45,7 +55,12 @@ export class CapabilityRegistry {
       description: "Automated extraction of contact info, work history, education, and skills from candidate profiles.",
       version: "2.1.0",
       enabled: true,
-      healthStatus: "healthy",
+      healthStatus: "READY",
+      lifecycle: "ACTIVE",
+      category: "Cognitive",
+      owner: "core-platform",
+      dependencies: ["ai_gateway", "gemini"],
+      versionState: "Latest",
       lastHeartbeat: new Date().toISOString(),
       averageLatencyMs: 2500,
       estimatedCostUsd: 0.002,
@@ -61,7 +76,12 @@ export class CapabilityRegistry {
       description: "Deep cognitive analysis of job descriptions to determine salary, skills, and target experience.",
       version: "1.2.0",
       enabled: true,
-      healthStatus: "healthy",
+      healthStatus: "READY",
+      lifecycle: "ACTIVE",
+      category: "Cognitive",
+      owner: "core-platform",
+      dependencies: ["ai_gateway", "gemini"],
+      versionState: "Compatible",
       lastHeartbeat: new Date().toISOString(),
       averageLatencyMs: 2200,
       estimatedCostUsd: 0.003,
@@ -77,7 +97,12 @@ export class CapabilityRegistry {
       description: "Autonomous backlog sorting based on placement probability, commission, and client urgency.",
       version: "1.0.0",
       enabled: true,
-      healthStatus: "healthy",
+      healthStatus: "READY",
+      lifecycle: "ACTIVE",
+      category: "Operations",
+      owner: "core-platform",
+      dependencies: ["firestore"],
+      versionState: "Installed",
       lastHeartbeat: new Date().toISOString(),
       averageLatencyMs: 800,
       estimatedCostUsd: 0.0001,
@@ -178,7 +203,7 @@ export class CapabilityRegistry {
 
     const updates: Partial<SystemCapability> = {
       lastHeartbeat: new Date().toISOString(),
-      healthStatus: "healthy",
+      healthStatus: "READY",
       errorCount: 0 // Reset error count on successful execution/heartbeat
     };
 
@@ -199,12 +224,12 @@ export class CapabilityRegistry {
     if (!capability) return;
 
     const newErrorCount = (capability.errorCount || 0) + 1;
-    let newHealthStatus: SystemCapability["healthStatus"] = "healthy";
+    let newHealthStatus: SystemCapability["healthStatus"] = "READY";
 
     if (newErrorCount >= 5) {
-      newHealthStatus = "unhealthy";
+      newHealthStatus = "FAILED";
     } else if (newErrorCount >= 2) {
-      newHealthStatus = "degraded";
+      newHealthStatus = "DEGRADED";
     }
 
     const updates: Partial<SystemCapability> = {

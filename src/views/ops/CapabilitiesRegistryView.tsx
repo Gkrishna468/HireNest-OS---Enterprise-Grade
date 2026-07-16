@@ -76,35 +76,44 @@ export default function CapabilitiesRegistryView() {
 
   const getHealthBadge = (status: string) => {
     switch (status) {
+      case "READY":
       case "healthy":
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Healthy
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> READY
           </span>
         );
+      case "DEGRADED":
       case "degraded":
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-            <AlertTriangle className="w-3 h-3 text-amber-600" /> Degraded
+            <AlertTriangle className="w-3 h-3 text-amber-600" /> DEGRADED
           </span>
         );
+      case "FAILED":
       case "unhealthy":
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
-            <XCircle className="w-3 h-3 text-rose-600" /> Unhealthy
+            <XCircle className="w-3 h-3 text-rose-600" /> FAILED
+          </span>
+        );
+      case "MAINTENANCE":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+            <Clock className="w-3.5 h-3.5 text-blue-600" /> MAINTENANCE
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-slate-50 text-slate-600 border border-slate-200">
-            Unknown
+            UNKNOWN
           </span>
         );
     }
   };
 
   const enabledCount = capabilities.filter((c) => c.enabled).length;
-  const degradedCount = capabilities.filter((c) => c.healthStatus !== "healthy").length;
+  const degradedCount = capabilities.filter((c) => c.healthStatus !== "READY" && c.healthStatus !== "healthy").length;
 
   if (loading) {
     return (
@@ -177,10 +186,12 @@ export default function CapabilitiesRegistryView() {
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   <th className="pb-3 px-2 font-bold">Capability Name & Details</th>
+                  <th className="pb-3 px-2 font-bold">Category & Owner</th>
                   <th className="pb-3 px-2 font-bold">Health</th>
-                  <th className="pb-3 px-2 font-bold">Version</th>
+                  <th className="pb-3 px-2 font-bold">Lifecycle & Compatibility</th>
                   <th className="pb-3 px-2 font-bold">SLA (Latency & Cost)</th>
-                  <th className="pb-3 px-2 font-bold">Fallback Heuristic</th>
+                  <th className="pb-3 px-2 font-bold">Dependencies</th>
+                  <th className="pb-3 px-2 font-bold">Fallback</th>
                   <th className="pb-3 px-2 font-bold text-right">Status / Actions</th>
                 </tr>
               </thead>
@@ -188,7 +199,7 @@ export default function CapabilitiesRegistryView() {
                 {capabilities.map((cap) => (
                   <tr key={cap.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                     {/* ID, Description, Tags */}
-                    <td className="py-4 px-2 max-w-sm">
+                    <td className="py-4 px-2 max-w-xs">
                       <div className="font-bold text-slate-800 text-sm">{cap.name}</div>
                       <div className="text-[10px] font-mono text-indigo-500 font-semibold mb-1">{cap.id}</div>
                       <div className="text-xs text-slate-500 leading-relaxed mb-2">{cap.description}</div>
@@ -201,12 +212,24 @@ export default function CapabilitiesRegistryView() {
                       </div>
                     </td>
 
+                    {/* Category & Owner */}
+                    <td className="py-4 px-2">
+                      <div className="mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-800 rounded-sm">
+                          {cap.category || "General"}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        Owner: {cap.owner || "system"}
+                      </div>
+                    </td>
+
                     {/* Health Status */}
                     <td className="py-4 px-2 vertical-align-top">
                       <div className="mb-1.5">{getHealthBadge(cap.healthStatus)}</div>
                       {cap.lastHeartbeat && (
                         <div className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
-                          <Heart className="w-3 h-3 text-rose-400" />
+                          <Heart className="w-3 h-3 text-rose-400 animate-pulse" />
                           <span>Last: {new Date(cap.lastHeartbeat).toLocaleTimeString()}</span>
                         </div>
                       )}
@@ -217,9 +240,21 @@ export default function CapabilitiesRegistryView() {
                       )}
                     </td>
 
-                    {/* Version */}
-                    <td className="py-4 px-2 font-mono text-xs font-bold text-slate-600">
-                      v{cap.version}
+                    {/* Lifecycle & Compatibility */}
+                    <td className="py-4 px-2">
+                      <div className="mb-1">
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm ${
+                          cap.lifecycle === "ACTIVE" ? "bg-indigo-50 text-indigo-700 border border-indigo-150" : "bg-amber-50 text-amber-700"
+                        }`}>
+                          {cap.lifecycle || "ACTIVE"}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-semibold text-slate-500">
+                        Version: <span className="font-mono text-xs font-bold text-slate-700">v{cap.version}</span>
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-mono uppercase">
+                        State: {cap.versionState || "Compatible"}
+                      </div>
                     </td>
 
                     {/* SLA (Latency & Cost) */}
@@ -239,9 +274,20 @@ export default function CapabilitiesRegistryView() {
                       </div>
                     </td>
 
+                    {/* Dependencies */}
+                    <td className="py-4 px-2">
+                      <div className="flex flex-wrap gap-1 max-w-[120px]">
+                        {cap.dependencies?.map((dep: string) => (
+                          <span key={dep} className="text-[9px] bg-slate-50 border text-slate-600 px-1 py-0.5 rounded-sm font-mono">
+                            {dep}
+                          </span>
+                        )) || <span className="text-[10px] text-slate-400 font-mono">none</span>}
+                      </div>
+                    </td>
+
                     {/* Fallback Heuristic */}
                     <td className="py-4 px-2">
-                      <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-sm max-w-max">
+                      <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-sm">
                         {cap.fallbackAction}
                       </div>
                     </td>

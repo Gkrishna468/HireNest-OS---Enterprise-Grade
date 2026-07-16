@@ -15,6 +15,8 @@ export class EventBus {
         console.log('[EventBus] No event subscriptions found. Seeding default subscription registry...');
         
         const defaultSubs = [
+            { id: 'sub-coo-all', eventType: '*', subscriber: 'AICOORuntime', priority: 100, enabled: true },
+            { id: 'sub-graph-all', eventType: '*', subscriber: 'GraphProjectionWorker', priority: 90, enabled: true },
             { id: 'sub-email-resume', eventType: 'EMAIL_RECEIVED', subscriber: 'ResumeParserSkill', priority: 10, enabled: true },
             { id: 'sub-email-requirement', eventType: 'EMAIL_RECEIVED', subscriber: 'RequirementParserSkill', priority: 10, enabled: true },
             { id: 'sub-email-recruitment', eventType: 'EMAIL_RECEIVED', subscriber: 'RecruitmentOffice', priority: 8, enabled: true },
@@ -126,12 +128,54 @@ export class EventBus {
     }
 
     static async publishInternal(event: BusinessEvent) {
-        // Enqueue to AI COO
-        const { AICOORuntime } = await import('../os/kernel/AICOORuntime.js');
-        await AICOORuntime.enqueueEvent(event);
+        if (!db) return;
 
-        // Enqueue to Graph Projection Worker
-        const { GraphProjectionWorker } = await import('../os/kernel/GraphProjectionWorker.js');
-        GraphProjectionWorker.queueProjection(event).catch(e => console.error('[EventBus] Graph projection queue failed', e));
+        try {
+            // Ensure default subscriptions are registered
+            await this.ensureDefaultSubscriptions();
+
+            // Fetch all active event subscriptions
+            const subSnap = await db.collection('event_subscriptions')
+                .where('enabled', '==', true)
+                .get();
+
+            if (subSnap.empty) {
+                console.warn('[EventBus] No active subscriptions found in registry.');
+                return;
+            }
+
+            // Map and filter for the event's type or wildcard '*'
+            const subscriptions = subSnap.docs.map(doc => doc.data());
+            const matchingSubs = subscriptions.filter(sub => 
+                sub.eventType === event.eventType || sub.eventType === '*'
+            );
+
+            // Sort by priority (highest first)
+            matchingSubs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+            console.log(`[EventBus] Dispatching event ${event.eventType} to ${matchingSubs.length} matching subscribers:`, 
+                matchingSubs.map(s => s.subscriber)
+            );
+
+            // Execute subscriptions
+            for (const sub of matchingSubs) {
+                try {
+                    if (sub.subscriber === 'AICOORuntime') {
+                        const { AICOORuntime } = await import('../os/kernel/AICOORuntime.js');
+                        await AICOORuntime.enqueueEvent(event);
+                    } else if (sub.subscriber === 'GraphProjectionWorker') {
+                        const { GraphProjectionWorker } = await import('../os/kernel/GraphProjectionWorker.js');
+                        await GraphProjectionWorker.queueProjection(event);
+                    } else {
+                        // Document matching or custom subscriber trigger logs
+                        console.log(`[EventBus] Dynamically routed event ${event.eventId} to subscription handler: ${sub.subscriber}`);
+                    }
+                } catch (err) {
+                    console.error(`[EventBus] Failed to dispatch event to subscriber ${sub.subscriber}:`, err);
+                }
+            }
+        } catch (error) {
+            console.error('[EventBus] Error in publishInternal router:', error);
+        }
     }
 }
