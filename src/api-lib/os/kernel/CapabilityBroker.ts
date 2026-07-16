@@ -1,4 +1,5 @@
 import { ModelGateway, ModelRequest, ModelResponse } from "./ModelGateway.js";
+import { CapabilityRegistry } from "./CapabilityRegistry.js";
 
 export interface CapabilityRequest {
   capabilityName: string; // e.g. 'candidate.semantic_match'
@@ -30,27 +31,17 @@ export interface CapabilitySLA {
 export class CapabilityBroker {
   public static readonly VERSION = "v2.0";
 
-  private static readonly REGISTRY: Record<string, CapabilitySLA> = {
-    "candidate.semantic_match": {
-      name: "candidate.semantic_match",
-      averageLatencyMs: 3500,
-      estimatedCostUsd: 0.005,
-      availability: 0.99,
-      fallbackAction: "Deterministic Keyword Match",
-      expectedConfidence: 0.85,
-    },
-    "resume.parse": {
-      name: "resume.parse",
-      averageLatencyMs: 2500,
-      estimatedCostUsd: 0.002,
-      availability: 0.995,
-      fallbackAction: "Reject / Manual Review",
-      expectedConfidence: 0.9,
-    },
-  };
-
-  static getSLA(capabilityName: string): CapabilitySLA | undefined {
-    return this.REGISTRY[capabilityName];
+  static async getSLA(capabilityName: string): Promise<CapabilitySLA | undefined> {
+    const cap = await CapabilityRegistry.getCapability(capabilityName);
+    if (!cap) return undefined;
+    return {
+      name: cap.id,
+      averageLatencyMs: cap.averageLatencyMs,
+      estimatedCostUsd: cap.estimatedCostUsd,
+      availability: cap.availability,
+      fallbackAction: cap.fallbackAction,
+      expectedConfidence: cap.expectedConfidence,
+    };
   }
 
   /**
@@ -60,6 +51,20 @@ export class CapabilityBroker {
   static async executeCapability(
     request: CapabilityRequest,
   ): Promise<CapabilityResponse> {
+    const startTime = Date.now();
+
+    // Check with the CapabilityRegistry to verify if enabled
+    const capability = await CapabilityRegistry.getCapability(request.capabilityName);
+    if (capability && !capability.enabled) {
+      return {
+        success: false,
+        confidence: 0,
+        tokensUsed: 0,
+        model: "none",
+        error: `Capability '${request.capabilityName}' is disabled in the Capability Registry.`,
+      };
+    }
+
     // 1. Check Capability Cache
     const cacheResult = await this.checkCache(request);
     if (cacheResult) {
@@ -74,12 +79,14 @@ export class CapabilityBroker {
     // 3. Safety Validation
     const isSafe = await this.validateSafety(prompt);
     if (!isSafe) {
+      const errorMsg = "Safety policy violation";
+      await CapabilityRegistry.recordFailure(request.capabilityName, errorMsg);
       return {
         success: false,
         confidence: 0,
         tokensUsed: 0,
         model: "none",
-        error: "Safety policy violation",
+        error: errorMsg,
       };
     }
 
@@ -109,12 +116,14 @@ export class CapabilityBroker {
         request.expectedSchema,
       );
       if (!isValid) {
+        const errorMsg = "Response failed schema validation";
+        await CapabilityRegistry.recordFailure(request.capabilityName, errorMsg);
         return {
           success: false,
           confidence: 0,
           tokensUsed: response.tokensUsed,
           model: response.model,
-          error: "Response failed schema validation",
+          error: errorMsg,
         };
       }
 
@@ -127,8 +136,10 @@ export class CapabilityBroker {
         reasoning: parsedResult?.reasoning ?? [],
       };
 
-      // 7. Update Cache
+      // 7. Update Cache & publish heartbeat with measured latency
       await this.updateCache(request, finalResponse);
+      const durationMs = Date.now() - startTime;
+      await CapabilityRegistry.recordHeartbeat(request.capabilityName, durationMs);
 
       return finalResponse;
     } catch (error: any) {
@@ -136,6 +147,7 @@ export class CapabilityBroker {
         `[CapabilityBroker] Execution failed for ${request.capabilityName}`,
         error,
       );
+      await CapabilityRegistry.recordFailure(request.capabilityName, error.message || "Unknown error");
       return {
         success: false,
         confidence: 0,

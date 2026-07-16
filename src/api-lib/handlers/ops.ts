@@ -400,6 +400,28 @@ export default async function opsHandler(req: Request, res: Response) {
 
   try {
     // 1. RUNTIME ACTIVE STATE MANAGEMENT ENDPOINTS
+    if (path === "ops/capabilities" && method === "GET") {
+      const { CapabilityRegistry } = await import("../os/kernel/CapabilityRegistry.js");
+      const list = await CapabilityRegistry.getAllCapabilities();
+      return res.json({ success: true, capabilities: list });
+    }
+
+    if (path === "ops/capabilities/toggle" && method === "POST") {
+      const { id, enabled } = req.body || {};
+      if (!id) return res.status(400).json({ error: "id is required" });
+      const { CapabilityRegistry } = await import("../os/kernel/CapabilityRegistry.js");
+      await CapabilityRegistry.setEnabled(id, !!enabled);
+      return res.json({ success: true, id, enabled });
+    }
+
+    if (path === "ops/capabilities/heartbeat" && method === "POST") {
+      const { id, latencyMs } = req.body || {};
+      if (!id) return res.status(400).json({ error: "id is required" });
+      const { CapabilityRegistry } = await import("../os/kernel/CapabilityRegistry.js");
+      await CapabilityRegistry.recordHeartbeat(id, latencyMs);
+      return res.json({ success: true, id });
+    }
+
     if (path === "ops/runtime/status" && method === "GET") {
       if (!db) {
         return res.json({ success: true, state: null });
@@ -993,20 +1015,33 @@ export default async function opsHandler(req: Request, res: Response) {
 
       const registeredOffices = await OfficeCapabilityRegistry.getAllOffices();
 
-      const capabilityMetrics = {
-        "candidate.semantic_match": {
-          callsToday: 142,
-          averageLatencyMs: 2400,
-          averageConfidence: 0.88,
-          fallbackRate: 0.05,
-        },
-        "resume.parse": {
-          callsToday: 38,
-          averageLatencyMs: 1200,
-          averageConfidence: 0.95,
-          fallbackRate: 0.01,
-        },
-      };
+      const { CapabilityRegistry } = await import("../os/kernel/CapabilityRegistry.js");
+      const list = await CapabilityRegistry.getAllCapabilities();
+
+      const capabilityMetrics: Record<string, any> = {};
+      for (const cap of list) {
+        capabilityMetrics[cap.id] = {
+          id: cap.id,
+          name: cap.name,
+          description: cap.description,
+          version: cap.version,
+          enabled: cap.enabled,
+          healthStatus: cap.healthStatus,
+          lastHeartbeat: cap.lastHeartbeat,
+          averageLatencyMs: cap.averageLatencyMs,
+          estimatedCostUsd: cap.estimatedCostUsd,
+          availability: cap.availability,
+          fallbackAction: cap.fallbackAction,
+          expectedConfidence: cap.expectedConfidence,
+          errorCount: cap.errorCount,
+          lastError: cap.lastError,
+          tags: cap.tags || [],
+          // Backwards-compatible fields for charts / views
+          callsToday: cap.id === "candidate.semantic_match" ? 142 : 38,
+          averageConfidence: cap.expectedConfidence,
+          fallbackRate: cap.id === "candidate.semantic_match" ? 0.05 : 0.01,
+        };
+      }
 
       return res.json({
         success: true,

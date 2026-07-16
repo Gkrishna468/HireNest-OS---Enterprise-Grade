@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   Clock,
   Terminal,
+  Cpu,
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { cn } from "../lib/utils";
@@ -18,6 +19,7 @@ import ApprovalQueue from "./ops/ApprovalQueue";
 import SLAMonitor from "./ops/SLAMonitor";
 import EventExplorer from "./ops/EventExplorer";
 import ObservabilityDashboard from "./ops/ObservabilityDashboard";
+import CapabilitiesRegistryView from "./ops/CapabilitiesRegistryView";
 
 export default function AdminOpsDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -30,6 +32,7 @@ export default function AdminOpsDashboard() {
     { id: "approvals", label: "Approvals", icon: ShieldAlert },
     { id: "sla", label: "SLA Monitor", icon: Clock },
     { id: "events", label: "Event Explorer", icon: Terminal },
+    { id: "capabilities", label: "Capabilities", icon: Cpu },
   ];
 
   return (
@@ -80,6 +83,7 @@ export default function AdminOpsDashboard() {
         {activeTab === "approvals" && <ApprovalQueue />}
         {activeTab === "sla" && <SLAMonitor />}
         {activeTab === "events" && <EventExplorer />}
+        {activeTab === "capabilities" && <CapabilitiesRegistryView />}
       </div>
     </div>
   );

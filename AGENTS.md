@@ -244,3 +244,38 @@ To maximize efficiency, maintain high velocity, and prevent codebase bloat in Hi
 - **Error Handling**: Gracefully recover and display meaningful error states to prevent UI freezing.
 - **Deep Understanding**: Thoroughly inspect target files and context before proposing or writing code.
 
+## Platform Governance & CTO Execution Policy (Runtime v1.0 Frozen)
+
+The platform architecture is formally **Frozen** at Runtime v1.0. Future changes must strictly focus on operational execution, sequential live integration delivery, and continuous hardening.
+
+### 1. Platform-Before-Product Architecture Layering
+Every new feature or service integration must route through established platform layers rather than direct feature-to-infrastructure coupling:
+```text
+Feature ──> Capability ──> Platform Service ──> Infrastructure
+```
+- **Direct infrastructure or external service coupling is strictly forbidden** (e.g., no direct CRM call to external LLMs; route via the **AI Gateway**).
+- Re-use established Platform Services (AI Gateway, Capability Registry, Event Bus, Worker Engine, Secrets Manager, Observability, and Audit Ledger).
+
+### 2. Standard Capability Contract & Lifecycle
+Every integrated capability must follow a standard contract and be evaluated against its operational lifecycle:
+- **Interface Contract**: Initialize ──> Health ──> Execute ──> Cancel ──> Metrics ──> Logs ──> Shutdown.
+- **Service Lifecycle**: Installed ──> Registered ──> Configured ──> Validated ──> Enabled ──> Observed ──> Upgraded ──> Deprecated.
+- **Maturity Classifications**:
+  - **L0**: Planned (e.g., Coolify, Crawl4AI, Stirling PDF)
+  - **L1**: Installed (reachable service deployed)
+  - **L2**: Connected (live credentials applied)
+  - **L3**: Operational (fully functional execution)
+  - **L4**: Observable (emitting metrics and health logs)
+  - **L5**: Enterprise Ready (fully integrated, audited, resilient, and documented)
+
+### 3. Sequential Milestone Plan & Definition of Done
+Phase A milestones must be delivered **sequentially, one at a time**, rather than in parallel. Each milestone is considered complete ONLY when it satisfies the full **Definition of Done (DoD)**:
+1. **Installed & Reachable**: Service deployed and reachable.
+2. **Configured**: Real, secure credentials applied (no mock states).
+3. **Integrated**: Unified live APIs used with correct RBAC/ABAC isolation.
+4. **Observable**: Exposing health, latency, queue metrics, and error telemetry.
+5. **Audited**: Significant actions recorded in the Firestore audit ledger.
+6. **Resilient**: Underpinned by retry handlers, queues, and circuit breakers.
+7. **Tested & Documented**: Integration validated with live telemetry and operational runbooks.
+
+
