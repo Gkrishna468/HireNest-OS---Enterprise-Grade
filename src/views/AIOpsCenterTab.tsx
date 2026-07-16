@@ -24,7 +24,8 @@ import {
   Award,
   Compass,
   FolderOpen,
-  Brain
+  Brain,
+  Heart
 } from "lucide-react";
 import { 
   collection, 
@@ -51,6 +52,7 @@ import GovernanceAudit from "./AIOpsCenter/GovernanceAudit";
 import WorkflowOrchestrator from "./AIOpsCenter/WorkflowOrchestrator";
 import DecisionIntelligence from "./AIOpsCenter/DecisionIntelligence";
 import PredictiveAnalytics from "./AIOpsCenter/PredictiveAnalytics";
+import InfrastructureConsole from "./AIOpsCenter/InfrastructureConsole";
 
 export default function AIOpsCenterTab({ userRole }: { userRole: string }) {
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
@@ -1217,12 +1219,39 @@ SLA ACCELERATION:
               </button>
 
               <button 
+                onClick={() => setActiveSubTab('services')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'services' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Cpu size={14} /> Service Registry & SLOs</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">5 SRVS</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('incidents')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'incidents' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><ShieldAlert size={14} /> AI Incident Center</span>
+                <span className="text-[9px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-bold uppercase">SELF HEAL</span>
+              </button>
+
+              <button 
                 onClick={() => setActiveSubTab('activity_timeline')}
                 className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
                   activeSubTab === 'activity_timeline' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
               >
                 <span className="flex items-center gap-2"><History size={14} /> Activity Timeline</span>
                 <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">7 Feed</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveSubTab('infrastructure')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border", 
+                  activeSubTab === 'infrastructure' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Server size={14} /> AI Dev & Infra Hub</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Sprints 6-10</span>
               </button>
             </>
           )}
@@ -1236,6 +1265,15 @@ SLA ACCELERATION:
               >
                 <span className="flex items-center gap-2"><Eye size={14} /> Req Observatory</span>
                 <span className="text-[9px] bg-slate-950/40 px-1.5 py-0.5 rounded text-indigo-400 font-bold border border-slate-800">{fallbackRequirements.length}</span>
+              </button>
+              
+              <button 
+                onClick={() => setActiveSubTab('customer_health')}
+                className={cn("w-full px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-left transition-all flex items-center justify-between border mt-2", 
+                  activeSubTab === 'customer_health' ? "bg-indigo-600 border-indigo-500 text-white shadow" : "bg-[#0B0F19] border-slate-900/60 text-slate-400 hover:bg-[#0e1423] hover:text-white")}
+              >
+                <span className="flex items-center gap-2"><Heart size={14} /> CS Health Hub</span>
+                <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase">4 OK</span>
               </button>
             </>
           )}
@@ -1462,22 +1500,26 @@ SLA ACCELERATION:
             {/* DOMAIN 1: PLATFORM - Connectivity & Event Stream */}
             {activeDomain === 'platform' && (
               <motion.div 
-                key="platform_operations"
+                key={activeSubTab === 'infrastructure' ? "infra_console" : "platform_operations"}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
                 className="space-y-6 flex-1 flex flex-col"
               >
-                <PlatformOperations
-                  activeSubTab={activeSubTab}
-                  setActiveSubTab={setActiveSubTab}
-                  eventsFeed={eventsFeed}
-                  selectedEvent={selectedEvent}
-                  setSelectedEvent={setSelectedEvent}
-                  eventFilter={eventFilter}
-                  setEventFilter={setEventFilter}
-                  filteredEvents={filteredEvents}
-                />
+                {activeSubTab === 'infrastructure' ? (
+                  <InfrastructureConsole />
+                ) : (
+                  <PlatformOperations
+                    activeSubTab={activeSubTab}
+                    setActiveSubTab={setActiveSubTab}
+                    eventsFeed={eventsFeed}
+                    selectedEvent={selectedEvent}
+                    setSelectedEvent={setSelectedEvent}
+                    eventFilter={eventFilter}
+                    setEventFilter={setEventFilter}
+                    filteredEvents={filteredEvents}
+                  />
+                )}
               </motion.div>
             )}
 

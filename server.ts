@@ -90,6 +90,100 @@ async function createServer() {
       }
   });
   app.get('/live', (req, res) => res.status(200).json({ status: 'alive' }));
+
+  app.get('/api/purge-forbidden', async (req, res) => {
+    if (!adminDb) {
+      return res.status(503).json({ error: 'adminDb is not available in the server context.' });
+    }
+    try {
+      console.log("[PURGE] Starting comprehensive database purge of forbidden mock terms...");
+      const results: Record<string, string[]> = {};
+      const collections = [
+        "candidatePool",
+        "submissions",
+        "requirements_public",
+        "organizations",
+        "candidate_matches",
+        "match_opportunities",
+        "requirement_match_index",
+        "dealRooms",
+        "ai_employees",
+        "ai_reports",
+        "ai_policies",
+        "ownership_claims",
+        "onboarding_requests",
+        "activities",
+        "event_ledger",
+        "operationalEvents",
+        "notifications",
+        "interviews",
+        "feedback",
+        "system_events",
+        "invoices",
+        "placements",
+        "vendor_payouts",
+        "resume_parses",
+        "users",
+        "resume_cache",
+        "requirements",
+        "candidateMatches",
+        "coo_recommendations",
+        "ai_agents",
+        "agent_queue",
+        "agent_executions",
+        "mailos_executions",
+        "office_runtime",
+        "lifecycle_events",
+        "system_metrics",
+        "system_logs",
+        "slas",
+        "recommendation_feedback",
+        "ai_learning_events",
+        "risk_assessments",
+        "dlq_events",
+        "audit_logs",
+        "activity_feed",
+        "ownershipVault"
+      ];
+      const forbiddenPatterns = [
+        "sarah jenkins",
+        "michael chen",
+        "retailgenius",
+        "retail genius",
+        "techsource staffing",
+        "techsource",
+        "healthcorp",
+        "acme corp",
+        "acme",
+        "demo candidate",
+        "mock vendor"
+      ];
+      
+      for (const colName of collections) {
+        try {
+          const snap = await adminDb.collection(colName).get();
+          results[colName] = [];
+          for (const d of snap.docs) {
+            const data = d.data();
+            const str = JSON.stringify(data).toLowerCase();
+            const hasForbidden = forbiddenPatterns.some(pat => str.includes(pat.toLowerCase()));
+            if (hasForbidden) {
+              const label = data.fullName || data.name || data.email || data.title || d.id;
+              results[colName].push(`${d.id} (${label})`);
+              await adminDb.collection(colName).doc(d.id).delete();
+              console.log(`[PURGE] Deleted document ${d.id} from ${colName} with label: ${label}`);
+            }
+          }
+        } catch (colErr: any) {
+          console.warn(`[PURGE] Collection ${colName} scan failed:`, colErr.message);
+        }
+      }
+      return res.status(200).json({ success: true, deleted: results });
+    } catch (e: any) {
+      console.error("[PURGE] Failed:", e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
   app.get('/metrics', (req, res) => {
       res.set('Content-Type', 'text/plain');
       res.status(200).send(`
