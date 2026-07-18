@@ -1,3 +1,10 @@
+/**
+ * LAYER 1: INFRASTRUCTURE (AI GATEWAY PROXY)
+ * 
+ * Responsibility: Pure proxy to the external AI Gateway (LLMs).
+ * Handles authentication, x-org-id header injection, and basic routing.
+ * Does NOT contain complex business reasoning or personas.
+ */
 import { auth, db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { queryAIGateway } from "../services/aiService";
 import { 
   Bot, 
   X, 
@@ -146,25 +147,10 @@ export function UniversalAIChatDrawer({
     setIsQuerying(true);
 
     try {
-      const { auth } = await import("../lib/firebase");
-      const token = await auth.currentUser?.getIdToken();
+      const prompt = `Context: ${context.name}, Route: ${location.pathname}. Query: ${activeQuery}`;
+      const dataRaw = await queryAIGateway(prompt, "copilot", "copilot-v1.0");
+      if (!dataRaw) throw new Error("Gateway failed");
       
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          prompt: `Context: ${context.name}, Route: ${location.pathname}. Query: ${activeQuery}`,
-          feature: "copilot",
-          promptVersion: "copilot-v1.0"
-        })
-      });
-      
-      if (!res.ok) throw new Error(await res.text());
-      
-      const dataRaw = await res.json();
       let data = dataRaw;
       if (dataRaw.response) {
           try {

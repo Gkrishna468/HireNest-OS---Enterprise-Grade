@@ -1,3 +1,10 @@
+/**
+ * LAYER 2: COGNITIVE ENGINE (PERSONA REASONING)
+ * 
+ * Responsibility: Constructs multi-persona reasoning prompts (e.g. redteam, skeptic).
+ * Calls the /api/reasoning/execute endpoint. 
+ * Used by deep-think workflows that require structured intelligence rather than raw generation.
+ */
 // src/services/reasoningService.ts
 
 export type ReasoningMode = 

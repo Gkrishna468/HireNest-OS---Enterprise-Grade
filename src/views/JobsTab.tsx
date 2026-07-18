@@ -48,6 +48,7 @@ import {
 } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
+import { emitEvent } from "../services/eventBus";
 
 const setDoc = async (ref: any, data: any, options?: any) => {
   const result = await firebaseSetDoc(ref, data, options);
@@ -55,16 +56,14 @@ const setDoc = async (ref: any, data: any, options?: any) => {
     const path = ref.path || "";
     if (path.startsWith("requirements_public/")) {
       const requirementId = path.split("/")[1];
-      fetch("/api/events/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "REQUIREMENT_CREATED",
-          payload: { requirementId, id: requirementId, ...data },
-          source: "UI",
-          orgId: data.orgId || data.clientId || "SYSTEM"
-        })
-      }).catch((e) => console.warn("Failed event publish on setDoc", e));
+      emitEvent(
+        "REQUIREMENT_CREATED",
+        "JOB",
+        requirementId,
+        "UI",
+        "system",
+        { ...data }
+      ).catch((e) => console.warn("Failed event publish on setDoc", e));
     }
   } catch (e) {
     console.warn("Event publishing failed on setDoc wrapper", e);
@@ -80,16 +79,14 @@ const updateDoc = async (ref: any, data: any) => {
       const requirementId = path.split("/")[1];
       const isClosed = data.status === "CLOSED" || data.status === "ARCHIVED";
       const eventType = isClosed ? "REQUIREMENT_CLOSED" : "REQUIREMENT_UPDATED";
-      fetch("/api/events/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: eventType,
-          payload: { requirementId, id: requirementId, ...data },
-          source: "UI",
-          orgId: data.orgId || data.clientId || "SYSTEM"
-        })
-      }).catch((e) => console.warn("Failed event publish on updateDoc", e));
+      emitEvent(
+        eventType,
+        "JOB",
+        requirementId,
+        "UI",
+        "system",
+        { ...data }
+      ).catch((e) => console.warn("Failed event publish on updateDoc", e));
     }
   } catch (e) {
     console.warn("Event publishing failed on updateDoc wrapper", e);
@@ -106,8 +103,6 @@ import { RequirementDiscussionThread } from "../components/RequirementDiscussion
 import Candidate360Modal from "../components/modals/Candidate360Modal";
 
 import { useNavigate } from "react-router-dom";
-import { emitEvent } from "../services/eventBus";
-
 const STAGES = ["Added", "Matched", "Submitted", "Interviewing", "Placed"];
 
 export default function JobsTab() {

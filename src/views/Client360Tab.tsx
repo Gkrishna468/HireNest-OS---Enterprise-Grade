@@ -14,6 +14,7 @@ import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { collection, query, getDocs, where, doc, setDoc } from "firebase/firestore";
 import { GmailRecentMessages } from "../components/GmailRecentMessages";
+import { emitEvent } from "../services/eventBus";
 
 export default function Client360Tab({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
@@ -65,18 +66,18 @@ export default function Client360Tab({ userRole }: { userRole: string }) {
         name: clientData?.account?.companyName || clientData?.account?.name || "CRM Opportunity Account"
       });
       
-      await fetch("/api/events/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "OPPORTUNITY_WON",
-          payload: {
-            opportunityId: opId,
-            accountId: accId,
-            name: clientData?.account?.companyName || clientData?.account?.name
-          }
-        })
-      });
+      await emitEvent(
+        "OPPORTUNITY_WON",
+        "SYSTEM",
+        opId,
+        "UI",
+        userRole,
+        {
+          opportunityId: opId,
+          accountId: accId,
+          name: clientData?.account?.companyName || clientData?.account?.name
+        }
+      );
       
       setSyncSuccess("Sync completed successfully! CRM Account linked and verified via IntegrationMappingService.");
       setTimeout(() => setSyncSuccess(null), 5000);

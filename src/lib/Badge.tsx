@@ -1,10 +1,11 @@
-import React from "react"
+import React from "react"; 
 import { cn } from "./utils"
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "secondary" | "destructive" | "outline" | "success"
   className?: string
   children?: React.ReactNode
+  key?: string | number
 }
 
 function Badge({ children, className, variant = "default", ...props }: BadgeProps) {

@@ -1,3 +1,10 @@
+/**
+ * LAYER 3: BUSINESS DOMAIN INTELLIGENCE
+ * 
+ * Responsibility: Aggregates data to predict revenue, margin leakage, and routing logic.
+ * Calls Layer 2 (reasoningService) under the hood for deep analysis.
+ * Used by Executive Dashboards and System Cron jobs.
+ */
 import { db } from "../lib/firebase";
 import { ReasoningEngine, ReasoningMode } from "./reasoningService";
 import { 
