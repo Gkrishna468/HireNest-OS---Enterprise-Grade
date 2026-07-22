@@ -14,9 +14,11 @@ export default function InboxTab() {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'sent'>('inbox');
 
   const fetchInbox = async () => {
     setLoading(true);
+    setError('');
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
@@ -31,6 +33,13 @@ export default function InboxTab() {
         messagesRes.json()
       ]);
 
+      if (!messagesRes.ok) {
+          if (messagesData.error && messagesData.error.includes("No Google workspace connection found")) {
+              throw new Error("No Google Workspace connection found. Please connect your account in Settings > Integrations.");
+          }
+          throw new Error(messagesData.error || 'Failed to fetch messages');
+      }
+
       setMetrics(metricsData.metrics || {});
       setMessages(messagesData.messages || []);
     } catch (e: any) {
@@ -42,12 +51,21 @@ export default function InboxTab() {
 
   const handleSync = async () => {
       setSyncing(true);
+      setError('');
       try {
         const token = await auth.currentUser?.getIdToken();
-        await fetch('/api/workspace/mailos/sync', { 
+        const res = await fetch('/api/workspace/mailos/sync', { 
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` } 
         });
+        
+        const data = await res.json();
+        if (!res.ok) {
+            if (data.error && data.error.includes("No Google workspace connection found")) {
+                throw new Error("No Google Workspace connection found. Please connect your account in Settings > Integrations.");
+            }
+            throw new Error(data.error || 'Failed to sync emails');
+        }
         await fetchInbox();
       } catch (e: any) {
         setError(e.message);
@@ -74,6 +92,15 @@ export default function InboxTab() {
                  </div>
              </div>
              <div className="flex items-center gap-6">
+                <Button 
+                    onClick={handleSync} 
+                    disabled={syncing}
+                    variant="outline" 
+                    className="font-bold gap-2"
+                >
+                    <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+                    {syncing ? 'Syncing...' : 'Sync Gmail'}
+                </Button>
                 <div className="flex gap-4 items-center mr-4">
                   <div className="text-center">
                     <span className="block text-xl font-black text-slate-800">{metrics.source_gmail || 0}</span>
@@ -109,13 +136,33 @@ export default function InboxTab() {
         {/* INBOX LIST */}
         <div className="w-1/3 border-r border-slate-200 bg-white flex flex-col">
             <div className="p-3 border-b border-slate-100">
-                <div className="relative">
+                <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Search inbox..." 
+                        placeholder="Search messages..." 
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
+                </div>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setActiveTab('inbox')}
+                        className={cn(
+                            "flex-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors",
+                            activeTab === 'inbox' ? "bg-indigo-100 text-indigo-700" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        )}
+                    >
+                        Inbox
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('sent')}
+                        className={cn(
+                            "flex-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors",
+                            activeTab === 'sent' ? "bg-indigo-100 text-indigo-700" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        )}
+                    >
+                        Sent
+                    </button>
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -123,7 +170,11 @@ export default function InboxTab() {
                     <EmptyState icon={Mail} title="Inbox Zero" description="No messages to process." />
                 ) : (
                     <div className="divide-y divide-slate-100">
-                        {messages.map((msg) => (
+                        {messages.filter(msg => 
+                            activeTab === 'inbox' 
+                                ? !msg.rawPayload?.labels?.includes('SENT') 
+                                : msg.rawPayload?.labels?.includes('SENT')
+                        ).map((msg) => (
                             <div 
                                 key={msg.id} 
                                 onClick={() => setSelectedMessage(msg)}

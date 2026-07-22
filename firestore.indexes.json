@@ -4,164 +4,276 @@
       "collectionGroup": "candidatePool",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "vendorId", "order": "ASCENDING" },
-        { "fieldPath": "pipelineStage", "order": "ASCENDING" }
+        {
+          "fieldPath": "vendorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pipelineStage",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "requirements_public",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visibility", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ai_usage_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orgId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "execution_events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventType", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "workflowEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "workflowEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "immutable_audit_logs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "mail_messages",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "workspaceId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "workspaceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "work_items",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orgId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "priority", "order": "DESCENDING" },
-        { "fieldPath": "dueAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "priority",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "candidate_matches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "clientId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        {
+          "fieldPath": "clientId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "candidate_matches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "vendorId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        {
+          "fieldPath": "vendorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "submissions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "requirementId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "requirementId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "office_outbox",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "officeId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "officeId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "mail_events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "messageId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "messageId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "os_events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "eventName", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventName",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "office_memory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orgId", "order": "ASCENDING" },
-        { "fieldPath": "office", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "office",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "event_ledger",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "recipients", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "global_candidate_identity",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "primaryEmailHash", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "business_graph",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "orgId", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "metadata.email", "order": "ASCENDING" }
+        {
+          "fieldPath": "recipients",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "business_graph",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "orgId", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "metadata.title", "order": "ASCENDING" }
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metadata.email",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "business_graph",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metadata.title",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
