@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"; 
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Brain, 
   Sparkles, 
@@ -24,7 +24,6 @@ import { cn } from "../lib/utils";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { ExplainableEvidenceCard } from "../components/ExplainableEvidenceCard";
-import { queryAIGateway } from "../services/aiService";
 
 interface Message {
   id: string;
@@ -144,9 +143,20 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
     setIsQuerying(true);
 
     try {
-        const dataRaw = await queryAIGateway(activeQuery, "copilot", "v1.0");
-        if (!dataRaw) throw new Error("Gateway failed");
+        const { auth } = await import("../lib/firebase");
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch("/api/ai", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ prompt: activeQuery, feature: "copilot", promptVersion: "v1.0" })
+        });
         
+        if (!res.ok) throw new Error(await res.text());
+        
+        const dataRaw = await res.json();
         let data = dataRaw;
         if (dataRaw.response) {
             try {

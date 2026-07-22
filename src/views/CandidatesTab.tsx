@@ -60,14 +60,16 @@ const setDoc = async (ref: any, data: any, options?: any) => {
     const path = ref.path || "";
     if (path.startsWith("candidatePool/")) {
       const candidateId = path.split("/")[1];
-      emitEvent(
-        "CANDIDATE_CREATED",
-        "CANDIDATE",
-        candidateId,
-        "UI",
-        "system",
-        { id: candidateId, ...data }
-      ).catch((e) => console.warn("Failed event publish on setDoc", e));
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "CANDIDATE_CREATED",
+          payload: { candidateId, id: candidateId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.vendorId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on setDoc", e));
     }
   } catch (e) {
     console.warn("Event publishing failed on setDoc wrapper", e);
@@ -83,14 +85,16 @@ const updateDoc = async (ref: any, data: any) => {
       const candidateId = path.split("/")[1];
       const isWithdrawn = data.status === "WITHDRAWN" || data.status === "ARCHIVED";
       const eventType = isWithdrawn ? "CANDIDATE_WITHDRAWN" : "CANDIDATE_UPDATED";
-      emitEvent(
-        eventType,
-        "CANDIDATE",
-        candidateId,
-        "UI",
-        "system",
-        { id: candidateId, ...data }
-      ).catch((e) => console.warn("Failed event publish on updateDoc", e));
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: eventType,
+          payload: { candidateId, id: candidateId, ...data },
+          source: "UI",
+          orgId: data.orgId || data.vendorId || "SYSTEM"
+        })
+      }).catch((e) => console.warn("Failed event publish on updateDoc", e));
     }
   } catch (e) {
     console.warn("Event publishing failed on updateDoc wrapper", e);
@@ -103,14 +107,15 @@ const deleteDoc = async (ref: any) => {
     const path = ref.path || "";
     if (path.startsWith("candidatePool/")) {
       const candidateId = path.split("/")[1];
-      emitEvent(
-        "CANDIDATE_WITHDRAWN",
-        "CANDIDATE",
-        candidateId,
-        "UI",
-        "system",
-        { id: candidateId }
-      ).catch((e) => console.warn("Failed event publish on deleteDoc", e));
+      fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "CANDIDATE_WITHDRAWN",
+          payload: { candidateId, id: candidateId },
+          source: "UI"
+        })
+      }).catch((e) => console.warn("Failed event publish on deleteDoc", e));
     }
   } catch (e) {
     console.warn("Event publishing failed on deleteDoc wrapper", e);
@@ -1219,7 +1224,7 @@ ${extText}`;
           resumeSource: "initial_parse"
         };
         // Do not override email if it's the pending mock
-        if (result.email === "pending@hirenest.os") {
+        if (result.email === "pending@hirenest.os" || result.email === "mock@example.com") {
           delete updatePayload.email;
           delete updatePayload.primaryEmail;
         }
@@ -1258,7 +1263,9 @@ ${extText}`;
             result.email &&
             result.email !== "No Email Provided" &&
             result.email !== "" &&
-            !result.email.includes("pending@")
+            !result.email.includes("pending@") &&
+            !result.email.includes("mock@") &&
+            !result.email.includes("example.com")
           ) {
             const { query, collection, where, getDocs, deleteDoc, getDoc } =
               await import("firebase/firestore");

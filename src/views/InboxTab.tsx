@@ -133,8 +133,15 @@ export default function InboxTab() {
                                 )}
                             >
                                 <div className="flex justify-between items-start mb-1">
-                                    <h3 className={cn("font-bold text-sm truncate pr-2", selectedMessage?.id === msg.id ? "text-indigo-900" : "text-slate-800")}>
-                                        {msg.from.split('<')[0].trim()}
+                                    <h3 className={cn("font-bold text-sm truncate pr-2 flex items-center gap-2", selectedMessage?.id === msg.id ? "text-indigo-900" : "text-slate-800")}>
+                                        {msg.rawPayload?.labels?.includes('SENT') ? (
+                                            <>
+                                                <ArrowRight className="w-3 h-3 text-slate-400" />
+                                                To: {msg.rawPayload?.to?.split('<')[0].trim() || 'Unknown'}
+                                            </>
+                                        ) : (
+                                            msg.from.split('<')[0].trim()
+                                        )}
                                     </h3>
                                     <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
                                         {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -183,11 +190,19 @@ export default function InboxTab() {
                     <div className="p-6 bg-white border-b border-slate-200 shrink-0">
                         <div className="flex items-start justify-between mb-4">
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 mb-1">{selectedMessage.subject}</h2>
-                                <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                                    <span className="font-bold text-slate-800">{selectedMessage.from}</span>
-                                    <span>•</span>
-                                    <span>{new Date(selectedMessage.createdAt).toLocaleString()}</span>
+                                <h2 className="text-xl font-black text-slate-800 mb-2">{selectedMessage.subject}</h2>
+                                <div className="flex flex-col gap-1 text-sm text-slate-600 font-medium mb-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-400 w-10">From:</span> 
+                                        <span className="font-bold text-slate-800">{selectedMessage.from}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-400 w-10">To:</span> 
+                                        <span className="font-bold text-slate-800">{selectedMessage.rawPayload?.to || 'Unknown'}</span>
+                                    </div>
+                                </div>
+                                <div className="text-xs text-slate-400 mt-2">
+                                    {new Date(selectedMessage.createdAt).toLocaleString()}
                                 </div>
                             </div>
                             <div className="flex gap-2">

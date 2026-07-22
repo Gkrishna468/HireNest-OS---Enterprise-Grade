@@ -35,7 +35,8 @@ export class MailOSService {
         // Retrieve the latest 30 messages to check for new ones.
         const response = await gmail.users.messages.list({
             userId: 'me',
-            maxResults: 30
+            maxResults: 30,
+            q: '(in:inbox category:primary) OR in:sent'
         });
 
         const messages = response.data.messages || [];
@@ -57,8 +58,10 @@ export class MailOSService {
                 const headers = msgData.data.payload?.headers;
                 const subject = headers?.find(h => h.name === 'Subject')?.value || '';
                 const from = headers?.find(h => h.name === 'From')?.value || '';
+                const to = headers?.find(h => h.name === 'To')?.value || '';
                 const date = headers?.find(h => h.name === 'Date')?.value || '';
                 const gmailThreadId = msgData.data.threadId || '';
+                const labels = msgData.data.labelIds || [];
                 
                 let plainText = '';
                 let htmlBody = '';
@@ -120,6 +123,8 @@ export class MailOSService {
                     rawPayload: {
                         subject,
                         from,
+                        to,
+                        labels,
                         snippet: msgData.data.snippet || '',
                         body,
                         attachments
@@ -131,6 +136,8 @@ export class MailOSService {
                     messageId: msg.id,
                     subject,
                     from,
+                    to,
+                    labels,
                     body,
                     workspaceId: orgId,
                     description: body.substring(0, 500)

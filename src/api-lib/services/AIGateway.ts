@@ -839,9 +839,9 @@ export class AIGateway {
             context: "AIGateway",
             errorType: "AI_FAILURE",
             errorMessage: "All AI providers failed or circuits are open",
-            metadata: { feature, lastError: lastError?.message }
+            metadata: { feature, lastError: lastError?.message || "None" }
         });
 
-        throw new Error(`All AI providers failed to process the request: ${lastError?.message}`);
+        throw new Error(`All AI providers failed to process the request: ${lastError?.message || "None"}`);
     }
 }

@@ -76,7 +76,7 @@ export default function WhatsAppHubTab() {
 
   useEffect(() => {
     fetchChats();
-    // Poll for new messages (fallback for missing WS)
+    // Simulate real-time mock data since we don't have active WS
     const interval = setInterval(fetchChats, 15000);
     return () => clearInterval(interval);
   }, []);

@@ -36,9 +36,6 @@ import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
 import { db } from "../../lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { ResumeAnalysisEngine } from "../../components/copilot/ResumeAnalysisEngine";
-import { JDAlignmentTool } from "../../components/copilot/JDAlignmentTool";
-import { CopilotActionDrawer } from "../../components/copilot/CopilotActionDrawer";
 
 type AIBriefingCategory = 'TODAY' | 'PLACEMENTS' | 'JOIN_LIKELIHOOD' | 'ATTENTION_NEEDED';
 
@@ -159,7 +156,7 @@ export default function RecruiterWorkspace({
       {/* Flagship OS Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 px-8 py-8 relative overflow-hidden shrink-0 border-b border-slate-800">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-        <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row md:items-center justify-between relative z-10 gap-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between relative z-10 gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20">Recruiter OS (HN-008)</span>
@@ -203,17 +200,200 @@ export default function RecruiterWorkspace({
 
       {/* Flagship Recruiter OS Cockpit Layout */}
       <div className="flex-1 p-8">
-        <div className="max-w-[1500px] mx-auto">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* COLUMN 1: Operational Desk (col-span-7) */}
-            <div className="xl:col-span-7 space-y-6">
-              
-              <div className="flex items-center gap-2 mb-2">
-                <Briefcase size={20} className="text-indigo-400" />
-                <h3 className="text-sm font-black uppercase text-indigo-300 tracking-wider">Operational Desk</h3>
+            {/* COLUMN 1: AI Assistant & Briefing Panel (col-span-4) */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Bot size={20} className="text-indigo-400 animate-bounce" />
+                    <h3 className="text-xs font-black uppercase text-indigo-300 tracking-wider">AI Daily Assistant (HN-010)</h3>
+                  </div>
+                  <Badge className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 text-[9px] font-mono font-bold">
+                    Omni Flash v2.5
+                  </Badge>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed mb-6">
+                  Good morning {userName}! Here is your intelligence briefing compiled from the live enterprise staffing database.
+                </p>
+
+                {/* Briefing Category Selector */}
+                <div className="grid grid-cols-2 gap-2 mb-6">
+                  {[
+                    { id: 'TODAY', label: "📅 Today's Plan" },
+                    { id: 'PLACEMENTS', label: "🔥 Hot Placements" },
+                    { id: 'JOIN_LIKELIHOOD', label: "🤝 Joint Likeliness" },
+                    { id: 'ATTENTION_NEEDED', label: "⚠️ SLA Alerts" }
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setAiBriefCategory(cat.id as AIBriefingCategory)}
+                      className={`text-left p-2.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${
+                        aiBriefCategory === cat.id 
+                          ? "bg-indigo-600/20 border-indigo-500/50 text-white" 
+                          : "bg-slate-950/50 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Dynamic Briefing Display content */}
+                <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl min-h-[170px] flex flex-col justify-between">
+                  <div>
+                    {aiBriefCategory === 'TODAY' && (
+                      <div className="space-y-3">
+                        <span className="text-[9px] font-mono font-black text-slate-500 uppercase tracking-widest block">Action Plan Overview</span>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Your priority today is closing the loop on <strong className="text-white">Rajesh Kumar</strong>'s technical round. 
+                        </p>
+                        <div className="space-y-1 text-[10px] text-slate-400 font-mono">
+                          <p className="flex items-center gap-1.5"><Check size={10} className="text-emerald-400" /> Prepare Vikram Malhotra for Staff DevOps round</p>
+                          <p className="flex items-center gap-1.5"><Check size={10} className="text-emerald-400" /> Trigger offer accepted engagement workflow</p>
+                          <p className="flex items-center gap-1.5"><Check size={10} className="text-indigo-400" /> Follow up with Suresh Mehra (Hiring Manager)</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {aiBriefCategory === 'PLACEMENTS' && (
+                      <div className="space-y-3">
+                        <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest block">High Probability Placements</span>
+                        <div className="space-y-2.5">
+                          <div className="border-b border-slate-900 pb-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-bold text-white">Anjali Sharma</span>
+                              <span className="text-emerald-400 font-black">94% Fit Score</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Role: UI Engineer | Reliance Digital</p>
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-xs">
+                              <span className="font-bold text-white">Rajesh Kumar</span>
+                              <span className="text-emerald-400 font-black">89% Offer Prob</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Role: Spring Boot Architect | HDFC Bank Labs</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {aiBriefCategory === 'JOIN_LIKELIHOOD' && (
+                      <div className="space-y-3">
+                        <span className="text-[9px] font-mono font-black text-indigo-400 uppercase tracking-widest block">Candidate Join/Reject Predictions</span>
+                        <div className="space-y-2.5">
+                          <div className="border-b border-slate-900 pb-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-bold text-white">Amit Verma</span>
+                              <span className="text-emerald-400 font-black">92% Likely to Join</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Counter Offer matching. Engaged 3 times this week.</p>
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-xs">
+                              <span className="font-bold text-white">Vikram Malhotra</span>
+                              <span className="text-rose-400 font-black">40% Drop Risk</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Strong notice period hesitation. Suggest pre-joining engagement check.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {aiBriefCategory === 'ATTENTION_NEEDED' && (
+                      <div className="space-y-3">
+                        <span className="text-[9px] font-mono font-black text-rose-400 uppercase tracking-widest block">SLA Breaches & Requirements</span>
+                        <div className="space-y-2.5">
+                          {attentionReqs.map((att) => (
+                            <div key={att.id} className="border-b border-slate-900 pb-2 last:border-0 last:pb-0">
+                              <div className="flex justify-between text-xs">
+                                <span className="font-bold text-white">{att.role}</span>
+                                <span className="text-[8px] font-mono bg-rose-500/15 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded">{att.risk}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{att.missingFollowup}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-slate-900 flex justify-end gap-2">
+                    <Button 
+                      size="sm"
+                      onClick={() => handleBriefingAction(aiBriefCategory)}
+                      disabled={processingAction !== null}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-mono uppercase tracking-widest h-8"
+                    >
+                      {processingAction === `brief-${aiBriefCategory}` ? "Processing..." : "Execute Automated Briefing Plan"}
+                    </Button>
+                  </div>
+                </div>
+
               </div>
-              
+
+              {/* Recruiter Score Diagnostic & Targets */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+                <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500 block">Performance & Daily Targets</span>
+                
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400 font-bold">Submissions Target Target Met</span>
+                      <span className="text-white font-mono">{submissionsTarget.current} / {submissionsTarget.target}</span>
+                    </div>
+                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                      <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(submissionsTarget.current / submissionsTarget.target) * 100}%` }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400 font-bold">Interviews Target Met</span>
+                      <span className="text-white font-mono">{interviewsTarget.current} / {interviewsTarget.target}</span>
+                    </div>
+                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                      <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${(interviewsTarget.current / interviewsTarget.target) * 100}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex justify-between items-center">
+                  <div className="space-y-1">
+                    <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest block">Action</span>
+                    <span className="text-xs text-slate-300 font-bold">Log New Submission</span>
+                  </div>
+                  <Button 
+                    size="sm"
+                    onClick={() => {
+                      if (submissionsTarget.current < submissionsTarget.target) {
+                        setSubmissionsTarget(prev => ({ ...prev, current: prev.current + 1 }));
+                        setRecruiterScore(prev => Math.min(prev + 1, 100));
+                        triggerToast("Logged submission successfully! Targets and KPI score updated.");
+                      } else {
+                        triggerToast("Excellent! Daily submissions target met successfully.");
+                      }
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono uppercase font-black text-[9px] h-8"
+                  >
+                    + Submit Candidate
+                  </Button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* COLUMN 2: Today's Focus Desk (col-span-5) */}
+            <div className="lg:col-span-5 space-y-6">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold flex items-center gap-2">
+                <Target size={14} className="text-slate-500" /> Today's Focus Desk
+              </h3>
+
               {/* Priority Sourcing Alerts */}
               <div className="p-5 rounded-2xl border border-rose-950 bg-rose-500/5 space-y-3">
                 <div className="flex items-center gap-2 text-rose-400">
@@ -322,13 +502,54 @@ export default function RecruiterWorkspace({
                 </div>
               </div>
 
+            </div>
+
+            {/* COLUMN 3: Requirement Catalog & Top Candidate Matching (col-span-3) */}
+            <div className="lg:col-span-3 space-y-6">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold flex items-center gap-2">
+                <Sparkles size={14} className="text-indigo-400" /> AI Sourcing Matrix
+              </h3>
+
+              {/* Top AI Match Recommendation */}
+              <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900 space-y-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400">Featured Match Profile</span>
+                  <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-mono font-bold">94% CONFIDENCE</Badge>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-black text-white leading-tight">Sarah Jenkins</h4>
+                  <p className="text-xs text-slate-400 font-mono mt-1">Matched for Senior React Developer</p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 uppercase font-bold">
+                    <span>AI Confidence</span>
+                    <span className="text-emerald-400">HIGH 94%</span>
+                  </div>
+                  <div className="flex gap-1 text-emerald-400 font-mono text-xs select-none">
+                    <span>█████████░</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed mt-1 font-mono">
+                    High React/Tailwind visual score match. Notice period is immediate availability.
+                  </p>
+                </div>
+
+                <Button 
+                  onClick={() => executeAction("submit-sarah", "Sarah Jenkins has been submitted directly to Reliance Digital Client Board.")}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest h-10 shadow-lg shadow-indigo-500/10"
+                >
+                  Submit to Client
+                </Button>
+              </div>
+
               {/* Sourcing Channels List */}
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+              <div className="space-y-3">
                 <span className="text-[9px] font-mono uppercase tracking-widest text-slate-500 font-bold block">Sourcing Channels Catalog</span>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {activeChannels.map((pipe) => (
-                    <div key={pipe.id} className="p-4 rounded-2xl border border-slate-800 bg-slate-950 hover:border-slate-700 transition-all duration-200">
+                    <div key={pipe.id} className="p-4 rounded-2xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all duration-200">
                       <div>
                         <div className="flex items-center justify-between">
                           <span className={`text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded border ${
@@ -345,25 +566,6 @@ export default function RecruiterWorkspace({
                   ))}
                 </div>
               </div>
-
-            </div>
-
-            {/* COLUMN 2: Copilot Command Center (col-span-5) */}
-            <div className="xl:col-span-5 space-y-6">
-              
-              <div className="flex items-center gap-2 mb-2">
-                <Bot size={20} className="text-indigo-400 animate-bounce" />
-                <h3 className="text-sm font-black uppercase text-indigo-300 tracking-wider">AI Copilot Suite</h3>
-              </div>
-
-              {/* JD vs Candidate Fit Engine */}
-              <JDAlignmentTool />
-              
-              {/* Action Drawer (Email, Prep, Salary) */}
-              <CopilotActionDrawer />
-              
-              {/* Deep Resume Parsing */}
-              <ResumeAnalysisEngine />
 
             </div>
 

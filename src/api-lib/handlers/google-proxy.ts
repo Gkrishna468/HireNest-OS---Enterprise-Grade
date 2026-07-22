@@ -61,7 +61,7 @@ googleProxyHandler.get("/gmail/messages", async (req, res) => {
         errMsg.includes("INDEX_REQUISITE") ||
         errMsg.includes("requires an index")
       ) {
-        console.log(
+        console.log("[googleProxyHandler] Error:", errMsg); console.log(
           "[googleProxyHandler] Missing composite index for mail_messages query. Performing resilient in-memory sort fallback."
         );
         // Fallback: fetch without order and sort in-memory

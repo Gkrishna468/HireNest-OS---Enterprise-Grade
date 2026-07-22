@@ -310,6 +310,48 @@ export default function DashboardTab() {
       }
   };
 
+  const handleCleanMocks = async () => {
+      if(!window.confirm("This will delete all Local Mock Generated and pending mock records. Continue?")) {
+        return;
+      }
+      try {
+          const cacheSnap = await getDocs(collection(db, "resume_cache"));
+          for(const d of cacheSnap.docs) {
+             const data = d.data();
+             if (
+                data.name === "Local Mock Generated" ||
+                data.email === "mock@example.com" ||
+                data.email === "pending@hirenest.os" ||
+                data.name === "Parsing Pending" ||
+                data.name === "Pending Distillation"
+             ) {
+                await deleteDoc(doc(db, "resume_cache", d.id));
+             }
+          }
+          const snap = await getDocs(collection(db, "candidatePool"));
+          let count = 0;
+          for (const d of snap.docs) {
+             const data = d.data();
+             if (
+                data.name === "Local Mock Generated" ||
+                data.email === "mock@example.com" ||
+                data.email === "pending@hirenest.os" ||
+                data.name === "Pending Distillation" ||
+                data.name === "Parsing Pending" ||
+                data.name === "Sarah Jenkins" ||
+                data.name === "Unnamed Candidate" ||
+                data.name === "Unknown Candidate"
+              ) {
+                await deleteDoc(doc(db, "candidatePool", d.id));
+                count++;
+              }
+          }
+          alert(`Deleted ${count} mock candidates.`);
+      } catch(e:any) {
+          alert(e.message);
+      }
+  };
+
   const handleFixDataDrift = async () => {
       if(!window.confirm("This will migrate generic candidatePool.pipelineStage records to their actual submission.status (resolving data drift). Continue?")) {
         return;
@@ -1923,6 +1965,13 @@ export default function DashboardTab() {
                      className="text-[9px] uppercase font-bold tracking-widest border-rose-500/30 text-rose-400 hover:bg-rose-500/10 h-8"
                   >
                      Purge Test Data
+                  </Button>
+                  <Button
+                     onClick={handleCleanMocks}
+                     variant="outline"
+                     className="text-[9px] uppercase font-bold tracking-widest border-rose-500/30 text-rose-400 hover:bg-rose-500/10 h-8 mr-2"
+                  >
+                     Clean Mock Candidates
                   </Button>
                   <Button
                      onClick={handleFixDataDrift}

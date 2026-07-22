@@ -90,38 +90,20 @@ Vendor: ${cand.vendorId || cand.orgId || "N/A"}
 Skills: ${(cand.skills || []).join(", ")}
 Experience: ${reqObj.experience || reqObj.yearsOfExperience || "N/A"}`;
 
-      const prompt = `You are a recruitment AI.
-Score the match between this Candidate and this Job Description out of 100.
-Also provide a 1-sentence summary of the fit.
-
-Job Description:
-${jdSummary}
-
-Candidate:
-${candidateSummary}
-
-Return JSON strictly in this format:
-{"matchScore": 85, "summary": "Strong fit based on React and Node.js experience.", "strengths": ["skill 1"], "missingSkills": ["skill 2"], "breakdown": {"skillsScore": 90, "experienceScore": 80, "domainScore": 80, "locationScore": 100}}`;
+      const { calculateMatchScore } = await import('../../lib/workflows/match-engine.js');
+      const mScore = calculateMatchScore(cand, reqObj);
 
       try {
-        const aiResponse = await AIRuntime.analyze({
-          prompt: prompt,
-          modelPreference: "fast",
-          schema: true,
-        });
-        const resultJson = aiResponse.data || {};
-        const mScore = resultJson.matchScore || 0;
-
         if (mScore > 0) {
           const matchResult = {
             canonicalRequirementId: reqObj.id,
             requirementId: reqObj.id,
             tenantId: reqObj.tenantId || cand.tenantId || "TENANT-HQ",
             matchScore: mScore,
-            summary: resultJson.summary || "AI Rescan Completed",
-            strengths: resultJson.strengths || [],
-            missingSkills: resultJson.missingSkills || [],
-            breakdown: resultJson.breakdown || {
+            summary: "AI Rescan Completed",
+            strengths: [],
+            missingSkills: [],
+            breakdown: {
               skillsScore: mScore,
               experienceScore: mScore,
               domainScore: mScore,

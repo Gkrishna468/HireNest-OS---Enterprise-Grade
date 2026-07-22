@@ -59,7 +59,7 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
       }
 
       if (q) {
-          url += `?q=${encodeURIComponent(q)}`;
+          url += `&q=${encodeURIComponent(q)}`;
       }
 
       const response = await fetch(url, {
@@ -138,7 +138,9 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
           ) : (
              emails.map(email => (
                 <div key={email.id} className="p-3 bg-white border border-slate-100 hover:border-slate-300 rounded-lg cursor-pointer transition-colors">
-                   <div className="text-xs font-bold text-slate-800 truncate">{email.from}</div>
+                   <div className="text-xs font-bold text-slate-800 truncate">
+                      {email.rawPayload?.labels?.includes('SENT') ? `To: ${email.rawPayload?.to?.split('<')[0].trim() || 'Unknown'}` : email.from?.split('<')[0].trim()}
+                   </div>
                    <div className="text-[10px] font-semibold text-slate-600 truncate mt-1">{email.subject}</div>
                    <div className="text-[9px] text-slate-400 truncate mt-1">{email.snippet}</div>
                 </div>

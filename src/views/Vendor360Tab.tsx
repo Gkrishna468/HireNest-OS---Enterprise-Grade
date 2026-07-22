@@ -14,7 +14,6 @@ import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { collection, query, getDocs, where, doc, setDoc } from "firebase/firestore";
 import { GmailRecentMessages } from "../components/GmailRecentMessages";
-import { emitEvent } from "../services/eventBus";
 
 export default function Vendor360Tab({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
@@ -54,17 +53,17 @@ export default function Vendor360Tab({ userRole }: { userRole: string }) {
       const placementId = "pla-vendor-" + selectedVendorId;
       const candidateId = "cand-bench-test-" + Date.now();
       
-      await emitEvent(
-        "PLACEMENT_CLOSED",
-        "VENDOR",
-        selectedVendorId,
-        "UI",
-        userRole,
-        {
-          placementId,
-          candidateId
-        }
-      );
+      await fetch("/api/events/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "PLACEMENT_CLOSED",
+          payload: {
+            placementId,
+            candidateId
+          }
+        })
+      });
       
       setSyncSuccess("Sourcing pipeline updated! PLACEMENT_CLOSED status successfully synced back to CRM systems.");
       setTimeout(() => setSyncSuccess(null), 5000);

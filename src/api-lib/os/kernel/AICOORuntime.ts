@@ -44,14 +44,27 @@ export class AICOORuntime {
   static async processInbox() {
     if (!db) return;
 
-    // Process in priority order. For simplicity, we fetch all PENDING and sort in memory if limits are small,
-    // or we could query by priority. Here we'll do a simple fetch since limits are small.
-    const snap = await db
-      .collection("coo_inbox")
-      .where("status", "==", "PENDING")
-      .orderBy("enqueuedAt", "asc")
-      .limit(100)
-      .get();
+    let snap;
+    try {
+      snap = await db
+        .collection("coo_inbox")
+        .where("status", "==", "PENDING")
+        .orderBy("enqueuedAt", "asc")
+        .limit(100)
+        .get();
+    } catch (err: any) {
+      console.log("[AICOORuntime] Missing index for coo_inbox, falling back to memory sort", err.message);
+      const rawSnap = await db
+        .collection("coo_inbox")
+        .where("status", "==", "PENDING")
+        .get();
+      const sortedDocs = rawSnap.docs.sort((a, b) => {
+        const tA = new Date(a.data().enqueuedAt || 0).getTime();
+        const tB = new Date(b.data().enqueuedAt || 0).getTime();
+        return tA - tB;
+      });
+      snap = { empty: sortedDocs.length === 0, docs: sortedDocs.slice(0, 100) };
+    }
 
     if (snap.empty) return;
 

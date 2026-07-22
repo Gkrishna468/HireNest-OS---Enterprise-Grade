@@ -2,12 +2,11 @@ import fetch from 'node-fetch';
 
 async function test() {
   const customApiKey = 'HN_dev_key_123';
-  const res = await fetch('http://localhost:3000/api/google/gmail/messages', {
+  const res = await fetch('http://localhost:3000/api/workspace/intake/metrics', {
     headers: { Authorization: `Bearer ${customApiKey}` }
   });
   const data = await res.json();
-  console.log("Messages returned:", data.messages?.length);
-  if (data.error) console.log("Error:", data.error);
+  console.log("Metrics:", data);
 }
 
 test().catch(console.error);

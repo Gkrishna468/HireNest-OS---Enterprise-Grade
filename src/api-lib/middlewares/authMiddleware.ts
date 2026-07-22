@@ -32,7 +32,7 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       const customApiKey = process.env.HIRENEST_API_KEY || 'HN_dev_key_123';
       if (token && (token.startsWith('HN_') || token === customApiKey)) {
         if (token === customApiKey) {
-          req.user = { uid: 'system-api-key', role: 'admin', orgId: 'hq' };
+          req.user = { uid: 'gHW8dOBiUBQELF2jff4mAgy267x2', role: 'admin', orgId: 'ORG-GLOBAL-HQ' };
           return next();
         }
         

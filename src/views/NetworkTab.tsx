@@ -49,12 +49,12 @@ export default function NetworkTab() {
 
         // In a real app, these would be cached counts or aggregate docs
         setStats({
-          requirements: 0,
-          candidates: 0,
-          vendors: 0,
-          clients: 0,
-          placements: 0,
-          revenue: 0
+          requirements: 1243, // Mocked for scale demonstration as requested
+          candidates: 98122,
+          vendors: 412,
+          clients: 86,
+          placements: 3284,
+          revenue: 14250000
         });
 
         const eventsSnap = await getDocs(query(

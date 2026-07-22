@@ -25,7 +25,6 @@ import {
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
 import { auth, db } from "../../lib/firebase";
-import { queryAIGateway } from "../../services/aiService";
 import {
   collection,
   doc,
@@ -404,10 +403,18 @@ export default function CandidatePortalWorkspace({
     setIsCoachTyping(true);
 
     try {
-      const prompt = `Candidate: ${profile.name}, Skills: ${profile.skills.join(', ')}. Target Roles: ${profile.targetRoles.join(', ')}. Query: ${userMsgText}`;
-      const dataRaw = await queryAIGateway(prompt, "candidate_coach", "v1.0");
-      if (!dataRaw) throw new Error("Endpoint failed");
+      const response = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (await (await import("../../lib/firebase")).auth.currentUser?.getIdToken() || "") },
+        body: JSON.stringify({
+          prompt: `Candidate: ${profile.name}, Skills: ${profile.skills.join(', ')}. Target Roles: ${profile.targetRoles.join(', ')}. Query: ${userMsgText}`,
+          feature: "candidate_coach",
+          promptVersion: "v1.0"
+        })
+      });
 
+      if (response.ok) {
+        const dataRaw = await response.json();
       let data = dataRaw;
       if (dataRaw.response) {
           try {
@@ -427,6 +434,9 @@ export default function CandidatePortalWorkspace({
           }
         ]);
         trackProgressAndPublish("coach_session", 10);
+      } else {
+        throw new Error("Endpoint failed");
+      }
     } catch (e) {
       // Graceful local AI fallback responses for candidate support
       setTimeout(() => {
