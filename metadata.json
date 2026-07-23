@@ -1,6 +1,6 @@
 {
   "name": "HireNestOS",
-  "description": "Business Operating System (BOS) for AI-Native Workforce Staffing & SLA Governance",
+  "description": "Enterprise Recruitment Intelligence OS - A layered AI-native workforce platform.",
   "requestFramePermissions": [
     "camera",
     "microphone"

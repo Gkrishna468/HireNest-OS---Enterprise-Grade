@@ -184,7 +184,7 @@ export default function LandingPage() {
             </h2>
             
             <p className="text-lg text-slate-400 leading-relaxed max-w-lg font-medium">
-              The AI-native Operating System that unifies Recruiters, Vendors, Clients and Candidates in one intelligent platform.
+              The Enterprise Recruitment Intelligence OS. A layered AI-native workforce platform unifying knowledge, tools, skills, and agents.
             </p>
 
             <div className="flex flex-wrap gap-6 pt-4">
@@ -314,10 +314,10 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { icon: Mail, title: "Intelligent Intake", desc: "AI parses JDs & resumes from emails, WhatsApp and portals automatically." },
-              { icon: Zap, title: "AI Matching Engine", desc: "Proprietary engine delivers accurate matches with explainable AI." },
-              { icon: Bot, title: "Autonomous Workflow", desc: "Event-driven offices work 24/7 to automate your entire hiring lifecycle." },
-              { icon: Activity, title: "Real-time Intelligence", desc: "Live dashboards, predictive insights and revenue projections." }
+              { icon: Mail, title: "Knowledge Layer", desc: "Enterprise memory & RAG across your entire organizational history." },
+              { icon: Zap, title: "Intelligence Layer", desc: "Reusable recruitment skills from fillability scoring to rank prediction." },
+              { icon: Bot, title: "Agent Workforce", desc: "Coordinated autonomous AI agents collaborating with human teams." },
+              { icon: Activity, title: "Deep Integration", desc: "Seamless connectors linking Gmail, ATS, billing, and operational data." }
             ].map((feature, i) => (
               <div key={i} className="group p-8 bg-slate-900/50 border border-white/5 rounded-[2rem] hover:bg-slate-900 hover:border-indigo-500/20 transition-all">
                 <div className="h-12 w-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -685,7 +685,7 @@ export default function LandingPage() {
                 <h1 className="text-xl font-black tracking-tighter">HireNestOS</h1>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed font-medium">
-                <strong className="text-slate-300">The AI-Native Staffing Operating System that unifies Recruiters, Vendors, Clients, Candidates, and AI Workforce into one intelligent platform.</strong>
+                <strong className="text-slate-300">The Enterprise Recruitment Intelligence OS combining Knowledge, Data, Integrations, Skills, and Agents in one platform.</strong>
               </p>
               
               {/* Trust Badges */}
