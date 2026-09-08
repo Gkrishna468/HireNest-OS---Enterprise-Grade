@@ -1,0 +1,6 @@
+Contact: mailto:security@hirenestworkforce.com
+Expires: 2027-09-06T00:00:00.000Z
+Preferred-Languages: en
+Policy: https://hirenest.os/security
+Canonical: https://hirenest.os/.well-known/security.txt
+Hiring: https://hirenest.os/careers

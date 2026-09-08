@@ -28,6 +28,7 @@ import { useDailyBriefing } from "../../hooks/useDailyBriefing";
 import { auth, db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import SubmissionsLedgerExport from "../../components/SubmissionsLedgerExport";
+import { ReactivationExecutiveWidget } from "../../components/ReactivationExecutiveWidget";
 import { formatINR } from "../../lib/currency";
 
 const FALLBACK_METRICS: MetricsData = {
@@ -297,6 +298,9 @@ export default function ExecutiveDashboardWorkspace({
              </div>
           </div>
           
+          {/* Candidate Reactivation Executive ROI Widget */}
+          <ReactivationExecutiveWidget />
+
           {/* KPI Strip - Revenue & High Level SSOT */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5 relative overflow-hidden group shadow-lg">

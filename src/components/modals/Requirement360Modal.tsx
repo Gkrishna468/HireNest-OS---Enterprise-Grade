@@ -15,6 +15,7 @@ import {
   Clock,
   MapPin,
   TrendingUp,
+  Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -23,6 +24,7 @@ import { AIMatching } from "../AIMatching";
 import { db } from "../../lib/firebase";
 import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { Badge } from "../../lib/Badge";
+import { RequirementDistributionPanel } from "../RequirementDistributionPanel";
 
 interface Requirement360ModalProps {
   job: any;
@@ -32,7 +34,7 @@ interface Requirement360ModalProps {
   userOrgId: string;
 }
 
-type TabType = "SUMMARY" | "MATCHES" | "SUBMISSIONS" | "TIMELINE" | "ANALYTICS";
+type TabType = "SUMMARY" | "MATCHES" | "SUBMISSIONS" | "DISTRIBUTION" | "TIMELINE" | "ANALYTICS";
 
 export default function Requirement360Modal({
   job,
@@ -122,12 +124,22 @@ export default function Requirement360Modal({
     };
   }, [job?.id]);
 
+  const isVendor = userRole === "VENDOR";
+
+  // Filter submissions by vendor if user is a vendor
+  const visibleSubmissions = isVendor
+    ? submissions.filter((s) => s.vendorId === userOrgId)
+    : submissions;
+
   const tabs = [
     { id: "SUMMARY", label: "Intelligence", icon: <FileText size={16} /> },
     { id: "MATCHES", label: "AI Matches", icon: <Target size={16} /> },
     { id: "SUBMISSIONS", label: "Submissions", icon: <Users size={16} /> },
-    { id: "TIMELINE", label: "Lifecycle", icon: <Activity size={16} /> },
-    { id: "ANALYTICS", label: "Analytics", icon: <BarChart3 size={16} /> },
+    ...(!isVendor ? [
+      { id: "DISTRIBUTION", label: "Distribution", icon: <Building2 size={16} /> },
+      { id: "TIMELINE", label: "Lifecycle", icon: <Activity size={16} /> },
+      { id: "ANALYTICS", label: "Analytics", icon: <BarChart3 size={16} /> },
+    ] : [])
   ];
 
   return (
@@ -347,7 +359,7 @@ export default function Requirement360Modal({
               {activeTab === "SUBMISSIONS" && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {submissions.length > 0 ? submissions.map(sub => (
+                    {visibleSubmissions.length > 0 ? visibleSubmissions.map(sub => (
                       <div key={sub.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all group">
                          <div className="flex justify-between items-start mb-3">
                             <div className="h-10 w-10 bg-indigo-50 rounded-full flex items-center justify-center font-bold text-indigo-700">
@@ -404,6 +416,14 @@ export default function Requirement360Modal({
                     )}
                   </div>
                 </div>
+              )}
+
+              {activeTab === "DISTRIBUTION" && (
+                <RequirementDistributionPanel
+                  job={job}
+                  isAdmin={isAdmin}
+                  userRole={userRole}
+                />
               )}
 
               {activeTab === "ANALYTICS" && (

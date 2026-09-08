@@ -50,6 +50,9 @@ oauthHandler.get("/url", (req, res) => {
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive.readonly",
       ],
       state: JSON.stringify({ uid, redirectTo: redirectTo || "/app" }),
     });

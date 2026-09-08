@@ -1,5 +1,6 @@
 import { adminDb, adminAuth, runtimeMode } from "../../lib/firebase-admin.js";
 import { getAuth } from "firebase-admin/auth";
+import crypto from "crypto";
 
 const computeFinancials = async (db: any, opts: any) => ({
   accountsReceivable: 125000,
@@ -305,9 +306,10 @@ export default async function handler(req: any, res: any) {
           sourceSystem: "OS",
           createdAt: new Date().toISOString(),
         });
+      const temporarySecurePassword = crypto.randomBytes(12).toString("base64url") + "!A9";
       const userRecord = await adminAuth.createUser({
         email: requestData?.email,
-        password: "DefaultPassword123!",
+        password: temporarySecurePassword,
         displayName: requestData?.companyName,
       });
       await adminDb

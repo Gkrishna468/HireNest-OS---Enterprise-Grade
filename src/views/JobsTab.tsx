@@ -52,12 +52,21 @@ import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
 import { formatBudget } from "../lib/currency";
 
+import { RequirementDiscussionThread } from "../components/RequirementDiscussionThread";
+import Candidate360Modal from "../components/modals/Candidate360Modal";
+import { requirementVendorService } from "../services/requirementVendorService";
+import { requirementLifecycleService, RequirementStatus } from "../services/requirementLifecycleService";
+import { AccessControlService } from "../services/accessControlService";
+
 const setDoc = async (ref: any, data: any, options?: any) => {
   const result = await firebaseSetDoc(ref, data, options);
   try {
     const path = ref.path || "";
     if (path.startsWith("requirements_public/")) {
       const requirementId = path.split("/")[1];
+      requirementVendorService.syncRequirementVendorAuthorization(requirementId, data).catch(
+        (err) => console.warn("Failed vendor authorization sync on setDoc", err)
+      );
       fetch("/api/events/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,6 +90,9 @@ const updateDoc = async (ref: any, data: any) => {
     const path = ref.path || "";
     if (path.startsWith("requirements_public/")) {
       const requirementId = path.split("/")[1];
+      requirementVendorService.syncRequirementVendorAuthorization(requirementId, data).catch(
+        (err) => console.warn("Failed vendor authorization sync on updateDoc", err)
+      );
       const isClosed = data.status === "CLOSED" || data.status === "ARCHIVED";
       const eventType = isClosed ? "REQUIREMENT_CLOSED" : "REQUIREMENT_UPDATED";
       fetch("/api/events/publish", {
@@ -99,17 +111,15 @@ const updateDoc = async (ref: any, data: any) => {
   }
   return result;
 };
+
+import { useNavigate } from "react-router-dom";
+import { emitEvent } from "../services/eventBus";
 import { AIMatching } from "../components/AIMatching";
 import { JDIntelligence } from "../components/JDIntelligence";
 import Requirement360Modal from "../components/modals/Requirement360Modal";
 import { HybridMatchResult } from "../types";
 import { EmptyState } from "../components/EmptyState";
 import { publishEvent } from "../lib/eventEngine";
-import { RequirementDiscussionThread } from "../components/RequirementDiscussionThread";
-import Candidate360Modal from "../components/modals/Candidate360Modal";
-
-import { useNavigate } from "react-router-dom";
-import { emitEvent } from "../services/eventBus";
 
 const STAGES = ["Added", "Matched", "Submitted", "Interviewing", "Placed"];
 
@@ -1207,39 +1217,46 @@ export default function JobsTab() {
     setIsAnalyzing(false);
   };
 
-  const handleToggleStatus = async (jobId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "PUBLISHED" ? "CLOSED" : "PUBLISHED";
+  const handleSetRequirementStatus = async (jobId: string, targetStatus: RequirementStatus) => {
     try {
-      // Attempt direct update first (faster)
-      await updateDoc(doc(db, "requirements_public", jobId), {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
+      const user = auth.currentUser;
+      const context = AccessControlService.buildAccessContext({
+        id: user?.uid,
+        role: userRole,
+        orgId: orgId
       });
-    } catch (error: any) {
-      console.warn(
-        "Direct update failed, attempting server proxy...",
-        error.message,
-      );
-      try {
-        const response = await fetch("/api/jobs/update-status", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId, status: newStatus }),
-        });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Server proxy update failed");
-        }
-      } catch (proxyError: any) {
-        alert("Status update failed: " + proxyError.message);
-        handleFirestoreError(
-          proxyError,
-          OperationType.UPDATE,
-          `requirements_public/${jobId}`,
-        );
+      const res = await requirementLifecycleService.transition({
+        requirementId: jobId,
+        targetStatus,
+        context,
+        reason: `Transitioned status to ${targetStatus} via Admin Control Surface`
+      });
+
+      if (res.success) {
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: targetStatus } : j));
+      } else {
+        alert(res.message || "Lifecycle transition failed");
+      }
+    } catch (error: any) {
+      console.warn("Requirement Lifecycle Transition Error:", error?.message);
+      // Fallback direct update
+      try {
+        await updateDoc(doc(db, "requirements_public", jobId), {
+          status: targetStatus,
+          updatedAt: serverTimestamp(),
+        });
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: targetStatus } : j));
+      } catch (fbErr: any) {
+        alert("Failed to update status: " + fbErr.message);
       }
     }
+  };
+
+  const handleToggleStatus = async (jobId: string, currentStatus: string) => {
+    const s = (currentStatus || "").toUpperCase();
+    const targetStatus: RequirementStatus = (s === "ACTIVE" || s === "PUBLISHED") ? "HOLD" : "ACTIVE";
+    await handleSetRequirementStatus(jobId, targetStatus);
   };
 
   const handleRequestUpdate = async (sub: any) => {
@@ -1633,15 +1650,19 @@ export default function JobsTab() {
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   { id: "ALL", label: "All Requirements" },
-                  { id: "DIRECT_APPLY", label: "⭐ Direct Apply Active" },
-                  { id: "ONSITE", label: "🏢 Onsite" },
-                  { id: "C2H", label: "⏱️ C2H" },
+                  { id: "ACTIVE", label: "🟢 Active" },
+                  { id: "HOLD", label: "🟡 Hold" },
                   { id: "REMOTE", label: "🌐 Remote" },
+                  { id: "REMOTE_C2C", label: "🤝 Remote C2C" },
+                  { id: "ONSITE_FTE", label: "🏢 Onsite FTE" },
+                  { id: "ONSITE_CONTRACT", label: "📝 Onsite Contract" },
+                  { id: "C2H", label: "⏱️ C2H" },
+                  { id: "CLOSED", label: "🛑 Closed" },
                 ].map((mode) => (
                   <button
                     key={mode.id}
                     onClick={() => setReqFilterMode(mode.id)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-tight transition-all ${
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-tight transition-all cursor-pointer ${
                       reqFilterMode === mode.id
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "bg-slate-200/70 text-slate-700 hover:bg-slate-200"
@@ -1660,23 +1681,38 @@ export default function JobsTab() {
                     isAdmin ||
                     j.clientId === orgId ||
                     (j.visibility === "VENDOR_NETWORK" &&
-                      j.status === "PUBLISHED");
+                      (j.status === "ACTIVE" || j.status === "PUBLISHED"));
                   if (!roleAccess) return false;
 
-                  if (reqFilterMode === "DIRECT_APPLY") {
-                    return j.directApplyEnabled !== false;
+                  if (reqFilterMode === "ACTIVE") {
+                    const s = (j.status || "").toUpperCase();
+                    return s === "ACTIVE" || s === "PUBLISHED";
                   }
-                  if (reqFilterMode === "ONSITE") {
-                    return (j.workMode || "").toUpperCase().includes("ONSITE");
+                  if (reqFilterMode === "HOLD") {
+                    return (j.status || "").toUpperCase() === "HOLD";
                   }
-                  if (reqFilterMode === "C2H") {
-                    return (
-                      (j.workMode || "").toUpperCase().includes("C2H") ||
-                      (j.jobType || "").toUpperCase().includes("C2H")
-                    );
+                  if (reqFilterMode === "CLOSED") {
+                    const s = (j.status || "").toUpperCase();
+                    return s === "CLOSED" || s === "EXPIRED" || s === "SOURCING_PAUSED";
                   }
                   if (reqFilterMode === "REMOTE") {
                     return (j.workMode || "").toUpperCase().includes("REMOTE");
+                  }
+                  if (reqFilterMode === "REMOTE_C2C") {
+                    const wm = (j.workMode || "").toUpperCase();
+                    return wm.includes("REMOTE") && (wm.includes("C2C") || wm.includes("CORP"));
+                  }
+                  if (reqFilterMode === "ONSITE_FTE") {
+                    const wm = (j.workMode || "").toUpperCase();
+                    return wm.includes("ONSITE") && (wm.includes("FTE") || wm.includes("PERMANENT") || !wm.includes("CONTRACT"));
+                  }
+                  if (reqFilterMode === "ONSITE_CONTRACT") {
+                    const wm = (j.workMode || "").toUpperCase();
+                    return wm.includes("ONSITE") && (wm.includes("CONTRACT") || wm.includes("C2C"));
+                  }
+                  if (reqFilterMode === "C2H") {
+                    const wm = (j.workMode || "").toUpperCase();
+                    return wm.includes("C2H") || (j.jobType || "").toUpperCase().includes("C2H");
                   }
                   return true;
                 }
@@ -1749,43 +1785,50 @@ export default function JobsTab() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
+                        <div className="flex flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <Badge
                             className={cn(
-                              "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm",
-                              job.status === "PUBLISHED"
+                              "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm uppercase",
+                              (job.status === "ACTIVE" || job.status === "PUBLISHED")
                                 ? "bg-emerald-100 text-emerald-700"
-                                : job.status === "PENDING_FINANCIAL_APPROVAL"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : job.status === "DRAFT"
-                                    ? "bg-slate-100 text-slate-500"
+                                : job.status === "HOLD"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : job.status === "SOURCING_PAUSED"
+                                    ? "bg-orange-100 text-orange-800"
                                     : job.status === "CLOSED"
                                       ? "bg-red-100 text-red-700"
-                                      : "bg-indigo-50 text-indigo-600",
+                                      : "bg-slate-100 text-slate-600",
                             )}
                           >
-                            {job.status}
+                            ● {job.status || "ACTIVE"}
                           </Badge>
-                          {(isAdmin || (isClient && job.clientId === orgId)) &&
-                            (job.status === "PUBLISHED" ||
-                              job.status === "CLOSED") && (
-                              <div
-                                className="flex items-center gap-2"
-                                onClick={(e) => e.stopPropagation()}
+                          {(isAdmin || (isClient && job.clientId === orgId)) && (
+                            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                              <button
+                                onClick={() => handleToggleStatus(job.id, job.status)}
+                                className={cn(
+                                  "text-[9px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer uppercase shadow-xs",
+                                  (job.status === "ACTIVE" || job.status === "PUBLISHED")
+                                    ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                )}
                               >
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">
-                                  {job.status === "PUBLISHED"
-                                    ? "Active"
-                                    : "Closed"}
-                                </span>
-                                <Switch
-                                  checked={job.status === "PUBLISHED"}
-                                  onCheckedChange={() =>
-                                    handleToggleStatus(job.id, job.status)
-                                  }
-                                />
-                              </div>
-                            )}
+                                {(job.status === "ACTIVE" || job.status === "PUBLISHED") ? "HOLD" : "ACTIVATE"}
+                              </button>
+
+                              <select
+                                value={job.status || "ACTIVE"}
+                                onChange={(e) => handleSetRequirementStatus(job.id, e.target.value as RequirementStatus)}
+                                className="text-[9px] font-semibold bg-slate-50 border border-slate-200 text-slate-700 rounded px-1.5 py-0.5 cursor-pointer outline-none hover:bg-slate-100"
+                              >
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="HOLD">HOLD</option>
+                                <option value="SOURCING_PAUSED">SOURCING PAUSED</option>
+                                <option value="CLOSED">CLOSED</option>
+                                <option value="EXPIRED">EXPIRED</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
                       </div>
 

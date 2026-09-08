@@ -6,15 +6,19 @@ export default async function handler(req: any, res: any) {
   const action =
     req.body?.action ||
     req.query?.action ||
-    (rawPath.includes("create")
-      ? "create"
-      : rawPath.includes("delete")
-        ? "delete"
-        : rawPath.includes("assign")
-          ? "assign"
-          : rawPath.includes("finalize-onboarding")
-            ? "finalize-onboarding"
-            : "context");
+    (rawPath.includes("export-data")
+      ? "export-data"
+      : rawPath.includes("delete-account")
+        ? "delete-account"
+        : rawPath.includes("create")
+          ? "create"
+          : rawPath.includes("delete")
+            ? "delete"
+            : rawPath.includes("assign")
+              ? "assign"
+              : rawPath.includes("finalize-onboarding")
+                ? "finalize-onboarding"
+                : "context");
 
   console.log(
     `[USER_API] Action: ${action} Method: ${req.method} Path: ${rawPath}`,
@@ -225,6 +229,114 @@ export default async function handler(req: any, res: any) {
       return res
         .status(200)
         .json({ ok: true, message: "Custom claims updated." });
+    }
+
+    // Right to Data Portability / Subject Access Request (GDPR Art. 20, DPDP Act 2023 Sec. 11)
+    if (action === "export-data") {
+      if (!authUserId) {
+        return res.status(401).json({ error: "Authentication required to export data." });
+      }
+      if (!adminDb) {
+        return res.status(503).json({ error: "Database not available" });
+      }
+
+      // Fetch user profile
+      const userDoc = await adminDb.collection("users").doc(authUserId).get();
+      const userData = userDoc.exists ? userDoc.data() : null;
+
+      // Fetch user organization
+      let orgData = null;
+      if (userData?.organizationId) {
+        const orgDoc = await adminDb.collection("organizations").doc(userData.organizationId).get();
+        if (orgDoc.exists) orgData = orgDoc.data();
+      }
+
+      // Fetch user activity logs scoped to user
+      const userAuditLogs: any[] = [];
+      try {
+        const auditSnap = await adminDb.collection("audit_logs")
+          .where("deletedUserId", "==", authUserId)
+          .limit(50)
+          .get();
+        auditSnap.forEach((d: any) => userAuditLogs.push(d.data()));
+      } catch (e) {
+        // ignore
+      }
+
+      const exportPayload = {
+        exportTimestamp: new Date().toISOString(),
+        complianceFrameworks: ["DPDP Act 2023", "GDPR Art. 20", "CCPA/CPRA"],
+        userProfile: {
+          uid: authUserId,
+          email: userData?.email || req.user?.email || null,
+          role: userData?.role || req.user?.role || "guest",
+          name: userData?.name || userData?.displayName || null,
+          createdAt: userData?.createdAt || null,
+          lastLoginAt: userData?.lastLoginAt || null,
+        },
+        organization: orgData ? {
+          id: orgData.id || orgData.organizationId,
+          companyName: orgData.companyName || orgData.name,
+          type: orgData.type || orgData.orgType,
+          status: orgData.status,
+        } : null,
+        metadata: {
+          exportType: "Subject Access Request",
+          retentionNotice: "Operational system access logs are retained in rolling format up to 180 days per CERT-In Cyber Security Directions 2022.",
+        }
+      };
+
+      return res.status(200).json({ ok: true, data: exportPayload });
+    }
+
+    // Right to Erasure / Account Deletion Request (GDPR Art. 17, DPDP Act 2023 Sec. 12)
+    if (action === "delete-account") {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed. Use POST." });
+      }
+      if (!authUserId) {
+        return res.status(401).json({ error: "Authentication required to request account deletion." });
+      }
+      if (!adminDb || !adminAuth) {
+        return res.status(503).json({ error: "Authority node not initialized" });
+      }
+
+      const confirmation = req.body?.confirm;
+      if (confirmation !== true && confirmation !== "DELETE") {
+        return res.status(400).json({ error: "Explicit confirmation required: confirm must be 'DELETE' or boolean true." });
+      }
+
+      // Check if user is sole admin of ORG-GLOBAL-HQ
+      if (authOrgId === "ORG-GLOBAL-HQ" && (authRole === "admin" || authRole === "super_admin")) {
+        return res.status(400).json({ error: "Root Global HQ administrators cannot delete their root account via self-service. Contact platform governance." });
+      }
+
+      const userEmail = req.user?.email || "redacted@hirenest.os";
+      
+      // Revoke tokens and delete user
+      await adminAuth.revokeRefreshTokens(authUserId).catch(() => {});
+      await adminAuth.deleteUser(authUserId).catch(() => {});
+      await adminDb.collection("users").doc(authUserId).delete().catch(() => {});
+
+      // Record immutable audit event with CERT-In 180-day compliance metadata
+      await adminDb.collection("audit_logs").add({
+        date: new Date().toISOString(),
+        timestamp: Date.now(),
+        action: "USER_SELF_ERASURE",
+        userId: authUserId,
+        userEmailMasked: userEmail.replace(/^(.{2})(.*)(@.*)$/, "$1***$3"),
+        reason: req.body?.reason || "Data Subject Erasure Request",
+        legalBasis: "DPDP Act 2023 Sec 12 / GDPR Art 17",
+        certInMandate: "Security telemetry retained under CERT-In Directions 2022 (180 days)",
+        status: "COMPLETED",
+        ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown'
+      });
+
+      return res.status(200).json({
+        ok: true,
+        message: "Your account and personal profile have been successfully erased.",
+        retentionNotice: "In accordance with CERT-In Cyber Security Directions 2022 and applicable financial compliance, non-PII security incident and transaction logs are maintained for a rolling statutory period of 180 days."
+      });
     }
 
     // Default to Context

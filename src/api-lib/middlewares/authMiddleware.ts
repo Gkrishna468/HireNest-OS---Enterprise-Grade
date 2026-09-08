@@ -38,13 +38,13 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       }
 
       // Support for OpenAI-compatible clients using custom HireNest API keys
-      const customApiKey = process.env.HIRENEST_API_KEY || 'HN_dev_key_123';
-      if (token && (token.startsWith('HN_') || token === customApiKey)) {
-        if (token === customApiKey) {
-          req.user = { uid: 'gHW8dOBiUBQELF2jff4mAgy267x2', role: 'admin', orgId: 'ORG-GLOBAL-HQ' };
-          return next();
-        }
-        
+      const customApiKey = process.env.HIRENEST_API_KEY;
+      if (token && customApiKey && token === customApiKey) {
+        req.user = { uid: 'gHW8dOBiUBQELF2jff4mAgy267x2', role: 'admin', orgId: 'ORG-GLOBAL-HQ' };
+        return next();
+      }
+
+      if (token && token.startsWith('HN_')) {
         if (db) {
           try {
             const keySnap = await db.collection('api_keys').doc(token).get();
@@ -61,13 +61,13 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
               }
             }
           } catch (e) {
-            console.warn("Failed to retrieve API key details from database", e);
+            console.warn("Failed to retrieve API key details from database");
           }
         }
         
-        // If it starts with HN_ and is in development, allow it as a dev fallback
-        if (process.env.NODE_ENV !== 'production' || token === 'HN_dev_key_123') {
-          console.warn(`[AuthMiddleware] Allowing dev API key ${token}`);
+        // Development-only fallback: only allow in non-production environments if explicitly enabled
+        if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_API_KEY === 'true') {
+          console.warn('[AuthMiddleware] Allowing dev API key in local dev mode');
           req.user = { uid: 'dev-api-key-user', role: 'admin', orgId: 'hq' };
           return next();
         }

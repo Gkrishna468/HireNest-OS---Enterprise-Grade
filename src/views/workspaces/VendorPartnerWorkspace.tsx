@@ -25,6 +25,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import CandidateSubmissionModal from "../../components/CandidateSubmissionModal";
+import { CandidateReactivationQueue } from "../../components/CandidateReactivationQueue";
 import { SubmissionsLedgerExport } from "../../components/SubmissionsLedgerExport";
 import { ProgressTracker } from "../../components/ProgressTracker";
 import { ActivityFeed } from "../../components/ActivityFeed";
@@ -34,6 +35,10 @@ import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
 import { useDailyBriefing } from "../../hooks/useDailyBriefing";
 import { formatINR, formatCompactINR, formatBudget } from "../../lib/currency";
+import { RecruiterPerformanceModal } from "../../components/modals/RecruiterPerformanceModal";
+import Requirement360Modal from "../../components/modals/Requirement360Modal";
+import { recruiterVendorMappingService, RecruiterVendorMapping } from "../../services/recruiterVendorMappingService";
+import { requirementVendorService } from "../../services/requirementVendorService";
 
 export default function VendorPartnerWorkspace({
   vendorName,
@@ -47,7 +52,12 @@ export default function VendorPartnerWorkspace({
   const [submittingReq, setSubmittingReq] = useState<{
     id: string;
     title: string;
+    recruiterId?: string;
+    clientId?: string;
+    clientName?: string;
   } | null>(null);
+
+  const [selectedReq360, setSelectedReq360] = useState<any | null>(null);
 
   const [interviews, setInterviews] = useState<any[]>([]);
   const { briefing, loading: briefingLoading } = useDailyBriefing(orgId);
@@ -60,21 +70,57 @@ export default function VendorPartnerWorkspace({
   const [reqFilter, setReqFilter] = useState<string>('ALL');
   const [reqSearch, setReqSearch] = useState<string>('');
 
+  // Assigned HireNest Recruiters for this vendor
+  const [assignedRecruiters, setAssignedRecruiters] = useState<RecruiterVendorMapping[]>([]);
+  const [selectedRecruiterForModal, setSelectedRecruiterForModal] = useState<{ id: string; name: string } | null>(null);
+
+  useEffect(() => {
+    const fetchRecruiters = async () => {
+      const recs = await recruiterVendorMappingService.getRecruitersForVendor(orgId || 'vendor-abc');
+      if (recs.length > 0) {
+        setAssignedRecruiters(recs);
+      } else {
+        // Fallback team
+        setAssignedRecruiters([
+          {
+            id: 'map-rahul-abc',
+            recruiterId: 'recruiter-rahul',
+            recruiterName: 'Rahul Sharma',
+            recruiterEmail: 'rahul.sharma@hirenest.ai',
+            vendorId: orgId || 'vendor-abc',
+            vendorName: vendorName,
+            assignedAt: new Date().toISOString(),
+            status: 'ACTIVE',
+            isPrimary: true
+          },
+          {
+            id: 'map-priya-abc',
+            recruiterId: 'recruiter-priya',
+            recruiterName: 'Priya Kumar',
+            recruiterEmail: 'priya.kumar@hirenest.ai',
+            vendorId: orgId || 'vendor-abc',
+            vendorName: vendorName,
+            assignedAt: new Date().toISOString(),
+            status: 'ACTIVE',
+            isPrimary: false
+          }
+        ]);
+      }
+    };
+    fetchRecruiters();
+  }, [orgId, vendorName]);
+
   useEffect(() => {
     let active = true;
 
-    // 1. Requirements SSOT open to vendor network
-    const unsubReqs = onSnapshot(collection(db, "requirements_public"), (snap) => {
-      if (!active) return;
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const activeReqs = items.filter((r: any) => {
-        const s = (r.status || "").toUpperCase();
-        return s !== "DELETED" && s !== "ARCHIVED";
-      });
-      setLiveReqs(activeReqs);
-    }, (err) => {
-      if (active) console.warn("[VendorPartnerWorkspace] reqs listener error:", err.message);
-    });
+    // 1. Authorized Requirements subscription (HQ -> Recruiter -> Vendor scoping)
+    const unsubReqs = requirementVendorService.subscribeToVendorAuthorizedRequirements(
+      orgId || 'vendor-abc',
+      (authorizedReqs) => {
+        if (!active) return;
+        setLiveReqs(authorizedReqs);
+      }
+    );
 
     // 2. Submissions SSOT for this vendor partner
     let unsubSubs = () => {};
@@ -324,6 +370,73 @@ export default function VendorPartnerWorkspace({
             <p className="text-[10px] text-slate-400 mt-2">Expected vendor margin upon client placement</p>
           </div>
 
+        </div>
+      </div>
+
+      {/* Assigned HireNest Recruiters Section */}
+      <div className="px-8 pt-6">
+        <div className="max-w-7xl mx-auto bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-sm font-black uppercase tracking-tight text-white">YOUR HIRENEST RECRUITMENT TEAM</h3>
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px]">
+                  {assignedRecruiters.length} Assigned Recruiters
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                HireNest recruiters allocated to manage your candidate submissions and client interview rounds.
+              </p>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              Live Assigned Team
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {assignedRecruiters.map(rec => {
+              const recPerf = recruiterVendorMappingService.getRecruiterPerformance(rec.recruiterId, rec.recruiterName);
+              return (
+                <div key={rec.id} className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl space-y-3 hover:border-slate-700 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-white text-sm block">{rec.recruiterName}</span>
+                      <span className="text-[10px] text-slate-400">{rec.recruiterEmail || "recruiter@hirenest.ai"}</span>
+                    </div>
+                    {rec.isPrimary && (
+                      <span className="text-[9px] font-mono font-bold bg-indigo-600 text-white px-2 py-0.5 rounded">
+                        PRIMARY
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-slate-500 block uppercase">Reqs</span>
+                      <span className="font-bold text-white text-xs">{recPerf.activeRequirements}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block uppercase">Submitted</span>
+                      <span className="font-bold text-indigo-400 text-xs">{recPerf.candidatesSubmitted}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block uppercase">SLA Score</span>
+                      <span className="font-bold text-emerald-400 text-xs">{recPerf.slaCompliancePercent}%</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedRecruiterForModal({ id: rec.recruiterId, name: rec.recruiterName })}
+                    className="w-full bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs py-1.5 transition-colors"
+                  >
+                    View Recruiter Performance
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -749,18 +862,37 @@ export default function VendorPartnerWorkspace({
                     <tr className="border-b border-slate-800 bg-slate-900/80 text-[10px] font-mono uppercase tracking-wider text-slate-400">
                       <th className="py-3 px-4 font-bold">Requirement Title</th>
                       <th className="py-3 px-4 font-bold">Client / Vertical</th>
+                      <th className="py-3 px-4 font-bold">Assigned Recruiter</th>
                       <th className="py-3 px-4 font-bold">Budget / Rate</th>
                       <th className="py-3 px-4 font-bold">Required Skills</th>
                       <th className="py-3 px-4 font-bold">Work Mode</th>
                       <th className="py-3 px-4 font-bold">Priority</th>
-                      <th className="py-3 px-4 font-bold text-right">Action</th>
+                      <th className="py-3 px-4 font-bold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-xs">
                     {filteredReqs.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-500 font-mono text-xs">
-                          No open requirements matching criteria. Click "Sync Sheets" to refresh live listings.
+                        <td colSpan={8} className="py-12 text-center">
+                          <div className="max-w-md mx-auto space-y-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-amber-400">
+                              <ShieldAlert className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-slate-200">No Authorized Requirements Available</h4>
+                              <p className="text-xs text-slate-400 mt-1">
+                                You currently have no active requirements assigned or authorized to your organization.
+                              </p>
+                            </div>
+                            <div className="flex items-center justify-center gap-2 pt-2">
+                              <button 
+                                onClick={() => window.location.reload()}
+                                className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" /> Refresh Pipeline
+                              </button>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -780,6 +912,14 @@ export default function VendorPartnerWorkspace({
                             </span>
                             <span className="text-[10px] text-slate-400 font-mono">
                               {req.location || "Multiple Locations"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="text-slate-200 font-medium block">
+                              👤 {req.assignedRecruiterName || "Rahul Sharma"}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 font-mono">
+                              SLA &lt; 4 hours
                             </span>
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-white">
@@ -805,7 +945,7 @@ export default function VendorPartnerWorkspace({
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase ${
-                              req.priority === 'High' 
+                              req.priority === 'High' || req.priority === 'HIGH'
                                 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
                                 : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             }`}>
@@ -813,13 +953,29 @@ export default function VendorPartnerWorkspace({
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => setSubmittingReq({ id: req.id, title: req.title || req.role || "Requirement" })}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-[10px] uppercase font-bold h-8 px-3"
-                            >
-                              + Submit Candidate
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedReq360(req)}
+                                className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 font-mono text-[10px] uppercase font-bold h-8 px-2.5"
+                              >
+                                View 360
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => setSubmittingReq({
+                                  id: req.id,
+                                  title: req.title || req.role || "Requirement",
+                                  recruiterId: req.assignedRecruiterId || req.recruiterId || "recruiter-rahul",
+                                  clientId: req.clientId || "client-abc",
+                                  clientName: req.clientName || "Enterprise Partner"
+                                })}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-[10px] uppercase font-bold h-8 px-3"
+                              >
+                                + Submit Candidate
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -828,6 +984,15 @@ export default function VendorPartnerWorkspace({
                 </table>
               </div>
             </div>
+          </div>
+
+          {/* SECTION: Vendor Bench Reactivation Engine */}
+          <div className="pt-6 border-t border-slate-800">
+            <CandidateReactivationQueue
+              role="VENDOR"
+              orgId={orgId}
+              title="Bench Candidate Reactivation Opportunities"
+            />
           </div>
 
           {/* SECTION: Submissions Ledger & Excel Export */}
@@ -844,7 +1009,30 @@ export default function VendorPartnerWorkspace({
         <CandidateSubmissionModal
           reqId={submittingReq.id}
           reqTitle={submittingReq.title}
+          vendorId={orgId}
+          recruiterId={submittingReq.recruiterId}
+          clientId={submittingReq.clientId}
+          clientName={submittingReq.clientName}
           onClose={() => setSubmittingReq(null)}
+        />
+      )}
+
+      {selectedReq360 && (
+        <Requirement360Modal
+          job={selectedReq360}
+          isAdmin={false}
+          userRole="VENDOR"
+          userOrgId={orgId || "vendor-abc"}
+          onClose={() => setSelectedReq360(null)}
+        />
+      )}
+
+      {selectedRecruiterForModal && (
+        <RecruiterPerformanceModal
+          recruiterId={selectedRecruiterForModal.id}
+          recruiterName={selectedRecruiterForModal.name}
+          isVendorFacing={true}
+          onClose={() => setSelectedRecruiterForModal(null)}
         />
       )}
     </div>

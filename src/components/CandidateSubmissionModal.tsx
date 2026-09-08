@@ -10,12 +10,20 @@ interface CandidateSubmissionModalProps {
   onClose: () => void;
   reqId: string;
   reqTitle: string;
+  vendorId?: string;
+  recruiterId?: string;
+  clientId?: string;
+  clientName?: string;
 }
 
 export default function CandidateSubmissionModal({
   onClose,
   reqId,
   reqTitle,
+  vendorId,
+  recruiterId,
+  clientId,
+  clientName,
 }: CandidateSubmissionModalProps) {
   const [isParsing, setIsParsing] = useState(false);
   const [parsed, setParsed] = useState(false);
@@ -135,9 +143,11 @@ export default function CandidateSubmissionModal({
         },
         requirementId: reqId,
         reqTitle,
-        clientId: "HQ", // Default fallback if not fetched
-        vendorId: "local",
-        submitterId: "local_user",
+        clientId: clientId || "HQ",
+        clientName: clientName || "Enterprise Partner",
+        vendorId: vendorId || "local",
+        recruiterId: recruiterId || "recruiter-rahul",
+        submitterId: vendorId || "local_user",
         initialStatus: "PENDING_REVIEW",
         matchScore: aiAnalysis?.fitScore || 0,
         aiAnalysis: aiAnalysis || null,

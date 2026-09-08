@@ -197,6 +197,8 @@ import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
 import rufloHandler from './src/api-lib/handlers/ruflo';
 import aiHealthHandler from './src/api-lib/handlers/ai-health';
+import reactivationHandler from './src/api-lib/handlers/reactivation';
+import networkMappingHandler from './src/api-lib/handlers/network-mapping';
 import { ErrorMonitor } from './src/api-lib/telemetry/errorMonitor.js';
 import { CRMEventBridge } from './src/integrations/crm/CRMEventBridge.js';
 
@@ -558,6 +560,8 @@ hirenest_active_requests 0
   app.use('/api/recruiter-os', recruiterOsHandler);
   app.use('/api/executive-metrics', executiveMetricsHandler);
   app.use('/api/daily-briefing', dailyBriefingHandler);
+  app.use('/api/reactivation', reactivationHandler);
+  app.use('/api/network-mapping', networkMappingHandler);
 
   // API Route Handler
   app.use('/api', async (req: any, res: any, next: any) => {
@@ -735,6 +739,17 @@ hirenest_active_requests 0
               updatedAt: new Date().toISOString()
             }, { merge: true });
 
+            // If status is not active, mark requirement_vendors inactive
+            const isStatusActive = status.toUpperCase() === 'ACTIVE' || status.toUpperCase() === 'PUBLISHED';
+            const reqVenSnap = await adminDb.collection('requirement_vendors').where('requirementId', '==', jobId).get();
+            for (const doc of reqVenSnap.docs) {
+              await doc.ref.set({
+                status: isStatusActive ? 'ACTIVE' : 'INACTIVE',
+                visibility: isStatusActive ? 'ENABLED' : 'DISABLED',
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+
             // Also update 'requirements' if it exists
             const reqRef = adminDb.collection('requirements').doc(jobId);
             const reqSnap = await reqRef.get();
@@ -891,7 +906,7 @@ hirenest_active_requests 0
     serveStaticFiles();
   }
 
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://0.0.0.0:${PORT}`);

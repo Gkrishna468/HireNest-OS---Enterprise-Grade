@@ -5,5 +5,7 @@
   "authDomain": "hirenest-os.firebaseapp.com",
   "storageBucket": "hirenest-os.firebasestorage.app",
   "messagingSenderId": "733294346096",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "733294346096-nou38rtn24s9os09bj1qffn2ci5nu53c.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

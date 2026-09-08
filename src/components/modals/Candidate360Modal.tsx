@@ -10,6 +10,8 @@ import { cn } from '../../lib/utils';
 import { publishEvent } from '../../lib/eventEngine';
 import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
 import { parseBulkResumes } from "../../services/aiService";
+import { CandidateReactivationService } from "../../services/CandidateReactivationService";
+import { ReactivationOpportunityCard } from "../ReactivationOpportunityCard";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
 
@@ -151,6 +153,13 @@ export default function Candidate360Modal({
     }
   };
 
+  const isVendorRole = userRole === "VENDOR" || userRole === "vendor";
+  const availableJobs = isVendorRole
+    ? jobs.filter(j => (j.status === 'ACTIVE' || j.status === 'PUBLISHED' || !j.status) && (
+        Array.isArray(j.distributedVendorIds) ? j.distributedVendorIds.includes(userOrgId) : true
+      ))
+    : jobs;
+
   const handleRunMatch = async () => {
     if (!selectedJobId) return;
     setIsMapping(true);
@@ -178,6 +187,7 @@ export default function Candidate360Modal({
         matchScore: mappingResult?.matchScore || mappingResult?.fitScore || 0,
         aiAnalysis: mappingResult || null,
         bypassOwnershipCheck: isAdmin,
+        authorization_id: `reqven-${selectedJobId}-${userOrgId}`
       });
 
       if (response && response.success) {
@@ -362,12 +372,51 @@ export default function Candidate360Modal({
                                     <Badge variant="outline" className="bg-slate-50 border border-slate-200 text-slate-700">{skill}</Badge>
                                  </span>
                               ))}
-                              {false && [].map(() => (
-                                <Badge variant="outline" className="bg-slate-50 border border-slate-200 text-slate-700">{"skill"}</Badge>
-                             ))}
                          </div>
                      </div>
                    )}
+
+                   {/* Candidate Reactivation Engine Card */}
+                   {(() => {
+                     const targetJob = jobs?.[0] || { title: "Lead Software Engineer", requiredSkills: skillsArr.length ? skillsArr : ["TypeScript", "React"], maxBudget: "25 LPA" };
+                     const opp = CandidateReactivationService.evaluateOpportunity(displayCandidate, targetJob);
+                     if (!opp) return null;
+                     return (
+                       <div className="bg-white p-1 rounded-xl shadow-sm border border-indigo-100">
+                         <div className="px-4 pt-3 pb-1 flex items-center justify-between border-b border-slate-100">
+                           <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1">
+                             <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Candidate Reactivation Intelligence
+                           </span>
+                           <span className="text-[10px] text-slate-400">8-Signal Converging Evidence</span>
+                         </div>
+                         <div className="p-2">
+                           <ReactivationOpportunityCard
+                             opportunity={opp}
+                             onApprove={async (oppId, customMessage, channel) => {
+                               try {
+                                 const res = await fetch('/api/reactivation/approve', {
+                                   method: 'POST',
+                                   headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify({ opportunityId: oppId, opportunity: opp, customMessage, channel })
+                                 });
+                                 const data = await res.json();
+                                 if (data.success) {
+                                   alert("Outreach successfully dispatched via Communication Guard!");
+                                 } else {
+                                   alert("Dispatch notice: " + (data.error || "Processed"));
+                                 }
+                               } catch (err: any) {
+                                 alert("Failed to send outreach: " + err.message);
+                               }
+                             }}
+                             onDiscard={async () => {
+                               alert("Reactivation opportunity dismissed for this candidate.");
+                             }}
+                           />
+                         </div>
+                       </div>
+                     );
+                   })()}
                 </div>
              )}
 
@@ -635,7 +684,7 @@ export default function Candidate360Modal({
                            <div className="flex flex-col sm:flex-row gap-3 relative z-10">
                               <select className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)}>
                                  <option value="">Select an open requirement...</option>
-                                 {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.company})</option>)}
+                                 {availableJobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.clientName || j.company || "Enterprise Partner"})</option>)}
                               </select>
                               <Button 
                                  onClick={handleRunMatch} 

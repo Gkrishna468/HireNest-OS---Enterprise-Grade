@@ -118,7 +118,7 @@ import SignalsTab from "./views/SignalsTab";
 import { NotificationCenter } from "./components/NotificationCenter";
 import LandingPage from "./views/LandingPage";
 import AuthPage from "./views/AuthPage";
-import { TermsPage, PrivacyPage } from "./views/LegalPages";
+import { TermsPage, PrivacyPage, CookiePolicyPage, SecurityPolicyPage, DataRequestPage, DeleteAccountPage } from "./views/LegalPages";
 
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
@@ -408,6 +408,10 @@ const AppContent = () => {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/cookies" element={<CookiePolicyPage />} />
+        <Route path="/security" element={<SecurityPolicyPage />} />
+        <Route path="/data-request" element={<DataRequestPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route
           path="/onboarding"
           element={
@@ -1117,6 +1121,10 @@ const AppContent = () => {
             {isAdmin && <Route path="/admin/requirement-360" element={<JobsTab />} />}
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/cookies" element={<CookiePolicyPage />} />
+            <Route path="/security" element={<SecurityPolicyPage />} />
+            <Route path="/data-request" element={<DataRequestPage />} />
+            <Route path="/delete-account" element={<DeleteAccountPage />} />
             <Route
               path="/usage"
               element={<TenantUsageDashboard orgData={userData} />}

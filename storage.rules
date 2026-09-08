@@ -1,12 +1,36 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /compliance/{organizationId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+    function isSignedIn() {
+      return request.auth != null;
     }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && (
+        request.auth.token.get('organizationId', '') == orgId ||
+        request.auth.token.get('orgId', '') == orgId
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.get('role', '') in ['admin', 'super_admin', 'platform_authority', 'hq_admin', 'ceo', 'ops_admin'] ||
+        request.auth.token.email in ['gopal@hirenestworkforce.com', 'gopalkrishna0046@gmail.com']
+      );
+    }
+
+    match /compliance/{organizationId}/{allPaths=**} {
+      allow read, write: if isOrgMember(organizationId) || isAdmin();
+    }
+
     match /resumes/{organizationId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isOrgMember(organizationId) || isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
     }
   }
 }
+
 

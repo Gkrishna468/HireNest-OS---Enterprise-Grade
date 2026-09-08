@@ -17,18 +17,30 @@ export class FirebaseIdentityService implements IIdentityService {
   }
 
   async updateUserProfile(uid: string, data: Partial<Record<string, any>>): Promise<void> {
-    const docRef = doc(db, "users", uid);
-    await setDoc(docRef, data, { merge: true });
+    try {
+      const docRef = doc(db, "users", uid);
+      await setDoc(docRef, data, { merge: true });
+    } catch (err) {
+      console.warn(`[FirebaseIdentityService] updateUserProfile failed for uid ${uid}:`, err);
+    }
   }
 
   async updateDemoFlag(uid: string, hasSeenDemo: boolean): Promise<void> {
-    const docRef = doc(db, "users", uid);
-    await setDoc(docRef, { hasSeenDemo }, { merge: true });
+    try {
+      const docRef = doc(db, "users", uid);
+      await setDoc(docRef, { hasSeenDemo }, { merge: true });
+    } catch (err) {
+      console.warn(`[FirebaseIdentityService] updateDemoFlag notice for uid ${uid}:`, err);
+    }
   }
 
   async updatePilotMode(uid: string, enabled: boolean): Promise<void> {
-    const docRef = doc(db, "users", uid);
-    await setDoc(docRef, { pilotMode: enabled }, { merge: true });
+    try {
+      const docRef = doc(db, "users", uid);
+      await setDoc(docRef, { pilotMode: enabled }, { merge: true });
+    } catch (err) {
+      console.warn(`[FirebaseIdentityService] updatePilotMode notice for uid ${uid}:`, err);
+    }
   }
 
   async executeAdminCleanup(email: string): Promise<void> {

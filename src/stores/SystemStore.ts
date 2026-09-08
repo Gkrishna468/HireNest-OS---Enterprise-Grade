@@ -38,7 +38,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
               isOnline: true
             });
           } catch (err) {
-            console.error("Failed to update lastLoginAt", err);
+            console.warn("Notice: lastLoginAt sync warning:", err);
           }
 
           set({ 
@@ -65,7 +65,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       try {
         await ServiceProvider.identityService.updateDemoFlag(user.uid, true);
       } catch (err) {
-        console.error("Failed to update demo flag:", err);
+        console.warn("Notice: demo flag sync warning:", err);
       }
     }
   },
@@ -77,7 +77,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       try {
         await ServiceProvider.identityService.updatePilotMode(user.uid, enabled);
       } catch (err) {
-        console.error("Failed to update pilot mode:", err);
+        console.warn("Notice: pilot mode sync warning:", err);
       }
     }
   }

@@ -66,6 +66,12 @@ export interface Candidate {
   createdFrom?: 'CLIENT' | 'VENDOR' | 'RECRUITER' | 'SYSTEM' | string;
   createdVia?: 'CRM' | 'OS' | 'PORTAL' | 'API' | 'IMPORT' | string;
   createdByRole?: 'CLIENT' | 'VENDOR' | 'BDM' | 'RECRUITER' | 'ADMIN' | string;
+
+  // Reactivation Engine Extensions
+  lastActivityAt?: string;
+  lastContactedAt?: string;
+  consentStatus?: 'OPTED_IN' | 'OPTED_OUT' | 'PENDING';
+  reactivationEligible?: boolean;
 }
 
 export enum CandidateLifecycleStatus {
@@ -236,5 +242,70 @@ export interface Commission {
   status: 'PENDING' | 'PAID' | 'DISPUTED';
   type: 'FIXED' | 'PERCENTAGE';
   splits?: CommissionSplit[];
+}
+
+export interface ReactivationSignalEvidence {
+  type: 'NEW_REQUIREMENT_MATCH' | 'INACTIVITY_DECAY' | 'SILVER_MEDALIST' | 'NOTICE_PERIOD' | 'COMP_REALIGNMENT' | 'DROPPED_STAGE' | 'EXCLUSIVITY_EXPIRY' | 'SKILL_SURGE';
+  weight: number;
+  description: string;
+}
+
+export interface ReactivationOpportunity {
+  id: string;
+  candidateId: string;
+  candidateName?: string;
+  candidateEmail?: string;
+  candidatePhone?: string;
+  candidateSkills?: string[];
+  candidateNoticePeriod?: string;
+  candidateLocation?: string;
+  candidateExperience?: number | string;
+  vendorId?: string;
+
+  requirementId: string;
+  requirementTitle?: string;
+  clientName?: string;
+  clientId?: string;
+  tenantId?: string;
+
+  triggerType: 'NEW_REQUIREMENT_MATCH' | 'DORMANT_CANDIDATE' | 'SILVER_MEDALIST' | 'MULTI_SIGNAL_COMPOSITE';
+  triggerReason: string;
+
+  opportunityScore: number; // 0-100 converging score
+  matchScore: number; // 0-100 direct match score
+  signals: ReactivationSignalEvidence[];
+
+  matchExplanation: {
+    strengths: string[];
+    gaps: string[];
+    recommendation: string;
+  };
+  dormantDays: number;
+
+  recommendedChannel: 'EMAIL' | 'WHATSAPP' | 'SMS';
+  messageDraft: {
+    subject?: string;
+    body: string;
+    roleTitle: string;
+    clientIndustry?: string;
+    compRange?: string;
+  };
+
+  consentStatus: 'OPTED_IN' | 'OPTED_OUT' | 'PENDING';
+  status: 'PENDING_RECRUITER_REVIEW' | 'APPROVED' | 'DISPATCHED' | 'DISCARDED' | 'EXPIRED';
+
+  recruiterId?: string;
+  reviewedAt?: string;
+  dispatchedAt?: string;
+
+  responseIntent?: 'INTERESTED' | 'NOT_AVAILABLE' | 'RATE_MISMATCH' | 'OPT_OUT' | 'UNRESPONSIVE';
+  respondedAt?: string;
+
+  submissionId?: string;
+  placementId?: string;
+  recoveredRevenue?: number;
+
+  createdAt: string;
+  updatedAt: string;
 }
 

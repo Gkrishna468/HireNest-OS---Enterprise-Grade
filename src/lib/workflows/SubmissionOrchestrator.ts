@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { emitEvent } from "../../services/eventBus";
+import { AccessControlService } from "../../services/accessControlService";
 
 export interface SubmissionRequest {
   candidateData: {
@@ -258,17 +259,29 @@ export class SubmissionOrchestrator {
       candidateName = candidateName || "Anonymous";
 
       let reqTitle = "Unknown Requirement";
+      let authoritativeClientId = clientId || "HQ";
+      let authoritativeClientName = "Enterprise Partner";
+      let authoritativeRecruiterId = (request as any).recruiterId || "recruiter-rahul";
+      let authoritativeRecruiterName = "Rahul Sharma";
+
       if (requirementId) {
          try {
              const { getDoc, doc } = await import("firebase/firestore");
              const reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
              if (reqSnap.exists()) {
-                 reqTitle = reqSnap.data().title || "Unknown Requirement";
+                 const reqData = reqSnap.data();
+                 reqTitle = reqData.title || reqData.role || "Unknown Requirement";
+                 authoritativeClientId = reqData.clientId || authoritativeClientId;
+                 authoritativeClientName = reqData.clientName || authoritativeClientName;
+                 authoritativeRecruiterId = reqData.assignedRecruiterId || reqData.recruiterId || authoritativeRecruiterId;
+                 authoritativeRecruiterName = reqData.assignedRecruiterName || reqData.recruiterName || authoritativeRecruiterName;
              }
          } catch(e) {
              console.error("Failed to fetch req title", e);
          }
       }
+
+      const authorizationId = `reqven-${requirementId}-${vendorId}`;
 
       let vendorName = "HQ";
       if (vendorId && vendorId !== "HQ") {
@@ -336,8 +349,25 @@ export class SubmissionOrchestrator {
             requirementId,
             canonicalRequirementId: requirementId,
             reqTitle: reqTitle,
-            clientId,
+            clientId: authoritativeClientId,
+            clientName: authoritativeClientName,
+            recruiterId: authoritativeRecruiterId,
+            recruiterName: authoritativeRecruiterName,
             vendorId, // authoritative
+            authorization_id: authorizationId,
+            requirementVendorAuthorizationId: authorizationId,
+            attribution_snapshot: AccessControlService.createAttributionSnapshot({
+              requirementId,
+              requirementTitle: reqTitle,
+              recruiterId: authoritativeRecruiterId,
+              recruiterName: authoritativeRecruiterName,
+              vendorId,
+              vendorName,
+              clientId: authoritativeClientId,
+              clientName: authoritativeClientName,
+              authorizationId,
+              submittedByUserId: submitterId
+            }),
             status: initialStatus,
             submittedBy: submitterId,
             matchScore,

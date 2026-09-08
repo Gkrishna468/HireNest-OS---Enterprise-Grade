@@ -322,11 +322,12 @@ export class RequirementSyncService {
     return lines.filter(r => r.some(cell => cell.length > 0));
   }
 
-  private static normalizeStatus(raw: string): 'ACTIVE' | 'CLOSED' | 'HOLD' | 'EXPIRED' {
+  private static normalizeStatus(raw: string): 'ACTIVE' | 'CLOSED' | 'HOLD' | 'EXPIRED' | 'SOURCING_PAUSED' {
     const s = raw.toLowerCase().trim();
-    if (s === 'active' || s === 'open') return 'ACTIVE';
+    if (s === 'active' || s === 'open' || s === 'published') return 'ACTIVE';
     if (s === 'closed' || s === 'filled') return 'CLOSED';
-    if (s === 'on hold' || s === 'hold') return 'HOLD';
+    if (s === 'on hold' || s === 'hold' || s === 'paused') return 'HOLD';
+    if (s === 'sourcing paused' || s === 'sourcing_paused' || s === 'paused sourcing') return 'SOURCING_PAUSED';
     if (s === 'expired') return 'EXPIRED';
     return 'ACTIVE';
   }
