@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { SkillNormalizer } from "../resume-engine/matching/skill-normalizer";
 import { formatBudget } from "../lib/currency";
+import { UnifiedRequirementsService } from "./unifiedRequirementsService";
 
 export interface CandidateMatchResult {
   requirementId: string;
@@ -198,15 +199,15 @@ export class CandidateMatchingService {
     }
 
     try {
-      // 1. Fetch public requirements where status is OPEN/ACTIVE/PUBLISHED and directApply is not false
+      // 1. Fetch public requirements where status is ACTIVE and distributionStatus is PUBLISHED (canonical operational gate)
       const qReqs = collection(db, "requirements_public");
       const reqSnap = await getDocs(qReqs);
       const openReqs: any[] = reqSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((r: any) => {
-          const isOpen = !r.status || ["OPEN", "ACTIVE", "PUBLISHED"].includes(r.status.toUpperCase());
+          const isOperational = UnifiedRequirementsService.isRequirementOperational(r);
           const isDirect = r.directApplyEnabled !== false;
-          return isOpen && isDirect;
+          return isOperational && isDirect;
         });
 
       // 2. Fetch candidate's existing applications to mark `isApplied`

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
-import { cn } from '../../lib/utils';
+import { cn, getCandidateFitmentScore } from '../../lib/utils';
 import { publishEvent } from '../../lib/eventEngine';
 import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
 import { parseBulkResumes } from "../../services/aiService";
@@ -357,8 +357,14 @@ export default function Candidate360Modal({
                       ) : (
                          <div className="bg-indigo-900 p-5 rounded-xl border border-indigo-800 shadow-sm text-white flex flex-col justify-center items-center text-center">
                             <h3 className="font-bold uppercase tracking-widest text-[10px] text-indigo-300 mb-2">Platform Score</h3>
-                            <div className="text-5xl font-black text-indigo-100 mb-2">{(displayCandidate.matchScore || mappingResult?.matchScore) || '--'}<span className="text-2xl text-indigo-400">%</span></div>
-                            <p className="text-xs text-indigo-300 font-medium">{mappingResult ? 'Matched to Requirement' : 'Pending AI Match'}</p>
+                            <div className="text-5xl font-black text-indigo-100 mb-2">
+                              {(() => {
+                                const score = getCandidateFitmentScore({ ...displayCandidate, ...(mappingResult ? { matchScore: mappingResult.matchScore } : {}) });
+                                return score > 0 ? score : '--';
+                              })()}
+                              <span className="text-2xl text-indigo-400">%</span>
+                            </div>
+                            <p className="text-xs text-indigo-300 font-medium">{mappingResult ? 'Matched to Requirement' : 'Verified Fitment Score'}</p>
                          </div>
                       )}
                    </div>
@@ -481,6 +487,57 @@ export default function Candidate360Modal({
                       }}><UploadCloud size={14} className="mr-2" /> Download Original</Button>
                       </div>
                    </div>
+                   {/* Provenance & Version History Banner */}
+                   {(displayCandidate.sourceMetadata || (Array.isArray(displayCandidate.resumeVersions) && displayCandidate.resumeVersions.length > 0)) && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                           <div className="flex items-center gap-2">
+                             <span className="font-bold text-slate-700">Source Provenance:</span>
+                             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
+                               {displayCandidate.sourceType || "DIRECT_CANDIDATE"} ({displayCandidate.directSource || "MANUAL_UPLOAD"})
+                             </Badge>
+                             {displayCandidate.sourceMetadata?.ingestedAt && (
+                               <span className="text-slate-500 text-[11px]">
+                                 Ingested: {new Date(displayCandidate.sourceMetadata.ingestedAt).toLocaleString()}
+                               </span>
+                             )}
+                           </div>
+                           {displayCandidate.sourceMetadata?.originalFileName && (
+                             <div className="text-slate-600 font-mono text-[11px]">
+                               File: {displayCandidate.sourceMetadata.originalFileName}
+                             </div>
+                           )}
+                        </div>
+
+                        {Array.isArray(displayCandidate.resumeVersions) && displayCandidate.resumeVersions.length > 0 && (
+                          <div className="pt-2 border-t border-slate-200">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                              Resume Version History ({displayCandidate.resumeVersions.length} {displayCandidate.resumeVersions.length === 1 ? 'version' : 'versions'})
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {displayCandidate.resumeVersions.map((v: any, idx: number) => (
+                                <div 
+                                  key={idx}
+                                  className={cn(
+                                    "px-2.5 py-1 rounded-lg border text-xs font-mono flex items-center gap-2",
+                                    (v.version === displayCandidate.currentResumeVersion || idx === displayCandidate.resumeVersions.length - 1)
+                                      ? "bg-indigo-100 text-indigo-900 border-indigo-300 font-bold"
+                                      : "bg-white text-slate-600 border-slate-200"
+                                  )}
+                                >
+                                  <span>v{v.version || idx + 1}</span>
+                                  <span className="text-[10px] text-slate-500">
+                                    {v.uploadedAt ? new Date(v.uploadedAt).toLocaleDateString() : 'Initial'}
+                                  </span>
+                                  {v.fileName && <span className="text-[10px] opacity-75">({v.fileName})</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                   )}
+
                    {displayCandidate.resumeProcessingStatus && (
                       <div className="bg-slate-100 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs text-slate-600">
                         <div>
@@ -707,7 +764,7 @@ export default function Candidate360Modal({
                               </div>
                               <div className="text-right">
                                  <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Match Engine Score</div>
-                                 <div className="text-4xl font-black text-indigo-600">{displayCandidate.matchScore || mappingResult.matchScore || '--'}%</div>
+                                 <div className="text-4xl font-black text-indigo-600">{getCandidateFitmentScore({ ...displayCandidate, matchScore: mappingResult.matchScore })}%</div>
                               </div>
                            </div>
 

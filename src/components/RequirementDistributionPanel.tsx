@@ -80,7 +80,7 @@ export function RequirementDistributionPanel({
         vendors = [
           { id: "vendor-abc", name: "ABC Technologies", status: "ACTIVE" },
           { id: "vendor-xyz", name: "XYZ Solutions", status: "ACTIVE" },
-          { id: "vendor-techsource", name: "TechSource India", status: "ACTIVE" },
+          { id: "vendor-apex", name: "Apex Global", status: "ACTIVE" },
           { id: "vendor-cloudstaff", name: "CloudStaff Solutions", status: "ACTIVE" }
         ];
       }

@@ -261,8 +261,8 @@ export class SubmissionOrchestrator {
       let reqTitle = "Unknown Requirement";
       let authoritativeClientId = clientId || "HQ";
       let authoritativeClientName = "Enterprise Partner";
-      let authoritativeRecruiterId = (request as any).recruiterId || "recruiter-rahul";
-      let authoritativeRecruiterName = "Rahul Sharma";
+      let authoritativeRecruiterId: string | null = (request as any).recruiterId || null;
+      let authoritativeRecruiterName: string | null = (request as any).recruiterName || null;
 
       if (requirementId) {
          try {

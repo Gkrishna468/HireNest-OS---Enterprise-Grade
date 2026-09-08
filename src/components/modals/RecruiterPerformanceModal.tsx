@@ -177,7 +177,7 @@ export const RecruiterPerformanceModal: React.FC<Props> = ({
                       <td className="p-3 font-mono font-bold text-indigo-600">84%</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">TechSource India</td>
+                      <td className="p-3 font-bold text-slate-800 dark:text-slate-200">Apex Global</td>
                       <td className="p-3 text-slate-600 dark:text-slate-400">5</td>
                       <td className="p-3 text-slate-600 dark:text-slate-400">17</td>
                       <td className="p-3 font-bold text-emerald-600">2</td>

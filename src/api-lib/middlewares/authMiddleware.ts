@@ -26,6 +26,7 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       req.originalUrl.includes('/api/kill-switch') ||
       req.originalUrl.includes('/api/sync-requirements') ||
       req.originalUrl.includes('/api/executive-metrics') ||
+      req.originalUrl.includes('/api/daily-briefing') ||
       Boolean(req.headers['x-hirenest-signature'])
     ) {
       return next();

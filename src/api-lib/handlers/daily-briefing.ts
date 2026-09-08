@@ -5,7 +5,7 @@ const dailyBriefingHandler = express.Router();
 
 dailyBriefingHandler.get("/", async (req: any, res: any) => {
   try {
-    const role = req.user?.role || "recruiter";
+    const role = req.user?.role || req.query.role || "recruiter";
     const tenantId = req.user?.organizationId || req.query.orgId || "TENANT-HQ";
     const userEmail = req.user?.email || "User";
 

@@ -17,6 +17,7 @@ import {
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { formatINR } from "../lib/currency";
+import { getCandidateFitmentScore } from "../lib/utils";
 
 export interface SubmissionRecord {
   id: string;
@@ -193,8 +194,8 @@ export const SubmissionsLedgerExport: React.FC<SubmissionsLedgerExportProps> = (
       })
       .sort((a, b) => {
         if (sortField === "matchScore") {
-          const scoreA = a.matchScore || 0;
-          const scoreB = b.matchScore || 0;
+          const scoreA = getCandidateFitmentScore(a);
+          const scoreB = getCandidateFitmentScore(b);
           return sortDirection === "asc" ? scoreA - scoreB : scoreB - scoreA;
         }
         if (sortField === "revenue") {
@@ -282,7 +283,7 @@ export const SubmissionsLedgerExport: React.FC<SubmissionsLedgerExportProps> = (
         `"${(s.clientName || "Enterprise Client").replace(/"/g, '""')}"`,
         `"${(s.vendorName || "HireNest Partner").replace(/"/g, '""')}"`,
         `"${getNormalizedStatus(s.status)}"`,
-        s.matchScore || 85,
+        getCandidateFitmentScore(s),
         val,
         `"${dateStr}"`,
       ].join(",");
@@ -471,11 +472,11 @@ export const SubmissionsLedgerExport: React.FC<SubmissionsLedgerExportProps> = (
                         <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-indigo-500 rounded-full"
-                            style={{ width: `${sub.matchScore || 85}%` }}
+                            style={{ width: `${getCandidateFitmentScore(sub)}%` }}
                           />
                         </div>
                         <span className="text-xs font-semibold text-indigo-300">
-                          {sub.matchScore || 85}%
+                          {getCandidateFitmentScore(sub)}%
                         </span>
                       </div>
                     </td>

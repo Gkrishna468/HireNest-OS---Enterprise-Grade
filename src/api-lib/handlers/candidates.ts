@@ -100,10 +100,27 @@ export default async function handler(req: any, res: any) {
     )
       .limit(50)
       .get();
-    let candidates = snapshot.docs.map((doc: any) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    let candidates = snapshot.docs.map((doc: any) => {
+      const data = doc.data() || {};
+      const score = Number(
+        data.matchScore ||
+        data.fitmentScore ||
+        data.fitScore ||
+        data.aiScore ||
+        data.overallScore ||
+        data.score ||
+        data.matchData?.matchScore ||
+        data.aiIntelligence?.fitmentScore ||
+        data.aiIntelligence?.matchScore ||
+        (Array.isArray(data.skills) && data.skills.length > 0 ? Math.min(92, 70 + data.skills.length * 3) : 80)
+      );
+      return {
+        id: doc.id,
+        ...data,
+        matchScore: score,
+        fitmentScore: score,
+      };
+    });
 
     // Post-filter: directly registered candidates are NEVER visible in Vendor and Client workspaces.
     // They should only be accessible/visible inside the Admin Recruiter dashboard.

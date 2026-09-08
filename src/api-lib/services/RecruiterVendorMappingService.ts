@@ -40,12 +40,12 @@ export class RecruiterVendorMappingBackendService {
       isPrimary: false
     },
     {
-      id: "map-rahul-techsource",
+      id: "map-rahul-apex",
       recruiterId: "recruiter-rahul",
       recruiterName: "Rahul Sharma",
       recruiterEmail: "rahul.sharma@hirenest.ai",
-      vendorId: "vendor-techsource",
-      vendorName: "TechSource India",
+      vendorId: "vendor-apex",
+      vendorName: "Apex Global",
       assignedBy: "HQ Admin",
       assignedAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
       status: "ACTIVE",

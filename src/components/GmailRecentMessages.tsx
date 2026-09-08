@@ -25,7 +25,7 @@ export function GmailRecentMessages({ filterDomain, filterName, filterEmail }: {
           const res = await fetch('/api/workspace/status', {
              headers: { 'Authorization': `Bearer ${token}` }
           });
-          const data = await res.json();
+          const data = res.ok ? await res.json().catch(() => ({ connected: false })) : { connected: false };
           if (active) {
             setIsConnected(data.connected);
             if (data.connected) {

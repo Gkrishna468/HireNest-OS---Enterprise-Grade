@@ -21,6 +21,9 @@ const MONTH_MAP: Record<string, number> = {
 };
 
 const COMMON_DESIGNATIONS = [
+  "S/4 HANA Finance Solution Architect", "SAP S/4HANA Finance Solution Architect",
+  "SAP Solution Architect", "SAP PPQM Consultant", "SAP FICO Consultant",
+  "SAP Consultant", "Solution Architect", "Enterprise Architect",
   "Software Engineer", "Senior Software Engineer", "Lead Software Engineer",
   "Principal Engineer", "Staff Software Engineer", "Full Stack Developer",
   "Backend Developer", "Frontend Developer", "DevOps Engineer", "Cloud Architect",

@@ -23,7 +23,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "../lib/Button";
-import { cn } from "../lib/utils";
+import { cn, getCandidateFitmentScore } from "../lib/utils";
 import { generateIdentityHash, checkAndClaimOwnership } from "../lib/ownershipVault";
 import {
   db,
@@ -252,11 +252,15 @@ const PIPELINE_STAGES = [
                   <div>
                     <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center justify-between gap-1">
                       <span className="truncate">{candidate.fullName || candidate.name || "Unknown"}</span>
-                      {candidate.matchScore > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                          {candidate.matchScore}%
-                        </span>
-                      )}
+                      {(() => {
+                        const score = getCandidateFitmentScore(candidate);
+                        if (score <= 0) return null;
+                        return (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                            {score}%
+                          </span>
+                        );
+                      })()}
                     </p>
                     <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
                       {candidate.candidateId || candidate.id || "HN-CAN-PENDING"}

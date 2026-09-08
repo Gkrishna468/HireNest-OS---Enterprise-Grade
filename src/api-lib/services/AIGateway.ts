@@ -273,13 +273,15 @@ export class GoogleProvider implements AIProvider {
                     const msg = err?.message || String(err);
 
                     // Definitive Quota Exhaustion (429 with quota/billing message or RESOURCE_EXHAUSTED)
+                    const lowerMsg = msg.toLowerCase();
                     const isQuotaExhausted =
-                        msg.includes("exceeded your current quota") ||
-                        msg.includes("quota exceeded") ||
-                        msg.includes("RESOURCE_EXHAUSTED") ||
-                        msg.includes("BILLING_DISABLED") ||
-                        msg.includes("depleted") ||
-                        (msg.includes("429") && (msg.includes("quota") || msg.includes("exceeded") || msg.includes("billing") || msg.includes("plan")));
+                        lowerMsg.includes("exceeded your current quota") ||
+                        lowerMsg.includes("resource_exhausted") ||
+                        lowerMsg.includes("quota") ||
+                        lowerMsg.includes("rate exceeded") ||
+                        lowerMsg.includes("billing_disabled") ||
+                        lowerMsg.includes("depleted") ||
+                        (lowerMsg.includes("429") && (lowerMsg.includes("quota") || lowerMsg.includes("exceeded") || lowerMsg.includes("billing") || lowerMsg.includes("plan")));
 
                     if (isQuotaExhausted) {
                         console.warn(`[GoogleProvider] Gemini API Quota Exceeded (429). Fast-failing to deterministic fallback engine.`);

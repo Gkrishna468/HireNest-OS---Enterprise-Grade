@@ -28,6 +28,7 @@ import {
   Network,
   User,
   Users,
+  FileSpreadsheet,
 } from "lucide-react";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import {
@@ -56,6 +57,7 @@ import { RequirementDiscussionThread } from "../components/RequirementDiscussion
 import Candidate360Modal from "../components/modals/Candidate360Modal";
 import { requirementVendorService } from "../services/requirementVendorService";
 import { requirementLifecycleService, RequirementStatus } from "../services/requirementLifecycleService";
+import { requirementDistributionService } from "../services/requirementDistributionService";
 import { AccessControlService } from "../services/accessControlService";
 
 const setDoc = async (ref: any, data: any, options?: any) => {
@@ -1217,7 +1219,7 @@ export default function JobsTab() {
     setIsAnalyzing(false);
   };
 
-  const handleSetRequirementStatus = async (jobId: string, targetStatus: RequirementStatus) => {
+  const handleSetRequirementStatus = async (jobId: string, targetStatus: string) => {
     try {
       const user = auth.currentUser;
       const context = AccessControlService.buildAccessContext({
@@ -1226,27 +1228,75 @@ export default function JobsTab() {
         orgId: orgId
       });
 
+      const isPublishing = targetStatus === "PUBLISHED";
+      const actualTargetStatus: RequirementStatus = isPublishing ? "ACTIVE" : (targetStatus as RequirementStatus);
+
       const res = await requirementLifecycleService.transition({
         requirementId: jobId,
-        targetStatus,
+        targetStatus: actualTargetStatus,
         context,
         reason: `Transitioned status to ${targetStatus} via Admin Control Surface`
       });
 
-      if (res.success) {
-        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: targetStatus } : j));
-      } else {
-        alert(res.message || "Lifecycle transition failed");
+      if (isPublishing) {
+        await updateDoc(doc(db, "requirements_public", jobId), {
+          status: "ACTIVE",
+          distributionStatus: "PUBLISHED",
+          published: true,
+          vendorVisibility: "ENABLED",
+          updatedAt: serverTimestamp()
+        });
+        await requirementDistributionService.publishRequirement(jobId);
+      } else if (targetStatus === "HOLD" || targetStatus === "CLOSED" || targetStatus === "SOURCING_PAUSED") {
+        await updateDoc(doc(db, "requirements_public", jobId), {
+          distributionStatus: targetStatus,
+          published: false,
+          vendorVisibility: "DISABLED",
+          updatedAt: serverTimestamp()
+        });
+        await requirementDistributionService.unpublishRequirement(jobId);
       }
+
+      setJobs(prev => prev.map(j => {
+        if (j.id !== jobId) return j;
+        if (isPublishing) {
+          return {
+            ...j,
+            status: "PUBLISHED",
+            distributionStatus: "PUBLISHED",
+            published: true,
+            vendorVisibility: "ENABLED"
+          };
+        }
+        return {
+          ...j,
+          status: actualTargetStatus,
+          distributionStatus: actualTargetStatus,
+          published: false,
+          vendorVisibility: "DISABLED"
+        };
+      }));
     } catch (error: any) {
       console.warn("Requirement Lifecycle Transition Error:", error?.message);
       // Fallback direct update
       try {
+        const isPublishing = targetStatus === "PUBLISHED";
         await updateDoc(doc(db, "requirements_public", jobId), {
-          status: targetStatus,
+          status: isPublishing ? "ACTIVE" : targetStatus,
+          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
+          published: isPublishing,
+          vendorVisibility: isPublishing ? "ENABLED" : "DISABLED",
           updatedAt: serverTimestamp(),
         });
-        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: targetStatus } : j));
+        if (isPublishing) {
+          await requirementDistributionService.publishRequirement(jobId);
+        }
+        setJobs(prev => prev.map(j => j.id === jobId ? {
+          ...j,
+          status: isPublishing ? "PUBLISHED" : targetStatus,
+          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
+          published: isPublishing
+        } : j));
       } catch (fbErr: any) {
         alert("Failed to update status: " + fbErr.message);
       }
@@ -1360,14 +1410,37 @@ export default function JobsTab() {
                 />
               </div>
             </div>
-            {(isAdmin || isClient) && !selectedJob && (
-              <Button
-                onClick={() => setShowIntakeForm(!showIntakeForm)}
-                className="bg-indigo-600 hover:bg-slate-900 text-white h-10 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/sync-requirements', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert(`Successfully synced ${data.syncedCount || 0} requirements from Google Drive & Sheets! (${data.createdCount || 0} new, ${data.updatedCount || 0} updated)`);
+                      window.location.reload();
+                    } else {
+                      alert(data.message || 'Failed to sync Google Sheets');
+                    }
+                  } catch (e: any) {
+                    alert(e.message || 'Sync failed');
+                  }
+                }}
+                className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 h-10 px-4 rounded-2xl shadow-sm font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                title="Sync Requirements from connected Google Drive & Sheets"
               >
-                {showIntakeForm ? "Close Form" : "Create Requirement"}
-              </Button>
-            )}
+                <FileSpreadsheet size={14} className="text-emerald-600" />
+                <span>Sync Google Sheets</span>
+              </button>
+              {(isAdmin || isClient) && !selectedJob && (
+                <Button
+                  onClick={() => setShowIntakeForm(!showIntakeForm)}
+                  className="bg-indigo-600 hover:bg-slate-900 text-white h-10 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
+                >
+                  {showIntakeForm ? "Close Form" : "Create Requirement"}
+                </Button>
+              )}
+            </div>
           </div>
 
           {(isAdmin || isClient) && !selectedJob && showIntakeForm && (
@@ -1789,21 +1862,35 @@ export default function JobsTab() {
                           <Badge
                             className={cn(
                               "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm uppercase",
-                              (job.status === "ACTIVE" || job.status === "PUBLISHED")
-                                ? "bg-emerald-100 text-emerald-700"
-                                : job.status === "HOLD"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : job.status === "SOURCING_PAUSED"
-                                    ? "bg-orange-100 text-orange-800"
-                                    : job.status === "CLOSED"
-                                      ? "bg-red-100 text-red-700"
-                                      : "bg-slate-100 text-slate-600",
+                              (job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published)
+                                ? "bg-emerald-100 text-emerald-800"
+                                : job.status === "ACTIVE"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : job.status === "HOLD"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : job.status === "SOURCING_PAUSED"
+                                      ? "bg-orange-100 text-orange-800"
+                                      : job.status === "CLOSED"
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-slate-100 text-slate-600",
                             )}
                           >
-                            ● {job.status || "ACTIVE"}
+                            ● {(job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published) ? "PUBLISHED" : (job.status || "ACTIVE")}
                           </Badge>
                           {(isAdmin || (isClient && job.clientId === orgId)) && (
                             <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                              <button
+                                onClick={() => handleSetRequirementStatus(job.id, "PUBLISHED")}
+                                className={cn(
+                                  "text-[9px] font-bold px-2 py-0.5 rounded border transition-all cursor-pointer uppercase shadow-xs",
+                                  (job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published)
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200 font-extrabold"
+                                    : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 font-extrabold"
+                                )}
+                              >
+                                {(job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published) ? "PUBLISHED ✓" : "PUBLISH"}
+                              </button>
+
                               <button
                                 onClick={() => handleToggleStatus(job.id, job.status)}
                                 className={cn(
@@ -1817,11 +1904,12 @@ export default function JobsTab() {
                               </button>
 
                               <select
-                                value={job.status || "ACTIVE"}
-                                onChange={(e) => handleSetRequirementStatus(job.id, e.target.value as RequirementStatus)}
+                                value={(job.status === "ACTIVE" && (job.distributionStatus === "PUBLISHED" || job.published)) ? "PUBLISHED" : (job.status || "ACTIVE")}
+                                onChange={(e) => handleSetRequirementStatus(job.id, e.target.value)}
                                 className="text-[9px] font-semibold bg-slate-50 border border-slate-200 text-slate-700 rounded px-1.5 py-0.5 cursor-pointer outline-none hover:bg-slate-100"
                               >
                                 <option value="ACTIVE">ACTIVE</option>
+                                <option value="PUBLISHED">PUBLISHED</option>
                                 <option value="HOLD">HOLD</option>
                                 <option value="SOURCING_PAUSED">SOURCING PAUSED</option>
                                 <option value="CLOSED">CLOSED</option>

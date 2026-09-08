@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
-import { cn } from "../lib/utils";
+import { cn, getCandidateFitmentScore } from "../lib/utils";
 import {
   db,
   auth,
@@ -55,6 +55,8 @@ import {
   limit,
 } from "firebase/firestore";
 
+import { AddDirectCandidateModal } from "../components/modals/AddDirectCandidateModal";
+
 interface DirectCandidatesWorkspaceProps {
   isAdmin: boolean;
   userRole: string;
@@ -68,6 +70,10 @@ export default function DirectCandidatesWorkspace({
   const [applications, setApplications] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Add Direct Candidate Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [recentNotification, setRecentNotification] = useState<string | null>(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -313,7 +319,7 @@ export default function DirectCandidatesWorkspace({
 
     // Fitment Filter
     if (selectedFitment !== "ALL") {
-      const score = cand.fitmentScore || cand.matchScore || 0;
+      const score = getCandidateFitmentScore(cand);
       if (selectedFitment === "HIGH" && score < 80) return false;
       if (selectedFitment === "MODERATE" && (score < 60 || score >= 80)) return false;
       if (selectedFitment === "LOW" && score >= 60) return false;
@@ -367,6 +373,15 @@ export default function DirectCandidatesWorkspace({
 
   return (
     <div className="space-y-6">
+      {recentNotification && (
+        <div className="bg-emerald-500 text-white p-4 rounded-2xl font-bold text-xs flex items-center justify-between shadow-lg animate-bounce">
+          <span>{recentNotification}</span>
+          <button onClick={() => setRecentNotification(null)} className="text-white hover:text-slate-200 cursor-pointer font-extrabold text-sm">
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Banner / Breadcrumb */}
       <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 border border-indigo-500/20">
         <div>
@@ -386,6 +401,12 @@ export default function DirectCandidatesWorkspace({
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg border border-indigo-400/30 flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+          >
+            <Plus className="w-4 h-4" /> + Add Direct Candidate
+          </Button>
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 text-right border border-white/10">
             <div className="text-2xl font-black text-emerald-400">
               {metrics.total}
@@ -642,7 +663,7 @@ export default function DirectCandidatesWorkspace({
                 cand.appliedJobTitle ||
                 cand.jobTitle ||
                 (candApps.length > 0 ? candApps[0].jobTitle : "Direct Portal Pool");
-              const fitmentScore = cand.fitmentScore || cand.matchScore || 0;
+              const fitmentScore = getCandidateFitmentScore(cand);
               const hasConflict = cand.ownershipConflict === true;
 
               return (
@@ -1313,6 +1334,19 @@ export default function DirectCandidatesWorkspace({
           </div>
         </div>
       )}
+
+      {/* Add Direct Candidate Modal */}
+      <AddDirectCandidateModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={(cand, strongMatches) => {
+          if (strongMatches.length > 0) {
+            setRecentNotification(
+              `🔔 Strong Direct Candidate Match Found! ${cand.fullName} matched ${strongMatches[0].matchScore}% to ${strongMatches[0].jobTitle}`
+            );
+          }
+        }}
+      />
     </div>
   );
 }

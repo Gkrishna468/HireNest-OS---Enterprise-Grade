@@ -207,19 +207,20 @@ export function extractCandidateName(text: string, filename?: string): string {
     }
   }
 
-  // 2. Fallback to filename parsing if name is formatted in filename (e.g. "John_Doe_Resume.pdf")
+  // 2. Fallback to filename parsing if name is formatted in filename (e.g. "Srinivasa_Rao_S4 Hana_Fin_Sol_Arc.docx" or "John_Doe_Resume.pdf")
   if (filename) {
     const baseName = filename.replace(/\.[^/.]+$/, "")
       .replace(/[-_]/g, " ")
-      .replace(/\b(resume|cv|latest|updated|profile|final|\d{4}|missing|name|unknown|sample|test|candidate|unnamed|file|document|doc|upload|fixed)\b/gi, "")
+      .replace(/\b(s4|hana|fin|sol|arc|architect|consultant|developer|engineer|lead|senior|junior|manager|specialist|pmp|scrum|ppqm|fico|sap|resume|cv|latest|updated|profile|final|\d{4}|missing|name|unknown|sample|test|candidate|unnamed|file|document|doc|upload|fixed)\b/gi, "")
       .replace(/\s+/g, " ")
       .trim();
 
     const words = baseName.split(" ").filter(w => w.length > 1);
-    if (words.length >= 2 && words.length <= 4 && !/^\d+$/.test(words.join(""))) {
-      const isNameLike = words.every(w => /^[a-zA-Z.'-]+$/.test(w));
+    if (words.length >= 2 && !/^\d+$/.test(words.join(""))) {
+      const nameWords = words.slice(0, 3);
+      const isNameLike = nameWords.every(w => /^[a-zA-Z.'-]+$/.test(w));
       if (isNameLike) {
-        return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        return nameWords.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
       }
     }
   }

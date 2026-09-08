@@ -92,7 +92,7 @@ export default function RecruiterWorkspace({
         setAssignedVendors([
           { id: "map-1", recruiterId: "recruiter-rahul", recruiterName: userName, vendorId: "vendor-abc", vendorName: "ABC Technologies", assignedAt: new Date().toISOString(), status: "ACTIVE", isPrimary: true },
           { id: "map-2", recruiterId: "recruiter-rahul", recruiterName: userName, vendorId: "vendor-xyz", vendorName: "XYZ Solutions", assignedAt: new Date().toISOString(), status: "ACTIVE", isPrimary: false },
-          { id: "map-3", recruiterId: "recruiter-rahul", recruiterName: userName, vendorId: "vendor-techsource", vendorName: "TechSource India", assignedAt: new Date().toISOString(), status: "ACTIVE", isPrimary: false },
+          { id: "map-3", recruiterId: "recruiter-rahul", recruiterName: userName, vendorId: "vendor-apex", vendorName: "Apex Global", assignedAt: new Date().toISOString(), status: "ACTIVE", isPrimary: false },
           { id: "map-4", recruiterId: "recruiter-rahul", recruiterName: userName, vendorId: "vendor-cloudstaff", vendorName: "CloudStaff Solutions", assignedAt: new Date().toISOString(), status: "ACTIVE", isPrimary: false }
         ]);
       }

@@ -24,8 +24,8 @@ export interface AttributionSnapshot {
   submittedAt: string;
   requirementId: string;
   requirementTitle: string;
-  recruiterId: string;
-  recruiterName: string;
+  recruiterId: string | null;
+  recruiterName: string | null;
   vendorId: string;
   vendorName: string;
   clientId: string;
@@ -325,8 +325,8 @@ export class AccessControlService {
   static createAttributionSnapshot(params: {
     requirementId: string;
     requirementTitle: string;
-    recruiterId: string;
-    recruiterName: string;
+    recruiterId: string | null;
+    recruiterName: string | null;
     vendorId: string;
     vendorName: string;
     clientId: string;
@@ -338,8 +338,8 @@ export class AccessControlService {
       submittedAt: new Date().toISOString(),
       requirementId: params.requirementId,
       requirementTitle: params.requirementTitle,
-      recruiterId: params.recruiterId,
-      recruiterName: params.recruiterName,
+      recruiterId: params.recruiterId || null,
+      recruiterName: params.recruiterName || null,
       vendorId: params.vendorId,
       vendorName: params.vendorName,
       clientId: params.clientId,

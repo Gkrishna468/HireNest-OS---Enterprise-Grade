@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { User as UserIcon, Building, Bell, Shield, LogOut, Moon, Sun, Monitor, AlertTriangle } from 'lucide-react';
+import { User as UserIcon, Building, Bell, Shield, LogOut, Moon, Sun, Monitor, AlertTriangle, FileSpreadsheet, HardDrive, RefreshCw, FileText, CheckCircle2, ExternalLink, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function SettingsTab() {
@@ -11,6 +11,37 @@ export default function SettingsTab() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [workspaceDetails, setWorkspaceDetails] = useState<any>(null);
   const [rufloHealth, setRufloHealth] = useState<any>(null);
+
+  // Google Drive & Sheets Sync state
+  const [sheetUrlInput, setSheetUrlInput] = useState<string>('');
+  const [isSyncingSheets, setIsSyncingSheets] = useState<boolean>(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const handleSyncGoogleSheets = async (overrideUrl?: string) => {
+    setIsSyncingSheets(true);
+    setSyncError(null);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/sync-requirements', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ overrideUrl: overrideUrl || sheetUrlInput || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncResult(data);
+      } else {
+        setSyncError(data.message || data.error || 'Sync failed');
+      }
+    } catch (err: any) {
+      setSyncError(err.message || 'An error occurred while syncing Google Sheets requirements');
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -25,40 +56,32 @@ export default function SettingsTab() {
         const res = await fetch('/api/workspace/status', {
            headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await res.json();
-        setIsGoogleConnected(data.connected);
+        
+        let data: any = {};
+        if (res.ok) {
+          try {
+            data = await res.json();
+          } catch {
+            data = { connected: false };
+          }
+        } else {
+          data = { connected: false };
+        }
+
+        setIsGoogleConnected(!!data.connected);
         if (data.connected) {
-        try {
-          const rufloRes = await fetch("/api/ruflo/health", {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
-          if (rufloRes.ok) {
-            setRufloHealth(await rufloRes.json());
+          setWorkspaceDetails(data);
+          try {
+            const rufloRes = await fetch("/api/ruflo/health", {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (rufloRes.ok) {
+              const rData = await rufloRes.json().catch(() => null);
+              if (rData) setRufloHealth(rData);
+            }
+          } catch (e) {
+            console.warn("Ruflo health fetch failed", e);
           }
-        } catch (e) {
-          console.warn("Ruflo health fetch failed", e);
-        }
-           setWorkspaceDetails(data);
-        try {
-          const rufloRes = await fetch("/api/ruflo/health", {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
-          if (rufloRes.ok) {
-            setRufloHealth(await rufloRes.json());
-          }
-        } catch (e) {
-          console.warn("Ruflo health fetch failed", e);
-        }
-        }
-        try {
-          const rufloRes = await fetch("/api/ruflo/health", {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
-          if (rufloRes.ok) {
-            setRufloHealth(await rufloRes.json());
-          }
-        } catch (e) {
-          console.warn("Ruflo health fetch failed", e);
         }
       } catch (err) {
         console.error("Failed to load user profile:", err);
@@ -155,8 +178,8 @@ export default function SettingsTab() {
                  <div className="flex flex-col gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center">
                        <div>
-                          <p className="font-bold text-sm text-slate-800">Google Workspace</p>
-                          <p className="text-xs text-slate-500 mt-1">Connect your Google account to enable email sync and calendar integrations within Client360 and Vendor360.</p>
+                          <p className="font-bold text-sm text-slate-800">Google Workspace (Drive & Sheets)</p>
+                          <p className="text-xs text-slate-500 mt-1">Connect your Google account to enable Google Drive file access, Excel/Google Sheets requirements synchronization, email sync, and calendar scheduling.</p>
                        </div>
                        <div className="mt-4 sm:mt-0">
                          {isGoogleConnected ? (
@@ -181,6 +204,8 @@ export default function SettingsTab() {
                             <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Services</p>
                             <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
                                <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> Gmail</span>
+                               <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> Google Drive</span>
+                               <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> Google Sheets</span>
                                {workspaceDetails.calendar && <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> Calendar</span>}
                                {workspaceDetails.watchStatus && <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> Pub/Sub</span>}
                                <span className="flex items-center gap-1"><span className="text-emerald-500">✓</span> MailOS</span>
@@ -264,6 +289,96 @@ export default function SettingsTab() {
                       </button>
                     </div>
                  </div>
+
+                 {/* Google Drive & Excel / Google Sheets Requirements Sync */}
+                 <div className="flex flex-col gap-4 p-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-xl border border-indigo-800/50 mt-4 shadow-md">
+                    <div className="flex items-start justify-between">
+                       <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-indigo-500/20 rounded-xl border border-indigo-400/30 text-indigo-300">
+                             <FileSpreadsheet size={22} />
+                          </div>
+                          <div>
+                             <h4 className="font-black text-sm tracking-tight text-slate-100 flex items-center gap-2">
+                                Google Drive & Sheets Requirements Sync
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-extrabold uppercase rounded-full">
+                                   Live Integration
+                                </span>
+                             </h4>
+                             <p className="text-xs text-indigo-200/80 mt-0.5">
+                                Connect Excel & Google Sheets from your Google Drive to automatically ingest all client job requirements.
+                             </p>
+                          </div>
+                       </div>
+                       <HardDrive className="text-indigo-400 shrink-0" size={20} />
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                       <label className="block text-[10px] font-black uppercase text-indigo-300 tracking-wider">
+                          Google Sheet or Excel Web Published CSV / Drive URL
+                       </label>
+                       <div className="flex gap-2">
+                          <input 
+                             type="text" 
+                             value={sheetUrlInput}
+                             onChange={(e) => setSheetUrlInput(e.target.value)}
+                             placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv (Leave blank for default sheet)"
+                             className="flex-1 bg-slate-950/80 border border-indigo-800/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-mono"
+                          />
+                          <button
+                             onClick={() => handleSyncGoogleSheets()}
+                             disabled={isSyncingSheets}
+                             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap"
+                          >
+                             {isSyncingSheets ? (
+                                <>
+                                   <RefreshCw size={14} className="animate-spin" />
+                                   Syncing...
+                                </>
+                             ) : (
+                                <>
+                                   <Sparkles size={14} />
+                                   Sync Requirements Now
+                                </>
+                             )}
+                          </button>
+                       </div>
+
+                       {syncError && (
+                          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center gap-2">
+                             <AlertTriangle size={15} className="shrink-0" />
+                             <span>{syncError}</span>
+                          </div>
+                       )}
+
+                       {syncResult && (
+                          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs space-y-2">
+                             <div className="flex items-center justify-between text-emerald-300 font-bold">
+                                <span className="flex items-center gap-1.5">
+                                   <CheckCircle2 size={16} /> Sync Completed Successfully
+                                </span>
+                                <span className="text-[10px] font-mono bg-emerald-900/60 px-2 py-0.5 rounded text-emerald-200">
+                                   Status: {syncResult.syncStatus}
+                                </span>
+                             </div>
+                             <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                                <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                                   <span className="block text-slate-400 text-[10px] uppercase font-bold">Total Processed</span>
+                                   <span className="text-sm font-black text-slate-100">{syncResult.syncedCount || 0}</span>
+                                </div>
+                                <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                                   <span className="block text-emerald-400 text-[10px] uppercase font-bold">New Created</span>
+                                   <span className="text-sm font-black text-emerald-300">{syncResult.createdCount || 0}</span>
+                                </div>
+                                <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                                   <span className="block text-indigo-400 text-[10px] uppercase font-bold">Updated</span>
+                                   <span className="text-sm font-black text-indigo-300">{syncResult.updatedCount || 0}</span>
+                                </div>
+                             </div>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+
                  {/* Ruflo Integration */}
                  <div className="flex flex-col gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 mt-4">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center">

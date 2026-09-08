@@ -932,7 +932,7 @@ export default function RagIntelligenceTab() {
                       <span className="text-emerald-600">8.4 days</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] font-bold text-slate-700">
-                      <span>Michael Chen</span>
+                      <span>Alex Wong</span>
                       <span className="text-emerald-600">11.2 days</span>
                     </div>
                   </div>

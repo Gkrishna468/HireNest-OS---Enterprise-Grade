@@ -70,7 +70,7 @@ export default function HumanApprovalCenterTab({ userRole }: { userRole: string 
       { 
         type: 'INVOICE', 
         title: 'Invoice Generation: PL-882', 
-        desc: '₹2,50,000 Placement Fee for TechSource', 
+        desc: '₹2,50,000 Placement Fee for Apex Global', 
         requester: 'Finance Agent', 
         time: '1 hour ago', 
         risk: 'low', 
@@ -79,7 +79,7 @@ export default function HumanApprovalCenterTab({ userRole }: { userRole: string 
             id: 'INV-2026-882',
             decision: 'Trigger invoice generation following placement confirmation.',
             confidence: 99,
-            graphNodes: ['Placement-882', 'Vendor-TechSource', 'Account-Receivable'],
+            graphNodes: ['Placement-882', 'Vendor-ApexGlobal', 'Account-Receivable'],
             experiences: ['Placement signed by client', 'Vendor commission verified', 'Tax compliance pass'],
             decisionFactors: ['Contractual terms met', 'Invoice sequence valid', 'Payment gateway connected'],
             telemetrySnapshot: ['FINANCE_CORE_ACTIVE', 'AUTH: VALID'],

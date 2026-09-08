@@ -125,7 +125,7 @@ class RequirementVendorService {
         
         // Find vendor name
         const mappedObj = allMappedVendors.find(v => v.vendorId === vId);
-        const vName = mappedObj?.vendorName || (vId === 'vendor-abc' ? 'ABC Technologies' : vId === 'vendor-xyz' ? 'XYZ Solutions' : vId === 'vendor-techsource' ? 'TechSource India' : 'CloudStaff Solutions');
+        const vName = mappedObj?.vendorName || (vId === 'vendor-abc' ? 'ABC Technologies' : vId === 'vendor-xyz' ? 'XYZ Solutions' : vId === 'vendor-apex' ? 'Apex Global' : 'CloudStaff Solutions');
 
         await setDoc(mappingRef, {
           id: docId,
@@ -286,7 +286,7 @@ class RequirementVendorService {
         if (distributionMode === 'ALL_MAPPED_VENDORS') {
           targetVendorIds = activeMappedVendorIds.length > 0 
             ? activeMappedVendorIds 
-            : ['vendor-abc', 'vendor-xyz', 'vendor-techsource', 'vendor-cloudstaff'];
+            : ['vendor-abc', 'vendor-xyz', 'vendor-apex', 'vendor-cloudstaff'];
         } else if (distributionMode === 'SELECTED_VENDORS' || distributionMode === 'MANUAL') {
           targetVendorIds = Array.isArray(requirement.distributedVendorIds) && requirement.distributedVendorIds.length > 0
             ? requirement.distributedVendorIds
@@ -303,7 +303,7 @@ class RequirementVendorService {
           const vName = mappedObj?.vendorName || (
             vId === 'vendor-abc' ? 'ABC Technologies' :
             vId === 'vendor-xyz' ? 'XYZ Solutions' :
-            vId === 'vendor-techsource' ? 'TechSource India' : 'CloudStaff Solutions'
+            vId === 'vendor-apex' ? 'Apex Global' : 'CloudStaff Solutions'
           );
 
           await setDoc(mappingRef, {

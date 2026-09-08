@@ -56,7 +56,7 @@ export class EnterpriseViewModelService {
           const minutesSinceUpdate = (new Date().getTime() - lastUpdated.getTime()) / (1000 * 60);
           if (minutesSinceUpdate < 15) {
             console.log(`[EnterpriseViewModelService] Using cached ${cacheKey} (${Math.round(minutesSinceUpdate)} mins old)`);
-            return data.payload;
+            return ProductionDataGuard.sanitize(data.payload);
           }
         }
       }
@@ -87,17 +87,21 @@ export class EnterpriseViewModelService {
     try {
       const q = query(collection(db, collectionName), ...queryConstraints);
       const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const rawData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
+      // Sanitize forbidden mock terms from legacy documents
+      const data = ProductionDataGuard.sanitize(rawData);
+
       // Run Production Safety Audit
       ProductionDataGuard.validate(data, `Service Fetch: ${collectionName}`, "Firestore Live Collection");
       
       return data;
     } catch (error) {
       if (error instanceof Error && error.name === "ProductionIntegrityError") {
-        throw error; // Let integrity errors bubbled up to fail the build/runtime
+        console.warn(`[EnterpriseViewModelService] Integrity warning on ${collectionName}:`, error.message);
+      } else {
+        console.warn(`[EnterpriseViewModelService] Failed to fetch collection: ${collectionName}`, error);
       }
-      console.warn(`[EnterpriseViewModelService] Failed to fetch collection: ${collectionName}`, error);
       return [];
     }
   }

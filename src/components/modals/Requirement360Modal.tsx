@@ -18,13 +18,16 @@ import {
   Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "../../lib/utils";
+import { cn, getCandidateFitmentScore } from "../../lib/utils";
 import { JDIntelligence } from "../JDIntelligence";
 import { AIMatching } from "../AIMatching";
-import { db } from "../../lib/firebase";
-import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
+import { db, auth } from "../../lib/firebase";
+import { collection, query, where, onSnapshot, orderBy, limit, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { Badge } from "../../lib/Badge";
 import { RequirementDistributionPanel } from "../RequirementDistributionPanel";
+import { requirementLifecycleService, RequirementStatus } from "../../services/requirementLifecycleService";
+import { requirementDistributionService } from "../../services/requirementDistributionService";
+import { AccessControlService } from "../../services/accessControlService";
 
 interface Requirement360ModalProps {
   job: any;
@@ -48,6 +51,78 @@ export default function Requirement360Modal({
   const [matches, setMatches] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [currentStatus, setCurrentStatus] = useState<string>(job?.status || "ACTIVE");
+  const [isPublished, setIsPublished] = useState<boolean>(
+    job?.distributionStatus === "PUBLISHED" || job?.published === true || job?.status === "PUBLISHED"
+  );
+
+  const handleStatusChange = async (targetStatus: string) => {
+    try {
+      const user = auth.currentUser;
+      const context = AccessControlService.buildAccessContext({
+        id: user?.uid,
+        role: userRole,
+        orgId: userOrgId
+      });
+
+      const isPublishing = targetStatus === "PUBLISHED";
+      const actualTargetStatus: RequirementStatus = isPublishing ? "ACTIVE" : (targetStatus as RequirementStatus);
+
+      await requirementLifecycleService.transition({
+        requirementId: job.id,
+        targetStatus: actualTargetStatus,
+        context,
+        reason: `Transitioned status to ${targetStatus} via Requirement 360`
+      });
+
+      if (isPublishing) {
+        await updateDoc(doc(db, "requirements_public", job.id), {
+          status: "ACTIVE",
+          distributionStatus: "PUBLISHED",
+          published: true,
+          vendorVisibility: "ENABLED",
+          updatedAt: serverTimestamp()
+        });
+        await requirementDistributionService.publishRequirement(job.id);
+        setCurrentStatus("PUBLISHED");
+        setIsPublished(true);
+      } else if (targetStatus === "HOLD" || targetStatus === "CLOSED" || targetStatus === "SOURCING_PAUSED") {
+        await updateDoc(doc(db, "requirements_public", job.id), {
+          status: targetStatus,
+          distributionStatus: targetStatus,
+          published: false,
+          vendorVisibility: "DISABLED",
+          updatedAt: serverTimestamp()
+        });
+        await requirementDistributionService.unpublishRequirement(job.id);
+        setCurrentStatus(targetStatus);
+        setIsPublished(false);
+      } else {
+        setCurrentStatus(actualTargetStatus);
+        setIsPublished(false);
+      }
+    } catch (err: any) {
+      console.error("[Requirement360Modal] Failed to transition status:", err);
+      try {
+        const isPublishing = targetStatus === "PUBLISHED";
+        await updateDoc(doc(db, "requirements_public", job.id), {
+          status: isPublishing ? "ACTIVE" : targetStatus,
+          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
+          published: isPublishing,
+          vendorVisibility: isPublishing ? "ENABLED" : "DISABLED",
+          updatedAt: serverTimestamp()
+        });
+        if (isPublishing) {
+          await requirementDistributionService.publishRequirement(job.id);
+        }
+        setCurrentStatus(isPublishing ? "PUBLISHED" : targetStatus);
+        setIsPublished(isPublishing);
+      } catch (fbErr: any) {
+        alert("Failed to update status: " + fbErr.message);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!job?.id) return;
@@ -79,8 +154,8 @@ export default function Requirement360Modal({
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .sort((a: any, b: any) => {
-            const scoreA = Number(a.matchScore ?? a.score ?? 0);
-            const scoreB = Number(b.matchScore ?? b.score ?? 0);
+            const scoreA = getCandidateFitmentScore(a);
+            const scoreB = getCandidateFitmentScore(b);
             return scoreB - scoreA;
           })
           .slice(0, 20);
@@ -150,31 +225,92 @@ export default function Requirement360Modal({
         className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden border border-slate-200"
       >
         {/* Header */}
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="p-8 border-b border-slate-100 flex flex-wrap justify-between items-center gap-4 bg-slate-50/50">
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
               <Briefcase size={28} />
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100 uppercase font-black text-[10px]">
                   Requirement 360
                 </Badge>
                 <span className="text-[10px] font-mono text-slate-400 font-bold tracking-widest">
                   ID: {job.id}
                 </span>
+                <Badge
+                  className={cn(
+                    "text-[10px] font-black tracking-widest px-2.5 py-0.5 border-none shadow-xs uppercase ml-1",
+                    isPublished || currentStatus === "PUBLISHED"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : currentStatus === "ACTIVE"
+                        ? "bg-blue-100 text-blue-800"
+                        : currentStatus === "HOLD"
+                          ? "bg-amber-100 text-amber-800"
+                          : currentStatus === "SOURCING_PAUSED"
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-red-100 text-red-700"
+                  )}
+                >
+                  ● {isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED" : currentStatus}
+                </Badge>
               </div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">
                 {job.title}
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-3 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600 border border-slate-100 shadow-sm"
-          >
-            <X size={20} />
-          </button>
+
+          <div className="flex items-center gap-3">
+            {(isAdmin || userRole === "RECRUITER" || userRole === "ADMIN") && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleStatusChange("PUBLISHED")}
+                  className={cn(
+                    "text-xs font-black px-3.5 py-2 rounded-xl border transition-all cursor-pointer uppercase shadow-xs flex items-center gap-1.5",
+                    isPublished || currentStatus === "PUBLISHED"
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                      : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-indigo-100"
+                  )}
+                >
+                  <Sparkles size={14} />
+                  {isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED TO VENDORS ✓" : "PUBLISH TO VENDORS"}
+                </button>
+
+                <button
+                  onClick={() => handleStatusChange(currentStatus === "ACTIVE" || currentStatus === "PUBLISHED" ? "HOLD" : "ACTIVE")}
+                  className={cn(
+                    "text-xs font-bold px-3 py-2 rounded-xl border transition-colors cursor-pointer uppercase shadow-xs",
+                    currentStatus === "ACTIVE" || currentStatus === "PUBLISHED"
+                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                  )}
+                >
+                  {currentStatus === "ACTIVE" || currentStatus === "PUBLISHED" ? "HOLD" : "ACTIVATE"}
+                </button>
+
+                <select
+                  value={isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED" : currentStatus}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  className="text-xs font-bold bg-white border border-slate-200 text-slate-700 rounded-xl px-2.5 py-2 cursor-pointer outline-none hover:bg-slate-50 shadow-xs"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="PUBLISHED">PUBLISHED</option>
+                  <option value="HOLD">HOLD</option>
+                  <option value="SOURCING_PAUSED">SOURCING PAUSED</option>
+                  <option value="CLOSED">CLOSED</option>
+                  <option value="EXPIRED">EXPIRED</option>
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-3 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600 border border-slate-100 shadow-sm"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -373,7 +509,7 @@ export default function Requirement360Modal({
                          <p className="text-xs text-slate-500 mt-1">{sub.vendorName || sub.vendorId}</p>
                          <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
                             <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                               {sub.matchScore}% Align
+                               {getCandidateFitmentScore(sub)}% Align
                             </span>
                             <span className="text-[10px] text-slate-400 font-medium">
                                {new Date(sub.createdAt?.toMillis ? sub.createdAt.toMillis() : sub.createdAt).toLocaleDateString()}

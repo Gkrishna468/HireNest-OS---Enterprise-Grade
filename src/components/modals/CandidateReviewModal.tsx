@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Check, XCircle, FileText, Calendar, Link as LinkIcon, MessageSquare, Bot, AlertCircle } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
+import { cn, getCandidateFitmentScore } from '../../lib/utils';
 import { useSubmissionStore } from '../../stores/SubmissionStore';
 
 export function CandidateReviewModal({ submission, requirement, onClose, onSchedule }: any) {
@@ -163,7 +164,7 @@ export function CandidateReviewModal({ submission, requirement, onClose, onSched
           <div>
             <div className="flex items-center gap-3 mb-1">
                <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{submission.candidateName || 'Anonymous Profile'}</h2>
-               <Badge className="bg-indigo-500 text-white border-0 text-sm py-1 px-3 shadow-inner shadow-indigo-400/20">{submission.matchScore}% Match</Badge>
+               <Badge className="bg-indigo-500 text-white border-0 text-sm py-1 px-3 shadow-inner shadow-indigo-400/20">{getCandidateFitmentScore(submission)}% Match</Badge>
             </div>
             <div className="text-slate-400 text-sm font-medium flex flex-wrap gap-x-6 gap-y-2 mt-1">
                <span><span className="text-slate-500">ID:</span> {submission.candidateId?.slice(0,8) || 'N/A'}</span>

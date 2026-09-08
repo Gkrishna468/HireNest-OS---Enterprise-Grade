@@ -307,7 +307,11 @@ async function createServer() {
         "dlq_events",
         "audit_logs",
         "activity_feed",
-        "ownershipVault"
+        "ownershipVault",
+        "dashboard_cache",
+        "recruiter_vendor_mappings",
+        "requirement_vendor_authorizations",
+        "requirement_vendor_mappings"
       ];
       const forbiddenPatterns = [
         "sarah jenkins",
@@ -906,7 +910,7 @@ hirenest_active_requests 0
     serveStaticFiles();
   }
 
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const PORT = 3000;
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://0.0.0.0:${PORT}`);

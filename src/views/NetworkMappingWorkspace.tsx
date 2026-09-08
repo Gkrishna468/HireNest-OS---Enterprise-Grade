@@ -71,7 +71,7 @@ export default function NetworkMappingWorkspace({ userRole }: { userRole: string
         venList = [
           { id: "vendor-abc", name: "ABC Technologies", vendorType: "Agency / Staffing", location: "Bangalore, IN" },
           { id: "vendor-xyz", name: "XYZ Solutions", vendorType: "Executive Search", location: "Mumbai, IN" },
-          { id: "vendor-techsource", name: "TechSource India", vendorType: "Subcontractor", location: "Delhi, IN" },
+          { id: "vendor-vertex", name: "Vertex Global", vendorType: "Subcontractor", location: "Delhi, IN" },
           { id: "vendor-cloudstaff", name: "CloudStaff Solutions", vendorType: "Bench Supplier", location: "Hyderabad, IN" },
           { id: "vendor-nexus", name: "Nexus Talent Partners", vendorType: "Staffing Agency", location: "Pune, IN" },
           { id: "vendor-apex", name: "Apex Staffing", vendorType: "Agency / Staffing", location: "Chennai, IN" }

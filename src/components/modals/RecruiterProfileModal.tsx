@@ -62,7 +62,7 @@ export const RecruiterProfileModal: React.FC<Props> = ({ recruiter, onClose, onU
     const fallbacks = [
       { id: "vendor-abc", name: "ABC Technologies", vendorType: "Agency / Staffing" },
       { id: "vendor-xyz", name: "XYZ Solutions", vendorType: "Executive Search" },
-      { id: "vendor-techsource", name: "TechSource India", vendorType: "Subcontractor" },
+      { id: "vendor-apex", name: "Apex Global", vendorType: "Subcontractor" },
       { id: "vendor-cloudstaff", name: "CloudStaff Solutions", vendorType: "Bench Supplier" },
       { id: "vendor-nexus", name: "Nexus Talent Partners", vendorType: "Staffing Agency" }
     ];
