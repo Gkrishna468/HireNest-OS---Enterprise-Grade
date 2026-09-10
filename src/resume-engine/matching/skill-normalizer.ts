@@ -21,15 +21,56 @@ export class SkillNormalizer {
   }
 
   /**
-   * Compares two skills for semantic equality using taxonomy aliases.
+   * Compares two skills for semantic equality using taxonomy aliases and acronym mappings.
    */
   public static areSkillsEquivalent(skillA: string, skillB: string): boolean {
+    if (!skillA || !skillB) return false;
+    const cleanA = skillA.trim().toLowerCase();
+    const cleanB = skillB.trim().toLowerCase();
+    if (cleanA === cleanB) return true;
+
     const normA = this.normalize(skillA).toLowerCase();
     const normB = this.normalize(skillB).toLowerCase();
     if (normA === normB) return true;
 
-    // Check if one contains the other
+    // Direct substring or inclusion
     if (normA.includes(normB) || normB.includes(normA)) return true;
+    if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+
+    // Synonym & Acronym dictionary pairs
+    const synonyms: [string, string][] = [
+      ["microsoft fabric", "fabric"],
+      ["microsoft fabric", "fabric platform"],
+      ["microsoft fabric", "fabric data engineering"],
+      ["azure data factory", "adf"],
+      ["azure synapse", "synapse"],
+      ["apache spark", "spark"],
+      ["pyspark", "spark"],
+      ["power bi", "powerbi"],
+      ["c++", "cpp"],
+      ["c++", "c/c++"],
+      ["c#", "csharp"],
+      [".net core", ".net"],
+      [".net core", "dotnet"],
+      ["data warehouse", "warehouse"],
+      ["data lakehouse", "lakehouse"],
+      ["data pipelines", "pipeline"],
+      ["data pipelines", "pipelines"],
+      ["direct lake", "direct lake mode"],
+      ["fabric capacity management", "cu optimization"],
+      ["fabric capacity management", "capacity management"],
+    ];
+
+    for (const [syn1, syn2] of synonyms) {
+      if (
+        (normA.includes(syn1) && normB.includes(syn2)) ||
+        (normA.includes(syn2) && normB.includes(syn1)) ||
+        (cleanA.includes(syn1) && cleanB.includes(syn2)) ||
+        (cleanA.includes(syn2) && cleanB.includes(syn1))
+      ) {
+        return true;
+      }
+    }
 
     return false;
   }

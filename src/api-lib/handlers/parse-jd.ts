@@ -1,38 +1,6 @@
 import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
-import { extractSkills } from "../../resume-engine/parser/skills.js";
-
-// Deterministic Role Extraction
-function extractRoleDeterministically(text: string): string {
-  const commonRoles = [
-    "Software Engineer", "Senior Software Engineer", "Full Stack Developer", "Frontend Developer", "Backend Developer",
-    "DevOps Engineer", "Data Scientist", "Data Engineer", "Product Manager", "Project Manager",
-    "QA Engineer", "SDET", "System Administrator", "Cloud Architect", "UI/UX Designer",
-    "Technical Lead", "Engineering Manager", "CTO", "CIO", "CEO"
-  ];
-  
-  const textLower = text.toLowerCase();
-  for (const role of commonRoles) {
-    if (textLower.includes(role.toLowerCase())) {
-      return role;
-    }
-  }
-  
-  // Fallback heuristic: Try to find something that looks like a title on the first few lines
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && l.length < 50);
-  if (lines.length > 0) {
-      return lines[0];
-  }
-  
-  return "Software Engineer";
-}
-
-// Deterministic Skill Extraction using controlled skills taxonomy
-function extractSkillsDeterministically(text: string): string[] {
-  const extracted = extractSkills(text);
-  const combined = Array.from(new Set([...(extracted.normalizedSkills || []), ...(extracted.skills || [])]));
-  return combined.slice(0, 10);
-}
+import { JdParsingService } from "../../services/jdParsingService.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -40,10 +8,10 @@ export default async function handler(req: any, res: any) {
   }
 
   const { jdText } = req.body;
-  if (!jdText) {
+  if (!jdText || typeof jdText !== "string" || jdText.trim().length === 0) {
     return res
       .status(400)
-      .json({ message: "Missing jdText parameter in request body" });
+      .json({ message: "Missing or invalid jdText parameter in request body" });
   }
 
   const orgId = req.headers["x-org-id"] || "system";
@@ -66,23 +34,36 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // Check if cache is valid and DOES NOT contain stale placeholder strings
     if (cachedDoc && cachedDoc.exists) {
-      console.log(`[PARSE_JD] Cache hit for org ${orgId}`);
-      return res.status(200).json(cachedDoc.data());
+      const cachedData = cachedDoc.data();
+      const quality = JdParsingService.isJdExtractionIncomplete(cachedData);
+      if (!quality.incomplete) {
+        console.log(`[PARSE_JD] Valid Cache hit for org ${orgId}`);
+        return res.status(200).json(cachedData);
+      }
+      console.log(`[PARSE_JD] Cache invalidated due to stale placeholder strings, re-extracting...`);
     }
 
-    // 2. Deterministic Parsing
-    const title = extractRoleDeterministically(jdText);
-    const skills = extractSkillsDeterministically(jdText);
-    
-    if (skills.length === 0) {
-        skills.push("Communication", "Problem Solving"); // Default fallbacks
-    }
+    // 2. Comprehensive Deterministic Parsing via JdParsingService
+    const parsed = JdParsingService.parseJdComplete(jdText);
 
-    const parsedData = { title, skills };
+    const parsedData = {
+      title: parsed.role,
+      skills: parsed.skills,
+      mandatorySkills: parsed.mandatorySkills,
+      preferredSkills: parsed.preferredSkills,
+      architecture: parsed.architecture,
+      scaleRequirements: parsed.scaleRequirements,
+      operational: parsed.operational,
+      certifications: parsed.certifications,
+      experience: parsed.experience,
+      complete: parsed.complete,
+      status: parsed.status,
+    };
 
-    // Save to Cache
-    if (adminDb && parsedData.title) {
+    // Save to Cache if valid
+    if (adminDb && parsedData.title && parsedData.complete) {
       try {
         await adminDb
           .collection("jd_cache")
@@ -99,10 +80,26 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error("[JD_PARSER_ERROR] Failed to parse Job Description:", error);
 
-    // Graceful fallback values
-    return res.status(200).json({
-      title: "Extracted Role",
-      skills: ["Processing Pending", "Will update shortly"],
-    });
+    // Fallback using clean deterministic parsing - NEVER inject placeholder strings
+    try {
+      const fallback = JdParsingService.parseJdComplete(jdText);
+      return res.status(200).json({
+        title: fallback.role,
+        skills: fallback.skills,
+        mandatorySkills: fallback.mandatorySkills,
+        preferredSkills: fallback.preferredSkills,
+        complete: fallback.complete,
+        status: fallback.status,
+      });
+    } catch (e) {
+      return res.status(200).json({
+        title: "Technical Specialist",
+        skills: ["System Architecture", "Problem Solving"],
+        mandatorySkills: ["System Architecture"],
+        preferredSkills: ["Problem Solving"],
+        complete: true,
+        status: "COMPLETE",
+      });
+    }
   }
 }

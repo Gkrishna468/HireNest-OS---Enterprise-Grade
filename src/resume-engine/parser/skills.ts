@@ -4,7 +4,7 @@
  */
 
 export interface SkillCategory {
-  category: "LANGUAGES" | "FRONTEND" | "BACKEND" | "CLOUD" | "DATABASE" | "DEVOPS" | "AI_ML" | "TESTING" | "SYSTEMS" | "TOOLS";
+  category: "LANGUAGES" | "FRONTEND" | "BACKEND" | "CLOUD" | "DATABASE" | "DEVOPS" | "AI_ML" | "TESTING" | "SYSTEMS" | "TOOLS" | "DATA_ENGINEERING";
   canonical: string;
   aliases: string[];
 }
@@ -17,7 +17,7 @@ export const CONTROLLED_SKILL_TAXONOMY: SkillCategory[] = [
   { category: "LANGUAGES", canonical: "Python", aliases: ["python", "python3", "py"] },
   { category: "LANGUAGES", canonical: "JavaScript", aliases: ["javascript", "js", "ecmascript", "es6", "es6+"] },
   { category: "LANGUAGES", canonical: "TypeScript", aliases: ["typescript", "ts"] },
-  { category: "LANGUAGES", canonical: "Golang", aliases: ["go", "golang"] },
+  { category: "LANGUAGES", canonical: "Golang", aliases: ["go", "golang", "go language"] },
   { category: "LANGUAGES", canonical: "Rust", aliases: ["rust", "rustlang"] },
   { category: "LANGUAGES", canonical: "C#", aliases: ["c#", "csharp", "c sharp", ".net c#"] },
   { category: "LANGUAGES", canonical: "PHP", aliases: ["php", "php7", "php8"] },
@@ -28,6 +28,25 @@ export const CONTROLLED_SKILL_TAXONOMY: SkillCategory[] = [
   { category: "LANGUAGES", canonical: "R", aliases: ["r programming", "r language"] },
   { category: "LANGUAGES", canonical: "SQL", aliases: ["sql", "t-sql", "pl/sql", "ansi sql"] },
   { category: "LANGUAGES", canonical: "Bash/Shell", aliases: ["bash", "shell scripting", "sh", "zsh", "powershell"] },
+
+  // Data Engineering & Modern Data Stack (Microsoft Fabric Ecosystem)
+  { category: "DATA_ENGINEERING", canonical: "Microsoft Fabric", aliases: ["microsoft fabric", "ms fabric", "fabric", "fabric platform", "fabric data engineering", "fabric lakehouse", "fabric data warehouse", "fabric analytics", "microsoft fabric platform"] },
+  { category: "DATA_ENGINEERING", canonical: "OneLake", aliases: ["onelake", "one lake", "fabric onelake"] },
+  { category: "DATA_ENGINEERING", canonical: "Lakehouse", aliases: ["lakehouse", "data lakehouse", "fabric lakehouse", "delta lakehouse", "lakehouse architecture", "lake house"] },
+  { category: "DATA_ENGINEERING", canonical: "Data Warehouse", aliases: ["data warehouse", "data warehousing", "synapse warehouse", "fabric warehouse", "edw", "enterprise data warehouse"] },
+  { category: "DATA_ENGINEERING", canonical: "Direct Lake", aliases: ["direct lake", "directlake", "direct lake mode", "direct-lake"] },
+  { category: "DATA_ENGINEERING", canonical: "Data Pipelines", aliases: ["data pipelines", "data pipeline", "fabric data pipelines", "pipeline architecture", "pipeline orchestration", "scheduled pipelines"] },
+  { category: "DATA_ENGINEERING", canonical: "Dataflows Gen2", aliases: ["dataflows gen2", "dataflow gen2", "dataflows", "power query online", "gen2 dataflows"] },
+  { category: "DATA_ENGINEERING", canonical: "Fabric Capacity Management", aliases: ["fabric capacity management", "capacity management", "cu optimization", "capacity units", "f sku", "fabric capacity", "capacity planning"] },
+  { category: "DATA_ENGINEERING", canonical: "Azure Data Factory", aliases: ["azure data factory", "adf", "azure-data-factory"] },
+  { category: "DATA_ENGINEERING", canonical: "Azure Synapse", aliases: ["azure synapse", "synapse analytics", "synapse", "azure synapse analytics"] },
+  { category: "DATA_ENGINEERING", canonical: "Databricks", aliases: ["databricks", "azure databricks", "delta lake", "pyspark databricks"] },
+  { category: "DATA_ENGINEERING", canonical: "Spark", aliases: ["spark", "apache spark", "pyspark", "spark sql", "spark streaming"] },
+  { category: "DATA_ENGINEERING", canonical: "Power BI", aliases: ["power bi", "powerbi", "dax", "power bi service", "power query", "power bi premium"] },
+  { category: "DATA_ENGINEERING", canonical: "Partitioning Strategy", aliases: ["partitioning strategy", "partitioning", "data partitioning", "table partitioning", "lakehouse partitioning", "v-order"] },
+  { category: "DATA_ENGINEERING", canonical: "Data Modeling", aliases: ["data modeling", "dimensional modeling", "star schema", "snowflake schema", "medallion architecture", "bronze silver gold"] },
+  { category: "DATA_ENGINEERING", canonical: "Snowflake", aliases: ["snowflake", "snowsql", "snowpark"] },
+  { category: "DATA_ENGINEERING", canonical: "ETL/ELT", aliases: ["etl", "elt", "data ingestion", "data pipelines", "data integration"] },
 
   // Frontend
   { category: "FRONTEND", canonical: "React", aliases: ["react", "react.js", "reactjs", "react native"] },
@@ -109,6 +128,57 @@ CONTROLLED_SKILL_TAXONOMY.forEach(entry => {
 });
 
 /**
+ * Robust skill token boundary matcher that avoids regex boundary (\b) failures on symbols like C++, C#, .NET
+ */
+export function matchSkillToken(text: string, alias: string): boolean {
+  if (!text || !alias) return false;
+  const cleanAlias = alias.trim().toLowerCase();
+  const lowerText = text.toLowerCase();
+
+  // Quick reject if substring isn't anywhere in text
+  if (!lowerText.includes(cleanAlias)) {
+    if (cleanAlias === "c++" && !lowerText.includes("cpp") && !lowerText.includes("c plus plus") && !lowerText.includes("c/c++")) {
+      return false;
+    }
+  }
+
+  // Handle special single-letter or symbol skills safely
+  if (cleanAlias === "c") {
+    return /\b(?:programming in c|c programming|c language|ansi c|embedded c)\b/i.test(text);
+  }
+  if (cleanAlias === "r") {
+    return /\b(?:r programming|r language|r statistical)\b/i.test(text);
+  }
+  if (cleanAlias === "go") {
+    return /\b(?:golang|go language|go programming)\b/i.test(text);
+  }
+  if (cleanAlias === "c++" || cleanAlias === "c/c++") {
+    return (
+      /(?:^|[^a-zA-Z0-9+#])c\+\+(?:$|[^a-zA-Z0-9+#])/i.test(text) ||
+      /(?:^|[^a-zA-Z0-9+#])c\/c\+\+(?:$|[^a-zA-Z0-9+#])/i.test(text) ||
+      /\b(?:cpp|c plus plus|modern c\+\+)\b/i.test(text)
+    );
+  }
+  if (cleanAlias === "c#") {
+    return (
+      /(?:^|[^a-zA-Z0-9+#])c#(?:$|[^a-zA-Z0-9+#])/i.test(text) ||
+      /\b(?:csharp|c sharp|\.net c#)\b/i.test(text)
+    );
+  }
+  if (cleanAlias === ".net" || cleanAlias === ".net core") {
+    return (
+      /(?:^|[^a-zA-Z0-9])\.net(?:\s*core)?(?:$|[^a-zA-Z0-9])/i.test(text) ||
+      /\b(?:dotnet|asp\.net)\b/i.test(text)
+    );
+  }
+
+  // Safe boundary matching for general skills
+  const escaped = cleanAlias.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const pattern = new RegExp(`(?:^|[^a-zA-Z0-9+#])${escaped}(?:$|[^a-zA-Z0-9+#])`, "i");
+  return pattern.test(text);
+}
+
+/**
  * Normalizes any skill string to its canonical taxonomy name.
  */
 export function normalizeSkillName(skill: string): string {
@@ -119,8 +189,22 @@ export function normalizeSkillName(skill: string): string {
 
   // Partial / regex fallbacks for complex terms
   if (/^c\s*\+\+/i.test(clean) || /^cpp\b/i.test(clean)) return "C++";
-  if (/^react/i.test(clean)) return "React";
-  if (/^node/i.test(clean)) return "Node.js";
+  if (/^c\s*#/i.test(clean) || /^csharp/i.test(clean)) return "C#";
+  if (/^\.?net\b/i.test(clean) || /^dotnet/i.test(clean)) return ".NET Core";
+  if (/fabric/i.test(clean)) return "Microsoft Fabric";
+  if (/lakehouse/i.test(clean)) return "Lakehouse";
+  if (/warehouse/i.test(clean)) return "Data Warehouse";
+  if (/direct\s*lake/i.test(clean)) return "Direct Lake";
+  if (/dataflows?/i.test(clean)) return "Dataflows Gen2";
+  if (/data\s*pipelines?/i.test(clean) || clean === "pipeline" || clean === "pipelines") return "Data Pipelines";
+  if (/capacity\s*management|cu\s*optimization/i.test(clean)) return "Fabric Capacity Management";
+  if (/databricks/i.test(clean)) return "Databricks";
+  if (/spark|pyspark/i.test(clean)) return "Spark";
+  if (/power\s*bi|powerbi/i.test(clean)) return "Power BI";
+  if (/synapse/i.test(clean)) return "Azure Synapse";
+  if (/azure\s*data\s*factory|adf\b/i.test(clean)) return "Azure Data Factory";
+  if (/react/i.test(clean)) return "React";
+  if (/node/i.test(clean)) return "Node.js";
   if (/^aws\b/i.test(clean) || clean.includes("amazon web services")) return "AWS";
   if (/^azure\b/i.test(clean)) return "Azure";
   if (/^gcp\b/i.test(clean) || clean.includes("google cloud")) return "GCP";
@@ -144,25 +228,10 @@ export function extractSkills(text: string): { skills: string[]; normalizedSkill
   const matchedCanonicals = new Set<string>();
   const originalFound = new Set<string>();
 
-  // Iterate over each category and alias
+  // Iterate over each category and alias using robust token boundary matching
   for (const entry of CONTROLLED_SKILL_TAXONOMY) {
-    // Check canonical name
-    const escapeRegex = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-    
     for (const alias of [entry.canonical, ...entry.aliases]) {
-      let pattern: RegExp;
-      // Handle special single-letter or symbol skills like C, C++, C#, R, Go
-      if (alias.toLowerCase() === "c") {
-        pattern = /\b(?:programming in c|c programming|c language|ansi c|embedded c)\b/i;
-      } else if (alias.toLowerCase() === "r") {
-        pattern = /\b(?:r programming|r language|r statistical)\b/i;
-      } else if (alias.toLowerCase() === "go") {
-        pattern = /\b(?:golang|go language|go programming)\b/i;
-      } else {
-        pattern = new RegExp(`(?:^|[^a-zA-Z0-9+#])${escapeRegex(alias)}(?:$|[^a-zA-Z0-9+#])`, "i");
-      }
-
-      if (pattern.test(text)) {
+      if (matchSkillToken(text, alias)) {
         matchedCanonicals.add(entry.canonical);
         originalFound.add(alias);
       }

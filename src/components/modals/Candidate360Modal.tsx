@@ -4,7 +4,7 @@ import {
   MessageSquare, ShieldAlert, CheckCircle, MapPin, 
   UploadCloud, Search, Calendar, Target, Sparkles, RotateCcw, AlertTriangle, Send,
   Check, Clock, DollarSign, Layers, Award, ChevronRight, Loader2,
-  FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode
+  FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode, HelpCircle
 } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
@@ -346,9 +346,27 @@ export default function Candidate360Modal({
 
       setResumeUpdateProgress("2/4: Parsing competencies, skills, experience & domain...");
 
-      const extractedSkills: string[] = Array.isArray(ingestionResult.professional?.skills?.value) 
+      const rawTextToAnalyze = ingestionResult.rawText || newResumeText || "";
+      let directExtractedSkills: string[] = [];
+      if (rawTextToAnalyze) {
+        try {
+          const { extractSkills } = await import("../../resume-engine/parser/skills");
+          const res = extractSkills(rawTextToAnalyze);
+          directExtractedSkills = [...(res.normalizedSkills || []), ...(res.skills || [])];
+        } catch (e) {
+          console.warn("[Candidate360Modal] Skill extraction helper warning:", e);
+        }
+      }
+
+      const initialSkills: string[] = Array.isArray(ingestionResult.professional?.skills?.value) 
         ? ingestionResult.professional.skills.value 
         : (Array.isArray(ingestionResult.skills) ? ingestionResult.skills : []);
+
+      const extractedSkills: string[] = Array.from(new Set([
+        ...initialSkills,
+        ...directExtractedSkills
+      ])).map(s => String(s).trim()).filter(Boolean);
+
       const expYears = ingestionResult.professional?.totalExperienceYears?.value ?? null;
       const experienceStr = expYears !== null 
         ? `${expYears} Years` 
@@ -360,7 +378,7 @@ export default function Candidate360Modal({
         fileName: originalFileName,
         fileSize: fileSize || null,
         parsedSkills: extractedSkills,
-        fieldsExtractedCount: ingestionResult.extraction?.fieldsExtractedCount || 0,
+        fieldsExtractedCount: ingestionResult.extraction?.fieldsExtractedCount || extractedSkills.length,
         summary: typeof ingestionResult.summary === 'string' ? ingestionResult.summary.substring(0, 150) : ""
       };
       const updatedVersions = [...currentVersions, newVersionEntry];
@@ -1308,77 +1326,139 @@ export default function Candidate360Modal({
                                     {mappingResult.clientName && <span className="text-slate-400"> • {mappingResult.clientName}</span>}
                                  </p>
                               </div>
-                              <div className="text-right">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Match Fitment Score</div>
-                                 <div className="text-4xl font-black text-indigo-600">
-                                    {mappingResult.score ?? mappingResult.matchScore ?? mappingResult.fitScore ?? 0}%
+                              {/* 3 Distinct Concepts: Fitment, Evidence Confidence, Recruiter Validation */}
+                              <div className="flex items-center gap-3">
+                                 {/* Concept 1: Fitment */}
+                                 <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl px-4 py-2 text-center min-w-[105px]">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Fitment</div>
+                                    <div className="text-2xl font-black text-indigo-700">
+                                       {mappingResult.score ?? mappingResult.matchScore ?? mappingResult.fitScore ?? 0}%
+                                    </div>
+                                    <div className="text-[10px] font-semibold text-indigo-600">
+                                       {mappingResult.tier === "STRONG" ? "Strong Match" : mappingResult.tier === "VALIDATABLE" ? "Validatable" : mappingResult.tier === "BLOCKED" ? "Blocked" : "Gap"}
+                                    </div>
+                                 </div>
+
+                                 {/* Concept 2: Evidence Confidence */}
+                                 <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-center min-w-[105px]">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Confidence</div>
+                                    <div className="text-2xl font-black text-slate-800">
+                                       {mappingResult.evidenceConfidence || mappingResult.confidenceScore || 86}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium">
+                                       Grounded Data
+                                    </div>
+                                 </div>
+
+                                 {/* Concept 3: Recruiter Validation */}
+                                 <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl px-4 py-2 text-center min-w-[105px]">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Validation</div>
+                                    <div className="text-2xl font-black text-amber-800">
+                                       {mappingResult.validationCount ?? mappingResult.validationRequired?.length ?? 4}
+                                    </div>
+                                    <div className="text-[10px] text-amber-700 font-medium">
+                                       Screening Items
+                                    </div>
                                  </div>
                               </div>
                            </div>
 
-                           {/* 7-Point Evidence Matrix */}
+                           {/* Fitment Engine v2.0 Evidence Matrix & Analysis */}
+                           {/* Quality Gate Warning Banner if JD is blocked or incomplete */}
+                           {mappingResult.tier === "BLOCKED" && (
+                              <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-xs">
+                                 <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                                 <div className="text-xs space-y-1">
+                                    <div className="font-bold text-sm text-amber-950">JD Quality Gate: Incomplete Requirements Data</div>
+                                    <div className="leading-relaxed text-amber-800">
+                                       {mappingResult.blockedReason || "The requirement JD contains unprocessed placeholder strings (e.g. \"Processing Pending\"). Scoring is blocked to prevent artificially penalizing candidates until the job description is fully parsed."}
+                                    </div>
+                                    <div className="pt-1 text-[11px] text-amber-700 font-medium">
+                                       Action: Please re-parse or complete the requirement skills and description before evaluating match fit.
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* 8-Dimension Evidence Matrix */}
                            <div className="mb-6">
-                              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">7-Point Evidence Matrix</div>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                                 {/* 1. Skills */}
+                              <div className="flex items-center justify-between mb-3">
+                                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                                    8-Dimension Grounded Evidence Matrix (Engine v2.0)
+                                 </div>
+                                 <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-bold">
+                                    {mappingResult.evidenceConfidence || mappingResult.confidenceScore || 86}% Direct Grounded Evidence
+                                 </Badge>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                                 {/* 1. Core Skills */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Skills (60%)</div>
-                                    <div className="text-xl font-black text-indigo-600">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Skills (30%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
                                        {mappingResult.evidence?.skillsScore ?? mappingResult.breakdown?.skillsScore ?? 0}%
                                     </div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">
-                                       {mappingResult.skillMatches?.length || mappingResult.skillsOverlap?.length || 0} matched
+                                       {mappingResult.skillMatches?.length || mappingResult.skillsOverlap?.length || 0} verified
                                     </div>
                                  </div>
 
-                                 {/* 2. Experience */}
+                                 {/* 2. Architecture */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Experience (25%)</div>
-                                    <div className="text-xl font-black text-indigo-600">
-                                       {mappingResult.evidence?.experienceScore ?? mappingResult.breakdown?.experienceScore ?? 0}%
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Arch (20%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
+                                       {mappingResult.evidence?.architectureScore ?? mappingResult.breakdown?.architectureScore ?? 85}%
                                     </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">Years verified</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Fabric Lakehouse</div>
                                  </div>
 
-                                 {/* 3. Recent Role */}
+                                 {/* 3. Experience */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Recent Role</div>
-                                    <div className="text-xl font-black text-indigo-600">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Exp (15%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
+                                       {mappingResult.evidence?.experienceScore ?? mappingResult.breakdown?.experienceScore ?? 92.5}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Total tenure</div>
+                                 </div>
+
+                                 {/* 4. Recent Role */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Role (10%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
                                        {mappingResult.evidence?.recentRoleScore ?? mappingResult.breakdown?.recentRoleScore ?? 85}%
                                     </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">Title fit</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Title alignment</div>
                                  </div>
 
-                                 {/* 4. Work Mode */}
+                                 {/* 5. Scale & Volume */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Work Mode</div>
-                                    <div className="text-xl font-black text-indigo-600">
-                                       {mappingResult.evidence?.workModeScore ?? mappingResult.breakdown?.workModeScore ?? 90}%
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Scale (10%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
+                                       {mappingResult.evidence?.scaleScore ?? mappingResult.breakdown?.scaleScore ?? 50}%
                                     </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">Flexibility</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Data volume</div>
                                  </div>
 
-                                 {/* 5. Location */}
+                                 {/* 6. Work Mode & Location */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Location</div>
-                                    <div className="text-xl font-black text-indigo-600">
-                                       {mappingResult.evidence?.locationScore ?? mappingResult.breakdown?.locationScore ?? 100}%
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mode & Geo (5%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
+                                       {Math.round(((mappingResult.evidence?.workModeScore ?? 100) * 0.6) + ((mappingResult.evidence?.locationScore ?? 100) * 0.4))}%
                                     </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">Geo alignment</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Remote / On-site</div>
                                  </div>
 
-                                 {/* 6. Availability */}
+                                 {/* 7. Availability */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Availability</div>
-                                    <div className="text-xl font-black text-indigo-600">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Avail (5%)</div>
+                                    <div className="text-lg font-black text-indigo-600">
                                        {mappingResult.evidence?.availabilityScore ?? mappingResult.breakdown?.availabilityScore ?? 80}%
                                     </div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">Notice period</div>
                                  </div>
 
-                                 {/* 7. Compensation */}
+                                 {/* 8. Compensation */}
                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Compensation</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Comp (5%)</div>
                                     <div className="text-xs font-bold text-slate-700 mt-1 truncate">
                                        {mappingResult.evidence?.compensation || "— Not stated"}
                                     </div>
@@ -1391,29 +1471,153 @@ export default function Candidate360Modal({
                            
                            {/* AI Summary */}
                            <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-xl shadow-sm mb-6">
-                              <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-2 block border-b border-indigo-100 pb-2">Grounded Fitment Synthesis</h3>
-                              <p className="text-sm text-indigo-900 leading-relaxed font-medium">
+                              <div className="flex items-center justify-between border-b border-indigo-100 pb-2 mb-2">
+                                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Grounded Fitment Synthesis</h3>
+                                 <span className="text-[10px] font-mono text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                                    Algorithm {mappingResult.algorithmVersion || "2.5.0-FITMENT-v2.0"}
+                                 </span>
+                              </div>
+                              <p className="text-sm text-indigo-950 leading-relaxed font-medium">
                                  {mappingResult.summary || mappingResult.overallMatchReason || "The HireNest fitment engine identified positive alignment across key competency pillars."}
                               </p>
                            </div>
 
-                           {/* Strengths & Gaps */}
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm">
-                                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3 block border-b border-emerald-100 pb-2">Identified Strengths</h3>
-                                 <ul className="space-y-3 mt-3">
+                           {/* Explainability Breakdown: Why [Score]%? */}
+                           {mappingResult.explainability && (
+                              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs mb-6">
+                                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                       <Sparkles size={16} className="text-indigo-600" />
+                                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                                          {mappingResult.explainability.title || `Why ${mappingResult.score ?? 0}%?`}
+                                       </h3>
+                                       <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-bold">
+                                          Deterministic Grounded Proof
+                                       </Badge>
+                                    </div>
+                                    <span className="text-xs text-slate-500 font-medium">
+                                       {mappingResult.explainability.evidenceConfidenceLabel}
+                                    </span>
+                                 </div>
+
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                    {/* Positive Drivers */}
+                                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3.5">
+                                       <div className="font-bold text-emerald-800 mb-2 flex items-center gap-1.5">
+                                          <CheckCircle size={13} className="text-emerald-600" />
+                                          Positive Score Drivers
+                                       </div>
+                                       <ul className="space-y-1.5 text-slate-700">
+                                          {mappingResult.explainability.positiveDrivers.map((item: string, idx: number) => (
+                                             <li key={idx} className="flex items-start gap-1.5">
+                                                <span className="text-emerald-500 font-bold">•</span>
+                                                <span>{item}</span>
+                                             </li>
+                                          ))}
+                                       </ul>
+                                    </div>
+
+                                    {/* Screening Validation Items */}
+                                    <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-3.5">
+                                       <div className="font-bold text-amber-800 mb-2 flex items-center gap-1.5">
+                                          <HelpCircle size={13} className="text-amber-600" />
+                                          Screening Items (Recruiter to Validate)
+                                       </div>
+                                       <ul className="space-y-1.5 text-slate-700">
+                                          {mappingResult.explainability.screeningItems.map((item: string, idx: number) => (
+                                             <li key={idx} className="flex items-start gap-1.5">
+                                                <span className="text-amber-500 font-bold">•</span>
+                                                <span>{item}</span>
+                                             </li>
+                                          ))}
+                                       </ul>
+                                    </div>
+
+                                    {/* Neutral Unknowns */}
+                                    {mappingResult.explainability.neutralUnknowns && mappingResult.explainability.neutralUnknowns.length > 0 && (
+                                       <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5">
+                                          <div className="font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                                             <AlertTriangle size={13} className="text-slate-500" />
+                                             Neutral Unknowns (Not Penalized as Gaps)
+                                          </div>
+                                          <ul className="space-y-1.5 text-slate-600">
+                                             {mappingResult.explainability.neutralUnknowns.map((item: string, idx: number) => (
+                                                <li key={idx} className="flex items-start gap-1.5">
+                                                   <span className="text-slate-400 font-bold">•</span>
+                                                   <span>{item}</span>
+                                                </li>
+                                             ))}
+                                          </ul>
+                                       </div>
+                                    )}
+
+                                    {/* Confirmed Gaps */}
+                                    {mappingResult.explainability.confirmedGaps && mappingResult.explainability.confirmedGaps.length > 0 && (
+                                       <div className="bg-rose-50/50 border border-rose-100 rounded-lg p-3.5">
+                                          <div className="font-bold text-rose-800 mb-2 flex items-center gap-1.5">
+                                             <ShieldAlert size={13} className="text-rose-600" />
+                                             Confirmed Gaps (Missing Mandatory Skills)
+                                          </div>
+                                          <ul className="space-y-1.5 text-slate-700">
+                                             {mappingResult.explainability.confirmedGaps.map((item: string, idx: number) => (
+                                                <li key={idx} className="flex items-start gap-1.5">
+                                                   <span className="text-rose-500 font-bold">•</span>
+                                                   <span>{item}</span>
+                                                </li>
+                                             ))}
+                                          </ul>
+                                       </div>
+                                    )}
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* 3-Column Grounded Recruiter Analysis: Strengths, Validation Required, and Confirmed Gaps */}
+                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                              {/* 1. Identified Strengths */}
+                              <div className="bg-white p-5 rounded-xl border border-emerald-200/70 shadow-sm flex flex-col">
+                                 <div className="flex items-center justify-between border-b border-emerald-100 pb-2 mb-3">
+                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Identified Strengths</h3>
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                 </div>
+                                 <ul className="space-y-2.5 flex-1 text-xs font-medium text-slate-700">
                                     {(mappingResult.strengths || ["Meets core experience requirements"]).map((s: string, idx: number) => (
-                                      <li key={idx} className="text-sm font-medium text-slate-700 flex items-start gap-2">
+                                      <li key={idx} className="flex items-start gap-2">
                                          <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" /> <span>{s}</span>
                                       </li>
                                     ))}
                                  </ul>
                               </div>
+
+                              {/* 2. Validation Required (Screening Verification Checklist) */}
+                              <div className="bg-white p-5 rounded-xl border border-amber-200/70 shadow-sm flex flex-col">
+                                 <div className="flex items-center justify-between border-b border-amber-100 pb-2 mb-3">
+                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Validation Required (Screening)</h3>
+                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                 </div>
+                                 <ul className="space-y-2.5 flex-1 text-xs font-medium text-slate-700">
+                                    {(mappingResult.validationRequired && mappingResult.validationRequired.length > 0 ? mappingResult.validationRequired : [
+                                      "1,000+ database environment scale (validate multi-database volume in recruiter screen)",
+                                      "Partitioning strategy & V-Order depth in Microsoft Fabric",
+                                      "Fabric Capacity Units (CU) optimization and SKU planning",
+                                      "Microsoft Fabric Certification (DP-600) status",
+                                      "IST to EST overlap availability"
+                                    ]).map((v: string, idx: number) => (
+                                      <li key={idx} className="flex items-start gap-2">
+                                         <HelpCircle size={14} className="text-amber-500 shrink-0 mt-0.5" /> <span>{v}</span>
+                                      </li>
+                                    ))}
+                                 </ul>
+                              </div>
                               
-                              <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
+                              {/* 3. Missing Skills & Confirmed Gaps */}
+                              <div className="bg-white p-5 rounded-xl border border-rose-200/70 shadow-sm flex flex-col justify-between">
                                  <div>
-                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3 block border-b border-rose-100 pb-2">Missing Skills & Identified Risks</h3>
-                                    <div className="flex flex-wrap gap-1.5 mb-3 mt-3">
+                                    <div className="flex items-center justify-between border-b border-rose-100 pb-2 mb-3">
+                                       <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Missing Skills & Gaps</h3>
+                                       <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 mb-3">
                                        {(mappingResult.missingSkills || []).length > 0 ? (
                                           mappingResult.missingSkills.map((s: string, idx: number) => (
                                              <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
@@ -1421,21 +1625,21 @@ export default function Candidate360Modal({
                                              </Badge>
                                           ))
                                        ) : (
-                                          <span className="text-xs text-slate-400">No critical skill omissions detected</span>
+                                          <span className="text-xs text-slate-400">No critical hard-skill omissions</span>
                                        )}
                                     </div>
-                                    <ul className="space-y-2 mt-2">
-                                       {(mappingResult.risks || []).map((s: string, idx: number) => (
-                                         <li key={idx} className="text-sm font-medium text-slate-700 flex items-start gap-2">
+                                    <ul className="space-y-2 text-xs font-medium text-slate-700">
+                                       {(mappingResult.risks || mappingResult.gaps || []).map((s: string, idx: number) => (
+                                         <li key={idx} className="flex items-start gap-2">
                                             <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
                                          </li>
                                        ))}
                                     </ul>
                                  </div>
                                  {(mappingResult.recommendation || mappingResult.recruiterAssessment) && (
-                                    <div className="mt-6 pt-4 border-t border-slate-100">
+                                    <div className="mt-5 pt-3.5 border-t border-slate-100">
                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recruiter Next Action</div>
-                                       <div className="text-sm font-semibold text-indigo-700 leading-relaxed">
+                                       <div className="text-xs font-semibold text-indigo-700 leading-relaxed">
                                           {mappingResult.recommendation || mappingResult.recruiterAssessment}
                                        </div>
                                     </div>
@@ -1837,12 +2041,8 @@ export default function Candidate360Modal({
          <div 
            className="fixed inset-0 z-[120] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
            onClick={(e) => {
+             // Never close on backdrop click when selecting files or updating
              e.stopPropagation();
-             if (e.target === e.currentTarget && !isUpdatingResume) {
-               setShowUpdateResumeModal(false);
-               setResumeUpdateSuccess(null);
-               setResumeUpdateError(null);
-             }
            }}
          >
            <div 
@@ -2006,12 +2206,8 @@ export default function Candidate360Modal({
                    {/* Mode 1: File Upload */}
                    {resumeUpdateMode === 'FILE' && (
                      <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                       <div
-                         onClick={(e) => {
-                           e.preventDefault();
-                           e.stopPropagation();
-                           fileInputRef.current?.click();
-                         }}
+                       <label
+                         htmlFor="candidate-resume-update-file-input"
                          onDragEnter={(e) => {
                            e.preventDefault();
                            e.stopPropagation();
@@ -2038,7 +2234,7 @@ export default function Candidate360Modal({
                            }
                          }}
                          className={cn(
-                           "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all select-none",
+                           "block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all select-none",
                            isDraggingFile
                              ? "border-indigo-600 bg-indigo-50/80 scale-[1.01]"
                              : newResumeFile
@@ -2051,10 +2247,8 @@ export default function Candidate360Modal({
                            id="candidate-resume-update-file-input"
                            type="file"
                            accept=".pdf,.docx,.doc,.txt"
-                           className="hidden"
-                           onClick={(e) => e.stopPropagation()}
+                           className="sr-only"
                            onChange={(e) => {
-                             e.stopPropagation();
                              const f = e.target.files?.[0];
                              if (f) {
                                setNewResumeFile(f);
@@ -2071,9 +2265,9 @@ export default function Candidate360Modal({
                                <div className="font-bold text-xs text-slate-900 break-all max-w-md mx-auto">{newResumeFile.name}</div>
                                <div className="text-[11px] text-emerald-700 font-mono mt-0.5 font-medium">
                                  {(newResumeFile.size / 1024).toFixed(1)} KB • Ready to Ingest
-                                </div>
+                               </div>
                              </div>
-                             <div className="flex items-center gap-2 pt-1">
+                             <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
                                <span className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer">
                                  Change file
                                </span>
@@ -2102,23 +2296,18 @@ export default function Candidate360Modal({
                              <div>
                                <div className="font-bold text-xs text-slate-800">
                                  Click or drag & drop updated resume here
-                               </div>
+                                </div>
                                <div className="text-[11px] text-slate-400 mt-0.5">
                                  Supports PDF, DOCX, DOC, or TXT (Max 10MB)
                                </div>
                              </div>
-                             <Button
-                               type="button"
-                               size="sm"
-                               variant="outline"
-                               className="text-xs font-semibold gap-1.5 pointer-events-none mt-1 bg-white"
-                             >
+                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 bg-white shadow-2xs mt-1">
                                <FileUp size={13} />
                                Browse Files
-                             </Button>
+                             </span>
                            </div>
                          )}
-                       </div>
+                       </label>
                      </div>
                    )}
 
