@@ -323,6 +323,11 @@ export default async function handler(req: any, res: any) {
           status: "ACTIVE",
           createdAt: new Date().toISOString(),
         });
+      await adminAuth.setCustomUserClaims(userRecord.uid, {
+        role: role || "client_admin",
+        orgId: orgId,
+        organizationId: orgId,
+      });
       await adminDb.collection("onboarding_requests").doc(requestId).update({
         verificationStatus: "VERIFIED",
         approvedAt: new Date().toISOString(),

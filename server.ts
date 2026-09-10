@@ -891,8 +891,7 @@ hirenest_active_requests 0
 
   // Vite integration
   const distIndexPath = path.join(process.cwd(), 'dist', 'index.html');
-  const isRunningFromCjs = process.argv[1]?.endsWith('server.cjs');
-  const isProd = process.env.NODE_ENV === 'production' || isRunningFromCjs || !fs.existsSync(path.resolve(process.cwd(), 'vite.config.ts'));
+  const isProd = process.env.NODE_ENV !== 'development';
 
   const serveStaticFiles = () => {
     const distPath = path.join(process.cwd(), 'dist');

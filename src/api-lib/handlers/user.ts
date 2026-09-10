@@ -76,6 +76,7 @@ export default async function handler(req: any, res: any) {
       await adminAuth.setCustomUserClaims(userProfile.uid, {
         role: safeRole,
         orgId: orgId,
+        organizationId: orgId,
       });
 
       return res.status(200).json({ ok: true });
@@ -147,6 +148,7 @@ export default async function handler(req: any, res: any) {
       await adminAuth.setCustomUserClaims(user.uid, {
         role: role || "client_admin",
         orgId: orgId,
+        organizationId: orgId,
       });
       return res.status(200).json({ ok: true, uid: user.uid });
     }
@@ -225,10 +227,18 @@ export default async function handler(req: any, res: any) {
             "Authority node not initialized (missing Firebase Admin credentials on the backend)",
         });
       }
-      await adminAuth.setCustomUserClaims(uid, { role, orgId: organizationId });
+      await adminAuth.setCustomUserClaims(uid, { role, orgId: organizationId, organizationId });
+      
+      // Explicitly propagate role change and organization configuration to Firestore collection
+      await adminDb.collection("users").doc(uid).set({
+        role,
+        orgId: organizationId,
+        organizationId: organizationId
+      }, { merge: true });
+
       return res
         .status(200)
-        .json({ ok: true, message: "Custom claims updated." });
+        .json({ ok: true, message: "Custom claims and Firestore user profile synchronized successfully." });
     }
 
     // Right to Data Portability / Subject Access Request (GDPR Art. 20, DPDP Act 2023 Sec. 11)
