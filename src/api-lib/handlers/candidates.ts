@@ -1,5 +1,6 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { getScopedCandidateUniverse } from "../utils/governance.js";
+import { dedupeCandidates } from "../../services/candidateCanonicalizationService.js";
 
 export default async function handler(req: any, res: any) {
   const role = req.user?.role || req.query?.role;
@@ -112,7 +113,7 @@ export default async function handler(req: any, res: any) {
         data.matchData?.matchScore ||
         data.aiIntelligence?.fitmentScore ||
         data.aiIntelligence?.matchScore ||
-        (Array.isArray(data.skills) && data.skills.length > 0 ? Math.min(92, 70 + data.skills.length * 3) : 80)
+        0
       );
       return {
         id: doc.id,
@@ -131,6 +132,9 @@ export default async function handler(req: any, res: any) {
         return !isDirect;
       });
     }
+
+    // Canonicalize & Deduplicate candidates across identity keys
+    candidates = dedupeCandidates(candidates);
 
     return res.status(200).json({ ok: true, success: true, candidates });
   } catch (error: any) {

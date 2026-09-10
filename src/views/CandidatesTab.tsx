@@ -55,6 +55,7 @@ import { publishEvent } from "../lib/eventEngine";
 import { emitEvent } from "../services/eventBus";
 import { UnifiedRequirementsService } from "../services/unifiedRequirementsService";
 import { AccessControlService } from "../services/accessControlService";
+import { dedupeCandidates } from "../services/candidateCanonicalizationService";
 
 const setDoc = async (ref: any, data: any, options?: any) => {
   const result = await firebaseSetDoc(ref, data, options);
@@ -616,7 +617,7 @@ export default function CandidatesTab() {
           );
           if (res.ok) {
             const data = await res.json();
-            setCandidates(data.candidates || []);
+            setCandidates(dedupeCandidates(data.candidates || []));
           }
         } catch (e) {
           console.warn("Initial API load failed");
@@ -666,32 +667,31 @@ export default function CandidatesTab() {
                     const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : (Date.parse(b.updatedAt) || 0));
                     return timeB - timeA;
                   });
-                  setCandidates(
-                    rawList.filter((c: any) => {
-                       const nameLower = (c.name || "").toLowerCase().trim();
-                       if (
-                         c.status === "DELETED" || 
-                         c.isActive === false || 
-                         c.name === "Parsing Pending" || 
-                         c.status === "PARSING_PENDING" ||
-                         nameLower.includes("candidate with skill") ||
-                         nameLower.includes("pending distillation") ||
-                         nameLower.includes("candidate missing skill") ||
-                         nameLower.includes("needs manual review") ||
-                         nameLower.includes("candidate profile") ||
-                         nameLower.includes("unnamed candidate") ||
-                         nameLower.includes("unknown candidate") ||
-                         nameLower.includes("local mock generated")
-                       ) {
-                         return false;
-                       }
-                       const isDirect = c.sourceType === "DIRECT_CANDIDATE" || c.source === "direct registration" || c.isDirect === true;
-                       if (isDirect && !isAdminUser) {
-                         return false;
-                       }
-                       return true;
-                    }),
-                  );
+                  const filteredList = rawList.filter((c: any) => {
+                     const nameLower = (c.name || "").toLowerCase().trim();
+                     if (
+                       c.status === "DELETED" || 
+                       c.isActive === false || 
+                       c.name === "Parsing Pending" || 
+                       c.status === "PARSING_PENDING" ||
+                       nameLower.includes("candidate with skill") ||
+                       nameLower.includes("pending distillation") ||
+                       nameLower.includes("candidate missing skill") ||
+                       nameLower.includes("needs manual review") ||
+                       nameLower.includes("candidate profile") ||
+                       nameLower.includes("unnamed candidate") ||
+                       nameLower.includes("unknown candidate") ||
+                       nameLower.includes("local mock generated")
+                     ) {
+                       return false;
+                     }
+                     const isDirect = c.sourceType === "DIRECT_CANDIDATE" || c.source === "direct registration" || c.isDirect === true;
+                     if (isDirect && !isAdminUser) {
+                       return false;
+                     }
+                     return true;
+                  });
+                  setCandidates(dedupeCandidates(filteredList));
                 },
                 (error: any) => {
                   console.error("[onSnapshot error in candidatePool]:", error);
@@ -1820,13 +1820,22 @@ export default function CandidatesTab() {
 
                  try {
                      const idToken = await auth.currentUser?.getIdToken();
+                     const candidateIds = imported
+                       .filter((x: any) => x.status !== "FAILED")
+                       .map((x: any) => x.candidateId || x.id || x.originalId)
+                       .filter(Boolean);
+
                      fetch("/api/rescan-matches", {
                        method: "POST",
                        headers: {
                          "Content-Type": "application/json",
                          "Authorization": `Bearer ${idToken}`
                        },
-                       body: JSON.stringify({ orgId: userOrgId || "HQ" })
+                       body: JSON.stringify({
+                         orgId: userOrgId || "ORG-GLOBAL-HQ",
+                         role: userRole,
+                         candidateIds: candidateIds.length > 0 ? candidateIds : undefined
+                       })
                      }).then(res => res.json())
                        .then(data => {
                          console.log("[MATCH_ENGINE_AUTO] Successful match scan:", data);

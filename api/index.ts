@@ -160,6 +160,18 @@ if (typeof (Math as any).sumPrecise !== 'function') {
 }
 
 import { adminAuth } from '../src/lib/firebase-admin.js';
+import adminHandler from '../src/api-lib/handlers/admin.js';
+import candidatesHandler from '../src/api-lib/handlers/candidates.js';
+import rescanMatchesHandler from '../src/api-lib/handlers/rescan-matches.js';
+import clientCandidateHandler from '../src/api-lib/handlers/client-candidate.js';
+import clientSubmissionsHandler from '../src/api-lib/handlers/client-submissions.js';
+import repairCandidatesHandler from '../src/api-lib/handlers/repair-candidates.js';
+import validateSubmissionHandler from '../src/api-lib/handlers/validate-submission.js';
+import parseJdHandler from '../src/api-lib/handlers/parse-jd.js';
+import extractTextHandler from '../src/api-lib/handlers/extract-text.js';
+import publicCandidateResumeHandler from '../src/api-lib/handlers/public-candidate-resume.js';
+import matchDetailedHandler from '../src/api-lib/handlers/match-candidates-detailed.js';
+import bulkParseResumesHandler from '../src/api-lib/handlers/bulk-parse-resumes.js';
 
 export default async function handler(req: any, res: any) {
   try {
@@ -247,16 +259,18 @@ export default async function handler(req: any, res: any) {
 
     let targetHandler: any;
 
-    if (path === 'admin')            targetHandler = await loadHandler('../src/api-lib/handlers/admin.js');
-    else if (path === 'client-candidate') targetHandler = await loadHandler('../src/api-lib/handlers/client-candidate.js');
-    else if (path === 'client-submissions') targetHandler = await loadHandler('../src/api-lib/handlers/client-submissions.js');
-    else if (path === 'repair-candidates') targetHandler = await loadHandler('../src/api-lib/handlers/repair-candidates.js');
-    else if (path === 'validate-submission') targetHandler = await loadHandler('../src/api-lib/handlers/validate-submission.js');
-    else if (path === 'parse-jd')          targetHandler = await loadHandler('../src/api-lib/handlers/parse-jd.js');
-    else if (path === 'extract-text')      targetHandler = await loadHandler('../src/api-lib/handlers/extract-text.js');
-    else if (path === 'public-candidate-resume' || path === 'public/candidate-resume') targetHandler = await loadHandler('../src/api-lib/handlers/public-candidate-resume.js');
-    else if (path === 'match-detailed')    targetHandler = await loadHandler('../src/api-lib/handlers/match-candidates-detailed.js');
-    else if (path === 'bulk-parse' || path === 'bulk-parse-resumes')        targetHandler = await loadHandler('../src/api-lib/handlers/bulk-parse-resumes.js');
+    if (path === 'candidates' || action === 'candidates' || action === 'all-candidates') targetHandler = candidatesHandler;
+    else if (path === 'rescan-matches' || action === 'rescan-matches') targetHandler = rescanMatchesHandler;
+    else if (path === 'admin')            targetHandler = adminHandler;
+    else if (path === 'client-candidate') targetHandler = clientCandidateHandler;
+    else if (path === 'client-submissions') targetHandler = clientSubmissionsHandler;
+    else if (path === 'repair-candidates') targetHandler = repairCandidatesHandler;
+    else if (path === 'validate-submission') targetHandler = validateSubmissionHandler;
+    else if (path === 'parse-jd')          targetHandler = parseJdHandler;
+    else if (path === 'extract-text')      targetHandler = extractTextHandler;
+    else if (path === 'public-candidate-resume' || path === 'public/candidate-resume') targetHandler = publicCandidateResumeHandler;
+    else if (path === 'match-detailed')    targetHandler = matchDetailedHandler;
+    else if (path === 'bulk-parse' || path === 'bulk-parse-resumes')        targetHandler = bulkParseResumesHandler;
     else if (path === 'interviews')        targetHandler = await loadHandler('../src/api-lib/handlers/interviews.js');
     else if (path === 'intel')             targetHandler = await loadHandler('../src/api-lib/handlers/intel.js');
     else if (path === 'analytics')         targetHandler = await loadHandler('../src/api-lib/handlers/analytics.js');
@@ -284,17 +298,17 @@ export default async function handler(req: any, res: any) {
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
-        case 'candidate': targetHandler = await loadHandler('../src/api-lib/handlers/client-candidate.js'); break;
-        case 'submissions': targetHandler = await loadHandler('../src/api-lib/handlers/client-submissions.js'); break;
-        case 'repair': targetHandler = await loadHandler('../src/api-lib/handlers/repair-candidates.js'); break;
-        case 'validate-submission': targetHandler = await loadHandler('../src/api-lib/handlers/validate-submission.js'); break;
-        case 'parse-jd': targetHandler = await loadHandler('../src/api-lib/handlers/parse-jd.js'); break;
-        case 'extract-text': targetHandler = await loadHandler('../src/api-lib/handlers/extract-text.js'); break;
-        case 'public-candidate-resume': targetHandler = await loadHandler('../src/api-lib/handlers/public-candidate-resume.js'); break;
-        case 'match-detailed': targetHandler = await loadHandler('../src/api-lib/handlers/match-candidates-detailed.js'); break;
+        case 'candidate': targetHandler = clientCandidateHandler; break;
+        case 'submissions': targetHandler = clientSubmissionsHandler; break;
+        case 'repair': targetHandler = repairCandidatesHandler; break;
+        case 'validate-submission': targetHandler = validateSubmissionHandler; break;
+        case 'parse-jd': targetHandler = parseJdHandler; break;
+        case 'extract-text': targetHandler = extractTextHandler; break;
+        case 'public-candidate-resume': targetHandler = publicCandidateResumeHandler; break;
+        case 'match-detailed': targetHandler = matchDetailedHandler; break;
         case 'bulk-parse':
-        case 'bulk-parse-resumes': targetHandler = await loadHandler('../src/api-lib/handlers/bulk-parse-resumes.js'); break;
-        default: targetHandler = await loadHandler('../src/api-lib/handlers/admin.js'); break;
+        case 'bulk-parse-resumes': targetHandler = bulkParseResumesHandler; break;
+        default: targetHandler = adminHandler; break;
       }
     }
 

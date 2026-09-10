@@ -7,10 +7,33 @@ export async function runMatchIntelligenceEngine(
   orgId?: string,
   role?: string,
   onProgress?: (progress: { current: number; total: number; processedReqs: string[]; count: number }) => void,
+  candidateIds?: string[]
 ) {
   if (!adminDb) return 0;
 
-  if (reqId) {
+  if (candidateIds && candidateIds.length > 0) {
+    // Targeted candidate matching
+    let matchUpdatesCount = 0;
+    const total = candidateIds.length;
+    for (let i = 0; i < total; i++) {
+      const candId = candidateIds[i];
+      await MatchingOffice.matchCandidate(candId, orgId);
+      const countSnap = await adminDb
+        .collection("candidate_matches")
+        .where("candidateId", "==", candId)
+        .get();
+      matchUpdatesCount += countSnap.size;
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total,
+          processedReqs: [candId],
+          count: matchUpdatesCount,
+        });
+      }
+    }
+    return matchUpdatesCount;
+  } else if (reqId) {
     // Delete old matches for this requirement since we are refreshing
     const oldMatches = await adminDb
       .collection("candidate_matches")
@@ -90,7 +113,8 @@ export default async function handler(req: any, res: any) {
   res.setHeader("Connection", "keep-alive");
 
   try {
-    const { orgId, role, reqId } = req.body;
+    const { orgId, role, reqId, candidateIds, candidateId } = req.body || {};
+    const targetCandidateIds = candidateIds || (candidateId ? [candidateId] : undefined);
 
     await adminDb
       .collection("agent_executions")
@@ -101,9 +125,11 @@ export default async function handler(req: any, res: any) {
         agentType: "SYSTEM_AGENT",
         task: reqId
           ? `Evaluating matches for Requirement ${reqId}`
-          : "Global Match Refresh",
+          : targetCandidateIds
+            ? `Evaluating matches for Candidates ${targetCandidateIds.join(", ")}`
+            : "Global Match Refresh",
         status: "running",
-        targetId: reqId || "GLOBAL",
+        targetId: reqId || (targetCandidateIds ? targetCandidateIds[0] : "GLOBAL"),
         createdAt: FieldValue.serverTimestamp(),
       });
 
@@ -125,6 +151,7 @@ export default async function handler(req: any, res: any) {
           }) + "\n",
         );
       },
+      targetCandidateIds
     );
 
     const duration = Date.now() - startTime;
