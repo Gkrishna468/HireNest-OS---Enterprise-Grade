@@ -5,6 +5,7 @@ import { auth, db } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
 import { Trash2, Check, Save, Lock, Clock } from "lucide-react";
+import { useSystemStore } from "../stores/SystemStore";
 
 function SafeUserRow({ 
   u, 
@@ -17,7 +18,8 @@ function SafeUserRow({
   setIsSubmitting, 
   setUserToDelete, 
   setEditingUser, 
-  isSubmitting 
+  isSubmitting,
+  handleSyncUserRole
 }: any) {
   try {
     const userId = u?.id || u?.uid || "unknown";
@@ -79,30 +81,10 @@ function SafeUserRow({
         
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
            <button 
-              onClick={async () => {
-                if (confirm(`Sync ${userEmail} role [${userRole}] to Custom Claims? This enables enterprise rule enforcement.`)) {
-                  try {
-                    setIsSubmitting(true);
-                    const token = await auth.currentUser?.getIdToken();
-                    const resp = await fetch('/api/assign-role', {
-                      method: 'POST',
-                      headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` 
-                      },
-                      body: JSON.stringify({ uid: userId, role: userRole, organizationId: u?.organizationId })
-                    });
-                    if (resp.ok) alert("IAM Role synchronized. Access Protocol Updated.");
-                    else alert("IAM sync failed.");
-                  } catch (e) {
-                    alert("Network handshake failure");
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }
-              }}
+              onClick={() => handleSyncUserRole(userId, userEmail, userRole, u?.organizationId)}
               className="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
               title="Sync IAM Custom Claims"
+              disabled={isSubmitting}
            >
               <Lock size={16} />
            </button>
@@ -280,6 +262,52 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncUserRole = async (userId: string, userEmail: string, userRole: string, organizationId?: string) => {
+    console.log(`[IAM Custom Claims Sync] Initializing sync check for ${userEmail} (${userId}) to role [${userRole}]`);
+    if (!confirm(`Sync ${userEmail} role [${userRole}] to Custom Claims? This enables enterprise rule enforcement.`)) {
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      console.log("[IAM Custom Claims Sync] Requesting fresh client authorization token...");
+      const token = await auth.currentUser?.getIdToken();
+      console.log("[IAM Custom Claims Sync] Dispatching POST request to /api/assign-role...");
+      const resp = await fetch('/api/assign-role', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ uid: userId, role: userRole, organizationId: organizationId })
+      });
+      
+      if (resp.ok) {
+        console.log(`[IAM Custom Claims Sync] Successful response from backend for ${userEmail}`);
+        alert("IAM Role synchronized. Access Protocol Updated.");
+        
+        if (userId === auth.currentUser?.uid) {
+          console.log("[IAM Custom Claims Sync] Target user is active admin. Force-refreshing active user ID token to propagate claims immediately...");
+          await auth.currentUser?.getIdToken(true);
+          useSystemStore.setState((state) => ({
+            userData: state.userData ? { ...state.userData, role: userRole } : null
+          }));
+          console.log("[IAM Custom Claims Sync] Active user session and Zustand store state successfully updated.");
+        } else {
+          console.log("[IAM Custom Claims Sync] Note: For changes to take effect on target user's active session, they will need to refresh their session or re-authenticate.");
+        }
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        console.error("[IAM Custom Claims Sync] Server rejected request:", errData);
+        alert(`IAM sync failed: ${errData.error || "Unknown server response"}`);
+      }
+    } catch (e) {
+      console.error("[IAM Custom Claims Sync] Handshake/Network error during claim propagation:", e);
+      alert("Network handshake failure");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -771,6 +799,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                        setUserToDelete={setUserToDelete} 
                        setEditingUser={setEditingUser} 
                        isSubmitting={isSubmitting} 
+                       handleSyncUserRole={handleSyncUserRole}
                     />
                   ))}
                   {false && filteredUsers.map(u => (
@@ -828,7 +857,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                               if (confirm(`Sync ${u.email} role [${u.role}] to Custom Claims? This enables enterprise rule enforcement.`)) {
                                 try {
                                   setIsSubmitting(true);
-                                  const token = await auth.currentUser?.getIdToken();
+                                  console.log("[IAM Custom Claims Sync] Requesting fresh client ID token..."); const token = await auth.currentUser?.getIdToken();
                                   const resp = await fetch('/api/assign-role', {
                                     method: 'POST',
                                     headers: { 
