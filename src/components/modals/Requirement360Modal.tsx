@@ -52,12 +52,13 @@ export default function Requirement360Modal({
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [currentStatus, setCurrentStatus] = useState<string>(job?.status || "ACTIVE");
+  const normalizedInitStatus = requirementLifecycleService.normalizeStatus(job?.status);
+  const [currentStatus, setCurrentStatus] = useState<RequirementStatus>(normalizedInitStatus);
   const [isPublished, setIsPublished] = useState<boolean>(
-    job?.distributionStatus === "PUBLISHED" || job?.published === true || job?.status === "PUBLISHED"
+    job?.distributionStatus === "PUBLISHED" || job?.published === true
   );
 
-  const handleStatusChange = async (targetStatus: string) => {
+  const handleStatusChange = async (targetStatus: RequirementStatus) => {
     try {
       const user = auth.currentUser;
       const context = AccessControlService.buildAccessContext({
@@ -66,61 +67,71 @@ export default function Requirement360Modal({
         orgId: userOrgId
       });
 
-      const isPublishing = targetStatus === "PUBLISHED";
-      const actualTargetStatus: RequirementStatus = isPublishing ? "ACTIVE" : (targetStatus as RequirementStatus);
-
       await requirementLifecycleService.transition({
         requirementId: job.id,
-        targetStatus: actualTargetStatus,
+        targetStatus,
         context,
         reason: `Transitioned status to ${targetStatus} via Requirement 360`
       });
 
-      if (isPublishing) {
+      const nextDistributionStatus = targetStatus === "ACTIVE" ? (isPublished ? "PUBLISHED" : "UNPUBLISHED") : "UNPUBLISHED";
+      const nextPublished = targetStatus === "ACTIVE" && isPublished;
+
+      await updateDoc(doc(db, "requirements_public", job.id), {
+        status: targetStatus,
+        distributionStatus: nextDistributionStatus,
+        published: nextPublished,
+        vendorVisibility: nextPublished ? "ENABLED" : "DISABLED",
+        updatedAt: serverTimestamp()
+      });
+
+      if (!nextPublished && isPublished) {
+        await requirementDistributionService.unpublishRequirement(job.id);
+        setIsPublished(false);
+      }
+
+      setCurrentStatus(targetStatus);
+    } catch (err: any) {
+      console.error("[Requirement360Modal] Failed to transition status:", err);
+      try {
         await updateDoc(doc(db, "requirements_public", job.id), {
-          status: "ACTIVE",
+          status: targetStatus,
+          updatedAt: serverTimestamp(),
+        });
+        setCurrentStatus(targetStatus);
+      } catch (fbErr: any) {
+        alert("Failed to update status: " + fbErr.message);
+      }
+    }
+  };
+
+  const handleToggleDistribution = async () => {
+    try {
+      if (isPublished) {
+        await requirementDistributionService.unpublishRequirement(job.id);
+        await updateDoc(doc(db, "requirements_public", job.id), {
+          distributionStatus: "UNPUBLISHED",
+          published: false,
+          vendorVisibility: "DISABLED",
+          updatedAt: serverTimestamp()
+        });
+        setIsPublished(false);
+      } else {
+        if (currentStatus !== "ACTIVE") {
+          await handleStatusChange("ACTIVE");
+        }
+        await requirementDistributionService.publishRequirement(job.id);
+        await updateDoc(doc(db, "requirements_public", job.id), {
           distributionStatus: "PUBLISHED",
           published: true,
           vendorVisibility: "ENABLED",
           updatedAt: serverTimestamp()
         });
-        await requirementDistributionService.publishRequirement(job.id);
-        setCurrentStatus("PUBLISHED");
         setIsPublished(true);
-      } else if (targetStatus === "HOLD" || targetStatus === "CLOSED" || targetStatus === "SOURCING_PAUSED") {
-        await updateDoc(doc(db, "requirements_public", job.id), {
-          status: targetStatus,
-          distributionStatus: targetStatus,
-          published: false,
-          vendorVisibility: "DISABLED",
-          updatedAt: serverTimestamp()
-        });
-        await requirementDistributionService.unpublishRequirement(job.id);
-        setCurrentStatus(targetStatus);
-        setIsPublished(false);
-      } else {
-        setCurrentStatus(actualTargetStatus);
-        setIsPublished(false);
       }
     } catch (err: any) {
-      console.error("[Requirement360Modal] Failed to transition status:", err);
-      try {
-        const isPublishing = targetStatus === "PUBLISHED";
-        await updateDoc(doc(db, "requirements_public", job.id), {
-          status: isPublishing ? "ACTIVE" : targetStatus,
-          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
-          published: isPublishing,
-          vendorVisibility: isPublishing ? "ENABLED" : "DISABLED",
-          updatedAt: serverTimestamp()
-        });
-        if (isPublishing) {
-          await requirementDistributionService.publishRequirement(job.id);
-        }
-        setCurrentStatus(isPublishing ? "PUBLISHED" : targetStatus);
-        setIsPublished(isPublishing);
-      } catch (fbErr: any) {
-        alert("Failed to update status: " + fbErr.message);
-      }
+      console.error("[Requirement360Modal] Distribution toggle failed:", err);
+      alert("Failed to update publication: " + (err.message || "Unknown error"));
     }
   };
 
@@ -241,18 +252,26 @@ export default function Requirement360Modal({
                 <Badge
                   className={cn(
                     "text-[10px] font-black tracking-widest px-2.5 py-0.5 border-none shadow-xs uppercase ml-1",
-                    isPublished || currentStatus === "PUBLISHED"
+                    currentStatus === "ACTIVE"
                       ? "bg-emerald-100 text-emerald-800"
-                      : currentStatus === "ACTIVE"
-                        ? "bg-blue-100 text-blue-800"
-                        : currentStatus === "HOLD"
-                          ? "bg-amber-100 text-amber-800"
-                          : currentStatus === "SOURCING_PAUSED"
-                            ? "bg-orange-100 text-orange-800"
-                            : "bg-red-100 text-red-700"
+                      : currentStatus === "HOLD"
+                        ? "bg-amber-100 text-amber-800"
+                        : currentStatus === "SOURCING_PAUSED"
+                          ? "bg-orange-100 text-orange-800"
+                          : currentStatus === "CLOSED"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-slate-100 text-slate-700"
                   )}
                 >
-                  ● {isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED" : currentStatus}
+                  ● {currentStatus}
+                </Badge>
+                <Badge
+                  className={cn(
+                    "text-[10px] font-black tracking-widest px-2.5 py-0.5 border-none shadow-xs uppercase ml-1",
+                    isPublished ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-500"
+                  )}
+                >
+                  {isPublished ? "● DISTRIBUTED" : "○ UNPUBLISHED"}
                 </Badge>
               </div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">
@@ -265,37 +284,36 @@ export default function Requirement360Modal({
             {(isAdmin || userRole === "RECRUITER" || userRole === "ADMIN") && (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleStatusChange("PUBLISHED")}
+                  onClick={handleToggleDistribution}
                   className={cn(
                     "text-xs font-black px-3.5 py-2 rounded-xl border transition-all cursor-pointer uppercase shadow-xs flex items-center gap-1.5",
-                    isPublished || currentStatus === "PUBLISHED"
-                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                    isPublished
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
                       : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-indigo-100"
                   )}
                 >
                   <Sparkles size={14} />
-                  {isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED TO VENDORS ✓" : "PUBLISH TO VENDORS"}
+                  {isPublished ? "UNPUBLISH" : "PUBLISH TO VENDORS"}
                 </button>
 
                 <button
-                  onClick={() => handleStatusChange(currentStatus === "ACTIVE" || currentStatus === "PUBLISHED" ? "HOLD" : "ACTIVE")}
+                  onClick={() => handleStatusChange(currentStatus === "ACTIVE" ? "HOLD" : "ACTIVE")}
                   className={cn(
                     "text-xs font-bold px-3 py-2 rounded-xl border transition-colors cursor-pointer uppercase shadow-xs",
-                    currentStatus === "ACTIVE" || currentStatus === "PUBLISHED"
+                    currentStatus === "ACTIVE"
                       ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
                       : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                   )}
                 >
-                  {currentStatus === "ACTIVE" || currentStatus === "PUBLISHED" ? "HOLD" : "ACTIVATE"}
+                  {currentStatus === "ACTIVE" ? "HOLD" : "ACTIVATE"}
                 </button>
 
                 <select
-                  value={isPublished || currentStatus === "PUBLISHED" ? "PUBLISHED" : currentStatus}
-                  onChange={(e) => handleStatusChange(e.target.value)}
+                  value={currentStatus}
+                  onChange={(e) => handleStatusChange(e.target.value as RequirementStatus)}
                   className="text-xs font-bold bg-white border border-slate-200 text-slate-700 rounded-xl px-2.5 py-2 cursor-pointer outline-none hover:bg-slate-50 shadow-xs"
                 >
                   <option value="ACTIVE">ACTIVE</option>
-                  <option value="PUBLISHED">PUBLISHED</option>
                   <option value="HOLD">HOLD</option>
                   <option value="SOURCING_PAUSED">SOURCING PAUSED</option>
                   <option value="CLOSED">CLOSED</option>

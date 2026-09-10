@@ -119,6 +119,18 @@
       "destination": "/api/index?path=google&action=:path*"
     },
     {
+      "source": "/api/sync-requirements/:path*",
+      "destination": "/api/index?path=sync-requirements&action=:path*"
+    },
+    {
+      "source": "/api/sync-requirements",
+      "destination": "/api/index?path=sync-requirements"
+    },
+    {
+      "source": "/api/ruflo/:path*",
+      "destination": "/api/index?path=ruflo&action=:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index?path=:path*"
     },

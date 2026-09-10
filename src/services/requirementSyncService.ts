@@ -36,6 +36,10 @@ export class RequirementSyncService {
    */
   static async syncGoogleSheets(overrideUrl?: string): Promise<{
     success: boolean;
+    imported?: number;
+    updated?: number;
+    skipped?: number;
+    errors?: any[];
     syncedCount: number;
     updatedCount: number;
     createdCount: number;
@@ -140,6 +144,10 @@ export class RequirementSyncService {
       const normalizedTitle = rawTitle.trim();
       const normalizedExp = rawExp.trim();
 
+      const isRowActive = normalizedStatus === "ACTIVE";
+      const distributionStatus = isRowActive ? "PUBLISHED" : "UNPUBLISHED";
+      const defaultVendorIds = ['vendor-abc', 'vendor-xyz', 'vendor-apex', 'vendor-cloudstaff'];
+
       // Create fingerprint to secure absolute idempotent duplicates protection
       const fingerprintPayload = `${normalizedClient}_${normalizedTitle}_${normalizedLocation}_${normalizedWorkMode}_${normalizedSkills.join(",")}`;
       const fingerprint = fingerprintPayload.toLowerCase().replace(/[^a-z0-9]/g, "_");
@@ -165,14 +173,25 @@ export class RequirementSyncService {
       const requirementPayload: any = {
         title: normalizedTitle,
         clientName: normalizedClient,
-        clientId: "default-client-org", // Associate with standard client organization
+        clientId: "default-client-org",
         workMode: normalizedWorkMode,
         location: normalizedLocation,
         skills: normalizedSkills,
         experience: normalizedExp,
         openings: rawOpenings,
         status: normalizedStatus,
+        distributionStatus,
+        published: isRowActive,
         visibility: "VENDOR_NETWORK",
+        vendorVisibility: isRowActive ? "ENABLED" : "DISABLED",
+        vendor_visibility: isRowActive ? "ENABLED" : "DISABLED",
+        vendor_visible: isRowActive,
+        distributionMode: "ALL_MAPPED_VENDORS",
+        distributedVendorIds: isRowActive ? defaultVendorIds : [],
+        assignedRecruiterId: "recruiter-rahul",
+        assignedRecruiterName: "Rahul Sharma",
+        recruiterId: "recruiter-rahul",
+        recruiterName: "Rahul Sharma",
         adminApproved: true,
         source: "GOOGLE_SHEET",
         sourceType: "PUBLISHED_CSV",
@@ -184,6 +203,8 @@ export class RequirementSyncService {
         fingerprint,
         updatedAt: new Date().toISOString(),
       };
+
+      const targetReqId = existingDocId || db.collection("requirements_public").doc().id;
 
       if (existingDocId) {
         // Enforce update policy - merge changes into existing record
@@ -208,18 +229,36 @@ export class RequirementSyncService {
           console.log(`[SYNC_SERVICE] Reactivating syndication cycle for re-activated requirement: ${normalizedTitle}`);
           await WhatsAppSyndicationService.reactivateSyndication(existingDocId, requirementPayload);
         } else if (normalizedStatus === "ACTIVE" && (!existingData.whatsappPublicationIds || existingData.whatsappPublicationIds.length === 0)) {
-          // Ensure newly configured syndication engine queues publications for active requirements that haven't been queued yet
           console.log(`[SYNC_SERVICE] Initializing WhatsApp syndication queue for active requirement: ${normalizedTitle}`);
           await WhatsAppSyndicationService.queueSyndication(existingDocId, requirementPayload);
         }
 
         await db.collection("requirements_public").doc(existingDocId).set(requirementPayload, { merge: true });
         updatedCount++;
-        details.push({ action: "UPDATE", id: existingDocId, title: normalizedTitle, status: normalizedStatus });
+        details.push({ action: "UPDATE", id: existingDocId, title: normalizedTitle, status: normalizedStatus, distributionStatus });
+
+        // Record status change audit event if status changed
+        if (existingData.status !== normalizedStatus) {
+          try {
+            await db.collection("requirement_audit_events").add({
+              requirementId: existingDocId,
+              oldStatus: existingData.status || "UNKNOWN",
+              newStatus: normalizedStatus,
+              distributionStatus,
+              action: `REQUIREMENT_SYNC_${normalizedStatus}`,
+              changedByUserId: "google-sheet-sync",
+              changedByRole: "SYSTEM",
+              organizationId: "GLOBAL",
+              timestamp: new Date().toISOString(),
+              reason: `Synchronized via Google Sheets sync (Run: ${syncRunId})`
+            });
+          } catch (auditErr) {
+            console.warn(`[SYNC_SERVICE] Status audit log deferred:`, auditErr);
+          }
+        }
       } else {
         // Create clean, new requirement node
-        const newDocRef = db.collection("requirements_public").doc();
-        const reqId = newDocRef.id;
+        const reqId = targetReqId;
         requirementPayload.id = reqId;
         requirementPayload.createdAt = new Date().toISOString();
         requirementPayload.whatsappQueueStatus = "PENDING_PUBLICATION_1";
@@ -230,7 +269,25 @@ export class RequirementSyncService {
 
         await db.collection("requirements_public").doc(reqId).set(requirementPayload);
         createdCount++;
-        details.push({ action: "CREATE", id: reqId, title: normalizedTitle, status: normalizedStatus });
+        details.push({ action: "CREATE", id: reqId, title: normalizedTitle, status: normalizedStatus, distributionStatus });
+
+        // Record creation audit event
+        try {
+          await db.collection("requirement_audit_events").add({
+            requirementId: reqId,
+            oldStatus: "NONE",
+            newStatus: normalizedStatus,
+            distributionStatus,
+            action: "REQUIREMENT_SYNC_CREATED",
+            changedByUserId: "google-sheet-sync",
+            changedByRole: "SYSTEM",
+            organizationId: "GLOBAL",
+            timestamp: new Date().toISOString(),
+            reason: `Imported via Google Sheets sync (Run: ${syncRunId})`
+          });
+        } catch (auditErr) {
+          console.warn(`[SYNC_SERVICE] Creation audit log deferred:`, auditErr);
+        }
 
         // Auto-create Deal Room: Requirement 1 -> 1 Deal Room
         try {
@@ -282,6 +339,30 @@ export class RequirementSyncService {
           }
         }
       }
+
+      // Synchronize vendor workspace authorizations
+      try {
+        const currentReqId = existingDocId || targetReqId;
+        for (const vId of defaultVendorIds) {
+          const docId = `reqven-${currentReqId}-${vId}`;
+          await db.collection("requirement_vendors").doc(docId).set({
+            id: docId,
+            requirementId: currentReqId,
+            vendorId: vId,
+            vendorName: vId === 'vendor-abc' ? 'ABC Technologies' : vId === 'vendor-xyz' ? 'XYZ Solutions' : vId === 'vendor-apex' ? 'Apex Global' : 'CloudStaff Solutions',
+            recruiterId: "recruiter-rahul",
+            recruiterName: "Rahul Sharma",
+            assignedBy: "System Sync",
+            assignedAt: new Date().toISOString(),
+            status: isRowActive ? 'ACTIVE' : 'INACTIVE',
+            visibility: isRowActive ? 'ENABLED' : 'DISABLED',
+            submissionAllowed: isRowActive,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (venErr) {
+        console.warn(`[SYNC_SERVICE] Vendor authorization mapping warning:`, venErr);
+      }
     }
 
     // Write executive audit trace
@@ -307,6 +388,10 @@ export class RequirementSyncService {
 
     return {
       success: true,
+      imported: createdCount,
+      updated: updatedCount,
+      skipped: 0,
+      errors: [],
       syncedCount: createdCount + updatedCount,
       updatedCount,
       createdCount,

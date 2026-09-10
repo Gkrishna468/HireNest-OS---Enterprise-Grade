@@ -267,7 +267,10 @@ export class SubmissionOrchestrator {
       if (requirementId) {
          try {
              const { getDoc, doc } = await import("firebase/firestore");
-             const reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+             let reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+             if (!reqSnap.exists()) {
+                 reqSnap = await getDoc(doc(db, "requirements", requirementId));
+             }
              if (reqSnap.exists()) {
                  const reqData = reqSnap.data();
                  reqTitle = reqData.title || reqData.role || "Unknown Requirement";

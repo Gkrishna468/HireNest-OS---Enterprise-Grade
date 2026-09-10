@@ -184,7 +184,7 @@ export function extractNoticePeriod(text: string): string {
     return `${num} Days`;
   }
 
-  return "30 Days"; // Default professional standard
+  return "Not Specified";
 }
 
 /**

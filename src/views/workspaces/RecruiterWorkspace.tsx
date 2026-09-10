@@ -45,6 +45,8 @@ import { ExternalLink, Layers, Download, CheckSquare, Building2 } from "lucide-r
 import { formatINR, formatCompactINR, formatBudget } from "../../lib/currency";
 import { recruiterVendorMappingService, RecruiterVendorMapping } from "../../services/recruiterVendorMappingService";
 import { VendorProfileModal } from "../../components/modals/VendorProfileModal";
+import { UnifiedRequirementsService } from "../../services/unifiedRequirementsService";
+import { AccessControlService } from "../../services/accessControlService";
 
 type AIBriefingCategory = 'TODAY' | 'PLACEMENTS' | 'JOIN_LIKELIHOOD' | 'ATTENTION_NEEDED';
 
@@ -116,8 +118,14 @@ export default function RecruiterWorkspace({
     const unsubReqs = onSnapshot(collection(db, "requirements_public"), (snap) => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const active = items.filter((r: any) => {
-        const s = (r.status || "").toUpperCase();
-        return s === "ACTIVE" || s === "PUBLISHED";
+        return (
+          UnifiedRequirementsService.isRequirementOperational(r) &&
+          AccessControlService.isRequirementAuthorized(
+            orgId || "recruiter-rahul",
+            "RECRUITER",
+            r
+          )
+        );
       });
       setLiveReqs(active);
     }, (err) => console.warn("[RecruiterWorkspace] reqs note:", err.message));

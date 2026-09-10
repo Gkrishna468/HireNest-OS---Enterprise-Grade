@@ -11,6 +11,36 @@ if (typeof (Promise as any).try === 'undefined') {
   };
 }
 
+// Polyfill DOMMatrix for Node.js environments when running pdfjs-dist
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+    is2D = true;
+    isIdentity = true;
+    constructor(init?: any) {
+      if (Array.isArray(init) && init.length >= 6) {
+        this.a = this.m11 = Number(init[0]) || 0;
+        this.b = this.m12 = Number(init[1]) || 0;
+        this.c = this.m21 = Number(init[2]) || 0;
+        this.d = this.m22 = Number(init[3]) || 0;
+        this.e = this.m41 = Number(init[4]) || 0;
+        this.f = this.m42 = Number(init[5]) || 0;
+        this.isIdentity = (this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0);
+      }
+    }
+    multiply(other: any) { return this; }
+    translate(tx = 0, ty = 0) { return this; }
+    scale(sx = 1, sy = sx) { return this; }
+    rotate(angle = 0) { return this; }
+    transformPoint(point: any) { return point; }
+    inverse() { return this; }
+  };
+}
+
 // Polyfill Uint8Array.prototype.toHex for newer versions of pdfjs-dist
 if (typeof (Uint8Array.prototype as any).toHex !== 'function') {
   (Uint8Array.prototype as any).toHex = function (this: Uint8Array): string {
@@ -149,6 +179,8 @@ export default async function handler(req: any, res: any) {
       urlStr.includes('/api/public-candidate-resume') ||
       urlStr.includes('/api/workspace/gmail/webhook') ||
       urlStr.includes('/api/workspace/whatsapp/webhook') ||
+      urlStr.includes('/ruflo/health') ||
+      path === 'ruflo/health' ||
       path === 'public-candidate-resume' ||
       path?.startsWith('public');
       
@@ -171,7 +203,7 @@ export default async function handler(req: any, res: any) {
       path?.startsWith('cron') &&
       cronAuthHeader === `Bearer ${cronSecret}`;
 
-    if (path !== 'audit' && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url') && !isPublic && !isAuthorizedCronCall) {
+    if (path !== 'audit' && !path?.startsWith('sync-requirements') && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url') && !isPublic && !isAuthorizedCronCall) {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
         console.log("AUTH MIDDLEWARE REJECTING - No token provided", { url: req.url, path });
@@ -199,62 +231,70 @@ export default async function handler(req: any, res: any) {
     });
     console.log("Matched API path:", path);
 
+    const loadHandler = async (modulePath: string) => {
+      try {
+        return (await import(modulePath)).default;
+      } catch (err: any) {
+        if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.message?.includes('Cannot find module')) {
+          const alternate = modulePath.endsWith('.js')
+            ? modulePath.slice(0, -3)
+            : `${modulePath}.js`;
+          return (await import(alternate)).default;
+        }
+        throw err;
+      }
+    };
+
     let targetHandler: any;
 
-    if (path === 'admin')            targetHandler = (await import('../src/api-lib/handlers/admin.js')).default;
-    else if (path === 'client-candidate') targetHandler = (await import('../src/api-lib/handlers/client-candidate.js')).default;
-    else if (path === 'client-submissions') targetHandler = (await import('../src/api-lib/handlers/client-submissions.js')).default;
-    else if (path === 'repair-candidates') targetHandler = (await import('../src/api-lib/handlers/repair-candidates.js')).default;
-    else if (path === 'validate-submission') targetHandler = (await import('../src/api-lib/handlers/validate-submission.js')).default;
-    else if (path === 'parse-jd')          targetHandler = (await import('../src/api-lib/handlers/parse-jd.js')).default;
-    else if (path === 'extract-text')      targetHandler = (await import('../src/api-lib/handlers/extract-text.js')).default;
-    else if (path === 'public-candidate-resume' || path === 'public/candidate-resume') targetHandler = (await import('../src/api-lib/handlers/public-candidate-resume.js')).default;
-    else if (path === 'match-detailed')    targetHandler = (await import('../src/api-lib/handlers/match-candidates-detailed.js')).default;
-    else if (path === 'bulk-parse' || path === 'bulk-parse-resumes')        targetHandler = (await import('../src/api-lib/handlers/bulk-parse-resumes.js')).default;
-    else if (path === 'interviews')        targetHandler = (await import('../src/api-lib/handlers/interviews.js')).default;
-    else if (path === 'intel')             targetHandler = (await import('../src/api-lib/handlers/intel.js')).default;
-    else if (path === 'analytics')         targetHandler = (await import('../src/api-lib/handlers/analytics.js')).default;
-    else if (path === 'user')              targetHandler = (await import('../src/api-lib/handlers/user.js')).default;
-    else if (path === 'workflows')         targetHandler = (await import('../src/api-lib/handlers/workflows.js')).default;
-    else if (path?.startsWith('oauth'))    targetHandler = (await import('../src/api-lib/handlers/oauth.js')).default;
-    else if (path?.startsWith('google'))   targetHandler = (await import('../src/api-lib/handlers/google-proxy.js')).default;
-    else if (path?.startsWith('workspace')) targetHandler = (await import('../src/api-lib/handlers/workspace.js')).default;
-    else if (path?.startsWith('cron'))      targetHandler = (await import('../src/api-lib/handlers/cron.js')).default;
-    else if (path?.startsWith('public'))    targetHandler = (await import('../src/api-lib/handlers/public.js')).default;
-    else if (path?.startsWith('communication')) targetHandler = (await import('../src/api-lib/handlers/communication.js')).default;
-    else if (path?.startsWith('billing'))   targetHandler = (await import('../src/api-lib/handlers/billing.js')).default;
-    else if (path?.startsWith('events'))    targetHandler = (await import('../src/api-lib/handlers/events.js')).default;
-    else if (path?.startsWith('ruflo'))     targetHandler = (await import('../src/api-lib/handlers/ruflo.js')).default;
-    else if (path?.startsWith('kill-switch')) targetHandler = (await import('../src/api-lib/handlers/kill-switch.js')).default;
-    else if (path?.startsWith('recruiter-os')) targetHandler = (await import('../src/api-lib/handlers/recruiter-os.js')).default;
-    else if (path?.startsWith('executive-metrics')) targetHandler = (await import('../src/api-lib/handlers/executive-metrics.js')).default;
-    else if (path?.startsWith('daily-briefing')) targetHandler = (await import('../src/api-lib/handlers/daily-briefing.js')).default;
-    else if (path === 'agents' || path?.startsWith('agents/')) targetHandler = (await import('../src/api-lib/handlers/agents-execute.js')).default;
+    if (path === 'admin')            targetHandler = await loadHandler('../src/api-lib/handlers/admin.js');
+    else if (path === 'client-candidate') targetHandler = await loadHandler('../src/api-lib/handlers/client-candidate.js');
+    else if (path === 'client-submissions') targetHandler = await loadHandler('../src/api-lib/handlers/client-submissions.js');
+    else if (path === 'repair-candidates') targetHandler = await loadHandler('../src/api-lib/handlers/repair-candidates.js');
+    else if (path === 'validate-submission') targetHandler = await loadHandler('../src/api-lib/handlers/validate-submission.js');
+    else if (path === 'parse-jd')          targetHandler = await loadHandler('../src/api-lib/handlers/parse-jd.js');
+    else if (path === 'extract-text')      targetHandler = await loadHandler('../src/api-lib/handlers/extract-text.js');
+    else if (path === 'public-candidate-resume' || path === 'public/candidate-resume') targetHandler = await loadHandler('../src/api-lib/handlers/public-candidate-resume.js');
+    else if (path === 'match-detailed')    targetHandler = await loadHandler('../src/api-lib/handlers/match-candidates-detailed.js');
+    else if (path === 'bulk-parse' || path === 'bulk-parse-resumes')        targetHandler = await loadHandler('../src/api-lib/handlers/bulk-parse-resumes.js');
+    else if (path === 'interviews')        targetHandler = await loadHandler('../src/api-lib/handlers/interviews.js');
+    else if (path === 'intel')             targetHandler = await loadHandler('../src/api-lib/handlers/intel.js');
+    else if (path === 'analytics')         targetHandler = await loadHandler('../src/api-lib/handlers/analytics.js');
+    else if (path === 'user')              targetHandler = await loadHandler('../src/api-lib/handlers/user.js');
+    else if (path === 'workflows')         targetHandler = await loadHandler('../src/api-lib/handlers/workflows.js');
+    else if (path?.startsWith('oauth'))    targetHandler = await loadHandler('../src/api-lib/handlers/oauth.js');
+    else if (path?.startsWith('google'))   targetHandler = await loadHandler('../src/api-lib/handlers/google-proxy.js');
+    else if (path?.startsWith('workspace')) targetHandler = await loadHandler('../src/api-lib/handlers/workspace.js');
+    else if (path?.startsWith('cron'))      targetHandler = await loadHandler('../src/api-lib/handlers/cron.js');
+    else if (path?.startsWith('public'))    targetHandler = await loadHandler('../src/api-lib/handlers/public.js');
+    else if (path?.startsWith('communication')) targetHandler = await loadHandler('../src/api-lib/handlers/communication.js');
+    else if (path?.startsWith('billing'))   targetHandler = await loadHandler('../src/api-lib/handlers/billing.js');
+    else if (path?.startsWith('events'))    targetHandler = await loadHandler('../src/api-lib/handlers/events.js');
+    else if (path?.startsWith('ruflo'))     targetHandler = await loadHandler('../src/api-lib/handlers/ruflo.js');
+    else if (path?.startsWith('kill-switch')) targetHandler = await loadHandler('../src/api-lib/handlers/kill-switch.js');
+    else if (path?.startsWith('recruiter-os')) targetHandler = await loadHandler('../src/api-lib/handlers/recruiter-os.js');
+    else if (path?.startsWith('executive-metrics')) targetHandler = await loadHandler('../src/api-lib/handlers/executive-metrics.js');
+    else if (path?.startsWith('daily-briefing')) targetHandler = await loadHandler('../src/api-lib/handlers/daily-briefing.js');
+    else if (path === 'sync-requirements' || path?.startsWith('sync-requirements')) targetHandler = await loadHandler('../src/api-lib/handlers/sync-requirements.js');
+    else if (path === 'agents' || path?.startsWith('agents/')) targetHandler = await loadHandler('../src/api-lib/handlers/agents-execute.js');
     else if (path === 'ops' || path?.startsWith('ops/')) {
-      // ops.ts is a plain handler (not an Express Router) that reads req.path
-      // directly rather than req.query.path, since it was originally only ever
-      // invoked from server.ts's `app.use('/api', ...)` middleware where Express
-      // computes req.path relative to that mount point automatically. This
-      // serverless entrypoint uses a raw request object with no such getter, so
-      // req.path is undefined here unless we set it ourselves to match what
-      // Express would have produced (e.g. "/ops/runtime/status").
       req.path = '/' + path;
-      targetHandler = (await import('../src/api-lib/handlers/ops.js')).default;
+      targetHandler = await loadHandler('../src/api-lib/handlers/ops.js');
     }
     else {
       // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
       switch (action) {
-        case 'candidate': targetHandler = (await import('../src/api-lib/handlers/client-candidate.js')).default; break;
-        case 'submissions': targetHandler = (await import('../src/api-lib/handlers/client-submissions.js')).default; break;
-        case 'repair': targetHandler = (await import('../src/api-lib/handlers/repair-candidates.js')).default; break;
-        case 'validate-submission': targetHandler = (await import('../src/api-lib/handlers/validate-submission.js')).default; break;
-        case 'parse-jd': targetHandler = (await import('../src/api-lib/handlers/parse-jd.js')).default; break;
-        case 'extract-text': targetHandler = (await import('../src/api-lib/handlers/extract-text.js')).default; break;
-        case 'public-candidate-resume': targetHandler = (await import('../src/api-lib/handlers/public-candidate-resume.js')).default; break;
-        case 'match-detailed': targetHandler = (await import('../src/api-lib/handlers/match-candidates-detailed.js')).default; break;
+        case 'candidate': targetHandler = await loadHandler('../src/api-lib/handlers/client-candidate.js'); break;
+        case 'submissions': targetHandler = await loadHandler('../src/api-lib/handlers/client-submissions.js'); break;
+        case 'repair': targetHandler = await loadHandler('../src/api-lib/handlers/repair-candidates.js'); break;
+        case 'validate-submission': targetHandler = await loadHandler('../src/api-lib/handlers/validate-submission.js'); break;
+        case 'parse-jd': targetHandler = await loadHandler('../src/api-lib/handlers/parse-jd.js'); break;
+        case 'extract-text': targetHandler = await loadHandler('../src/api-lib/handlers/extract-text.js'); break;
+        case 'public-candidate-resume': targetHandler = await loadHandler('../src/api-lib/handlers/public-candidate-resume.js'); break;
+        case 'match-detailed': targetHandler = await loadHandler('../src/api-lib/handlers/match-candidates-detailed.js'); break;
         case 'bulk-parse':
-        case 'bulk-parse-resumes': targetHandler = (await import('../src/api-lib/handlers/bulk-parse-resumes.js')).default; break;
-        default: targetHandler = (await import('../src/api-lib/handlers/admin.js')).default; break;
+        case 'bulk-parse-resumes': targetHandler = await loadHandler('../src/api-lib/handlers/bulk-parse-resumes.js'); break;
+        default: targetHandler = await loadHandler('../src/api-lib/handlers/admin.js'); break;
       }
     }
 
@@ -271,7 +311,8 @@ export default async function handler(req: any, res: any) {
         'kill-switch',
         'recruiter-os',
         'executive-metrics',
-        'daily-briefing'
+        'daily-briefing',
+        'sync-requirements'
       ];
       const matchedRouter = expressRouters.find(r => path?.startsWith(r));
       if (matchedRouter) {

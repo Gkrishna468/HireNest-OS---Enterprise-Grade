@@ -6,6 +6,8 @@ import { emitEvent } from "./eventBus";
 
 export type RequirementStatus = 'ACTIVE' | 'HOLD' | 'SOURCING_PAUSED' | 'CLOSED' | 'EXPIRED';
 
+export type DistributionStatus = 'PUBLISHED' | 'UNPUBLISHED';
+
 export type CanonicalWorkMode = 'REMOTE' | 'REMOTE_C2C' | 'ONSITE_FTE' | 'ONSITE_CONTRACT' | 'C2H' | 'HYBRID';
 
 export interface TransitionRequest {
@@ -24,6 +26,20 @@ export interface TransitionResult {
 }
 
 export class RequirementLifecycleService {
+  /**
+   * Normalizes raw status strings into canonical lifecycle states
+   */
+  static normalizeStatus(rawStatus?: string): RequirementStatus {
+    if (!rawStatus) return 'ACTIVE';
+    const s = rawStatus.trim().toUpperCase();
+    if (s === 'ACTIVE' || s === 'OPEN' || s === 'PUBLISHED') return 'ACTIVE';
+    if (s === 'HOLD' || s === 'ON HOLD' || s === 'PAUSED') return 'HOLD';
+    if (s === 'SOURCING_PAUSED' || s === 'SOURCING PAUSED' || s === 'PAUSED SOURCING') return 'SOURCING_PAUSED';
+    if (s === 'CLOSED' || s === 'FILLED') return 'CLOSED';
+    if (s === 'EXPIRED') return 'EXPIRED';
+    return 'ACTIVE';
+  }
+
   /**
    * Normalizes raw work mode strings into canonical categories
    */
@@ -78,8 +94,17 @@ export class RequirementLifecycleService {
 
     // 3. Update status in canonical Firestore record
     const timestamp = new Date().toISOString();
+    const isTargetActive = targetStatus === 'ACTIVE';
+    const targetDistStatus = isTargetActive
+      ? (reqData.distributionStatus === 'PUBLISHED' ? 'PUBLISHED' : 'UNPUBLISHED')
+      : 'UNPUBLISHED';
+    const isPublished = targetDistStatus === 'PUBLISHED';
+
     const updatedPayload = {
       status: targetStatus,
+      distributionStatus: targetDistStatus,
+      published: isPublished,
+      vendorVisibility: isPublished ? 'ENABLED' : 'DISABLED',
       updatedAt: timestamp,
       lastStatusChangedAt: timestamp,
       lastStatusChangedBy: context.userId,
@@ -89,7 +114,7 @@ export class RequirementLifecycleService {
     await updateDoc(reqRef, updatedPayload);
 
     // 4. Update distribution & syndication based on canonical state
-    if (targetStatus === 'ACTIVE') {
+    if (isPublished) {
       await RequirementDistributionService.publishRequirement(requirementId, { ...reqData, ...updatedPayload });
     } else {
       await RequirementDistributionService.unpublishRequirement(requirementId);

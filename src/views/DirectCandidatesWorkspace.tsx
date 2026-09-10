@@ -56,6 +56,7 @@ import {
 } from "firebase/firestore";
 
 import { AddDirectCandidateModal } from "../components/modals/AddDirectCandidateModal";
+import { UnifiedRequirementsService } from "../services/unifiedRequirementsService";
 
 interface DirectCandidatesWorkspaceProps {
   isAdmin: boolean;
@@ -141,16 +142,19 @@ export default function DirectCandidatesWorkspace({
       }
     );
 
-    // 3. Fetch Direct Apply Jobs
+    // 3. Fetch Direct Apply Jobs using canonical operational gate
     const qJobs = query(
       collection(db, "requirements_public"),
-      where("status", "==", "PUBLISHED"),
-      limit(50)
+      limit(100)
     );
     const unsubJobs = onSnapshot(
       qJobs,
       (snap) => {
-        setJobs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const operational = all.filter((r) =>
+          UnifiedRequirementsService.isRequirementOperational(r)
+        );
+        setJobs(operational);
       },
       (err) => {
         console.warn("Could not load requirements:", err);

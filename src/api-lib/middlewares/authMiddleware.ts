@@ -9,6 +9,9 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       req.originalUrl === '/api/audit' || 
       cleanUrl === '/health' ||
       cleanUrl === '/api/health' ||
+      cleanUrl === '/ruflo/health' ||
+      cleanUrl === '/api/ruflo/health' ||
+      req.originalUrl.includes('/ruflo/health') ||
       cleanUrl === '/healthz' ||
       cleanUrl === '/ready' ||
       cleanUrl === '/readyz' ||

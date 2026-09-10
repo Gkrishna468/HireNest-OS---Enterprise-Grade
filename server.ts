@@ -30,6 +30,36 @@ if (typeof (Promise as any).try === 'undefined') {
   };
 }
 
+// Polyfill DOMMatrix for Node.js environments when running pdfjs-dist
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+    is2D = true;
+    isIdentity = true;
+    constructor(init?: any) {
+      if (Array.isArray(init) && init.length >= 6) {
+        this.a = this.m11 = Number(init[0]) || 0;
+        this.b = this.m12 = Number(init[1]) || 0;
+        this.c = this.m21 = Number(init[2]) || 0;
+        this.d = this.m22 = Number(init[3]) || 0;
+        this.e = this.m41 = Number(init[4]) || 0;
+        this.f = this.m42 = Number(init[5]) || 0;
+        this.isIdentity = (this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0);
+      }
+    }
+    multiply(other: any) { return this; }
+    translate(tx = 0, ty = 0) { return this; }
+    scale(sx = 1, sy = sx) { return this; }
+    rotate(angle = 0) { return this; }
+    transformPoint(point: any) { return point; }
+    inverse() { return this; }
+  };
+}
+
 // Polyfill Uint8Array.prototype.toHex for newer versions of pdfjs-dist
 if (typeof (Uint8Array.prototype as any).toHex !== 'function') {
   (Uint8Array.prototype as any).toHex = function (this: Uint8Array): string {
@@ -196,6 +226,7 @@ import billingHandler from './src/api-lib/handlers/billing';
 import aiGatewayHandler from './src/api-lib/handlers/ai-gateway';
 import agentsExecuteHandler from './src/api-lib/handlers/agents-execute';
 import rufloHandler from './src/api-lib/handlers/ruflo';
+import { rufloService } from './src/api-lib/services/RufloIntegrationService';
 import aiHealthHandler from './src/api-lib/handlers/ai-health';
 import reactivationHandler from './src/api-lib/handlers/reactivation';
 import networkMappingHandler from './src/api-lib/handlers/network-mapping';
@@ -914,6 +945,11 @@ hirenest_active_requests 0
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://0.0.0.0:${PORT}`);
+    rufloService.initialize().then((ok) => {
+      if (ok) console.log('[Capability] Ruflo agent harness active (L1)');
+    }).catch((err) => {
+      console.warn('[Capability] Ruflo init notice:', err?.message || err);
+    });
   });
 }
 

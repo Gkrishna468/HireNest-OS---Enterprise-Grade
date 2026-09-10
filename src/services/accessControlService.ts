@@ -320,6 +320,52 @@ export class AccessControlService {
   }
 
   /**
+   * Synchronously evaluates if a requirement entity is authorized for a given actor (Vendor, Recruiter, Client, Admin)
+   */
+  static isRequirementAuthorized(
+    actorId: string,
+    role: 'ADMIN' | 'SUPER_ADMIN' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | string,
+    requirement: {
+      assignedRecruiterId?: string;
+      recruiterId?: string;
+      distributedVendorIds?: string[];
+      vendorId?: string;
+      clientId?: string;
+      client_id?: string;
+      [key: string]: any;
+    }
+  ): boolean {
+    const normRole = (role || '').toUpperCase();
+    if (normRole === 'ADMIN' || normRole === 'SUPER_ADMIN' || normRole === 'GLOBAL_HQ' || normRole === 'HQ_ADMIN' || normRole === 'OPS_ADMIN' || actorId === 'ORG-GLOBAL-HQ' || actorId === 'HQ') {
+      return true;
+    }
+    if (normRole === 'VENDOR') {
+      const distributed = requirement.distributedVendorIds || [];
+      return distributed.includes(actorId) || requirement.vendorId === actorId;
+    }
+    if (normRole === 'RECRUITER') {
+      const assigned = requirement.assignedRecruiterId || requirement.recruiterId;
+      return assigned === actorId;
+    }
+    if (normRole === 'CLIENT') {
+      const client = requirement.clientId || requirement.client_id;
+      return client === actorId;
+    }
+    return false;
+  }
+
+  /**
+   * Alias for isRequirementAuthorized
+   */
+  static canAccessRequirement(
+    actorId: string,
+    role: 'ADMIN' | 'SUPER_ADMIN' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | string,
+    requirement: any
+  ): boolean {
+    return this.isRequirementAuthorized(actorId, role, requirement);
+  }
+
+  /**
    * Generates an immutable attribution snapshot for submission tracking
    */
   static createAttributionSnapshot(params: {
@@ -333,7 +379,7 @@ export class AccessControlService {
     clientName: string;
     authorizationId: string;
     submittedByUserId?: string;
-  }): AttributionSnapshot {
+  }): AttributionSnapshot & { frozen: boolean } {
     return {
       submittedAt: new Date().toISOString(),
       requirementId: params.requirementId,
@@ -346,7 +392,8 @@ export class AccessControlService {
       clientName: params.clientName,
       authorizationId: params.authorizationId,
       submittedByUserId: params.submittedByUserId || params.vendorId || 'system',
-      version: '1.0.0'
+      version: '1.0.0',
+      frozen: true
     };
   }
 }

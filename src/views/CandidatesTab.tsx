@@ -53,6 +53,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { parseBulkResumes } from "../services/aiService";
 import { publishEvent } from "../lib/eventEngine";
 import { emitEvent } from "../services/eventBus";
+import { UnifiedRequirementsService } from "../services/unifiedRequirementsService";
+import { AccessControlService } from "../services/accessControlService";
 
 const setDoc = async (ref: any, data: any, options?: any) => {
   const result = await firebaseSetDoc(ref, data, options);
@@ -582,16 +584,21 @@ export default function CandidatesTab() {
         setUserOrgId(orgId);
         setUserRole(role);
 
-        // Load active jobs for mapping (limited to prevent real-time explosion)
+        // Load active operational requirements for mapping using canonical SSOT
         const jobsQuery = query(
           collection(db, "requirements_public"),
-          where("status", "==", "PUBLISHED"),
-          limit(50),
+          limit(100),
         );
         onSnapshot(
           jobsQuery,
           (snap) => {
-            setJobs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const operational = allReqs.filter(
+              (r) =>
+                UnifiedRequirementsService.isRequirementOperational(r) &&
+                AccessControlService.isRequirementAuthorized(orgId, role, r)
+            );
+            setJobs(operational);
           },
           (error) => {
             handleFirestoreError(

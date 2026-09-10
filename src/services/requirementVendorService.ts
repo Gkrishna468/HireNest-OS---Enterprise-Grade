@@ -13,6 +13,7 @@ import {
   serverTimestamp
 } from "firebase/firestore";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
+import { UnifiedRequirementsService } from "./unifiedRequirementsService";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`
@@ -399,8 +400,8 @@ class RequirementVendorService {
       if (!reqSnap.exists()) return false;
       const req = reqSnap.data();
 
-      const status = (req.status || "ACTIVE").toUpperCase();
-      if (status === "CLOSED" || status === "INACTIVE" || status === "DELETED" || status === "ARCHIVED") {
+      // Canonical Operational Invariant: ACTIVE + PUBLISHED
+      if (!UnifiedRequirementsService.isRequirementOperational(req)) {
         return false;
       }
 
@@ -560,8 +561,8 @@ class RequirementVendorService {
           const allReqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
           const authorizedReqs = allReqs.filter((req: any) => {
-            const status = (req.status || "ACTIVE").toUpperCase();
-            if (status !== "ACTIVE" && status !== "PUBLISHED") {
+            // Canonical Operational Invariant: ACTIVE + PUBLISHED
+            if (!UnifiedRequirementsService.isRequirementOperational(req)) {
               return false;
             }
 

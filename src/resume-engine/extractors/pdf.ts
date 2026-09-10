@@ -5,6 +5,36 @@
 
 import { ExtractionMethod } from "../types.js";
 
+// Polyfill DOMMatrix for Node.js environments when running pdfjs-dist
+if (typeof (globalThis as any).DOMMatrix === "undefined") {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+    is2D = true;
+    isIdentity = true;
+    constructor(init?: any) {
+      if (Array.isArray(init) && init.length >= 6) {
+        this.a = this.m11 = Number(init[0]) || 0;
+        this.b = this.m12 = Number(init[1]) || 0;
+        this.c = this.m21 = Number(init[2]) || 0;
+        this.d = this.m22 = Number(init[3]) || 0;
+        this.e = this.m41 = Number(init[4]) || 0;
+        this.f = this.m42 = Number(init[5]) || 0;
+        this.isIdentity = (this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0);
+      }
+    }
+    multiply(other: any) { return this; }
+    translate(tx = 0, ty = 0) { return this; }
+    scale(sx = 1, sy = sx) { return this; }
+    rotate(angle = 0) { return this; }
+    transformPoint(point: any) { return point; }
+    inverse() { return this; }
+  };
+}
+
 export interface PDFExtractionResult {
   text: string;
   method: ExtractionMethod;

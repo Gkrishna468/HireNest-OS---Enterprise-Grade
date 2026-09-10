@@ -9,28 +9,41 @@ import { AccessControlService, HireNestAccessContext } from "./accessControlServ
 export class UnifiedRequirementsService {
   /**
    * Canonical Operational Gate Test
-   * MUST pass BOTH status === 'ACTIVE' AND distributionStatus === 'PUBLISHED' (or equivalent active flags)
+   * Strict Invariant: status === 'ACTIVE' AND distributionStatus === 'PUBLISHED'
+   * No legacy fallbacks: unstated, missing, or alternate flags are rejected.
    */
   static isRequirementOperational(req: any): boolean {
     if (!req) return false;
     const status = (req.status || "").toUpperCase();
-    const distStatus = (
-      req.distributionStatus ||
-      req.vendorVisibility ||
-      (req.published ? "PUBLISHED" : "") ||
-      ""
-    ).toUpperCase();
+    const distStatus = (req.distributionStatus || "").toUpperCase();
 
     // Strict canonical gate: ACTIVE AND PUBLISHED
-    const isActive = status === "ACTIVE";
-    const isPublished =
-      distStatus === "PUBLISHED" ||
-      distStatus === "ENABLED" ||
-      req.published === true ||
-      req.vendorVisibility === "ENABLED" ||
-      (!req.distributionStatus && isActive);
+    return status === "ACTIVE" && distStatus === "PUBLISHED";
+  }
 
-    return isActive && isPublished;
+  /**
+   * Authoritative synchronous check for operational + authorized status
+   */
+  static isAuthorizedOperational(
+    req: any,
+    actorId?: string,
+    role?: string
+  ): boolean {
+    if (!this.isRequirementOperational(req)) return false;
+    if (!actorId || !role) return true;
+    return AccessControlService.isRequirementAuthorized(actorId, role, req);
+  }
+
+  /**
+   * Authoritative synchronous filter for an array of requirements
+   */
+  static filterOperationalRequirements(
+    reqs: any[],
+    actorId?: string,
+    role?: string
+  ): any[] {
+    if (!Array.isArray(reqs)) return [];
+    return reqs.filter((req) => this.isAuthorizedOperational(req, actorId, role));
   }
 
   /**
@@ -40,12 +53,23 @@ export class UnifiedRequirementsService {
     context: HireNestAccessContext
   ): Promise<any[]> {
     try {
-      // 1. Fetch requirements from canonical requirements_public collection
-      const qReqs = collection(db, "requirements_public");
-      const snap = await getDocs(qReqs);
-      const allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // 1. Fetch requirements using scoped server-side query with graceful fallback
+      let allReqs: any[] = [];
+      try {
+        const qScoped = query(
+          collection(db, "requirements_public"),
+          where("status", "==", "ACTIVE"),
+          where("distributionStatus", "==", "PUBLISHED")
+        );
+        const snap = await getDocs(qScoped);
+        allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (scopedErr) {
+        console.warn("[UnifiedRequirementsService] Scoped query fallback:", scopedErr);
+        const snap = await getDocs(collection(db, "requirements_public"));
+        allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
 
-      // 2. Filter using strict operational gate (ACTIVE AND PUBLISHED)
+      // 2. Strict canonical in-memory gate: ACTIVE AND PUBLISHED
       const operationalReqs = allReqs.filter((req) =>
         this.isRequirementOperational(req)
       );

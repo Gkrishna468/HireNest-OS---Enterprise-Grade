@@ -1,4 +1,4 @@
-import { db as adminDb } from '../../lib/firebase-admin';
+import { db as adminDb } from '../../lib/firebase-admin.js';
 
 export default async function aiHealthHandler(req: any, res: any) {
     if (req.method !== 'GET') {

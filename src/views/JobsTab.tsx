@@ -281,8 +281,10 @@ export default function JobsTab() {
         );
 
         for (const job of jobs) {
-          // Only scan published jobs
-          if (job.status !== "PUBLISHED") continue;
+          // Scan active distributed jobs
+          const isJobActive = job.status === "ACTIVE" || job.status === "PUBLISHED" || job.status === "OPEN";
+          const isJobPublished = job.distributionStatus === "PUBLISHED" || job.published === true || !job.distributionStatus;
+          if (!isJobActive || !isJobPublished) continue;
 
           const jobSkills = (
             Array.isArray(job.skills)
@@ -1219,7 +1221,7 @@ export default function JobsTab() {
     setIsAnalyzing(false);
   };
 
-  const handleSetRequirementStatus = async (jobId: string, targetStatus: string) => {
+  const handleSetRequirementStatus = async (jobId: string, targetStatus: RequirementStatus) => {
     try {
       const user = auth.currentUser;
       const context = AccessControlService.buildAccessContext({
@@ -1228,84 +1230,101 @@ export default function JobsTab() {
         orgId: orgId
       });
 
-      const isPublishing = targetStatus === "PUBLISHED";
-      const actualTargetStatus: RequirementStatus = isPublishing ? "ACTIVE" : (targetStatus as RequirementStatus);
-
-      const res = await requirementLifecycleService.transition({
+      await requirementLifecycleService.transition({
         requirementId: jobId,
-        targetStatus: actualTargetStatus,
+        targetStatus,
         context,
         reason: `Transitioned status to ${targetStatus} via Admin Control Surface`
       });
 
-      if (isPublishing) {
-        await updateDoc(doc(db, "requirements_public", jobId), {
-          status: "ACTIVE",
-          distributionStatus: "PUBLISHED",
-          published: true,
-          vendorVisibility: "ENABLED",
-          updatedAt: serverTimestamp()
-        });
-        await requirementDistributionService.publishRequirement(jobId);
-      } else if (targetStatus === "HOLD" || targetStatus === "CLOSED" || targetStatus === "SOURCING_PAUSED") {
-        await updateDoc(doc(db, "requirements_public", jobId), {
-          distributionStatus: targetStatus,
-          published: false,
-          vendorVisibility: "DISABLED",
-          updatedAt: serverTimestamp()
-        });
+      const targetJob = jobs.find(j => j.id === jobId);
+      const isCurrentlyPublished = targetJob?.distributionStatus === "PUBLISHED" || targetJob?.published === true;
+      const nextDistributionStatus = targetStatus === "ACTIVE" ? (isCurrentlyPublished ? "PUBLISHED" : "UNPUBLISHED") : "UNPUBLISHED";
+      const nextPublished = targetStatus === "ACTIVE" && isCurrentlyPublished;
+
+      await updateDoc(doc(db, "requirements_public", jobId), {
+        status: targetStatus,
+        distributionStatus: nextDistributionStatus,
+        published: nextPublished,
+        vendorVisibility: nextPublished ? "ENABLED" : "DISABLED",
+        updatedAt: serverTimestamp()
+      });
+
+      if (!nextPublished && isCurrentlyPublished) {
         await requirementDistributionService.unpublishRequirement(jobId);
       }
 
       setJobs(prev => prev.map(j => {
         if (j.id !== jobId) return j;
-        if (isPublishing) {
-          return {
-            ...j,
-            status: "PUBLISHED",
-            distributionStatus: "PUBLISHED",
-            published: true,
-            vendorVisibility: "ENABLED"
-          };
-        }
         return {
           ...j,
-          status: actualTargetStatus,
-          distributionStatus: actualTargetStatus,
-          published: false,
-          vendorVisibility: "DISABLED"
+          status: targetStatus,
+          distributionStatus: nextDistributionStatus,
+          published: nextPublished,
+          vendorVisibility: nextPublished ? "ENABLED" : "DISABLED"
         };
       }));
     } catch (error: any) {
       console.warn("Requirement Lifecycle Transition Error:", error?.message);
-      // Fallback direct update
       try {
-        const isPublishing = targetStatus === "PUBLISHED";
         await updateDoc(doc(db, "requirements_public", jobId), {
-          status: isPublishing ? "ACTIVE" : targetStatus,
-          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
-          published: isPublishing,
-          vendorVisibility: isPublishing ? "ENABLED" : "DISABLED",
+          status: targetStatus,
           updatedAt: serverTimestamp(),
         });
-        if (isPublishing) {
-          await requirementDistributionService.publishRequirement(jobId);
-        }
-        setJobs(prev => prev.map(j => j.id === jobId ? {
-          ...j,
-          status: isPublishing ? "PUBLISHED" : targetStatus,
-          distributionStatus: isPublishing ? "PUBLISHED" : targetStatus,
-          published: isPublishing
-        } : j));
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: targetStatus } : j));
       } catch (fbErr: any) {
         alert("Failed to update status: " + fbErr.message);
       }
     }
   };
 
+  const handleToggleDistribution = async (jobId: string) => {
+    try {
+      const targetJob = jobs.find(j => j.id === jobId);
+      const isCurrentlyPublished = targetJob?.distributionStatus === "PUBLISHED" || targetJob?.published === true;
+
+      if (isCurrentlyPublished) {
+        await requirementDistributionService.unpublishRequirement(jobId);
+        await updateDoc(doc(db, "requirements_public", jobId), {
+          distributionStatus: "UNPUBLISHED",
+          published: false,
+          vendorVisibility: "DISABLED",
+          updatedAt: serverTimestamp()
+        });
+        setJobs(prev => prev.map(j => j.id === jobId ? {
+          ...j,
+          distributionStatus: "UNPUBLISHED",
+          published: false,
+          vendorVisibility: "DISABLED"
+        } : j));
+      } else {
+        if (targetJob?.status !== "ACTIVE") {
+          await handleSetRequirementStatus(jobId, "ACTIVE");
+        }
+        await requirementDistributionService.publishRequirement(jobId);
+        await updateDoc(doc(db, "requirements_public", jobId), {
+          distributionStatus: "PUBLISHED",
+          published: true,
+          vendorVisibility: "ENABLED",
+          updatedAt: serverTimestamp()
+        });
+        setJobs(prev => prev.map(j => j.id === jobId ? {
+          ...j,
+          status: "ACTIVE",
+          distributionStatus: "PUBLISHED",
+          published: true,
+          vendorVisibility: "ENABLED"
+        } : j));
+      }
+    } catch (err: any) {
+      console.error("[JobsTab] Distribution toggle error:", err);
+      alert("Failed to update publication: " + (err.message || "Unknown error"));
+    }
+  };
+
   const handleToggleStatus = async (jobId: string, currentStatus: string) => {
-    const s = (currentStatus || "").toUpperCase();
-    const targetStatus: RequirementStatus = (s === "ACTIVE" || s === "PUBLISHED") ? "HOLD" : "ACTIVE";
+    const s = requirementLifecycleService.normalizeStatus(currentStatus);
+    const targetStatus: RequirementStatus = s === "ACTIVE" ? "HOLD" : "ACTIVE";
     await handleSetRequirementStatus(jobId, targetStatus);
   };
 
@@ -1859,13 +1878,12 @@ export default function JobsTab() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Badge
-                            className={cn(
-                              "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm uppercase",
-                              (job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published)
-                                ? "bg-emerald-100 text-emerald-800"
-                                : job.status === "ACTIVE"
-                                  ? "bg-blue-100 text-blue-800"
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            <Badge
+                              className={cn(
+                                "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm uppercase",
+                                (job.status === "ACTIVE" || job.status === "PUBLISHED" || job.status === "OPEN")
+                                  ? "bg-emerald-100 text-emerald-800"
                                   : job.status === "HOLD"
                                     ? "bg-amber-100 text-amber-800"
                                     : job.status === "SOURCING_PAUSED"
@@ -1873,43 +1891,53 @@ export default function JobsTab() {
                                       : job.status === "CLOSED"
                                         ? "bg-red-100 text-red-700"
                                         : "bg-slate-100 text-slate-600",
-                            )}
-                          >
-                            ● {(job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published) ? "PUBLISHED" : (job.status || "ACTIVE")}
-                          </Badge>
+                              )}
+                            >
+                              ● {requirementLifecycleService.normalizeStatus(job.status)}
+                            </Badge>
+                            <Badge
+                              className={cn(
+                                "text-[9px] font-black tracking-widest px-2 py-0.5 border-none shadow-sm uppercase",
+                                (job.distributionStatus === "PUBLISHED" || job.published)
+                                  ? "bg-indigo-100 text-indigo-800"
+                                  : "bg-slate-100 text-slate-500"
+                              )}
+                            >
+                              {(job.distributionStatus === "PUBLISHED" || job.published) ? "● DISTRIBUTED" : "○ UNPUBLISHED"}
+                            </Badge>
+                          </div>
                           {(isAdmin || (isClient && job.clientId === orgId)) && (
                             <div className="flex items-center gap-1.5 flex-wrap justify-end">
                               <button
-                                onClick={() => handleSetRequirementStatus(job.id, "PUBLISHED")}
+                                onClick={() => handleToggleDistribution(job.id)}
                                 className={cn(
                                   "text-[9px] font-bold px-2 py-0.5 rounded border transition-all cursor-pointer uppercase shadow-xs",
-                                  (job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published)
-                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200 font-extrabold"
+                                  (job.distributionStatus === "PUBLISHED" || job.published)
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 font-extrabold"
                                     : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 font-extrabold"
                                 )}
                               >
-                                {(job.status === "PUBLISHED" || job.distributionStatus === "PUBLISHED" || job.published) ? "PUBLISHED ✓" : "PUBLISH"}
+                                {(job.distributionStatus === "PUBLISHED" || job.published) ? "UNPUBLISH" : "PUBLISH"}
                               </button>
 
                               <button
                                 onClick={() => handleToggleStatus(job.id, job.status)}
                                 className={cn(
                                   "text-[9px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer uppercase shadow-xs",
-                                  (job.status === "ACTIVE" || job.status === "PUBLISHED")
+                                  requirementLifecycleService.normalizeStatus(job.status) === "ACTIVE"
                                     ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
                                     : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                 )}
                               >
-                                {(job.status === "ACTIVE" || job.status === "PUBLISHED") ? "HOLD" : "ACTIVATE"}
+                                {requirementLifecycleService.normalizeStatus(job.status) === "ACTIVE" ? "HOLD" : "ACTIVATE"}
                               </button>
 
                               <select
-                                value={(job.status === "ACTIVE" && (job.distributionStatus === "PUBLISHED" || job.published)) ? "PUBLISHED" : (job.status || "ACTIVE")}
-                                onChange={(e) => handleSetRequirementStatus(job.id, e.target.value)}
+                                value={requirementLifecycleService.normalizeStatus(job.status)}
+                                onChange={(e) => handleSetRequirementStatus(job.id, e.target.value as RequirementStatus)}
                                 className="text-[9px] font-semibold bg-slate-50 border border-slate-200 text-slate-700 rounded px-1.5 py-0.5 cursor-pointer outline-none hover:bg-slate-100"
                               >
                                 <option value="ACTIVE">ACTIVE</option>
-                                <option value="PUBLISHED">PUBLISHED</option>
                                 <option value="HOLD">HOLD</option>
                                 <option value="SOURCING_PAUSED">SOURCING PAUSED</option>
                                 <option value="CLOSED">CLOSED</option>

@@ -1,24 +1,37 @@
 import { Router } from 'express';
-import { verifyAuth, requireRole } from '../middlewares/authMiddleware';
-import { rufloService } from '../services/RufloIntegrationService';
+import { rufloService } from '../services/RufloIntegrationService.js';
 
 const rufloHandler = Router();
 
-rufloHandler.use(verifyAuth);
-
-rufloHandler.post('/init', requireRole(['super_admin', 'admin']), async (req, res) => {
+// Health check is public and should not be blocked by user authentication
+rufloHandler.get('/health', async (req, res) => {
   try {
-    const success = await rufloService.initialize();
-    res.json({ success, message: success ? 'Ruflo initialized (L1)' : 'Initialization failed' });
+    const health = await rufloService.health();
+    res.json(health);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-rufloHandler.get('/health', async (req, res) => {
+// Self-contained role verification for admin operations
+const requireAdminRole = (req: any, res: any, next: any) => {
+  const user = req.user;
+  if (!user || !user.role) {
+    return res.status(403).json({ error: 'Forbidden: No role assigned' });
+  }
+  const role = user.role;
+  const isSuperAdmin = role === 'super_admin';
+  const isAdmin = role === 'admin' || (Array.isArray(role) && (role.includes('admin') || role.includes('super_admin')));
+  if (isSuperAdmin || isAdmin) {
+    return next();
+  }
+  return res.status(403).json({ error: 'Forbidden: Requires admin privileges' });
+};
+
+rufloHandler.post('/init', requireAdminRole, async (req, res) => {
   try {
-    const health = await rufloService.health();
-    res.json(health);
+    const success = await rufloService.initialize();
+    res.json({ success, message: success ? 'Ruflo initialized (L1)' : 'Initialization failed' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

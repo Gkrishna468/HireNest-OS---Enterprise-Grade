@@ -12,6 +12,10 @@ import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrat
 import { parseBulkResumes } from "../../services/aiService";
 import { CandidateReactivationService } from "../../services/CandidateReactivationService";
 import { ReactivationOpportunityCard } from "../ReactivationOpportunityCard";
+import { UnifiedRequirementsService } from "../../services/unifiedRequirementsService";
+import { AccessControlService } from "../../services/accessControlService";
+import { db } from "../../lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
 
@@ -153,19 +157,33 @@ export default function Candidate360Modal({
     }
   };
 
-  const isVendorRole = userRole === "VENDOR" || userRole === "vendor";
-  const availableJobs = isVendorRole
-    ? jobs.filter(j => (j.status === 'ACTIVE' || j.status === 'PUBLISHED' || !j.status) && (
-        Array.isArray(j.distributedVendorIds) ? j.distributedVendorIds.includes(userOrgId) : true
-      ))
-    : jobs;
+  const [internalJobs, setInternalJobs] = useState<any[]>(jobs || []);
+
+  useEffect(() => {
+    if (jobs && jobs.length > 0) {
+      setInternalJobs(jobs);
+      return;
+    }
+    // SSOT Fallback: subscribe to requirements_public if parent did not provide jobs
+    const unsub = onSnapshot(collection(db, "requirements_public"), (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setInternalJobs(docs);
+    }, (err) => console.warn("[Candidate360Modal] fallback reqs load warning:", err?.message));
+    return () => unsub();
+  }, [jobs]);
+
+  const effectiveJobs = (jobs && jobs.length > 0) ? jobs : internalJobs;
+  const availableJobs = effectiveJobs.filter((job) =>
+    UnifiedRequirementsService.isRequirementOperational(job) &&
+    AccessControlService.isRequirementAuthorized(userOrgId, userRole, job)
+  );
 
   const handleRunMatch = async () => {
     if (!selectedJobId) return;
     setIsMapping(true);
     try {
       const { useSubmissionStore } = await import("../../stores/SubmissionStore");
-      const selectedReq = jobs.find(j => j.id === selectedJobId);
+      const selectedReq = effectiveJobs.find(j => j.id === selectedJobId);
       const targetClientId = selectedReq?.clientId || "ORG-CLIENT-1";
 
       const candidateId = candidate.candidateId || candidate.id;

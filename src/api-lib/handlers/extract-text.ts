@@ -45,33 +45,80 @@ const upload = multerFunc({
   },
 }).single("file");
 
+function extractDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+async function fetchGoogleDriveContent(fileId: string): Promise<{ buffer?: Buffer; text?: string; filename: string; mimeType: string }> {
+  // 1. First attempt: If it's a Google Doc, export as plain text
+  try {
+    const docExportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
+    const docRes = await fetch(docExportUrl, { redirect: "follow" });
+    if (docRes.ok) {
+      const text = await docRes.text();
+      if (text && !text.includes("<!DOCTYPE html>") && text.length > 50) {
+        return { text, filename: "Google_Doc_Resume.txt", mimeType: "text/plain" };
+      }
+    }
+  } catch {
+    // Continue to binary download attempt
+  }
+
+  // 2. Second attempt: Direct file download
+  const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const res = await fetch(downloadUrl, { redirect: "follow" });
+  if (!res.ok) {
+    throw new Error(`Google Drive download failed with HTTP ${res.status}`);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    const html = await res.text();
+    if (html.includes("ServiceLogin") || html.includes("accounts.google.com")) {
+      throw new Error("Google Drive file is private. Please set link sharing to 'Anyone with the link can view' or upload the resume file directly.");
+    }
+    const confirmMatch = html.match(/confirm=([a-zA-Z0-9_-]+)/);
+    if (confirmMatch) {
+      const confirmRes = await fetch(`${downloadUrl}&confirm=${confirmMatch[1]}`, { redirect: "follow" });
+      if (confirmRes.ok) {
+        const arrayBuf = await confirmRes.arrayBuffer();
+        return {
+          buffer: Buffer.from(arrayBuf),
+          filename: "Google_Drive_Resume.pdf",
+          mimeType: confirmRes.headers.get("content-type") || "application/pdf"
+        };
+      }
+    }
+    throw new Error("Unable to download file from Google Drive. Please verify the link is publicly viewable, or upload the file directly.");
+  }
+
+  const arrayBuf = await res.arrayBuffer();
+  return {
+    buffer: Buffer.from(arrayBuf),
+    filename: "Google_Drive_Resume.pdf",
+    mimeType: contentType || "application/pdf",
+  };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  upload(req, res, async (err: any) => {
-    if (err) {
-      console.error("[EXTRACTION_ERROR] Multer file upload failed:", err.message);
-      return res.status(400).json({
-        success: false,
-        message: err.message || "File upload validation failed",
-        error: err.message,
-      });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file was provided in the request body",
-        error: "Missing file payload",
-      });
-    }
-
-    const { originalname, mimetype, buffer, size: fileSize } = req.file;
+  const executePipeline = async (filePayload: {
+    buffer?: Buffer;
+    text?: string;
+    originalname: string;
+    mimetype: string;
+    fileSize: number;
+    resumeUrl?: string | null;
+  }) => {
+    const { originalname, mimetype, buffer, text: directText, fileSize, resumeUrl } = filePayload;
     const requestId = `ext_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const forceRescan = req.query.forceRescan === "true" || req.body?.forceRescan === "true" || req.body?.forceRescan === true;
-    const orgId = req.headers["x-org-id"] || req.body?.orgId || "HQ";
+    const forceRescan = req.query?.forceRescan === "true" || req.body?.forceRescan === "true" || req.body?.forceRescan === true;
+    const orgId = req.headers?.["x-org-id"] || req.body?.orgId || "HQ";
     const userRole = req.user?.role || req.body?.userRole || "recruiter";
     const userId = req.user?.uid || req.body?.userId || "system";
 
@@ -94,6 +141,7 @@ export default async function handler(req: any, res: any) {
       // Execute Deterministic Pipeline (Zero AI dependency)
       const pipelineResult = await ResumeProcessingPipeline.processResume({
         buffer,
+        text: directText,
         filename: originalname,
         mimeType: mimetype,
         candidateId: req.body?.candidateId,
@@ -102,7 +150,7 @@ export default async function handler(req: any, res: any) {
         userId,
         forceRescan,
         adminDb,
-        resumeUrl: req.body?.resumeUrl || null,
+        resumeUrl: resumeUrl || req.body?.resumeUrl || null,
         resumeFileName: req.body?.resumeFileName || originalname,
       });
 
@@ -186,5 +234,125 @@ export default async function handler(req: any, res: any) {
         filename: originalname,
       });
     }
+  };
+
+  // If request is JSON (e.g. for Google Drive URL or raw text)
+  const isJson = req.headers?.["content-type"]?.includes("application/json");
+  if (isJson) {
+    const driveUrl = req.body?.driveUrl || req.query?.driveUrl;
+    const directText = req.body?.text;
+
+    if (driveUrl) {
+      const driveId = extractDriveFileId(driveUrl);
+      if (!driveId) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Google Drive URL. Please supply a valid link containing a document or file ID.",
+          error: "Invalid Drive URL",
+        });
+      }
+
+      try {
+        const driveContent = await fetchGoogleDriveContent(driveId);
+        return await executePipeline({
+          buffer: driveContent.buffer,
+          text: driveContent.text,
+          originalname: driveContent.filename,
+          mimetype: driveContent.mimeType,
+          fileSize: driveContent.buffer ? driveContent.buffer.length : (driveContent.text?.length || 0),
+          resumeUrl: driveUrl,
+        });
+      } catch (driveErr: any) {
+        return res.status(422).json({
+          success: false,
+          message: driveErr.message || "Failed to retrieve document from Google Drive",
+          error: driveErr.message,
+        });
+      }
+    }
+
+    if (directText) {
+      return await executePipeline({
+        text: directText,
+        originalname: req.body?.filename || "Resume.txt",
+        mimetype: "text/plain",
+        fileSize: Buffer.byteLength(directText, "utf8"),
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: "No file, Google Drive URL, or text was provided in the request body",
+      error: "Missing payload",
+    });
+  }
+
+  // Handle multipart form-data
+  upload(req, res, async (err: any) => {
+    if (err) {
+      console.error("[EXTRACTION_ERROR] Multer file upload failed:", err.message);
+      return res.status(400).json({
+        success: false,
+        message: err.message || "File upload validation failed",
+        error: err.message,
+      });
+    }
+
+    if (!req.file) {
+      const driveUrl = req.body?.driveUrl || req.query?.driveUrl;
+      const directText = req.body?.text;
+
+      if (driveUrl) {
+        const driveId = extractDriveFileId(driveUrl);
+        if (!driveId) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid Google Drive URL",
+            error: "Invalid Drive URL",
+          });
+        }
+        try {
+          const driveContent = await fetchGoogleDriveContent(driveId);
+          return await executePipeline({
+            buffer: driveContent.buffer,
+            text: driveContent.text,
+            originalname: driveContent.filename,
+            mimetype: driveContent.mimeType,
+            fileSize: driveContent.buffer ? driveContent.buffer.length : (driveContent.text?.length || 0),
+            resumeUrl: driveUrl,
+          });
+        } catch (driveErr: any) {
+          return res.status(422).json({
+            success: false,
+            message: driveErr.message || "Failed to retrieve Google Drive document",
+            error: driveErr.message,
+          });
+        }
+      }
+
+      if (directText) {
+        return await executePipeline({
+          text: directText,
+          originalname: req.body?.filename || "Resume.txt",
+          mimetype: "text/plain",
+          fileSize: Buffer.byteLength(directText, "utf8"),
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "No file was provided in the request body",
+        error: "Missing file payload",
+      });
+    }
+
+    const { originalname, mimetype, buffer, size: fileSize } = req.file;
+    return await executePipeline({
+      buffer,
+      originalname,
+      mimetype,
+      fileSize,
+      resumeUrl: req.body?.resumeUrl || null,
+    });
   });
 }
