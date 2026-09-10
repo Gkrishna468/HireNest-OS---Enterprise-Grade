@@ -53,7 +53,8 @@ service cloud.firestore {
       return isVerified() &&
       (
         authEmail() == 'gopal@hirenestworkforce.com' ||
-        authEmail() == 'gopalkrishna0046@gmail.com'
+        authEmail() == 'gopalkrishna0046@gmail.com' ||
+        authEmail() == 'praveen@hirenestworkforce.com'
       );
     }
 
@@ -472,16 +473,54 @@ service cloud.firestore {
              "ownershipConflictResolvedBy",
              "ownershipConflictResolution",
              "conflictResolutionNotes",
-             "internalNotes"
+             "internalNotes",
+             "parsedResumeText",
+             "resumeText",
+             "extractedText",
+             "skills",
+             "normalizedSkills",
+             "experienceYears",
+             "totalExperience",
+             "experience",
+             "education",
+             "certifications",
+             "employmentHistory",
+             "summary",
+             "distillationSummary",
+             "currentResumeVersion",
+             "resumeVersions",
+             "resumeLastParsedAt",
+             "resumeProcessingStatus",
+             "resumeParserVersion",
+             "sourceMetadata",
+             "currentRole",
+             "title",
+             "currentCompany",
+             "location",
+             "workMode",
+             "pipelineStage",
+             "matchedRequirementId",
+             "submissionId",
+             "distillationStatus",
+             "canonicalRequirementId",
+             "mappedJobId",
+             "clientId",
+             "matchData",
+             "activePipelines",
+             "latestMatchRequirementId",
+             "latestMatchEvaluatedAt",
+             "matchScore"
          ])
       ) && (
          !('status' in request.resource.data) ||
          request.resource.data.status != 'DELETED' ||
+         (resource != null && request.resource.data.status == resource.data.status) ||
          isMainAdmin() ||
          (authRole() == 'vendor_admin' && isSameOrg(existing().vendorId) && existing().ownershipType != 'DIRECT')
       ) && (
          !('isActive' in request.resource.data) ||
          request.resource.data.isActive == true ||
+         (resource != null && request.resource.data.isActive == resource.data.isActive) ||
          isMainAdmin() ||
          (authRole() == 'vendor_admin' && isSameOrg(existing().vendorId) && existing().ownershipType != 'DIRECT')
       );
@@ -494,6 +533,94 @@ service cloud.firestore {
         allow read: if isVerified();
         allow write: if isVerified() && isAdmin();
       }
+    }
+
+    match /direct_candidates/{candidateId} {
+      allow read: if isVerified();
+
+      allow create:
+      if isVerified() &&
+         (
+           isAdmin() ||
+           isSameOrg(incoming().vendorId) ||
+           isSameOrg(incoming().clientId) ||
+           (incoming().sourceType == "DIRECT_CANDIDATE" && incoming().email == authEmail())
+         ) &&
+         isValidCandidate(incoming());
+
+      allow update:
+      if isVerified() && (
+         isAdmin() ||
+         isSameOrg(existing().vendorId) ||
+         isSameOrg(existing().clientId) ||
+         (existing().sourceType == "DIRECT_CANDIDATE" && existing().email == authEmail()) ||
+         request.resource.data.diff(resource.data).changedKeys().hasOnly([
+             "fullName",
+             "name",
+             "updatedAt",
+             "status",
+             "isNameManuallyEdited",
+             "candidateId",
+             "ownershipConflict",
+             "ownershipConflictResolvedAt",
+             "ownershipConflictResolvedBy",
+             "ownershipConflictResolution",
+             "conflictResolutionNotes",
+             "internalNotes",
+             "parsedResumeText",
+             "resumeText",
+             "extractedText",
+             "skills",
+             "normalizedSkills",
+             "experienceYears",
+             "totalExperience",
+             "experience",
+             "education",
+             "certifications",
+             "employmentHistory",
+             "summary",
+             "distillationSummary",
+             "currentResumeVersion",
+             "resumeVersions",
+             "resumeLastParsedAt",
+             "resumeProcessingStatus",
+             "resumeParserVersion",
+             "sourceMetadata",
+             "currentRole",
+             "title",
+             "currentCompany",
+             "location",
+             "workMode",
+             "pipelineStage",
+             "matchedRequirementId",
+             "submissionId",
+             "distillationStatus",
+             "canonicalRequirementId",
+             "mappedJobId",
+             "clientId",
+             "matchData",
+             "activePipelines",
+             "latestMatchRequirementId",
+             "latestMatchEvaluatedAt",
+             "matchScore"
+         ])
+      ) && (
+         !('status' in request.resource.data) ||
+         request.resource.data.status != 'DELETED' ||
+         (resource != null && request.resource.data.status == resource.data.status) ||
+         isMainAdmin() ||
+         (authRole() == 'vendor_admin' && isSameOrg(existing().vendorId) && existing().ownershipType != 'DIRECT')
+      ) && (
+         !('isActive' in request.resource.data) ||
+         request.resource.data.isActive == true ||
+         (resource != null && request.resource.data.isActive == resource.data.isActive) ||
+         isMainAdmin() ||
+         (authRole() == 'vendor_admin' && isSameOrg(existing().vendorId) && existing().ownershipType != 'DIRECT')
+      );
+
+      allow delete:
+      if isMainAdmin() ||
+         (isVerified() && authRole() == 'vendor_admin' && isSameOrg(existing().vendorId) && existing().ownershipType != 'DIRECT');
     }
 
     // =====================================================
@@ -1169,16 +1296,13 @@ service cloud.firestore {
 
     match /candidate_matches/{matchId} {
       allow read: if isVerified();
-      allow create: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(request.resource.data.vendorId) ||
-        isSameOrg(request.resource.data.clientId)
-      );
-      allow update: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(resource.data.vendorId) ||
-        isSameOrg(resource.data.clientId)
-      );
+      allow create, update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /candidateRequirementMatches/{matchId} {
+      allow read: if isVerified();
+      allow create, update: if isVerified();
       allow delete: if isSuperAdmin();
     }
 
