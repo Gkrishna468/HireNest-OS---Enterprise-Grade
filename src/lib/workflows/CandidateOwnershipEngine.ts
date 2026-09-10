@@ -1,6 +1,19 @@
 import { db } from "../firebase";
 import { collection, doc, setDoc, getDoc, query, where, getDocs, serverTimestamp, addDoc } from "firebase/firestore";
-import { adminDb } from "../firebase-admin";
+
+let cachedAdminDb: any = null;
+async function getAdminDb() {
+  if (typeof window !== "undefined") return null;
+  if (!cachedAdminDb) {
+    try {
+      const mod = await import("../firebase-admin");
+      cachedAdminDb = mod.adminDb;
+    } catch {
+      cachedAdminDb = null;
+    }
+  }
+  return cachedAdminDb;
+}
 
 export interface OwnershipRecord {
   candidateId: string;
@@ -36,9 +49,10 @@ export class CandidateOwnershipEngine {
 
       let vendorName = ownerId === "HQ" || ownerId === "ORG-GLOBAL-HQ" ? "HQ" : ownerId;
 
-      if (adminDb) {
-        await adminDb.collection("candidateOwnership").doc(`${candidateId}_${ownerId}`).set(record);
-        await adminDb.collection("operationalEvents").add({
+      const admin = await getAdminDb();
+      if (admin) {
+        await admin.collection("candidateOwnership").doc(`${candidateId}_${ownerId}`).set(record);
+        await admin.collection("operationalEvents").add({
           entityId: candidateId,
           type: "Ownership Established",
           actorRole: ownerType,
@@ -85,8 +99,9 @@ export class CandidateOwnershipEngine {
     vendorId: string
   ): Promise<boolean> {
     try {
-      if (adminDb) {
-        const snap = await adminDb.collection("candidateOwnership").doc(`${candidateId}_${vendorId}`).get();
+      const admin = await getAdminDb();
+      if (admin) {
+        const snap = await admin.collection("candidateOwnership").doc(`${candidateId}_${vendorId}`).get();
         if (!snap.exists) return false;
         const data = snap.data();
         if (!data?.lockUntil) return false;
@@ -114,8 +129,9 @@ export class CandidateOwnershipEngine {
     try {
       const now = new Date();
 
-      if (adminDb) {
-        const snap = await adminDb.collection("candidateOwnership")
+      const admin = await getAdminDb();
+      if (admin) {
+        const snap = await admin.collection("candidateOwnership")
           .where("candidateId", "==", candidateId)
           .get();
 
@@ -176,3 +192,5 @@ export class CandidateOwnershipEngine {
     }
   }
 }
+
+export default CandidateOwnershipEngine;

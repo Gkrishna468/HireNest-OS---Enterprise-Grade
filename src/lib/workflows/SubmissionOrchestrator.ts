@@ -13,6 +13,7 @@ import {
 import { db } from "../firebase";
 import { emitEvent } from "../../services/eventBus";
 import { AccessControlService } from "../../services/accessControlService";
+import { CandidateOwnershipEngine } from "./CandidateOwnershipEngine";
 
 export interface SubmissionRequest {
   candidateData: {
@@ -148,7 +149,6 @@ export class SubmissionOrchestrator {
       if (candidateId) {
         try {
           console.log("STEP 2: Query candidateOwnership");
-          const { CandidateOwnershipEngine } = await import("./CandidateOwnershipEngine");
           const ownershipCheck = await CandidateOwnershipEngine.verifyOwnershipAndCheckConflicts(candidateId, vendorId);
           
           if (!ownershipCheck.canProceed && !request.bypassOwnershipCheck && vendorId !== "HQ") {
@@ -416,7 +416,6 @@ export class SubmissionOrchestrator {
       try {
         console.log("STEP 6: establishOwnership");
         if (vendorId !== "HQ") {
-            const { CandidateOwnershipEngine } = await import("./CandidateOwnershipEngine");
             await CandidateOwnershipEngine.establishOwnership(candidateId, vendorId, "VENDOR", 180);
         }
         console.log("STEP 6 SUCCESS");

@@ -2,6 +2,7 @@ import { collection, doc, getDoc, setDoc, updateDoc, query, where, getDocs, serv
 import { db } from '../../firebase';
 import { ICandidateService } from '../contracts/ICandidateService';
 import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate';
+import { sanitizeFirestorePayload } from '../../firestoreUtils';
 
 export class FirebaseCandidateService implements ICandidateService {
   private collectionName = 'candidatePool';
@@ -12,21 +13,34 @@ export class FirebaseCandidateService implements ICandidateService {
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() } as Candidate;
     }
+    const directSnap = await getDoc(doc(db, "direct_candidates", id));
+    if (directSnap.exists()) {
+      return { id: directSnap.id, ...directSnap.data() } as Candidate;
+    }
     return null;
   }
 
   async createCandidate(data: CandidateInput): Promise<Candidate> {
     const docRef = doc(collection(db, this.collectionName));
-    const newDoc = { ...data };
+    const newDoc = sanitizeFirestorePayload({ ...data });
     await setDoc(docRef, newDoc);
     return { id: docRef.id, ...newDoc } as Candidate;
   }
 
   async updateCandidate(id: string, updates: CandidateUpdate): Promise<void> {
-    const docRef = doc(db, this.collectionName, id);
+    let targetRef = doc(db, this.collectionName, id);
+    const snap = await getDoc(targetRef);
+    if (!snap.exists()) {
+      const directRef = doc(db, "direct_candidates", id);
+      const directSnap = await getDoc(directRef);
+      if (directSnap.exists()) {
+        targetRef = directRef;
+      }
+    }
     // Immutability Safety: Protect ownership fields from being modified after creation
     const { ownerType, ownerId, ownerName, acquiredAt, acquisitionMethod, ...safeUpdates } = updates as any;
-    await updateDoc(docRef, safeUpdates as { [x: string]: any });
+    const cleanUpdates = sanitizeFirestorePayload(safeUpdates);
+    await setDoc(targetRef, cleanUpdates as { [x: string]: any }, { merge: true });
   }
 
   async archiveCandidate(id: string): Promise<void> {

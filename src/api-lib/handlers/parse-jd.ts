@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
-import { CONTROLLED_SKILL_TAXONOMY } from "../../resume-engine/parser/skills.js";
+import { extractSkills } from "../../resume-engine/parser/skills.js";
 
 // Deterministic Role Extraction
 function extractRoleDeterministically(text: string): string {
@@ -27,27 +27,11 @@ function extractRoleDeterministically(text: string): string {
   return "Software Engineer";
 }
 
-// Deterministic Skill Extraction
+// Deterministic Skill Extraction using controlled skills taxonomy
 function extractSkillsDeterministically(text: string): string[] {
-  const foundSkills = new Set<string>();
-  const textLower = text.toLowerCase();
-  
-  // Simple word boundary regex to avoid partial matches
-  const checkSkill = (skill: string) => {
-    const regex = new RegExp(`\\b${skill.replace(/[.*+?^$\{key\}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'i');
-    return regex.test(text);
-  };
-  
-  CONTROLLED_SKILL_TAXONOMY.flatMap(cat => [cat.canonical, ...cat.aliases]).forEach(skill => {
-    if (checkSkill(skill)) {
-      foundSkills.add(skill);
-    }
-  });
-  
-  // Also check aliases mapping (if we have access to them, or just use the master list)
-  // But master list is flat enough.
-  
-  return Array.from(foundSkills).slice(0, 10);
+  const extracted = extractSkills(text);
+  const combined = Array.from(new Set([...(extracted.normalizedSkills || []), ...(extracted.skills || [])]));
+  return combined.slice(0, 10);
 }
 
 export default async function handler(req: any, res: any) {

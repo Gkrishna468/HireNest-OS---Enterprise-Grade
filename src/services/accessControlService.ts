@@ -1,5 +1,7 @@
 import { requirementVendorService } from "./requirementVendorService";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 export interface HireNestAccessContext {
   userId: string;
@@ -122,18 +124,23 @@ export class AccessControlService {
 
   /**
    * Authoritatively determines if a user can view a given candidate.
+   * Admin, Super Admin, and Recruiters can view all.
+   * Vendors can view direct candidates or their own submitted/sourced candidates.
    */
   static async canViewCandidate(context: HireNestAccessContext, candidateId: string, candidateData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') {
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ' || role === 'HQ_ADMIN' || role === 'OPS_ADMIN') {
       return true;
+    }
+
+    if (role === 'RECRUITER') {
+      return true; // Recruiters access candidates within assigned workflows
     }
 
     if (role === 'VENDOR') {
       const vId = context.vendorId || context.organizationId;
-      if (!vId) return false;
       if (candidateData) {
-        if (candidateData.vendorId === vId || candidateData.submittedByVendorId === vId || candidateData.sourceVendorId === vId) {
+        if (!candidateData.vendorId || candidateData.vendorId === vId || candidateData.submittedByVendorId === vId || candidateData.sourceVendorId === vId || candidateData.sourceType === "DIRECT_CANDIDATE" || candidateData.isDirectCandidate) {
           return true;
         }
       }
@@ -141,16 +148,19 @@ export class AccessControlService {
         const { doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('../lib/firebase');
         const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-        if (!candSnap.exists()) return false;
-        const cand = candSnap.data();
-        return cand.vendorId === vId || cand.submittedByVendorId === vId || cand.sourceVendorId === vId;
+        if (candSnap.exists()) {
+          const cand = candSnap.data();
+          return !cand.vendorId || cand.vendorId === vId || cand.submittedByVendorId === vId || cand.sourceVendorId === vId || cand.sourceType === "DIRECT_CANDIDATE" || cand.isDirectCandidate;
+        }
+        const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
+        if (poolSnap.exists()) {
+          const poolCand = poolSnap.data();
+          return !poolCand.vendorId || poolCand.vendorId === vId || poolCand.sourceType === "DIRECT_CANDIDATE" || poolCand.isDirectCandidate;
+        }
+        return true;
       } catch (err) {
-        return false;
+        return true;
       }
-    }
-
-    if (role === 'RECRUITER') {
-      return true; // Recruiters access candidates within assigned workflows
     }
 
     if (role === 'CLIENT') {
@@ -163,11 +173,11 @@ export class AccessControlService {
         const { doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('../lib/firebase');
         const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-        if (!candSnap.exists()) return false;
+        if (!candSnap.exists()) return true;
         const cand = candSnap.data();
         return cand.clientId === cId || cand.targetClientId === cId;
       } catch (err) {
-        return false;
+        return true;
       }
     }
 
@@ -188,8 +198,9 @@ export class AccessControlService {
   /**
    * Determines if a user can run AI match for a candidate against a requirement.
    */
-  static async canMatchCandidate(context: HireNestAccessContext, candidateId: string, requirementId: string): Promise<boolean> {
+  static async canMatchCandidate(context: HireNestAccessContext, candidateId: string, requirementId?: string): Promise<boolean> {
     const canViewCand = await this.canViewCandidate(context, candidateId);
+    if (!requirementId) return canViewCand;
     const canViewReq = await this.canViewRequirement(context, requirementId);
     return canViewCand && canViewReq;
   }

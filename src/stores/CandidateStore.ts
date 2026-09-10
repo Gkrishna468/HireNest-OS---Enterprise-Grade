@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ServiceProvider } from '../lib/providers/ServiceProvider';
 import { Candidate, CandidateInput, CandidateUpdate } from '../types/Candidate';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface CandidateState {
@@ -178,12 +178,21 @@ export const useCandidateStore = create<CandidateState>((set, get) => ({
   },
 
   subscribeToCandidate: (id: string, callback: (data: any) => void) => {
-    console.log(`[REAL-TIME] Subscribing to candidatePool doc: ${id}`);
+    console.log(`[REAL-TIME] Subscribing to candidate doc: ${id}`);
     try {
       const docRef = doc(db, "candidatePool", id);
-      return onSnapshot(docRef, (docSnap) => {
+      let unsubDirect: (() => void) | null = null;
+      const unsubPool = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           callback({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          if (!unsubDirect) {
+            unsubDirect = onSnapshot(doc(db, "direct_candidates", id), (directSnap) => {
+              if (directSnap.exists()) {
+                callback({ id: directSnap.id, ...directSnap.data() });
+              }
+            }, () => {});
+          }
         }
       }, (err) => {
         console.warn(`[REAL-TIME] Snapshot subscription failed for ${id}, falling back to single get:`, err);
@@ -191,6 +200,10 @@ export const useCandidateStore = create<CandidateState>((set, get) => ({
            if (c) callback(c);
         });
       });
+      return () => {
+        unsubPool();
+        if (unsubDirect) unsubDirect();
+      };
     } catch (e) {
       console.warn(`[REAL-TIME] Setup failed for ${id}, falling back to single get:`, e);
       ServiceProvider.candidateService.getCandidate(id).then(c => {
@@ -213,8 +226,36 @@ export const useCandidateStore = create<CandidateState>((set, get) => ({
   },
 
   subscribeToMatches: (id: string, reqId: string | undefined, callback: (match: any) => void) => {
-    console.log(`Subscribed to matches for ${id} req ${reqId}`);
-    callback(null);
-    return () => console.log(`Unsubscribed from matches for ${id}`);
+    if (!id || !reqId) {
+      callback(null);
+      return () => {};
+    }
+    const matchId = `${id}_${reqId}`;
+    try {
+      return onSnapshot(
+        doc(db, "candidate_matches", matchId),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() });
+          } else {
+            getDoc(doc(db, "candidateRequirementMatches", matchId))
+              .then((snap) => {
+                if (snap.exists()) {
+                  callback({ id: snap.id, ...snap.data() });
+                } else {
+                  callback(null);
+                }
+              })
+              .catch(() => callback(null));
+          }
+        },
+        () => {
+          callback(null);
+        }
+      );
+    } catch {
+      callback(null);
+      return () => {};
+    }
   }
 }));

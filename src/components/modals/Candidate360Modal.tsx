@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, User, FileText, Bot, Briefcase, Activity, 
   MessageSquare, ShieldAlert, CheckCircle, MapPin, 
   UploadCloud, Search, Calendar, Target, Sparkles, RotateCcw, AlertTriangle, Send,
+  Check, Clock, DollarSign, Layers, Award, ChevronRight, Loader2,
+  FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode
 } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
@@ -14,10 +16,71 @@ import { CandidateReactivationService } from "../../services/CandidateReactivati
 import { ReactivationOpportunityCard } from "../ReactivationOpportunityCard";
 import { UnifiedRequirementsService } from "../../services/unifiedRequirementsService";
 import { AccessControlService } from "../../services/accessControlService";
+import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
+import { ResumeIngestionService } from "../../services/resumeIngestionService";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc } from "firebase/firestore";
+import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
+
+interface ParsedEducationItem {
+  degree?: string;
+  institution?: string;
+  graduationYear?: string | number;
+  field?: string;
+  raw?: string;
+}
+
+function parseEducationRecords(edu: any): ParsedEducationItem[] {
+  if (!edu) return [];
+  if (typeof edu === 'string') {
+    return [{ raw: edu }];
+  }
+  if (Array.isArray(edu)) {
+    return edu.map(item => {
+      if (typeof item === 'string') return { raw: item };
+      if (typeof item === 'object' && item !== null) {
+        return {
+          degree: item.degree,
+          institution: item.institution,
+          graduationYear: item.graduationYear || item.year,
+          field: item.field || item.major || item.specialization,
+          raw: item.raw || item.text
+        };
+      }
+      return { raw: String(item) };
+    });
+  }
+  if (typeof edu === 'object' && edu !== null) {
+    return [{
+      degree: edu.degree,
+      institution: edu.institution,
+      graduationYear: edu.graduationYear || edu.year,
+      field: edu.field || edu.major || edu.specialization,
+      raw: edu.raw || edu.text
+    }];
+  }
+  return [{ raw: String(edu) }];
+}
+
+function formatExperienceDisplay(cand: any): string {
+  if (typeof cand?.experience === 'string' && cand.experience.trim()) return cand.experience;
+  if (typeof cand?.experience === 'number') return `${cand.experience} Years`;
+  if (cand?.totalExperience !== undefined && cand?.totalExperience !== null) return `${cand.totalExperience} Years`;
+  if (cand?.experienceTracker?.computedYears !== undefined) return `${cand.experienceTracker.computedYears} Years`;
+  return 'Experience Under Review';
+}
+
+function formatLocationDisplay(loc: any): string {
+  if (!loc) return 'Remote/Unknown';
+  if (typeof loc === 'string') return loc;
+  if (typeof loc === 'object' && loc !== null) {
+    const parts = [loc.city, loc.state, loc.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Remote/Unknown';
+  }
+  return String(loc);
+}
 
 export default function Candidate360Modal({ 
   candidate, 
@@ -55,6 +118,10 @@ export default function Candidate360Modal({
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [isMapping, setIsMapping] = useState(false);
   const [mappingResult, setMappingResult] = useState<any | null>(null);
+  const [matchProgressSteps, setMatchProgressSteps] = useState<string[]>([]);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const [isSubmittingCandidate, setIsSubmittingCandidate] = useState(false);
+  const [submissionFeedback, setSubmissionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isScreening, setIsScreening] = useState(false);
   const [geminiQuery, setGeminiQuery] = useState("");
@@ -64,6 +131,29 @@ export default function Candidate360Modal({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [fullCandidateData, setFullCandidateData] = useState<any>(null);
+
+  // Resume Update States
+  const [showUpdateResumeModal, setShowUpdateResumeModal] = useState(false);
+  const [resumeUpdateMode, setResumeUpdateMode] = useState<'FILE' | 'TEXT'>('FILE');
+  const [newResumeFile, setNewResumeFile] = useState<File | null>(null);
+  const [newResumeText, setNewResumeText] = useState("");
+  const [isUpdatingResume, setIsUpdatingResume] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [resumeUpdateProgress, setResumeUpdateProgress] = useState<string>("");
+  const [resumeUpdateError, setResumeUpdateError] = useState<string | null>(null);
+  const [autoRerunMatch, setAutoRerunMatch] = useState(true);
+  const [selectedMatchReqIdForUpdate, setSelectedMatchReqIdForUpdate] = useState<string>("");
+  const [resumeUpdateSuccess, setResumeUpdateSuccess] = useState<{
+    version: number;
+    fileName: string;
+    skillsCount: number;
+    newSkills: string[];
+    experience: string;
+    matchUpdated: boolean;
+    newMatchScore?: number;
+    requirementTitle?: string;
+  } | null>(null);
 
   const handleRefreshAIAnalysis = async () => {
     const candId = candidate.candidateId || candidate.id;
@@ -181,21 +271,263 @@ export default function Candidate360Modal({
   const handleRunMatch = async () => {
     if (!selectedJobId) return;
     setIsMapping(true);
+    setMatchError(null);
+    setMatchProgressSteps(["Analyzing Candidate..."]);
+    try {
+      const candidateId = candidate.candidateId || candidate.originalId || candidate.id;
+      const context = AccessControlService.buildAccessContext({
+        id: (candidate as any)?.submitterId || "local_user",
+        role: userRole,
+        orgId: userOrgId,
+      });
+
+      const matchRecord = await CandidateMatchingService.matchCandidateToRequirement({
+        candidateId,
+        requirementId: selectedJobId,
+        context,
+        onProgress: (step: string) => {
+          setMatchProgressSteps((prev) => [...prev, step]);
+        },
+      });
+
+      setMappingResult(matchRecord);
+    } catch (e: any) {
+      console.error("[Candidate360Modal] Match error:", e);
+      setMatchError(e?.message || "Failed to analyze candidate fitment.");
+    } finally {
+      setIsMapping(false);
+    }
+  };
+
+  const handleUpdateResume = async () => {
+    if (resumeUpdateMode === 'FILE' && !newResumeFile) {
+      setResumeUpdateError("Please select a resume file to upload (PDF, DOCX, DOC, or TXT).");
+      return;
+    }
+    if (resumeUpdateMode === 'TEXT' && !newResumeText.trim()) {
+      setResumeUpdateError("Please paste or type updated resume text.");
+      return;
+    }
+
+    setIsUpdatingResume(true);
+    setResumeUpdateError(null);
+    setResumeUpdateProgress("1/4: Ingesting & extracting updated resume text...");
+
+    try {
+      let ingestionResult: any;
+      let originalFileName = "";
+      let fileSize: number | undefined;
+
+      const candidateId = candidate.candidateId || candidate.originalId || candidate.id;
+      const currentVersions = Array.isArray(displayCandidate.resumeVersions) ? [...displayCandidate.resumeVersions] : [];
+      const nextVersionNum = (displayCandidate.currentResumeVersion || currentVersions.length || 0) + 1;
+
+      if (resumeUpdateMode === 'FILE' && newResumeFile) {
+        originalFileName = newResumeFile.name;
+        fileSize = newResumeFile.size;
+        ingestionResult = await ResumeIngestionService.ingestResumeFromFile(newResumeFile, {
+          orgId: userOrgId || "HQ",
+          userRole: userRole || "recruiter",
+          userId: (candidate as any)?.submitterId || "recruiter",
+          forceRescan: true
+        });
+      } else {
+        originalFileName = `Resume_v${nextVersionNum}_Manual.txt`;
+        const textResult = ResumeIngestionService.ingestResumeFromText(
+          newResumeText,
+          originalFileName,
+          (candidate as any)?.submitterId || "recruiter",
+          {
+            forceRescan: true
+          }
+        );
+        ingestionResult = textResult.structured;
+      }
+
+      setResumeUpdateProgress("2/4: Parsing competencies, skills, experience & domain...");
+
+      const extractedSkills: string[] = Array.isArray(ingestionResult.professional?.skills?.value) 
+        ? ingestionResult.professional.skills.value 
+        : (Array.isArray(ingestionResult.skills) ? ingestionResult.skills : []);
+      const expYears = ingestionResult.professional?.totalExperienceYears?.value ?? null;
+      const experienceStr = expYears !== null 
+        ? `${expYears} Years` 
+        : (typeof displayCandidate.experience === 'string' ? displayCandidate.experience : "Experience Under Review");
+
+      const newVersionEntry = {
+        version: nextVersionNum,
+        uploadedAt: new Date().toISOString(),
+        fileName: originalFileName,
+        fileSize: fileSize || null,
+        parsedSkills: extractedSkills,
+        fieldsExtractedCount: ingestionResult.extraction?.fieldsExtractedCount || 0,
+        summary: typeof ingestionResult.summary === 'string' ? ingestionResult.summary.substring(0, 150) : ""
+      };
+      const updatedVersions = [...currentVersions, newVersionEntry];
+
+      setResumeUpdateProgress("3/4: Persisting updated candidate profile to Firestore...");
+
+      // Prepare updates payload for Firestore
+      const candidateUpdates: any = {
+        parsedResumeText: ingestionResult.rawText || newResumeText || "",
+        resumeText: ingestionResult.rawText || newResumeText || "",
+        extractedText: ingestionResult.rawText || newResumeText || "",
+        skills: extractedSkills,
+        normalizedSkills: extractedSkills,
+        experienceYears: expYears ?? 0,
+        totalExperience: expYears ?? 0,
+        experience: experienceStr,
+        education: ingestionResult.education || [],
+        certifications: ingestionResult.certifications || [],
+        employmentHistory: ingestionResult.professional?.employmentHistory || [],
+        summary: ingestionResult.summary || displayCandidate.summary || "",
+        distillationSummary: ingestionResult.summary || displayCandidate.distillationSummary || "",
+        currentResumeVersion: nextVersionNum,
+        resumeVersions: updatedVersions,
+        resumeLastParsedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        resumeProcessingStatus: "COMPLETED",
+        resumeParserVersion: ingestionResult.extraction?.parserVersion || "2.5.0-deterministic",
+        sourceMetadata: {
+          ...(displayCandidate.sourceMetadata || {}),
+          ingestedAt: new Date().toISOString(),
+          originalFileName,
+          extractionMethod: ingestionResult.extraction?.extractionMethod || "DETERMINISTIC_EXTRACTION",
+          parserVersion: ingestionResult.extraction?.parserVersion || "2.5.0-deterministic",
+          confidence: ingestionResult.extraction?.overallConfidence || "high",
+        }
+      };
+
+      if (ingestionResult.professional?.currentTitle?.value) {
+        candidateUpdates.currentRole = ingestionResult.professional.currentTitle.value;
+        candidateUpdates.title = ingestionResult.professional.currentTitle.value;
+      }
+      if (ingestionResult.professional?.currentCompany?.value) {
+        candidateUpdates.currentCompany = ingestionResult.professional.currentCompany.value;
+      }
+      if (ingestionResult.location?.currentLocation?.value) {
+        candidateUpdates.location = ingestionResult.location.currentLocation.value;
+      }
+      if (ingestionResult.preferences?.workMode?.value) {
+        candidateUpdates.workMode = ingestionResult.preferences.workMode.value;
+      }
+
+      // Sanitize payload recursively to strip any undefined fields that cause Firestore setDoc() to fail
+      const sanitizedUpdates = sanitizeFirestorePayload(candidateUpdates);
+
+      // Check which collection has the candidate: candidatePool or direct_candidates
+      let updatedAnyCollection = false;
+      const poolSnap = await getDoc(doc(db, "candidatePool", candidateId));
+      if (poolSnap.exists()) {
+        await setDoc(doc(db, "candidatePool", candidateId), sanitizedUpdates, { merge: true });
+        updatedAnyCollection = true;
+      }
+
+      const directSnap = await getDoc(doc(db, "direct_candidates", candidateId));
+      if (directSnap.exists()) {
+        await setDoc(doc(db, "direct_candidates", candidateId), sanitizedUpdates, { merge: true });
+        updatedAnyCollection = true;
+      }
+
+      if (!updatedAnyCollection) {
+        // Default target collection
+        await setDoc(doc(db, "candidatePool", candidateId), sanitizedUpdates, { merge: true });
+      }
+
+      try {
+        const { useCandidateStore } = await import("../../stores/CandidateStore");
+        await useCandidateStore.getState().updateCandidate(candidateId, sanitizedUpdates);
+      } catch (storeErr) {
+        console.warn("[Candidate360Modal] CandidateStore update warning:", storeErr);
+      }
+
+      // Update local state immediately so UI refreshes without reload
+      setFullCandidateData((prev: any) => ({
+        ...(prev || {}),
+        ...sanitizedUpdates
+      }));
+
+      // Determine if match should be re-evaluated
+      let matchRan = false;
+      let newScore: number | undefined;
+      let targetJobTitle: string | undefined;
+
+      const jobToMatch = selectedMatchReqIdForUpdate || selectedJobId || candidate.requirementId;
+      if (autoRerunMatch && jobToMatch) {
+        setResumeUpdateProgress("4/4: Re-running 7-Point AI Match against requirement...");
+        try {
+          const context = AccessControlService.buildAccessContext({
+            id: (candidate as any)?.submitterId || "local_user",
+            role: userRole,
+            orgId: userOrgId,
+          });
+
+          const matchRecord = await CandidateMatchingService.matchCandidateToRequirement({
+            candidateId,
+            requirementId: jobToMatch,
+            context,
+          });
+
+          setMappingResult(matchRecord);
+          matchRan = true;
+          newScore = matchRecord?.matchScore ?? matchRecord?.score ?? matchRecord?.fitScore;
+          const reqObj = effectiveJobs.find(j => j.id === jobToMatch);
+          targetJobTitle = reqObj?.title || reqObj?.role || "Active Requirement";
+          if (!selectedJobId) {
+            setSelectedJobId(jobToMatch);
+          }
+        } catch (matchErr: any) {
+          console.warn("[Candidate360Modal] Auto-match after resume update warning:", matchErr);
+        }
+      }
+
+      publishEvent({
+        type: "info",
+        title: "Candidate Resume Updated",
+        message: `Candidate ${candidateIdStr} resume updated to v${nextVersionNum}. ${extractedSkills.length} skills indexed.`,
+        recipients: ["GLOBAL_ADMIN", "RECRUITER"]
+      });
+
+      setResumeUpdateSuccess({
+        version: nextVersionNum,
+        fileName: originalFileName,
+        skillsCount: extractedSkills.length,
+        newSkills: extractedSkills.slice(0, 10),
+        experience: experienceStr,
+        matchUpdated: matchRan,
+        newMatchScore: newScore,
+        requirementTitle: targetJobTitle
+      });
+
+      setNewResumeFile(null);
+      setNewResumeText("");
+    } catch (err: any) {
+      console.error("[Candidate360Modal] Resume update failed:", err);
+      setResumeUpdateError(err.message || "Failed to update resume.");
+    } finally {
+      setIsUpdatingResume(false);
+      setResumeUpdateProgress("");
+    }
+  };
+
+  const handleSubmitCandidate = async () => {
+    if (!selectedJobId) return;
+    setIsSubmittingCandidate(true);
+    setSubmissionFeedback(null);
     try {
       const { useSubmissionStore } = await import("../../stores/SubmissionStore");
       const selectedReq = effectiveJobs.find(j => j.id === selectedJobId);
       const targetClientId = selectedReq?.clientId || "ORG-CLIENT-1";
+      const candidateId = candidate.candidateId || candidate.originalId || candidate.id;
 
-      const candidateId = candidate.candidateId || candidate.id;
-      
       const response = await useSubmissionStore.getState().submitCandidateProfile({
         candidateData: {
           id: candidateId,
           name: nameStr,
-          email: candidate.email || candidate.contactEmail || "",
-          phone: candidate.phone || candidate.contactPhone || "",
-          resumeText: candidate.resumeText || candidate.extractedText || "",
-          skills: getSkillsArray(candidate.skills) || [],
+          email: displayCandidate.email || displayCandidate.contactEmail || "",
+          phone: displayCandidate.phone || displayCandidate.contactPhone || "",
+          resumeText: displayCandidate.parsedResumeText || displayCandidate.resumeText || displayCandidate.extractedText || "",
+          skills: getSkillsArray(displayCandidate.skills) || [],
         },
         requirementId: selectedJobId,
         clientId: targetClientId,
@@ -209,15 +541,15 @@ export default function Candidate360Modal({
       });
 
       if (response && response.success) {
-        alert("Success: Candidate submitted successfully!");
+        setSubmissionFeedback({ success: true, message: "Candidate submitted successfully to client pipeline!" });
       } else {
-        alert("Error: " + (response?.message || "Failed"));
+        setSubmissionFeedback({ success: false, message: response?.message || "Submission failed" });
       }
-    } catch(e) {
-      console.error(e);
-      alert("Failed to map candidate to requirement.");
+    } catch(e: any) {
+      console.error("[Candidate360Modal] Submit error:", e);
+      setSubmissionFeedback({ success: false, message: e?.message || "Failed to submit candidate." });
     } finally {
-      setIsMapping(false);
+      setIsSubmittingCandidate(false);
     }
   };
 
@@ -293,7 +625,14 @@ export default function Candidate360Modal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+    <div 
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6" 
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !showUpdateResumeModal) {
+          onClose();
+        }
+      }}
+    >
        <div className="bg-slate-50 w-full max-w-7xl h-full sm:h-[85vh] rounded-[24px] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
           
           {/* Header */}
@@ -309,7 +648,7 @@ export default function Candidate360Modal({
                    </h2>
                    <div className="flex flex-wrap items-center gap-3 mt-1 text-xs font-semibold text-slate-500">
                       <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{candidateIdStr}</span>
-                      <span className="flex items-center gap-1"><MapPin size={12} /> {candidate.location || "Remote"}</span>
+                      <span className="flex items-center gap-1"><MapPin size={12} /> {formatLocationDisplay(candidate.location)}</span>
                       <span className="uppercase text-slate-400">Vendor: <span className="text-slate-600">{vendorStr}</span></span>
                       {candidate.pipelineStage && (
                          <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 uppercase tracking-wider">{candidate.pipelineStage}</Badge>
@@ -359,7 +698,7 @@ export default function Candidate360Modal({
                             <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="text-slate-900">{displayCandidate.email || displayCandidate.primaryEmail || 'N/A'}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Phone:</span> <span className="text-slate-900">{displayCandidate.phone || displayCandidate.phoneHash || 'N/A'}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Vendor:</span> <span className="text-slate-900">{vendorStr}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{displayCandidate.experience || (displayCandidate.totalExperience ? `${displayCandidate.totalExperience} Years` : (displayCandidate.experienceTracker?.computedYears ? `${displayCandidate.experienceTracker.computedYears} Years` : 'Experience Under Review'))}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-slate-500">Experience:</span> <span className="text-slate-900 max-w-[250px] truncate">{formatExperienceDisplay(displayCandidate)}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-500">Current Stage:</span> <Badge>{displayCandidate.pipelineStage || 'Added'}</Badge></div>
                          </div>
                       </div>
@@ -473,6 +812,21 @@ export default function Candidate360Modal({
                       </div>
                       <div className="flex items-center gap-2">
                         <Button 
+                          size="sm" 
+                          className="h-8 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm flex items-center gap-1.5" 
+                          onClick={() => {
+                            setShowUpdateResumeModal(true);
+                            setResumeUpdateSuccess(null);
+                            setResumeUpdateError(null);
+                            if (selectedJobId) {
+                              setSelectedMatchReqIdForUpdate(selectedJobId);
+                            }
+                          }}
+                        >
+                          <FileUp size={14} />
+                          Update Resume
+                        </Button>
+                        <Button 
                           variant="outline" 
                           size="sm" 
                           disabled={isRetrying}
@@ -505,6 +859,52 @@ export default function Candidate360Modal({
                       }}><UploadCloud size={14} className="mr-2" /> Download Original</Button>
                       </div>
                    </div>
+
+                   {/* Resume Update Success Banner */}
+                   {resumeUpdateSuccess && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 animate-in fade-in shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
+                            <CheckCircle2 size={20} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-emerald-950 flex items-center gap-2">
+                              Resume v{resumeUpdateSuccess.version} Successfully Activated
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 font-semibold">
+                                {resumeUpdateSuccess.fileName}
+                              </span>
+                            </div>
+                            <div className="text-emerald-700 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span><strong>{resumeUpdateSuccess.skillsCount}</strong> skills extracted & indexed</span>
+                              <span>•</span>
+                              <span>{resumeUpdateSuccess.experience}</span>
+                              {resumeUpdateSuccess.matchUpdated && resumeUpdateSuccess.newMatchScore !== undefined && (
+                                <span className="font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded">
+                                  New AI Match Score: {resumeUpdateSuccess.newMatchScore}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold gap-1.5"
+                            onClick={() => setActiveTab('REQUIREMENTS')}
+                          >
+                            View Match in Requirements
+                            <ArrowRight size={13} />
+                          </Button>
+                          <button 
+                            onClick={() => setResumeUpdateSuccess(null)}
+                            className="text-emerald-600 hover:text-emerald-800 p-1.5 rounded-lg hover:bg-emerald-100"
+                            title="Dismiss"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+                   )}
                    {/* Provenance & Version History Banner */}
                    {(displayCandidate.sourceMetadata || (Array.isArray(displayCandidate.resumeVersions) && displayCandidate.resumeVersions.length > 0)) && (
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
@@ -632,7 +1032,7 @@ export default function Candidate360Modal({
                                    <div className="flex flex-wrap gap-2">
                                        {skillsArr.length > 0 ? skillsArr.map((s: string, idx: number) => (
                                             <span key={idx}>
-                                               <Badge variant="outline" className="bg-white border-slate-200 text-slate-700 shadow-sm">{"s"}</Badge>
+                                               <Badge variant="outline" className="bg-white border-slate-200 text-slate-700 shadow-sm">{s}</Badge>
                                             </span>
                                         )) : <span className="text-sm text-slate-400 italic">No skills extracted yet.</span>}
                                         {false && null}
@@ -642,27 +1042,51 @@ export default function Candidate360Modal({
                                <div className="pt-4 border-t border-indigo-100/50">
                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Detected Experience</p>
                                    <div className="text-2xl font-black text-slate-800">
-                                       {displayCandidate.experience || (displayCandidate.totalExperience ? `${displayCandidate.totalExperience} Years` : (displayCandidate.experienceTracker?.computedYears ? `${displayCandidate.experienceTracker.computedYears} Years` : 'Unknown'))}
+                                       {formatExperienceDisplay(displayCandidate)}
                                    </div>
                                </div>
                            </div>
 
                            <div className="space-y-6">
-                               {displayCandidate.education && (
-                                   <div>
-                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Education Background</p>
-                                       <div className="text-sm font-semibold text-slate-700">{displayCandidate.education}</div>
-                                   </div>
-                               )}
+                               {(() => {
+                                   const eduItems = parseEducationRecords(displayCandidate.education);
+                                   if (eduItems.length === 0) return null;
+                                   return (
+                                       <div>
+                                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Education Background</p>
+                                           <div className="space-y-1.5">
+                                               {eduItems.map((item, idx) => {
+                                                   if (item.raw && !item.degree && !item.institution) {
+                                                       return (
+                                                           <div key={idx} className="text-sm font-semibold text-slate-700">
+                                                               {item.raw}
+                                                           </div>
+                                                       );
+                                                   }
+                                                   const degreeAndField = [item.degree, item.field].filter(Boolean).join(' in ') || item.degree || 'Degree';
+                                                   const institutionAndYear = [item.institution, item.graduationYear].filter(Boolean).join(' • ');
+                                                   return (
+                                                       <div key={idx} className="text-sm font-semibold text-slate-700">
+                                                           <span className="text-slate-800">{degreeAndField}</span>
+                                                           {institutionAndYear && (
+                                                               <span className="text-xs font-normal text-slate-500 block">{institutionAndYear}</span>
+                                                           )}
+                                                       </div>
+                                                   );
+                                               })}
+                                           </div>
+                                       </div>
+                                   );
+                               })()}
                                
-                               <div className={displayCandidate.education ? "pt-4 border-t border-indigo-100/50" : ""}>
+                               <div className={parseEducationRecords(displayCandidate.education).length > 0 ? "pt-4 border-t border-indigo-100/50" : ""}>
                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Core Profile Domain</p>
                                    <div className="text-sm font-semibold text-slate-700">{displayCandidate.domain || displayCandidate.inferredDomain || displayCandidate.role || 'Unspecified Domain'}</div>
                                </div>
                                
                                <div className="pt-4 border-t border-indigo-100/50">
                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location Details</p>
-                                   <div className="text-sm font-semibold text-slate-700">{displayCandidate.location || 'Remote/Unknown'}</div>
+                                   <div className="text-sm font-semibold text-slate-700">{formatLocationDisplay(displayCandidate.location)}</div>
                                </div>
                            </div>
                        </div>
@@ -754,21 +1178,108 @@ export default function Candidate360Modal({
                               <Target size={150} />
                            </div>
                            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs mb-2">Map candidate to a requirement</h3>
-                           <p className="text-sm text-slate-500 mb-6 max-w-xl relative">Select an open requirement to trigger the AI Match Engine and initiate the formal submission workflow.</p>
+                           <p className="text-sm text-slate-500 mb-4 max-w-xl relative">Select an open requirement to trigger the 7-Point AI Match Engine independently of submission orchestration.</p>
                            
+                           {/* Resume Version Status in Requirements Tab */}
+                           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 mb-4 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 relative z-10">
+                              <div className="flex items-center gap-2">
+                                 <span className="font-semibold text-slate-700">Source Profile:</span>
+                                 <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-mono">
+                                    Resume v{displayCandidate.currentResumeVersion || 1}
+                                 </Badge>
+                                 <span>•</span>
+                                 <span>{getSkillsArray(displayCandidate.skills)?.length || 0} skills indexed</span>
+                                 <span>•</span>
+                                 <span>{formatExperienceDisplay(displayCandidate.experience)}</span>
+                              </div>
+                              <button 
+                                 type="button"
+                                 onClick={() => {
+                                    setShowUpdateResumeModal(true);
+                                    setResumeUpdateSuccess(null);
+                                    setResumeUpdateError(null);
+                                    if (selectedJobId) setSelectedMatchReqIdForUpdate(selectedJobId);
+                                 }}
+                                 className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline flex items-center gap-1.5 cursor-pointer text-[11px]"
+                              >
+                                 <FileUp size={13} />
+                                 Update Resume to Re-Match
+                              </button>
+                           </div>
+
                            <div className="flex flex-col sm:flex-row gap-3 relative z-10">
-                              <select className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={selectedJobId} onChange={e => setSelectedJobId(e.target.value)}>
+                              <select 
+                                 className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                 value={selectedJobId} 
+                                 onChange={e => {
+                                    setSelectedJobId(e.target.value);
+                                    setMatchError(null);
+                                    setMatchProgressSteps([]);
+                                    setSubmissionFeedback(null);
+                                 }}
+                              >
                                  <option value="">Select an open requirement...</option>
-                                 {availableJobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.clientName || j.company || "Enterprise Partner"})</option>)}
+                                 {availableJobs.map(j => (
+                                    <option key={j.id} value={j.id}>
+                                       {j.title} ({j.clientName || j.company || "Enterprise Partner"})
+                                    </option>
+                                 ))}
                               </select>
                               <Button 
                                  onClick={handleRunMatch} 
                                  disabled={!selectedJobId || isMapping}
                                  className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8"
                               >
-                                 {isMapping ? "Analyzing Fit..." : "Run AI Match"}
+                                 {isMapping ? (
+                                    <span className="flex items-center gap-2">
+                                       <Loader2 size={16} className="animate-spin" />
+                                       Analyzing Fit...
+                                    </span>
+                                 ) : "Run AI Match"}
                               </Button>
                            </div>
+
+                           {/* Progress Checklist */}
+                           {(isMapping || matchProgressSteps.length > 0) && (
+                              <div className="mt-4 p-4 rounded-xl bg-slate-900 text-slate-100 text-xs font-mono border border-slate-800 shadow-inner space-y-1.5">
+                                 <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                                    <span className="font-semibold text-indigo-400 flex items-center gap-2">
+                                       {isMapping ? <Loader2 size={13} className="animate-spin text-indigo-400" /> : <CheckCircle size={13} className="text-emerald-400" />}
+                                       Fitment Engine Pipeline
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">v1.4 Deterministic</span>
+                                 </div>
+                                 {matchProgressSteps.map((step, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                       <span className={step.startsWith("✓") ? "text-emerald-400 font-bold" : "text-indigo-300"}>
+                                          {step}
+                                       </span>
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+
+                           {/* Error Banner */}
+                           {matchError && (
+                              <div className="mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
+                                 <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
+                                 <div className="flex-1">
+                                    <p className="font-bold">Match Verification Notice</p>
+                                    <p className="text-xs text-rose-700 mt-1">{matchError}</p>
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* Submission Feedback */}
+                           {submissionFeedback && (
+                              <div className={cn("mt-4 p-4 rounded-xl text-sm flex items-start gap-3 border", submissionFeedback.success ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800")}>
+                                 {submissionFeedback.success ? <CheckCircle size={18} className="text-emerald-500 shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />}
+                                 <div>
+                                    <p className="font-bold">{submissionFeedback.success ? "Submission Complete" : "Submission Failed"}</p>
+                                    <p className="text-xs mt-0.5">{submissionFeedback.message}</p>
+                                 </div>
+                              </div>
+                           )}
                         </div>
                     )}
 
@@ -777,41 +1288,116 @@ export default function Candidate360Modal({
                        <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm">
                            <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
                               <div>
-                                 <h3 className="text-xl font-bold text-slate-800">JD Match Analysis</h3>
-                                 <p className="text-sm text-slate-500 font-medium">Matched to: <span className="text-indigo-600">{candidate.reqTitle || mappingResult.reqTitle || mappingResult.requirementId || "Target Requirement"}</span></p>
+                                 <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="text-xl font-bold text-slate-800">JD Match Analysis</h3>
+                                    <Badge 
+                                       variant="outline" 
+                                       className={cn(
+                                          "text-xs font-bold px-2.5 py-0.5",
+                                          mappingResult.tier === "STRONG" || mappingResult.matchTier === "STRONG" ? "bg-emerald-50 text-emerald-700 border-emerald-300" :
+                                          mappingResult.tier === "VALIDATABLE" || mappingResult.matchTier === "VALIDATABLE" ? "bg-amber-50 text-amber-700 border-amber-300" :
+                                          mappingResult.tier === "HARD_GATE_FAIL" || mappingResult.matchTier === "HARD_GATE_FAIL" ? "bg-rose-50 text-rose-700 border-rose-300" :
+                                          "bg-blue-50 text-blue-700 border-blue-300"
+                                       )}
+                                    >
+                                       {mappingResult.tier || mappingResult.matchTier || "MATCH RECORD"}
+                                    </Badge>
+                                 </div>
+                                 <p className="text-sm text-slate-500 font-medium">
+                                    Target Role: <span className="text-indigo-600 font-semibold">{mappingResult.reqTitle || candidate.reqTitle || "Target Requirement"}</span>
+                                    {mappingResult.clientName && <span className="text-slate-400"> • {mappingResult.clientName}</span>}
+                                 </p>
                               </div>
                               <div className="text-right">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Match Engine Score</div>
-                                 <div className="text-4xl font-black text-indigo-600">{getCandidateFitmentScore({ ...displayCandidate, matchScore: mappingResult.matchScore })}%</div>
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Match Fitment Score</div>
+                                 <div className="text-4xl font-black text-indigo-600">
+                                    {mappingResult.score ?? mappingResult.matchScore ?? mappingResult.fitScore ?? 0}%
+                                 </div>
                               </div>
                            </div>
 
-                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Skills Match</div>
-                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.skillsScore || mappingResult.matchScore || 0}%</div>
-                              </div>
-                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Experience</div>
-                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.experienceScore || Math.max(0, (mappingResult.matchScore || 0) - 5)}%</div>
-                              </div>
-                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Domain Fit</div>
-                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.domainScore || mappingResult.matchScore || 0}%</div>
-                              </div>
-                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Location</div>
-                                 <div className="text-2xl font-black text-indigo-600">{mappingResult.breakdown?.locationScore || 100}%</div>
+                           {/* 7-Point Evidence Matrix */}
+                           <div className="mb-6">
+                              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">7-Point Evidence Matrix</div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                                 {/* 1. Skills */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Skills (60%)</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.skillsScore ?? mappingResult.breakdown?.skillsScore ?? 0}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                       {mappingResult.skillMatches?.length || mappingResult.skillsOverlap?.length || 0} matched
+                                    </div>
+                                 </div>
+
+                                 {/* 2. Experience */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Experience (25%)</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.experienceScore ?? mappingResult.breakdown?.experienceScore ?? 0}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Years verified</div>
+                                 </div>
+
+                                 {/* 3. Recent Role */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Recent Role</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.recentRoleScore ?? mappingResult.breakdown?.recentRoleScore ?? 85}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Title fit</div>
+                                 </div>
+
+                                 {/* 4. Work Mode */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Work Mode</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.workModeScore ?? mappingResult.breakdown?.workModeScore ?? 90}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Flexibility</div>
+                                 </div>
+
+                                 {/* 5. Location */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Location</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.locationScore ?? mappingResult.breakdown?.locationScore ?? 100}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Geo alignment</div>
+                                 </div>
+
+                                 {/* 6. Availability */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Availability</div>
+                                    <div className="text-xl font-black text-indigo-600">
+                                       {mappingResult.evidence?.availabilityScore ?? mappingResult.breakdown?.availabilityScore ?? 80}%
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">Notice period</div>
+                                 </div>
+
+                                 {/* 7. Compensation */}
+                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Compensation</div>
+                                    <div className="text-xs font-bold text-slate-700 mt-1 truncate">
+                                       {mappingResult.evidence?.compensation || "— Not stated"}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 mt-1">
+                                       {mappingResult.evidence?.compensation === "— Not stated" ? "Not in resume" : "Budget match"}
+                                    </div>
+                                 </div>
                               </div>
                            </div>
                            
+                           {/* AI Summary */}
                            <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-xl shadow-sm mb-6">
-                              <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-3 block border-b border-indigo-100 pb-2">AI Summary & Reasoning</h3>
+                              <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-2 block border-b border-indigo-100 pb-2">Grounded Fitment Synthesis</h3>
                               <p className="text-sm text-indigo-900 leading-relaxed font-medium">
-                                 {mappingResult.summary || mappingResult.overallMatchReason || "The HireNest match engine identified strong overlap in core competencies."}
+                                 {mappingResult.summary || mappingResult.overallMatchReason || "The HireNest fitment engine identified positive alignment across key competency pillars."}
                               </p>
                            </div>
 
+                           {/* Strengths & Gaps */}
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm">
                                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3 block border-b border-emerald-100 pb-2">Identified Strengths</h3>
@@ -826,18 +1412,19 @@ export default function Candidate360Modal({
                               
                               <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
                                  <div>
-                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3 block border-b border-rose-100 pb-2">Missing Skills & Risks</h3>
-                                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
-                                       {(mappingResult.missingSkills || []).map((s: string, idx: number) => (
-                                           <span key={idx}>
-                                              <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{s}</Badge>
-                                           </span>
-                                        ))}
-                                        {false && [].map(() => (
-                                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{"s"}</Badge>
-                                       ))}
+                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-rose-500 mb-3 block border-b border-rose-100 pb-2">Missing Skills & Identified Risks</h3>
+                                    <div className="flex flex-wrap gap-1.5 mb-3 mt-3">
+                                       {(mappingResult.missingSkills || []).length > 0 ? (
+                                          mappingResult.missingSkills.map((s: string, idx: number) => (
+                                             <Badge key={idx} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
+                                                {s}
+                                             </Badge>
+                                          ))
+                                       ) : (
+                                          <span className="text-xs text-slate-400">No critical skill omissions detected</span>
+                                       )}
                                     </div>
-                                    <ul className="space-y-3 mt-3">
+                                    <ul className="space-y-2 mt-2">
                                        {(mappingResult.risks || []).map((s: string, idx: number) => (
                                          <li key={idx} className="text-sm font-medium text-slate-700 flex items-start gap-2">
                                             <ShieldAlert size={14} className="text-rose-400 shrink-0 mt-0.5" /> <span>{s}</span>
@@ -847,18 +1434,62 @@ export default function Candidate360Modal({
                                  </div>
                                  {(mappingResult.recommendation || mappingResult.recruiterAssessment) && (
                                     <div className="mt-6 pt-4 border-t border-slate-100">
-                                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recommendation</div>
-                                       <div className="text-sm font-semibold text-indigo-700 leading-relaxed">{mappingResult.recommendation || mappingResult.recruiterAssessment}</div>
+                                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Recruiter Next Action</div>
+                                       <div className="text-sm font-semibold text-indigo-700 leading-relaxed">
+                                          {mappingResult.recommendation || mappingResult.recruiterAssessment}
+                                       </div>
                                     </div>
                                  )}
                               </div>
+                           </div>
+
+                           {/* Action Footer */}
+                           <div className="mt-8 pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                 <Button
+                                    variant="outline"
+                                    onClick={handleRunMatch}
+                                    disabled={isMapping || !selectedJobId}
+                                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                                 >
+                                    <RotateCcw size={14} className="mr-2" />
+                                    Re-run Match
+                                 </Button>
+                                 <Button
+                                    variant="outline"
+                                    onClick={() => setActiveTab('OVERVIEW')}
+                                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                                 >
+                                    Review Candidate
+                                 </Button>
+                              </div>
+
+                              {!isClientReviewMode && (
+                                 <Button
+                                    onClick={handleSubmitCandidate}
+                                    disabled={isSubmittingCandidate || isMapping}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 shadow-sm"
+                                 >
+                                    {isSubmittingCandidate ? (
+                                       <span className="flex items-center gap-2">
+                                          <Loader2 size={16} className="animate-spin" />
+                                          Submitting to Client...
+                                       </span>
+                                    ) : (
+                                       <span className="flex items-center gap-2">
+                                          <Send size={15} />
+                                          Submit Candidate
+                                       </span>
+                                    )}
+                                 </Button>
+                              )}
                            </div>
                        </div>
                     ) : (
                        <div className="bg-slate-50 p-10 rounded-xl border border-slate-200 text-center shadow-sm">
                           <Target size={40} className="text-slate-300 mx-auto mb-4" />
                           <p className="text-base font-bold text-slate-800">No Match Data Available</p>
-                          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">This candidate has not been formally evaluated against a specific Job Description.</p>
+                          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Select an open requirement above and click "Run AI Match" to evaluate this candidate against requirements.</p>
                        </div>
                     )}
                 </div>
@@ -1200,6 +1831,431 @@ export default function Candidate360Modal({
                  })()}
              </div>
           )}
+
+       {/* Update Resume Modal Overlay */}
+       {showUpdateResumeModal && (
+         <div 
+           className="fixed inset-0 z-[120] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+           onClick={(e) => {
+             e.stopPropagation();
+             if (e.target === e.currentTarget && !isUpdatingResume) {
+               setShowUpdateResumeModal(false);
+               setResumeUpdateSuccess(null);
+               setResumeUpdateError(null);
+             }
+           }}
+         >
+           <div 
+             className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+             onClick={(e) => e.stopPropagation()}
+           >
+             {/* Modal Header */}
+             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+               <div className="flex items-center gap-3">
+                 <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                   <FileUp size={18} />
+                 </div>
+                 <div>
+                   <h3 className="font-bold text-slate-900 text-base">Update Candidate Resume</h3>
+                   <p className="text-xs text-slate-500">
+                     Candidate: <span className="font-semibold text-slate-700">{nameStr}</span> (Active: v{displayCandidate.currentResumeVersion || 1})
+                   </p>
+                 </div>
+               </div>
+               <button
+                 disabled={isUpdatingResume}
+                 onClick={() => {
+                   if (!isUpdatingResume) {
+                     setShowUpdateResumeModal(false);
+                     setResumeUpdateSuccess(null);
+                     setResumeUpdateError(null);
+                   }
+                 }}
+                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+               >
+                 <X size={18} />
+               </button>
+             </div>
+
+             {/* Modal Body */}
+             <div className="p-6 overflow-y-auto space-y-5 flex-1">
+               {resumeUpdateSuccess ? (
+                 <div className="space-y-4 py-2">
+                   <div className="text-center space-y-2">
+                     <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                       <CheckCircle2 size={24} />
+                     </div>
+                     <h4 className="font-bold text-lg text-slate-900">
+                       Resume v{resumeUpdateSuccess.version} Activated!
+                     </h4>
+                     <p className="text-xs text-slate-500 max-w-md mx-auto">
+                       The candidate profile and deterministic parsing engine have been refreshed with the updated resume.
+                     </p>
+                   </div>
+
+                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+                     <div className="flex items-center justify-between">
+                       <span className="text-slate-500 font-medium">Source Document:</span>
+                       <span className="font-mono font-bold text-slate-700 truncate max-w-[220px]">{resumeUpdateSuccess.fileName}</span>
+                     </div>
+                     <div className="flex items-center justify-between">
+                       <span className="text-slate-500 font-medium">Extracted Experience:</span>
+                       <span className="font-bold text-slate-800">{resumeUpdateSuccess.experience}</span>
+                     </div>
+                     <div className="flex items-center justify-between">
+                       <span className="text-slate-500 font-medium">Skills Indexed:</span>
+                       <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 font-bold">
+                         {resumeUpdateSuccess.skillsCount} Skills
+                       </Badge>
+                     </div>
+                     {resumeUpdateSuccess.newSkills && resumeUpdateSuccess.newSkills.length > 0 && (
+                       <div className="pt-2 border-t border-slate-200">
+                         <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1.5">
+                           Extracted Competencies
+                         </span>
+                         <div className="flex flex-wrap gap-1.5">
+                           {resumeUpdateSuccess.newSkills.map((sk, idx) => (
+                             <span key={idx} className="bg-white border border-slate-200 px-2 py-0.5 rounded text-[11px] text-slate-700 font-medium">
+                               {sk}
+                             </span>
+                           ))}
+                           {resumeUpdateSuccess.skillsCount > resumeUpdateSuccess.newSkills.length && (
+                             <span className="text-[10px] text-slate-400 self-center">
+                               +{resumeUpdateSuccess.skillsCount - resumeUpdateSuccess.newSkills.length} more
+                             </span>
+                           )}
+                         </div>
+                       </div>
+                     )}
+                   </div>
+
+                   {resumeUpdateSuccess.matchUpdated ? (
+                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between">
+                       <div>
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">
+                           AI Match Recalculated
+                         </span>
+                         <div className="font-bold text-sm text-indigo-950 mt-0.5">
+                           {resumeUpdateSuccess.requirementTitle || "Selected Requirement"}
+                         </div>
+                         <div className="text-xs text-indigo-700 mt-0.5">
+                           New Match Score: <span className="font-bold text-indigo-900">{resumeUpdateSuccess.newMatchScore ?? "--"}%</span>
+                         </div>
+                       </div>
+                       <Button
+                         size="sm"
+                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5"
+                         onClick={() => {
+                           setShowUpdateResumeModal(false);
+                           setActiveTab('REQUIREMENTS');
+                         }}
+                       >
+                         View Match
+                         <ArrowRight size={14} />
+                       </Button>
+                     </div>
+                   ) : (
+                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 flex items-center justify-between">
+                       <span>Navigate to the <strong>Requirements</strong> tab to run AI Match with this updated resume.</span>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         className="text-xs font-semibold"
+                         onClick={() => {
+                           setShowUpdateResumeModal(false);
+                           setActiveTab('REQUIREMENTS');
+                         }}
+                       >
+                         Go to Requirements
+                       </Button>
+                     </div>
+                   )}
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   {/* Tab switch between file upload and text paste */}
+                   <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                     <button
+                       type="button"
+                       onClick={() => setResumeUpdateMode('FILE')}
+                       className={cn(
+                         "flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                         resumeUpdateMode === 'FILE'
+                           ? "bg-white text-indigo-700 shadow-xs"
+                           : "text-slate-600 hover:text-slate-900"
+                       )}
+                     >
+                       <FileUp size={14} />
+                       Upload Document (PDF/DOCX)
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setResumeUpdateMode('TEXT')}
+                       className={cn(
+                         "flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                         resumeUpdateMode === 'TEXT'
+                           ? "bg-white text-indigo-700 shadow-xs"
+                           : "text-slate-600 hover:text-slate-900"
+                       )}
+                     >
+                       <FileCode size={14} />
+                       Paste Resume Text
+                     </button>
+                   </div>
+
+                   {/* Mode 1: File Upload */}
+                   {resumeUpdateMode === 'FILE' && (
+                     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                       <div
+                         onClick={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           fileInputRef.current?.click();
+                         }}
+                         onDragEnter={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           setIsDraggingFile(true);
+                         }}
+                         onDragOver={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           setIsDraggingFile(true);
+                         }}
+                         onDragLeave={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           setIsDraggingFile(false);
+                         }}
+                         onDrop={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           setIsDraggingFile(false);
+                           const f = e.dataTransfer.files?.[0];
+                           if (f) {
+                             setNewResumeFile(f);
+                             setResumeUpdateError(null);
+                           }
+                         }}
+                         className={cn(
+                           "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all select-none",
+                           isDraggingFile
+                             ? "border-indigo-600 bg-indigo-50/80 scale-[1.01]"
+                             : newResumeFile
+                             ? "border-emerald-400 bg-emerald-50/40"
+                             : "border-slate-300 hover:border-indigo-400 hover:bg-slate-50"
+                         )}
+                       >
+                         <input
+                           ref={fileInputRef}
+                           id="candidate-resume-update-file-input"
+                           type="file"
+                           accept=".pdf,.docx,.doc,.txt"
+                           className="hidden"
+                           onClick={(e) => e.stopPropagation()}
+                           onChange={(e) => {
+                             e.stopPropagation();
+                             const f = e.target.files?.[0];
+                             if (f) {
+                               setNewResumeFile(f);
+                               setResumeUpdateError(null);
+                             }
+                           }}
+                         />
+                         {newResumeFile ? (
+                           <div className="flex flex-col items-center space-y-2.5">
+                             <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                               <FileText size={22} />
+                             </div>
+                             <div>
+                               <div className="font-bold text-xs text-slate-900 break-all max-w-md mx-auto">{newResumeFile.name}</div>
+                               <div className="text-[11px] text-emerald-700 font-mono mt-0.5 font-medium">
+                                 {(newResumeFile.size / 1024).toFixed(1)} KB • Ready to Ingest
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-2 pt-1">
+                               <span className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer">
+                                 Change file
+                               </span>
+                               <span className="text-slate-300">•</span>
+                               <button
+                                 type="button"
+                                 onClick={(e) => {
+                                   e.preventDefault();
+                                   e.stopPropagation();
+                                   setNewResumeFile(null);
+                                   if (fileInputRef.current) {
+                                     fileInputRef.current.value = "";
+                                   }
+                                 }}
+                                 className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                               >
+                                 Remove
+                               </button>
+                             </div>
+                           </div>
+                         ) : (
+                           <div className="flex flex-col items-center space-y-2.5">
+                             <div className="w-11 h-11 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                               <UploadCloud size={22} />
+                             </div>
+                             <div>
+                               <div className="font-bold text-xs text-slate-800">
+                                 Click or drag & drop updated resume here
+                               </div>
+                               <div className="text-[11px] text-slate-400 mt-0.5">
+                                 Supports PDF, DOCX, DOC, or TXT (Max 10MB)
+                               </div>
+                             </div>
+                             <Button
+                               type="button"
+                               size="sm"
+                               variant="outline"
+                               className="text-xs font-semibold gap-1.5 pointer-events-none mt-1 bg-white"
+                             >
+                               <FileUp size={13} />
+                               Browse Files
+                             </Button>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Mode 2: Paste Text */}
+                   {resumeUpdateMode === 'TEXT' && (
+                     <div className="space-y-2">
+                       <label className="text-xs font-bold text-slate-700 block">
+                         Paste Updated Resume Content:
+                       </label>
+                       <textarea
+                         value={newResumeText}
+                         onChange={(e) => {
+                           setNewResumeText(e.target.value);
+                           setResumeUpdateError(null);
+                         }}
+                         rows={8}
+                         placeholder="Paste candidate's updated summary, skills, experience, and certifications..."
+                         className="w-full text-xs font-mono border border-slate-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
+                       />
+                       <div className="text-[11px] text-slate-400 text-right">
+                         {newResumeText.length} characters
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Re-match Option */}
+                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                     <label className="flex items-start gap-2.5 cursor-pointer">
+                       <input
+                         type="checkbox"
+                         checked={autoRerunMatch}
+                         onChange={(e) => setAutoRerunMatch(e.target.checked)}
+                         className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+                       />
+                       <div className="text-xs">
+                         <span className="font-bold text-slate-800 block">
+                           Automatically re-run 7-Point AI Match after update
+                         </span>
+                         <span className="text-slate-500 text-[11px]">
+                           Immediately calculates new fitment score and evidence against target requirement.
+                         </span>
+                       </div>
+                     </label>
+
+                     {autoRerunMatch && (
+                       <div className="pt-2 border-t border-slate-200">
+                         <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                           Target Requirement for Matching:
+                         </label>
+                         <select
+                           value={selectedMatchReqIdForUpdate || selectedJobId || ""}
+                           onChange={(e) => setSelectedMatchReqIdForUpdate(e.target.value)}
+                           className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                         >
+                           <option value="">Select requirement...</option>
+                           {availableJobs.map((j) => (
+                             <option key={j.id} value={j.id}>
+                               {j.title} ({j.clientName || j.company || "Enterprise Partner"})
+                             </option>
+                           ))}
+                         </select>
+                       </div>
+                     )}
+                   </div>
+
+                   {/* Error Display */}
+                   {resumeUpdateError && (
+                     <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 flex items-start gap-2">
+                       <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                       <span>{resumeUpdateError}</span>
+                     </div>
+                   )}
+
+                   {/* Progress Display */}
+                   {isUpdatingResume && (
+                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 space-y-2">
+                       <div className="flex items-center gap-2 text-xs font-bold text-indigo-900">
+                         <Loader2 size={15} className="animate-spin text-indigo-600" />
+                         <span>Processing Resume Update...</span>
+                       </div>
+                       <div className="text-[11px] font-mono text-indigo-700">
+                         {resumeUpdateProgress || "Ingesting & indexing candidate profile..."}
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               )}
+             </div>
+
+             {/* Modal Footer */}
+             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/80 flex items-center justify-end gap-2">
+               {resumeUpdateSuccess ? (
+                 <Button
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                   onClick={() => {
+                     setShowUpdateResumeModal(false);
+                     setResumeUpdateSuccess(null);
+                   }}
+                 >
+                   Done
+                 </Button>
+               ) : (
+                 <>
+                   <Button
+                     variant="outline"
+                     disabled={isUpdatingResume}
+                     className="text-xs"
+                     onClick={() => {
+                       setShowUpdateResumeModal(false);
+                       setResumeUpdateError(null);
+                     }}
+                   >
+                     Cancel
+                   </Button>
+                   <Button
+                     disabled={isUpdatingResume || (resumeUpdateMode === 'FILE' ? !newResumeFile : !newResumeText.trim())}
+                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5"
+                     onClick={handleUpdateResume}
+                   >
+                     {isUpdatingResume ? (
+                       <>
+                         <Loader2 size={14} className="animate-spin" />
+                         Updating...
+                       </>
+                     ) : (
+                       <>
+                         <FileUp size={14} />
+                         Update & Ingest Resume
+                       </>
+                     )}
+                   </Button>
+                 </>
+               )}
+             </div>
+           </div>
+         </div>
+       )}
        </div>
     </div>
   )

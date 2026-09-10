@@ -194,6 +194,19 @@ export class ResumeIngestionService {
     });
 
     if (!response.ok) {
+      // Graceful fallback for plain text files if API has transient errors
+      if (file.name.toLowerCase().endsWith(".txt") || file.name.toLowerCase().endsWith(".md") || file.type === "text/plain") {
+        try {
+          const rawText = await file.text();
+          if (rawText && rawText.trim().length > 20) {
+            const fallbackResult = this.ingestResumeFromText(rawText, file.name, options.userId || "recruiter", options);
+            return fallbackResult.structured;
+          }
+        } catch (readErr) {
+          console.warn("[ResumeIngestionService] Client-side text read fallback failed:", readErr);
+        }
+      }
+
       let errMessage = `Extraction failed with HTTP ${response.status}`;
       try {
         const errJson = await response.json();
@@ -484,11 +497,11 @@ export class ResumeIngestionService {
       ? profile.employmentHistory.map((e: any) => ({
           company: e.company || "Organization",
           designation: e.designation || "Specialist",
-          startDate: e.startDate,
-          endDate: e.endDate,
-          durationMonths: e.durationMonths,
-          isCurrent: e.isCurrent,
-          description: e.description,
+          startDate: e.startDate || null,
+          endDate: e.endDate || null,
+          durationMonths: e.durationMonths ?? null,
+          isCurrent: Boolean(e.isCurrent),
+          description: e.description || "",
         }))
       : [];
     if (employmentHistory.length > 0) fieldsExtractedCount++;
@@ -497,9 +510,9 @@ export class ResumeIngestionService {
     const education: EducationItem[] = Array.isArray(profile.education)
       ? profile.education.map((ed: any) => ({
           degree: ed.degree || "Degree",
-          field: ed.field,
+          field: ed.field || null,
           institution: ed.institution || "University",
-          graduationYear: ed.graduationYear,
+          graduationYear: ed.graduationYear || null,
         }))
       : [];
     if (education.length > 0) fieldsExtractedCount++;
