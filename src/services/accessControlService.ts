@@ -1,15 +1,23 @@
 import { requirementVendorService } from "./requirementVendorService";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
+import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+
+export type RecruiterType = 'INTERNAL' | 'VENDOR' | 'FREELANCE';
+export type ABACScope = 'ASSIGNED_ONLY' | 'ALL_PERMITTED' | 'EXPLICIT_ONLY';
 
 export interface HireNestAccessContext {
   userId: string;
   role: 'ADMIN' | 'SUPER_ADMIN' | 'BUSINESS_OPERATIONS' | 'BUSINESS_MANAGER' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | 'CANDIDATE' | 'GLOBAL_HQ' | string;
   organizationId: string;
   recruiterId?: string;
+  recruiterType?: RecruiterType;
+  abacScope?: ABACScope;
+  assignedRequirementIds?: string[];
   vendorId?: string;
   clientId?: string;
+  candidateId?: string;
   email?: string;
   permissions?: string[];
 }
@@ -42,6 +50,7 @@ export interface AttributionSnapshot {
 /**
  * AccessControlService
  * Standardized security & access control context across requirements, candidates, submissions, and recruiters.
+ * Enforces strict ABAC, Vendor Isolation, and Candidate Data Ownership.
  */
 export class AccessControlService {
   /**
@@ -52,14 +61,34 @@ export class AccessControlService {
     const role = rawRole.toUpperCase();
     const orgId = user?.orgId || user?.organizationId || user?.vendorId || user?.clientId || 'ORG-GLOBAL-HQ';
     const userId = user?.id || user?.uid || 'anonymous';
+    
+    // Determine recruiter classification and ABAC scope
+    let recruiterType: RecruiterType | undefined = user?.recruiterType;
+    if (!recruiterType && role === 'RECRUITER') {
+      if (user?.vendorId) recruiterType = 'VENDOR';
+      else if (user?.isFreelance) recruiterType = 'FREELANCE';
+      else recruiterType = 'INTERNAL';
+    }
+
+    let abacScope: ABACScope | undefined = user?.abacScope;
+    if (!abacScope && role === 'RECRUITER') {
+      if (recruiterType === 'FREELANCE') abacScope = 'EXPLICIT_ONLY';
+      else if (recruiterType === 'VENDOR') abacScope = 'ASSIGNED_ONLY';
+      else abacScope = 'ASSIGNED_ONLY';
+    }
+
     return {
       userId,
       role,
       organizationId: orgId,
       email: user?.email || '',
       recruiterId: role === 'RECRUITER' ? (user?.recruiterId || userId) : user?.recruiterId,
-      vendorId: role === 'VENDOR' ? (user?.vendorId || orgId) : user?.vendorId,
+      recruiterType,
+      abacScope,
+      assignedRequirementIds: user?.assignedRequirementIds || [],
+      vendorId: (role === 'VENDOR' || recruiterType === 'VENDOR') ? (user?.vendorId || orgId) : user?.vendorId,
       clientId: role === 'CLIENT' ? (user?.clientId || orgId) : user?.clientId,
+      candidateId: role === 'CANDIDATE' ? (user?.candidateId || userId) : undefined,
       permissions: user?.permissions || []
     };
   }
@@ -90,6 +119,16 @@ export class AccessControlService {
       return true;
     }
 
+    if (role === 'CANDIDATE') {
+      try {
+        const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
+        if (!reqSnap.exists()) return false;
+        return CandidateRequirementEligibilityPolicy.isCandidateEligible(reqSnap.data());
+      } catch (err) {
+        return false;
+      }
+    }
+
     if (role === 'VENDOR') {
       const vId = context.vendorId || context.organizationId;
       if (!vId) return false;
@@ -98,15 +137,36 @@ export class AccessControlService {
 
     if (role === 'RECRUITER') {
       const rId = context.recruiterId || context.userId;
-      if (!rId) return false;
+      const rType = context.recruiterType || 'INTERNAL';
+      const scope = context.abacScope || (rType === 'FREELANCE' ? 'EXPLICIT_ONLY' : 'ASSIGNED_ONLY');
+
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/firebase');
         const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
         if (!reqSnap.exists()) return false;
         const req = reqSnap.data();
+
+        // 1. Vendor Recruiter Check (Must belong to their mapped vendor AND assigned to req)
+        if (rType === 'VENDOR') {
+          const vId = context.vendorId || context.organizationId;
+          if (!vId) return false;
+          const isDistributedToVendor = (req.distributedVendorIds && req.distributedVendorIds.includes(vId)) || req.vendorId === vId;
+          if (!isDistributedToVendor) return false;
+
+          if (scope === 'ALL_PERMITTED') return true;
+          const isAssigned = (context.assignedRequirementIds && context.assignedRequirementIds.includes(requirementId)) || req.assignedRecruiterId === rId;
+          return isAssigned;
+        }
+
+        // 2. Freelance Recruiter Check (EXPLICIT_ONLY: Must be explicitly assigned)
+        if (rType === 'FREELANCE' || scope === 'EXPLICIT_ONLY') {
+          return (context.assignedRequirementIds && context.assignedRequirementIds.includes(requirementId)) || req.assignedRecruiterId === rId;
+        }
+
+        // 3. Internal Recruiter Check (ASSIGNED_ONLY / ALL_PERMITTED)
+        if (scope === 'ALL_PERMITTED') return true;
         const assignedRecruiter = req.assignedRecruiterId || req.recruiterId;
-        return assignedRecruiter === rId || !assignedRecruiter;
+        const isExplicit = context.assignedRequirementIds && context.assignedRequirementIds.includes(requirementId);
+        return isExplicit || assignedRecruiter === rId || !assignedRecruiter;
       } catch (err) {
         return false;
       }
@@ -116,8 +176,6 @@ export class AccessControlService {
       const cId = context.clientId || context.organizationId;
       if (!cId) return false;
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/firebase');
         const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
         if (!reqSnap.exists()) return false;
         const req = reqSnap.data();
@@ -146,8 +204,7 @@ export class AccessControlService {
 
   /**
    * Authoritatively determines if a user can view a given candidate.
-   * Admin, Business Operations, Business Manager, and Recruiters can view all.
-   * Vendors can view direct candidates or their own submitted/sourced candidates.
+   * Enforces Candidate Data Isolation, Vendor Isolation, and Recruiter Scopes.
    */
   static async canViewCandidate(context: HireNestAccessContext, candidateId: string, candidateData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
@@ -155,36 +212,94 @@ export class AccessControlService {
       return true;
     }
 
-    if (role === 'RECRUITER') {
-      return true; // Recruiters access candidates within assigned workflows
+    // CANDIDATE ISOLATION: Candidates can ONLY view their own profile/records
+    if (role === 'CANDIDATE') {
+      const selfId = context.candidateId || context.userId;
+      if (candidateId === selfId) return true;
+      if (candidateData) {
+        const matchesUid = candidateData.userId === selfId || candidateData.candidateUid === selfId || candidateData.id === selfId;
+        const matchesEmail = context.email && candidateData.email && candidateData.email.toLowerCase() === context.email.toLowerCase();
+        return Boolean(matchesUid || matchesEmail);
+      }
+      return false;
     }
 
+    // RECRUITER ABAC CHECKS
+    if (role === 'RECRUITER') {
+      const rType = context.recruiterType || 'INTERNAL';
+      const vId = context.vendorId || context.organizationId;
+
+      // Vendor Recruiter: MUST NOT access candidates outside their vendor's bench/submissions
+      if (rType === 'VENDOR') {
+        if (!vId) return false;
+        let cand = candidateData;
+        if (!cand) {
+          try {
+            const candSnap = await getDoc(doc(db, 'candidates', candidateId));
+            if (candSnap.exists()) cand = candSnap.data();
+            else {
+              const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
+              if (poolSnap.exists()) cand = poolSnap.data();
+            }
+          } catch (err) {
+            return false;
+          }
+        }
+        if (!cand) return false;
+
+        const candVendor = cand.vendorId || cand.submittedByVendorId || cand.sourceVendorId;
+        return candVendor === vId;
+      }
+
+      // Freelance Recruiter: Can only access candidates submitted by them or within their assigned requirements
+      if (rType === 'FREELANCE') {
+        let cand = candidateData;
+        if (!cand) {
+          try {
+            const candSnap = await getDoc(doc(db, 'candidates', candidateId));
+            if (candSnap.exists()) cand = candSnap.data();
+          } catch (err) {
+            return false;
+          }
+        }
+        if (!cand) return false;
+        const submittedBySelf = cand.recruiterId === context.userId || cand.submittedByUserId === context.userId;
+        const assignedReq = cand.requirementId && context.assignedRequirementIds && context.assignedRequirementIds.includes(cand.requirementId);
+        return Boolean(submittedBySelf || assignedReq);
+      }
+
+      // Internal Recruiter: Access within assigned workflows
+      return true;
+    }
+
+    // VENDOR ADMIN CHECKS
     if (role === 'VENDOR') {
       const vId = context.vendorId || context.organizationId;
+      if (!vId) return false;
       if (candidateData) {
-        if (!candidateData.vendorId || candidateData.vendorId === vId || candidateData.submittedByVendorId === vId || candidateData.sourceVendorId === vId || candidateData.sourceType === "DIRECT_CANDIDATE" || candidateData.isDirectCandidate) {
-          return true;
-        }
+        const candVendor = candidateData.vendorId || candidateData.submittedByVendorId || candidateData.sourceVendorId;
+        return candVendor === vId;
       }
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/firebase');
         const candSnap = await getDoc(doc(db, 'candidates', candidateId));
         if (candSnap.exists()) {
           const cand = candSnap.data();
-          return !cand.vendorId || cand.vendorId === vId || cand.submittedByVendorId === vId || cand.sourceVendorId === vId || cand.sourceType === "DIRECT_CANDIDATE" || cand.isDirectCandidate;
+          const candVendor = cand.vendorId || cand.submittedByVendorId || cand.sourceVendorId;
+          return candVendor === vId;
         }
         const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
         if (poolSnap.exists()) {
           const poolCand = poolSnap.data();
-          return !poolCand.vendorId || poolCand.vendorId === vId || poolCand.sourceType === "DIRECT_CANDIDATE" || poolCand.isDirectCandidate;
+          const candVendor = poolCand.vendorId || poolCand.submittedByVendorId;
+          return candVendor === vId;
         }
-        return true;
+        return false;
       } catch (err) {
-        return true;
+        return false;
       }
     }
 
+    // CLIENT CHECKS
     if (role === 'CLIENT') {
       const cId = context.clientId || context.organizationId;
       if (!cId) return false;
@@ -192,14 +307,12 @@ export class AccessControlService {
         return true;
       }
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/firebase');
         const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-        if (!candSnap.exists()) return true;
+        if (!candSnap.exists()) return false;
         const cand = candSnap.data();
         return cand.clientId === cId || cand.targetClientId === cId;
       } catch (err) {
-        return true;
+        return false;
       }
     }
 
@@ -212,8 +325,12 @@ export class AccessControlService {
   static async canEditCandidate(context: HireNestAccessContext, candidateId: string, candidateData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
     if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') return true;
+    if (role === 'CANDIDATE') {
+      const selfId = context.candidateId || context.userId;
+      return candidateId === selfId;
+    }
     if (role === 'VENDOR') return await this.canViewCandidate(context, candidateId, candidateData);
-    if (role === 'RECRUITER') return true;
+    if (role === 'RECRUITER') return await this.canViewCandidate(context, candidateId, candidateData);
     return false;
   }
 
@@ -246,14 +363,20 @@ export class AccessControlService {
     let sub = submissionData;
     if (!sub) {
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/firebase');
         const subSnap = await getDoc(doc(db, 'submissions', submissionId));
         if (!subSnap.exists()) return false;
         sub = subSnap.data();
       } catch (err) {
         return false;
       }
+    }
+
+    // CANDIDATE DATA ISOLATION: Candidate can only see their own submissions
+    if (role === 'CANDIDATE') {
+      const selfId = context.candidateId || context.userId;
+      const matchesUid = sub?.candidateId === selfId || sub?.candidateUid === selfId;
+      const matchesEmail = context.email && sub?.candidateEmail && sub.candidateEmail.toLowerCase() === context.email.toLowerCase();
+      return Boolean(matchesUid || matchesEmail);
     }
 
     if (role === 'VENDOR') {
@@ -263,6 +386,19 @@ export class AccessControlService {
 
     if (role === 'RECRUITER') {
       const rId = context.recruiterId || context.userId;
+      const rType = context.recruiterType || 'INTERNAL';
+
+      // Vendor Recruiter: MUST belong to their vendor
+      if (rType === 'VENDOR') {
+        const vId = context.vendorId || context.organizationId;
+        return sub?.vendorId === vId;
+      }
+
+      // Freelance Recruiter: MUST be assigned to the requirement or submitted by them
+      if (rType === 'FREELANCE') {
+        return sub?.recruiterId === rId || sub?.submittedByUserId === rId || (context.assignedRequirementIds && context.assignedRequirementIds.includes(sub?.requirementId));
+      }
+
       return sub?.recruiterId === rId || sub?.assignedRecruiterId === rId || true;
     }
 

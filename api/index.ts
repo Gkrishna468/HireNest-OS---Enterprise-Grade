@@ -262,8 +262,10 @@ export default async function handler(req: any, res: any) {
     if (path === 'candidates' || action === 'candidates' || action === 'all-candidates') targetHandler = candidatesHandler;
     else if (path === 'rescan-matches' || action === 'rescan-matches') targetHandler = rescanMatchesHandler;
     else if (path === 'admin')            targetHandler = adminHandler;
+    else if (path === 'user-admin' || path === 'create-user' || path === 'assign-role' || path === 'deactivate-user' || path?.startsWith('user-admin')) targetHandler = await loadHandler('../src/api-lib/handlers/user-admin.js');
     else if (path === 'client-candidate') targetHandler = clientCandidateHandler;
     else if (path === 'client-submissions') targetHandler = clientSubmissionsHandler;
+    else if (path === 'submissions' || path?.startsWith('submissions/')) targetHandler = await loadHandler('../src/api-lib/handlers/submissions.js');
     else if (path === 'repair-candidates') targetHandler = repairCandidatesHandler;
     else if (path === 'validate-submission') targetHandler = validateSubmissionHandler;
     else if (path === 'parse-jd')          targetHandler = parseJdHandler;

@@ -247,7 +247,7 @@ Vendor Organization (e.g. ORG-V-APEX)
 
 ---
 
-## 8. Unified HireNest AI Core
+## 8. Unified HireNest AI Core & Human-in-the-Loop Governance
 
 All AI capabilities are centralized in Core to ensure consistent intelligence and zero logic duplication:
 
@@ -265,16 +265,39 @@ All AI capabilities are centralized in Core to ensure consistent intelligence an
   (Deterministic L1 + Semantic L2 + Human Override L3)
 ```
 
-* **Account Intelligence & Intent:** Evaluates company tech stack growth, funding news, and hiring velocity.
-* **AI SDR & Next Best Action:** Formulates high-probability outbound outreach strategies.
-* **Candidate 360 & Matching:** Evaluates resume context, verified skills, and job compatibility.
-* **SLA Risk Forecasting:** Predicts requisition fulfillment bottlenecks before SLA deadlines breach.
+### AI Operating Principle: Augmented Intelligence, Not Autonomous Action
+AI operates strictly within a **Human-in-the-Loop (HITL)** paradigm:
+```text
+AI
+ │
+ ├── Analyze
+ ├── Score
+ ├── Recommend
+ ├── Draft
+ └── Predict
+       │
+       ▼
+Human / Authorized Workflow (Approval Gate)
+       │
+       ▼
+Execute (Core Service)
+```
+- **Prohibited Autonomous Actions:** AI models and agents **MUST NEVER** autonomously create submissions, dispatch client emails, modify requirements, or mutate user permissions without explicit human authorization.
+- **Universal Authorization:** RBAC/ABAC applies equally to humans and AI. An AI tool invocation executes strictly under the caller's authorized role and organization scope.
+- **Account Intelligence & Intent:** Evaluates company tech stack growth, funding news, and hiring velocity.
+- **AI SDR & Next Best Action:** Formulates high-probability outbound outreach drafts for human approval.
+- **Candidate 360 & Matching:** Evaluates resume context, verified skills, and job compatibility (Layer 1 Deterministic + Layer 2 Semantic + Layer 3 Recruiter Override).
+- **SLA Risk Forecasting:** Predicts requisition fulfillment bottlenecks before SLA deadlines breach.
 
 ---
 
-## 9. Firestore Single Source of Truth (SSOT)
+## 9. Firestore Single Source of Truth (SSOT) & Integrations Policy
 
-Both OS and CRM read and write to the same authoritative Firestore database collections:
+### Authoritative SSOT Rule
+> **"Firestore/HireNest Core is the sole operational SSOT. External systems such as Google Sheets are integrations/mirrors only and can never override Core authorization or operational state."**
+
+- **Authoritative Flow:** Core mutates state in Firestore $\rightarrow$ Outbound webhooks or synchronization workers update Google Sheets or external analytics as mirrors.
+- **Inbound Data via Integrations:** Inbound data from external integrations (e.g., CSV imports, Google Sheets intake) passes through Core validation and RBAC checks before committing to Firestore.
 
 | Collection Domain | Authoritative Schema | Primary Consumers |
 | :--- | :--- | :--- |
@@ -285,7 +308,24 @@ Both OS and CRM read and write to the same authoritative Firestore database coll
 
 ---
 
-## 10. Unified Global Navigation & Workspace Switcher
+## 10. Implementation Roadmap (Architecture → Implementation → Verification)
+
+Implementation follows a strict 5-phase sequential order:
+
+1. **Phase 1 — Core Foundation:**
+   - Authoritative 7-role catalog (`src/lib/rbac.ts`), RBAC/ABAC verification (`src/lib/permissions.ts`), user provisioning (`/api/create-user`), non-destructive deactivation (`/api/deactivate-user`), immutable audit ledger (`audit_logs`), and vendor-recruiter hierarchy.
+2. **Phase 2 — Shared Business Core Services (`src/core/services/`):**
+   - Standardize `ClientService`, `RequirementService`, `VendorService`, `RecruiterService`, `CandidateService`, `Candidate360Service`, `SubmissionService`, `InterviewService`, `OfferService`, `PlacementService`, `SLAService`, `BudgetService`, and `PerformanceService`.
+3. **Phase 3 — Intelligence Core (`src/core/intelligence/`):**
+   - Centralize Account Intelligence, Hiring Signals, Requirement Intelligence, Layer 1/2/3 Candidate Matching, Scoring Models, and Next Best Action drafts.
+4. **Phase 4 — OS Product Surface (`os.hirenestworkforce.com`):**
+   - Operational workspace interfaces consuming Core business and intelligence services with strict role scoping.
+5. **Phase 5 — CRM Product Surface (`crm.hirenestworkforce.com`):**
+   - Commercial workspace interfaces consuming Core services, CRM $\rightarrow$ OS Requisition handoff, and OS $\rightarrow$ CRM live delivery feedback loops.
+
+---
+
+## 11. Unified Global Navigation & Workspace Switcher
 
 The top-level shell adapts dynamically to the authenticated identity:
 

@@ -2,11 +2,17 @@ import { adminDb, adminAuth } from "../../lib/firebase-admin.js";
 import {
   AUTHORITATIVE_ROLES,
   ROLE_CATALOG,
+  RECRUITER_SUBTYPES,
   getPermissionsForRole,
   isRoleAdminEquivalent,
   normalizeRole,
+  normalizeRecruiterSubtype,
+  getUserTypeForRole,
   canActorAssignRole,
   SystemRole,
+  UserType,
+  RecruiterSubtype,
+  RequirementScopeType,
 } from "../../lib/rbac.js";
 
 export default async function userAdminHandler(req: any, res: any) {
@@ -28,11 +34,12 @@ export default async function userAdminHandler(req: any, res: any) {
       "list"
     );
 
-    // 1. Get Authoritative Roles Catalog
+    // 1. Get Authoritative Roles Catalog & Recruiter Subtypes
     if (action === "roles") {
       return res.status(200).json({
         ok: true,
         roles: AUTHORITATIVE_ROLES,
+        recruiterSubtypes: RECRUITER_SUBTYPES,
       });
     }
 
@@ -61,18 +68,29 @@ export default async function userAdminHandler(req: any, res: any) {
         const data = doc.data();
         const roleNorm = normalizeRole(data.role);
         const roleDef = ROLE_CATALOG[roleNorm];
+        const derivedUserType = (data.userType as UserType) || getUserTypeForRole(roleNorm);
+        const derivedSubtype = (derivedUserType === "RECRUITER" || roleNorm === "RECRUITER" || roleNorm === "VENDOR_RECRUITER")
+          ? normalizeRecruiterSubtype(data.recruiterSubtype || data.subtype, roleNorm)
+          : undefined;
+
         users.push({
           id: doc.id,
           uid: data.uid || doc.id,
           email: data.email || "",
+          phone: data.phone || "",
           displayName: data.displayName || data.name || data.email?.split("@")[0] || "User",
+          userType: derivedUserType,
           role: roleNorm,
+          recruiterSubtype: derivedSubtype,
+          subtype: derivedSubtype,
+          requirementScope: (data.requirementScope as RequirementScopeType) || (derivedSubtype === "FREELANCE" ? "EXPLICIT_ONLY" : "ASSIGNED_ONLY"),
+          assignedRequirementIds: data.assignedRequirementIds || [],
           roleDisplayName: roleDef?.displayName || roleNorm,
           category: roleDef?.category || "GOVERNANCE",
           isAdminEquivalent: roleDef?.isAdminEquivalent || false,
           permissions: data.permissions || getPermissionsForRole(roleNorm),
           organizationId: data.organizationId || data.orgId || "",
-          vendorId: data.vendorId || (roleNorm === "VENDOR_RECRUITER" ? data.organizationId : undefined),
+          vendorId: data.vendorId || (derivedSubtype === "VENDOR" ? data.organizationId : undefined),
           managedByVendorId: data.managedByVendorId || data.vendorId || "",
           status: data.status || (data.disabled ? "INACTIVE" : "ACTIVE"),
           disabled: data.disabled || data.status === "INACTIVE",
@@ -94,19 +112,41 @@ export default async function userAdminHandler(req: any, res: any) {
         return res.status(405).json({ error: "Method not allowed" });
       }
 
-      const { email, password, role, organizationId, vendorId, companyName, displayName } = req.body;
+      const {
+        email,
+        password,
+        phone,
+        userType: rawUserType,
+        role: rawRole,
+        recruiterSubtype: rawSubtype,
+        requirementScope: rawScope,
+        assignedRequirementIds = [],
+        organizationId,
+        vendorId,
+        companyName,
+        displayName,
+      } = req.body;
+
       if (!email) {
         return res.status(400).json({ error: "Email is required" });
       }
 
-      const targetRole = normalizeRole(role);
+      const targetRole = normalizeRole(rawRole);
       const isTargetAdmin = isRoleAdminEquivalent(targetRole);
+      const targetUserType: UserType = (rawUserType as UserType) || getUserTypeForRole(targetRole);
+      const targetSubtype: RecruiterSubtype | undefined =
+        targetUserType === "RECRUITER" || targetRole === "RECRUITER" || targetRole === "VENDOR_RECRUITER"
+          ? normalizeRecruiterSubtype(rawSubtype, rawRole)
+          : undefined;
 
       // Verify permission to create this role
       if (!isActorAdmin) {
         if (actorRole === "VENDOR_ADMIN") {
-          if (targetRole !== "VENDOR_RECRUITER") {
-            return res.status(403).json({ error: "Vendor Admins can only create Vendor Recruiter seats." });
+          if (targetRole !== "RECRUITER" && targetRole !== "VENDOR_RECRUITER") {
+            return res.status(403).json({ error: "Vendor Admins can only create Recruiter seats for their vendor." });
+          }
+          if (targetSubtype && targetSubtype !== "VENDOR") {
+            return res.status(403).json({ error: "Vendor Admins can only create Vendor Recruiter subtypes." });
           }
         } else {
           return res.status(403).json({ error: "Insufficient privileges to create user." });
@@ -121,23 +161,31 @@ export default async function userAdminHandler(req: any, res: any) {
         return res.status(503).json({ error: "Database authority not initialized" });
       }
 
-      // Hierarchy validation for VENDOR_RECRUITER
+      // Hierarchy validation
       let targetOrgId = organizationId || "";
       let targetVendorId = vendorId || "";
 
-      if (targetRole === "VENDOR_RECRUITER") {
-        if (actorRole === "VENDOR_ADMIN") {
-          targetOrgId = actorOrgId;
-          targetVendorId = actorOrgId;
-        } else {
-          targetVendorId = vendorId || organizationId;
-          targetOrgId = targetVendorId;
-        }
+      if (targetUserType === "RECRUITER" || targetRole === "RECRUITER" || targetRole === "VENDOR_RECRUITER") {
+        if (targetSubtype === "VENDOR") {
+          if (actorRole === "VENDOR_ADMIN") {
+            targetOrgId = actorOrgId;
+            targetVendorId = actorOrgId;
+          } else {
+            targetVendorId = vendorId || organizationId;
+            targetOrgId = targetVendorId;
+          }
 
-        if (!targetVendorId) {
-          return res.status(400).json({
-            error: "Vendor Recruiter must be assigned to a valid Vendor Organization (vendorId required).",
-          });
+          if (!targetVendorId) {
+            return res.status(400).json({
+              error: "Vendor Recruiter must be assigned to a valid Vendor Organization (vendorId required).",
+            });
+          }
+        } else if (targetSubtype === "INTERNAL") {
+          targetOrgId = "ORG-GLOBAL-HQ";
+          targetVendorId = "";
+        } else if (targetSubtype === "FREELANCE") {
+          targetOrgId = organizationId || "ORG-FREELANCE-NETWORK";
+          targetVendorId = "";
         }
       } else if (isTargetAdmin) {
         targetOrgId = "ORG-GLOBAL-HQ";
@@ -150,13 +198,14 @@ export default async function userAdminHandler(req: any, res: any) {
         const orgDoc = await adminDb.collection("organizations").doc(targetOrgId).get();
         if (!orgDoc.exists) {
           let orgType = "client";
-          if (targetRole === "VENDOR_ADMIN" || targetRole === "VENDOR_RECRUITER") orgType = "vendor";
-          else if (isTargetAdmin) orgType = "hq";
+          if (targetRole === "VENDOR_ADMIN" || targetSubtype === "VENDOR") orgType = "vendor";
+          else if (isTargetAdmin || targetSubtype === "INTERNAL") orgType = "hq";
+          else if (targetSubtype === "FREELANCE") orgType = "freelance";
 
           await adminDb.collection("organizations").doc(targetOrgId).set({
             id: targetOrgId,
             organizationId: targetOrgId,
-            companyName: companyName || (orgType === "hq" ? "HireNest Workforce HQ" : "Organization"),
+            companyName: companyName || (orgType === "hq" ? "HireNest Workforce HQ" : orgType === "freelance" ? "HireNest Freelance Network" : "Organization"),
             type: orgType,
             status: "ACTIVE",
             createdAt: new Date().toISOString(),
@@ -178,10 +227,13 @@ export default async function userAdminHandler(req: any, res: any) {
           createdUid = userRec.uid;
           try {
             await adminAuth.setCustomUserClaims(userRec.uid, {
+              userType: targetUserType,
               role: targetRole,
+              recruiterSubtype: targetSubtype || undefined,
               organizationId: targetOrgId,
               orgId: targetOrgId,
               vendorId: targetVendorId || undefined,
+              requirementScope: rawScope || (targetSubtype === "FREELANCE" ? "EXPLICIT_ONLY" : "ASSIGNED_ONLY"),
             });
           } catch (claimsErr: any) {
             console.warn("[UserAdmin] Custom claims notice:", claimsErr.message);
@@ -201,8 +253,14 @@ export default async function userAdminHandler(req: any, res: any) {
         uid: createdUid,
         id: createdUid,
         email,
+        phone: phone || "",
         displayName: displayName || companyName || email.split("@")[0],
+        userType: targetUserType,
         role: targetRole,
+        recruiterSubtype: targetSubtype || undefined,
+        subtype: targetSubtype || undefined,
+        requirementScope: rawScope || (targetSubtype === "FREELANCE" ? "EXPLICIT_ONLY" : "ASSIGNED_ONLY"),
+        assignedRequirementIds: Array.isArray(assignedRequirementIds) ? assignedRequirementIds : [],
         permissions,
         organizationId: targetOrgId,
         orgId: targetOrgId,
@@ -215,7 +273,7 @@ export default async function userAdminHandler(req: any, res: any) {
         updatedAt: nowIso,
       };
 
-      if (targetRole === "VENDOR_RECRUITER") {
+      if (targetSubtype === "VENDOR" || targetRole === "VENDOR_ADMIN") {
         userData.vendorId = targetVendorId;
         userData.managedByVendorId = targetVendorId;
       }
@@ -230,10 +288,12 @@ export default async function userAdminHandler(req: any, res: any) {
         actorEmail,
         targetUserId: createdUid,
         targetUserEmail: email,
+        targetUserType: targetUserType,
         targetRole,
+        targetRecruiterSubtype: targetSubtype || null,
         organizationId: targetOrgId,
         action: "USER_CREATED",
-        reason: `User created with role ${targetRole}`,
+        reason: `User created with role ${targetRole} and userType ${targetUserType}`,
         status: "SUCCESS",
         correlationId: `USR-CRT-${Date.now()}`,
       });
@@ -252,12 +312,23 @@ export default async function userAdminHandler(req: any, res: any) {
         return res.status(405).json({ error: "Method not allowed" });
       }
 
-      const { uid, role, organizationId, vendorId } = req.body;
-      if (!uid || !role) {
-        return res.status(400).json({ error: "User ID (uid) and role are required." });
+      const {
+        uid,
+        userType: rawUserType,
+        role: rawRole,
+        recruiterSubtype: rawSubtype,
+        requirementScope: rawScope,
+        assignedRequirementIds,
+        organizationId,
+        vendorId,
+        phone,
+      } = req.body;
+
+      if (!uid || (!rawRole && !rawUserType)) {
+        return res.status(400).json({ error: "User ID (uid) and role or userType are required." });
       }
 
-      const targetRole = normalizeRole(role);
+      const targetRole = normalizeRole(rawRole);
       if (!canActorAssignRole(actorRole, targetRole)) {
         return res.status(403).json({ error: "Access Denied: Cannot assign this role with current privileges." });
       }
@@ -272,17 +343,30 @@ export default async function userAdminHandler(req: any, res: any) {
       }
       const existingData = targetUserDoc.data() || {};
 
-      // Hierarchy validation for VENDOR_RECRUITER
+      const targetUserType: UserType = (rawUserType as UserType) || getUserTypeForRole(targetRole);
+      const targetSubtype: RecruiterSubtype | undefined =
+        targetUserType === "RECRUITER" || targetRole === "RECRUITER" || targetRole === "VENDOR_RECRUITER"
+          ? normalizeRecruiterSubtype(rawSubtype || existingData.recruiterSubtype || existingData.subtype, rawRole)
+          : undefined;
+
       let targetOrgId = organizationId || existingData.organizationId || "";
       let targetVendorId = vendorId || existingData.vendorId || "";
 
-      if (targetRole === "VENDOR_RECRUITER") {
-        targetVendorId = vendorId || organizationId || existingData.vendorId || existingData.organizationId;
-        targetOrgId = targetVendorId;
-        if (!targetVendorId) {
-          return res.status(400).json({
-            error: "Vendor Recruiter must be mapped to a valid Vendor Organization (vendorId required).",
-          });
+      if (targetUserType === "RECRUITER" || targetRole === "RECRUITER" || targetRole === "VENDOR_RECRUITER") {
+        if (targetSubtype === "VENDOR") {
+          targetVendorId = vendorId || organizationId || existingData.vendorId || existingData.organizationId;
+          targetOrgId = targetVendorId;
+          if (!targetVendorId) {
+            return res.status(400).json({
+              error: "Vendor Recruiter must be mapped to a valid Vendor Organization (vendorId required).",
+            });
+          }
+        } else if (targetSubtype === "INTERNAL") {
+          targetOrgId = "ORG-GLOBAL-HQ";
+          targetVendorId = "";
+        } else if (targetSubtype === "FREELANCE") {
+          targetOrgId = organizationId || existingData.organizationId || "ORG-FREELANCE-NETWORK";
+          targetVendorId = "";
         }
       }
 
@@ -290,7 +374,11 @@ export default async function userAdminHandler(req: any, res: any) {
       const nowIso = new Date().toISOString();
 
       const updates: any = {
+        userType: targetUserType,
         role: targetRole,
+        recruiterSubtype: targetSubtype || null,
+        subtype: targetSubtype || null,
+        requirementScope: rawScope || existingData.requirementScope || (targetSubtype === "FREELANCE" ? "EXPLICIT_ONLY" : "ASSIGNED_ONLY"),
         permissions: newPermissions,
         organizationId: targetOrgId,
         orgId: targetOrgId,
@@ -298,9 +386,17 @@ export default async function userAdminHandler(req: any, res: any) {
         updatedBy: actorEmail,
       };
 
-      if (targetRole === "VENDOR_RECRUITER") {
+      if (phone !== undefined) updates.phone = phone;
+      if (Array.isArray(assignedRequirementIds)) {
+        updates.assignedRequirementIds = assignedRequirementIds;
+      }
+
+      if (targetSubtype === "VENDOR" || targetRole === "VENDOR_ADMIN") {
         updates.vendorId = targetVendorId;
         updates.managedByVendorId = targetVendorId;
+      } else {
+        updates.vendorId = null;
+        updates.managedByVendorId = null;
       }
 
       await adminDb.collection("users").doc(uid).set(updates, { merge: true });
@@ -308,10 +404,13 @@ export default async function userAdminHandler(req: any, res: any) {
       if (adminAuth) {
         try {
           await adminAuth.setCustomUserClaims(uid, {
+            userType: targetUserType,
             role: targetRole,
+            recruiterSubtype: targetSubtype || undefined,
             organizationId: targetOrgId,
             orgId: targetOrgId,
             vendorId: targetVendorId || undefined,
+            requirementScope: updates.requirementScope,
           });
         } catch (claimsErr: any) {
           console.warn("[UserAdmin] adminAuth.setCustomUserClaims notice:", claimsErr.message);
@@ -328,6 +427,7 @@ export default async function userAdminHandler(req: any, res: any) {
         targetUserEmail: existingData.email || "Unknown",
         previousRole: existingData.role,
         newRole: targetRole,
+        newRecruiterSubtype: targetSubtype || null,
         action: "ROLE_UPDATED",
         status: "SUCCESS",
         correlationId: `ROLE-UPD-${Date.now()}`,
@@ -335,8 +435,10 @@ export default async function userAdminHandler(req: any, res: any) {
 
       return res.status(200).json({
         ok: true,
-        message: `Role updated to ${targetRole} and authoritative permissions applied.`,
+        message: `Role updated to ${targetRole} (${targetSubtype || targetUserType}) and authoritative permissions applied.`,
         role: targetRole,
+        userType: targetUserType,
+        recruiterSubtype: targetSubtype,
         permissions: newPermissions,
       });
     }
@@ -374,7 +476,7 @@ export default async function userAdminHandler(req: any, res: any) {
       const isCreator = targetData.createdByUserId === actorUid;
       const isVendorAdminOfRecruiter =
         actorRole === "VENDOR_ADMIN" &&
-        targetRole === "VENDOR_RECRUITER" &&
+        (targetRole === "VENDOR_RECRUITER" || targetRole === "RECRUITER") &&
         (targetData.vendorId === actorOrgId || targetData.organizationId === actorOrgId);
 
       if (!isActorAdmin && !isCreator && !isVendorAdminOfRecruiter) {
@@ -429,3 +531,4 @@ export default async function userAdminHandler(req: any, res: any) {
     return res.status(500).json({ error: err.message || "Internal server error in user admin" });
   }
 }
+

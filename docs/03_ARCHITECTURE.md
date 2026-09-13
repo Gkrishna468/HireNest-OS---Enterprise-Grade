@@ -4,8 +4,13 @@
 The canonical architectural specification for HireNest Workforce is documented in:
 👉 **[`/docs/28_HIRENEST_WORKFORCE_CORE_PLATFORM_ARCHITECTURE.md`](./28_HIRENEST_WORKFORCE_CORE_PLATFORM_ARCHITECTURE.md)**
 
-### Core Architectural Principle
-> **"OS and CRM are presentation/workspace layers. Core owns identity, authorization, business entities, intelligence, workflows, and audit."**
+### Core Architectural Principles
+1. **Separation of Concerns**:
+   > **"OS and CRM are presentation/workspace layers. Core owns identity, authorization, business entities, intelligence, workflows, and audit."**
+2. **Authoritative SSOT vs. Mirrors**:
+   > **"Firestore/HireNest Core is the sole operational SSOT. External systems such as Google Sheets are integrations/mirrors only and can never override Core authorization or operational state."**
+3. **AI Governance & Human-in-the-Loop**:
+   > **"Core AI is structured strictly as Analyze, Score, Recommend, Draft, and Predict. Autonomous execution is prohibited; business actions require human review or authorized deterministic workflow. RBAC/ABAC applies equally to humans and AI."**
 
 ```text
                          HIRENEST WORKFORCE

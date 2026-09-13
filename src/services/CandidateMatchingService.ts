@@ -15,6 +15,7 @@ import {
 import { SkillNormalizer } from "../resume-engine/matching/skill-normalizer";
 import { formatBudget } from "../lib/currency";
 import { UnifiedRequirementsService } from "./unifiedRequirementsService";
+import { CandidateJobFeedService } from "./candidateJobFeedService";
 import { AccessControlService, HireNestAccessContext } from "./accessControlService";
 import { emitEvent } from "./eventBus";
 import { JdParsingService } from "./jdParsingService";
@@ -316,15 +317,13 @@ export class CandidateMatchingService {
     }
 
     try {
-      // 1. Fetch public requirements where status is ACTIVE and distributionStatus is PUBLISHED (canonical operational gate)
+      // 1. Fetch public requirements strictly eligible for candidates (Active + FTE + Onsite + candidate_publish)
       const qReqs = collection(db, "requirements_public");
       const reqSnap = await getDocs(qReqs);
       const openReqs: any[] = reqSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((r: any) => {
-          const isOperational = UnifiedRequirementsService.isRequirementOperational(r);
-          const isDirect = r.directApplyEnabled !== false;
-          return isOperational && isDirect;
+          return CandidateJobFeedService.isRequirementCandidateEligible(r);
         });
 
       // 2. Fetch candidate's existing applications to mark `isApplied`

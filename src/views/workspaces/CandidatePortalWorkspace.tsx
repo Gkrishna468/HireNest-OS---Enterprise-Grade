@@ -62,6 +62,7 @@ import {
   limit
 } from "firebase/firestore";
 import { CandidateMatchingService, CandidateMatchResult } from "../../services/CandidateMatchingService";
+import { CandidateJobFeedService, CandidateJobFeedItem, CandidateFacingStatus } from "../../services/candidateJobFeedService";
 
 interface CandidatePortalProps {
   userName: string;
@@ -274,24 +275,19 @@ export default function CandidatePortalWorkspace({
     }
   }, [userName]);
 
-  // 2. Fetch Open Requirements for Direct Apply
+  // 2. Fetch Controlled Candidate-Facing Jobs (Active + FTE + Onsite + candidate_publish)
   useEffect(() => {
     setIsLoadingJobs(true);
-    const qReqs = collection(db, "requirements_public");
-    const unsubReqs = onSnapshot(qReqs, snap => {
-      const allJobs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Filter only open jobs where directApplyEnabled is not explicitly false
-      const openJobs = allJobs.filter((job: any) => {
-        const isStatusOpen = !job.status || job.status === "OPEN" || job.status === "ACTIVE";
-        const isDirectEnabled = job.directApplyEnabled !== false;
-        return isStatusOpen && isDirectEnabled;
-      });
-      setJobs(openJobs);
-      setIsLoadingJobs(false);
-    }, err => {
-      console.warn("Error loading direct apply jobs:", err);
-      setIsLoadingJobs(false);
-    });
+    const unsubReqs = CandidateJobFeedService.subscribeCandidateEligibleJobs(
+      (eligibleJobs) => {
+        setJobs(eligibleJobs);
+        setIsLoadingJobs(false);
+      },
+      (err) => {
+        console.warn("Error loading candidate eligible jobs:", err);
+        setIsLoadingJobs(false);
+      }
+    );
 
     return () => unsubReqs();
   }, []);
@@ -580,25 +576,29 @@ export default function CandidatePortalWorkspace({
     }
   };
 
-  // Helper to map status to 6-Step Visual Pipeline
+  // Helper to map status to 7-Step Candidate-Facing Pipeline
+  const candidateStages = CandidateJobFeedService.getCandidateLifecyclePipeline();
+
   const getStageIndex = (statusStr?: string) => {
-    const s = (statusStr || "").toUpperCase();
-    if (s.includes("SELECT") || s.includes("HIRED") || s.includes("OFFER")) return 5;
-    if (s.includes("INTERVIEW")) return 4;
-    if (s.includes("SHORTLIST")) return 3;
-    if (s.includes("SCREEN") || s.includes("ASSESS")) return 2;
-    if (s.includes("REVIEW") || s.includes("EVAL")) return 1;
-    return 0; // Application Received
+    const candidateStatus = CandidateJobFeedService.mapInternalStatusToCandidateStatus(statusStr);
+    const stageOrder: CandidateFacingStatus[] = [
+      "SUBMITTED",
+      "SCREENING",
+      "SHORTLISTED",
+      "INTERVIEW",
+      "SELECTED",
+      "OFFER",
+      "PLACED"
+    ];
+    const idx = stageOrder.indexOf(candidateStatus);
+    return idx >= 0 ? idx : 0;
   };
 
-  const STAGES = [
-    { title: "Application received", desc: "Submitted to HireNest Global HQ" },
-    { title: "Profile under review", desc: "Recruiter screening & skill alignment" },
-    { title: "Screening required", desc: "Technical & availability verification" },
-    { title: "Shortlisted", desc: "Selected for client presentation" },
-    { title: "Interview", desc: "Client interview rounds in progress" },
-    { title: "Selected", desc: "Offer & onboarding finalization" }
-  ];
+  const STAGES = candidateStages.map(s => ({
+    title: s.label,
+    desc: s.description,
+    stage: s.stage
+  }));
 
   // AI Career Coach Message Sender
   const handleSendCoachMessage = async () => {
@@ -1362,9 +1362,9 @@ export default function CandidatePortalWorkspace({
                         </div>
                       </div>
 
-                      {/* 6-Step Visual Progress Stepper */}
+                      {/* 7-Step Visual Progress Stepper */}
                       <div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                           {STAGES.map((st, idx) => {
                             const isCompleted = idx < stageIdx;
                             const isCurrent = idx === stageIdx;

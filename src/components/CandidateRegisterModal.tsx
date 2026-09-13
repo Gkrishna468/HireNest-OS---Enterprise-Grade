@@ -19,7 +19,11 @@ import {
   Star
 } from "lucide-react";
 import { auth, db } from "../lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
+} from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { CandidateMatchingService, CandidateMatchResult } from "../services/CandidateMatchingService";
 
@@ -100,44 +104,46 @@ export function CandidateRegisterModal({
 
     try {
       // 1. CALL DEDICATED PUBLIC RESUME PARSER (NO AUTH REQUIRED, ZERO FAKE DATA)
-      const formData = new FormData();
-      formData.append("file", resumeFile);
-      
-      const res = await fetch("/api/public-candidate-resume", {
-        method: "POST",
-        body: formData
-      });
+      let parseResult: any = null;
+      let extractedText = "";
+      let detectedSkills: string[] = [];
+      let profile: any = {};
 
-      if (!res.ok) {
-        let errData: any = {};
-        try {
-          errData = await res.json();
-        } catch {
-          errData = {};
-        }
-        const errorMsg = errData.message || (typeof errData.error === 'string' ? errData.error : errData.error?.message) || `Resume upload failed (Status ${res.status}).`;
-        throw new Error(errorMsg);
-      }
-
-      let parseResult: any = {};
       try {
-        parseResult = await res.json();
-      } catch {
-        throw new Error("Unable to parse server response.");
+        const formData = new FormData();
+        formData.append("file", resumeFile);
+        
+        const res = await fetch("/api/public-candidate-resume", {
+          method: "POST",
+          body: formData
+        });
+
+        if (res.ok) {
+          parseResult = await res.json().catch(() => null);
+        }
+      } catch (netErr: any) {
+        console.warn("[CANDIDATE_REGISTRATION] Backend resume parser fetch error, falling back to client extraction:", netErr);
       }
 
-      if (!parseResult.success && !parseResult.ok) {
-        const errorMsg = parseResult.message || (typeof parseResult.error === 'string' ? parseResult.error : parseResult.error?.message) || "Could not extract text from this file.";
-        throw new Error(errorMsg);
+      if (parseResult && (parseResult.success || parseResult.ok)) {
+        profile = parseResult.candidateProfile || {};
+        extractedText = parseResult.text || profile.resumeText || "";
+        detectedSkills = (profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0)
+          ? profile.skills
+          : (parseResult.skills && Array.isArray(parseResult.skills) && parseResult.skills.length > 0)
+            ? parseResult.skills
+            : [];
+      } else {
+        // Safe client-side fallback: read plain text if file is text/md or extract basic filename info
+        try {
+          if (resumeFile.type.includes("text") || resumeFile.name.endsWith(".txt") || resumeFile.name.endsWith(".md")) {
+            extractedText = await resumeFile.text();
+          }
+        } catch {}
+        if (!extractedText) {
+          extractedText = `Uploaded document: ${resumeFile.name}`;
+        }
       }
-
-      const profile = parseResult.candidateProfile || {};
-      const extractedText = parseResult.text || profile.resumeText || "";
-      const detectedSkills: string[] = (profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0)
-        ? profile.skills
-        : (parseResult.skills && Array.isArray(parseResult.skills) && parseResult.skills.length > 0)
-          ? parseResult.skills
-          : [];
 
       const parsedExpYears = (typeof profile.experienceYears === 'number' && profile.experienceYears > 0)
         ? profile.experienceYears
@@ -151,14 +157,39 @@ export function CandidateRegisterModal({
       setParsedSummary(parsedSummaryText);
       setExtractedSkills(detectedSkills);
 
-      // 2. CREATE AUTHENTICATION ACCOUNT IN FIREBASE (ONLY ON SUCCESSFUL PARSE)
+      // 2. CREATE AUTHENTICATION ACCOUNT IN FIREBASE (OR SIGN IN IF ALREADY EXISTS)
       setLoadingState("Creating candidate identity & security profile...");
-      const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCred.user;
+      let user: any = null;
+      let isExistingAccount = false;
 
-      await updateProfile(user, {
-        displayName: name.trim()
-      });
+      try {
+        const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        user = userCred.user;
+        await updateProfile(user, {
+          displayName: name.trim()
+        });
+      } catch (authErr: any) {
+        if (authErr?.code === 'auth/email-already-in-use' || authErr?.message?.includes('auth/email-already-in-use')) {
+          // Attempt graceful sign-in with provided password
+          try {
+            const loginCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+            user = loginCred.user;
+            isExistingAccount = true;
+          } catch (loginErr: any) {
+            throw new Error(
+              "An account with this email address already exists. Please enter your existing password or switch to Candidate Login."
+            );
+          }
+        } else if (authErr?.code === 'auth/network-request-failed' || authErr?.message?.includes('Failed to fetch')) {
+          throw new Error("Network connection error. Please check your internet connection and try again.");
+        } else {
+          throw authErr;
+        }
+      }
+
+      if (!user) {
+        throw new Error("Unable to establish candidate authentication session.");
+      }
 
       // 3. PERSIST USER RECORD IN USERS COLLECTION
       const candidateUid = user.uid;
@@ -166,8 +197,8 @@ export function CandidateRegisterModal({
         id: candidateUid,
         uid: candidateUid,
         email: email.trim(),
-        name: name.trim(),
-        displayName: name.trim(),
+        name: name.trim() || user.displayName || "Candidate",
+        displayName: name.trim() || user.displayName || "Candidate",
         phone: candidatePhone,
         role: "candidate",
         organizationId: "ORG-CANDIDATE-COMMUNITY",

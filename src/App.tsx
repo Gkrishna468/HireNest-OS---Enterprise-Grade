@@ -132,6 +132,7 @@ import AILearningLoopTab from "./views/AILearningLoopTab";
 import EvidenceDashboard from "./views/EvidenceDashboard";
 import FounderControlTower from "./views/FounderControlTower";
 import CandidatePortalWorkspace from "./views/workspaces/CandidatePortalWorkspace";
+import CRMWorkspace from "./views/CRMWorkspace";
 
 const SidebarItem = ({
   to,
@@ -763,6 +764,13 @@ const AppContent = () => {
                 active={location.pathname === "/ops"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
+              <SidebarItem
+                to="/crm"
+                icon={DollarSign}
+                label="CRM & Revenue"
+                active={location.pathname === "/crm" || location.pathname === "/revenue"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
               <AdminGlobalHQNav 
                 location={location} 
                 closeMobileMenu={() => setIsMobileMenuOpen(false)} 
@@ -970,6 +978,28 @@ const AppContent = () => {
                 path="/revenue-intelligence"
                 element={
                   <RevenueIntelligenceTab
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter || isClient) && (
+              <Route
+                path="/crm"
+                element={
+                  <CRMWorkspace
+                    userRole={role || ""}
+                    orgId={userData?.organizationId || ""}
+                  />
+                }
+              />
+            )}
+            {(isAdmin || isRecruiter || isClient) && (
+              <Route
+                path="/revenue"
+                element={
+                  <CRMWorkspace
                     userRole={role || ""}
                     orgId={userData?.organizationId || ""}
                   />

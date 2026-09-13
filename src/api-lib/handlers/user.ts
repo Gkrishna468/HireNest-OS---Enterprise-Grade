@@ -1,4 +1,5 @@
 import { adminDb, adminAuth } from "../../lib/firebase-admin.js";
+import { normalizeRole, getPermissionsForRole, isRoleAdminEquivalent } from "../../lib/rbac.js";
 
 export default async function handler(req: any, res: any) {
   // Extract action from path or query
@@ -481,24 +482,19 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    const authoritativeRole = normalizeRole(authRole || (isAdmin ? "BUSINESS_OPERATIONS" : "VENDOR_RECRUITER"));
+    const authoritativePermissions = getPermissionsForRole(authoritativeRole);
+
     return res.status(200).json({
       success: true,
       user: {
         uid: authUserId || "anonymous",
         name: "Enterprise User",
-        role: authRole || "guest",
-        organizationId: authOrgId || "",
+        role: authoritativeRole,
+        organizationId: authOrgId || (isRoleAdminEquivalent(authoritativeRole) ? "ORG-GLOBAL-HQ" : "ORG-DEFAULT"),
         status: "active",
-        permissions: isAdmin
-          ? [
-              "manage_users",
-              "manage_requirements",
-              "view_diagnostics",
-              "execute_governance",
-              "manage_vendors",
-              "manage_clients",
-            ]
-          : [],
+        permissions: authoritativePermissions,
+        isAdminEquivalent: isRoleAdminEquivalent(authoritativeRole),
       },
       requirements,
       environment: "production",

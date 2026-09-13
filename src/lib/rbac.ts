@@ -1,3 +1,5 @@
+export type UserType = "HQ" | "CLIENT" | "VENDOR" | "RECRUITER";
+
 export type SystemRole =
   | "PLATFORM_AUTHORITY"
   | "BUSINESS_OPERATIONS"
@@ -5,10 +7,16 @@ export type SystemRole =
   | "CLIENT_HM"
   | "CLIENT_FINANCE"
   | "VENDOR_ADMIN"
-  | "VENDOR_RECRUITER";
+  | "RECRUITER"
+  | "VENDOR_RECRUITER"; // Backward compatibility alias
+
+export type RecruiterSubtype = "INTERNAL" | "VENDOR" | "FREELANCE";
+
+export type RequirementScopeType = "ASSIGNED_ONLY" | "ALL_PERMITTED" | "EXPLICIT_ONLY";
 
 export interface RoleDefinition {
   id: SystemRole;
+  userType: UserType;
   aliases: string[];
   displayName: string;
   category: "GOVERNANCE" | "DEMAND" | "SUPPLY";
@@ -18,9 +26,65 @@ export interface RoleDefinition {
   description: string;
 }
 
+export interface RecruiterSubtypeDefinition {
+  id: RecruiterSubtype;
+  displayName: string;
+  category: "SUPPLY" | "GOVERNANCE";
+  organizationDefault: string;
+  scopeDescription: string;
+  description: string;
+}
+
+export const RECRUITER_SUBTYPES: Record<RecruiterSubtype, RecruiterSubtypeDefinition> = {
+  INTERNAL: {
+    id: "INTERNAL",
+    displayName: "Internal Recruiter",
+    category: "GOVERNANCE",
+    organizationDefault: "HireNest Workforce HQ",
+    scopeDescription: "Assigned & permitted requisitions across internal team",
+    description: "Internal talent acquisition team member. Operates across requisitions assigned to HireNest recruiting.",
+  },
+  VENDOR: {
+    id: "VENDOR",
+    displayName: "Vendor Recruiter",
+    category: "SUPPLY",
+    organizationDefault: "Mapped Vendor Agency",
+    scopeDescription: "Vendor Agency + Assigned requisitions",
+    description: "Recruits within a partner vendor agency on requisitions distributed and assigned to that vendor.",
+  },
+  FREELANCE: {
+    id: "FREELANCE",
+    displayName: "Freelance Recruiter",
+    category: "SUPPLY",
+    organizationDefault: "HireNest / Freelance Network",
+    scopeDescription: "Strictly explicitly assigned requisitions only",
+    description: "Independent recruiter with isolated access limited exclusively to explicitly assigned job orders.",
+  },
+};
+
+export const RECRUITER_PERMISSIONS: string[] = [
+  "dashboard.read",
+  "requirements.read",
+  "candidates.read",
+  "candidates.create",
+  "candidates.update",
+  "candidate360.read",
+  "matching.read",
+  "matching.run",
+  "submissions.read",
+  "submissions.create",
+  "submissions.update",
+  "interviews.read",
+  "interviews.create",
+  "offers.read",
+  "placements.read",
+  "performance.read",
+];
+
 export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
   PLATFORM_AUTHORITY: {
     id: "PLATFORM_AUTHORITY",
+    userType: "HQ",
     aliases: ["super_admin", "platform_authority", "admin", "global_hq"],
     displayName: "Platform Authority (HQ)",
     category: "GOVERNANCE",
@@ -72,6 +136,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
   },
   BUSINESS_OPERATIONS: {
     id: "BUSINESS_OPERATIONS",
+    userType: "HQ",
     aliases: ["business_operations", "ops_admin", "hq_admin", "business_manager"],
     displayName: "Business Operations (HQ)",
     category: "GOVERNANCE",
@@ -92,6 +157,8 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "vendors.manage_recruiters",
       "candidates.read",
       "candidate360.read",
+      "candidates.create",
+      "candidates.update",
       "matching.read",
       "matching.run",
       "submissions.read",
@@ -116,6 +183,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
   },
   CLIENT_ADMIN: {
     id: "CLIENT_ADMIN",
+    userType: "CLIENT",
     aliases: ["client_admin", "client"],
     displayName: "Client Admin",
     category: "DEMAND",
@@ -140,11 +208,13 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "offers.read",
       "offers.create",
       "placements.read",
+      "placements.create",
       "performance.read",
     ],
   },
   CLIENT_HM: {
     id: "CLIENT_HM",
+    userType: "CLIENT",
     aliases: ["client_hm", "client_hiring_manager", "hiring_manager"],
     displayName: "Client Hiring Manager",
     category: "DEMAND",
@@ -167,6 +237,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
   },
   CLIENT_FINANCE: {
     id: "CLIENT_FINANCE",
+    userType: "CLIENT",
     aliases: ["client_finance", "finance"],
     displayName: "Client Finance",
     category: "DEMAND",
@@ -177,14 +248,15 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "dashboard.read",
       "requirements.read",
       "budgets.manage",
+      "budgets.read",
+      "budget.read",
       "commercials.read",
-      "performance.read",
       "placements.read",
-      "offers.read",
     ],
   },
   VENDOR_ADMIN: {
     id: "VENDOR_ADMIN",
+    userType: "VENDOR",
     aliases: ["vendor_admin", "vendor"],
     displayName: "Vendor Admin",
     category: "SUPPLY",
@@ -196,6 +268,8 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "requirements.read",
       "vendors.manage_recruiters",
       "candidates.read",
+      "candidates.create",
+      "candidates.update",
       "candidate360.read",
       "matching.read",
       "matching.run",
@@ -211,50 +285,85 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "users.deactivate_recruiter",
     ],
   },
+  RECRUITER: {
+    id: "RECRUITER",
+    userType: "RECRUITER",
+    aliases: ["recruiter", "internal_recruiter", "freelance_recruiter", "independent_recruiter", "freelance"],
+    displayName: "Recruiter",
+    category: "SUPPLY",
+    isAdminEquivalent: false,
+    scopeDescription: "ABAC scope determined by recruiter subtype (Internal, Vendor, Freelance)",
+    description: "First-class role family with standard recruiter capabilities, bounded by subtype-specific access boundaries.",
+    permissions: RECRUITER_PERMISSIONS,
+  },
   VENDOR_RECRUITER: {
     id: "VENDOR_RECRUITER",
-    aliases: ["vendor_recruiter", "recruiter", "independent"],
+    userType: "RECRUITER",
+    aliases: ["vendor_recruiter", "independent"],
     displayName: "Vendor Recruiter",
     category: "SUPPLY",
     isAdminEquivalent: false,
     scopeDescription: "Own mapped vendor organization",
     description: "Sources candidates, views Candidate 360 dossiers, runs matching against published client requirements, and submits candidates.",
-    permissions: [
-      "dashboard.read",
-      "requirements.read",
-      "candidates.read",
-      "candidate360.read",
-      "matching.read",
-      "matching.run",
-      "submissions.read",
-      "submissions.create",
-      "submissions.update",
-      "interviews.read",
-      "interviews.create",
-      "offers.read",
-      "placements.read",
-      "performance.read",
-    ],
+    permissions: RECRUITER_PERMISSIONS,
   },
 };
 
-export const AUTHORITATIVE_ROLES: RoleDefinition[] = Object.values(ROLE_CATALOG);
+export const AUTHORITATIVE_ROLES: RoleDefinition[] = [
+  ROLE_CATALOG.PLATFORM_AUTHORITY,
+  ROLE_CATALOG.BUSINESS_OPERATIONS,
+  ROLE_CATALOG.CLIENT_ADMIN,
+  ROLE_CATALOG.CLIENT_HM,
+  ROLE_CATALOG.CLIENT_FINANCE,
+  ROLE_CATALOG.VENDOR_ADMIN,
+  ROLE_CATALOG.RECRUITER,
+];
+
+/**
+ * Returns available system roles for a given UserType.
+ */
+export function getRolesForUserType(userType: UserType): SystemRole[] {
+  switch (userType) {
+    case "HQ":
+      return ["PLATFORM_AUTHORITY", "BUSINESS_OPERATIONS"];
+    case "CLIENT":
+      return ["CLIENT_ADMIN", "CLIENT_HM", "CLIENT_FINANCE"];
+    case "VENDOR":
+      return ["VENDOR_ADMIN"];
+    case "RECRUITER":
+      return ["RECRUITER"];
+    default:
+      return ["RECRUITER"];
+  }
+}
+
+/**
+ * Derives the UserType from a given SystemRole.
+ */
+export function getUserTypeForRole(rawRole?: string | null): UserType {
+  const norm = normalizeRole(rawRole);
+  if (norm === "PLATFORM_AUTHORITY" || norm === "BUSINESS_OPERATIONS") return "HQ";
+  if (norm.startsWith("CLIENT_")) return "CLIENT";
+  if (norm === "VENDOR_ADMIN") return "VENDOR";
+  return "RECRUITER";
+}
 
 /**
  * Normalizes any role string or legacy alias into the standard SystemRole.
  */
 export function normalizeRole(rawRole?: string | null): SystemRole {
-  if (!rawRole) return "VENDOR_RECRUITER";
+  if (!rawRole) return "RECRUITER";
   const cleaned = rawRole.trim().toUpperCase().replace(/[\s-]/g, "_");
 
   if (cleaned in ROLE_CATALOG) {
+    if (cleaned === "VENDOR_RECRUITER") return "RECRUITER";
     return cleaned as SystemRole;
   }
 
   const lower = rawRole.trim().toLowerCase();
-  for (const roleDef of AUTHORITATIVE_ROLES) {
+  for (const roleDef of Object.values(ROLE_CATALOG)) {
     if (roleDef.aliases.includes(lower)) {
-      return roleDef.id;
+      return roleDef.id === "VENDOR_RECRUITER" ? "RECRUITER" : roleDef.id;
     }
   }
 
@@ -264,9 +373,31 @@ export function normalizeRole(rawRole?: string | null): SystemRole {
   if (lower.includes("finance")) return "CLIENT_FINANCE";
   if (lower.includes("client")) return "CLIENT_ADMIN";
   if (lower.includes("vendor_admin")) return "VENDOR_ADMIN";
-  if (lower.includes("recruiter") || lower.includes("vendor") || lower.includes("independent")) return "VENDOR_RECRUITER";
+  if (lower.includes("recruiter") || lower.includes("vendor") || lower.includes("independent") || lower.includes("freelance")) {
+    return "RECRUITER";
+  }
 
-  return "VENDOR_RECRUITER";
+  return "RECRUITER";
+}
+
+/**
+ * Normalizes Recruiter Subtype from raw strings.
+ */
+export function normalizeRecruiterSubtype(
+  rawSubtype?: string | null,
+  rawRole?: string | null
+): RecruiterSubtype {
+  if (rawSubtype) {
+    const cleaned = rawSubtype.trim().toUpperCase();
+    if (cleaned === "INTERNAL" || cleaned === "VENDOR" || cleaned === "FREELANCE") {
+      return cleaned as RecruiterSubtype;
+    }
+  }
+
+  const roleLower = (rawRole || "").trim().toLowerCase();
+  if (roleLower.includes("internal")) return "INTERNAL";
+  if (roleLower.includes("freelance") || roleLower.includes("independent")) return "FREELANCE";
+  return "VENDOR";
 }
 
 /**
@@ -283,7 +414,7 @@ export function isRoleAdminEquivalent(rawRole?: string | null): boolean {
  */
 export function getPermissionsForRole(rawRole?: string | null): string[] {
   const norm = normalizeRole(rawRole);
-  return ROLE_CATALOG[norm]?.permissions || [];
+  return ROLE_CATALOG[norm]?.permissions || RECRUITER_PERMISSIONS;
 }
 
 /**
@@ -301,8 +432,169 @@ export function canActorAssignRole(actorRole: string | null | undefined, targetR
   const actorNorm = normalizeRole(actorRole);
   if (actorNorm === "VENDOR_ADMIN") {
     // Vendor Admin can only assign/create Vendor Recruiter seats
-    return normalizeRole(targetRole) === "VENDOR_RECRUITER";
+    const targetNorm = normalizeRole(targetRole);
+    return targetNorm === "RECRUITER" || targetNorm === "VENDOR_RECRUITER";
   }
 
   return isActorAdmin;
 }
+
+/**
+ * Authoritative Access Evaluation:
+ * CAN(user, permission, resource) =
+ *   RBAC permission
+ * + user type
+ * + recruiter subtype
+ * + organization scope
+ * + requirement assignment
+ */
+export function canUserPerformAction(
+  user: {
+    uid: string;
+    role: SystemRole | string;
+    userType?: UserType;
+    recruiterSubtype?: RecruiterSubtype;
+    organizationId: string;
+    vendorId?: string;
+    clientId?: string;
+    assignedRequirementIds?: string[];
+    requirementScope?: RequirementScopeType;
+    permissions: string[];
+    isAdminEquivalent?: boolean;
+    status: "ACTIVE" | "INACTIVE";
+  },
+  permission?: string,
+  resource?: {
+    organizationId?: string;
+    vendorId?: string;
+    clientId?: string;
+    requirementId?: string;
+    authorizedVendorIds?: string[];
+    assignedRecruiterIds?: string[];
+    distributionState?: string;
+  }
+): { allowed: boolean; reason?: string } {
+  // 1. Account status check
+  if (user.status === "INACTIVE") {
+    return { allowed: false, reason: "User identity is inactive. Access revoked." };
+  }
+
+  const role = normalizeRole(user.role);
+  const isAdmin = user.isAdminEquivalent ?? isRoleAdminEquivalent(role);
+  const userType: UserType = user.userType || getUserTypeForRole(role);
+
+  // 2. Permission check (HQ bypasses individual permission gates)
+  if (permission && !isAdmin) {
+    if (!user.permissions.includes(permission)) {
+      return {
+        allowed: false,
+        reason: `Missing required permission: '${permission}' for role [${role}]`,
+      };
+    }
+  }
+
+  // 3. HQ Admin has universal global access
+  if (isAdmin) {
+    return { allowed: true };
+  }
+
+  // 4. Scope Boundaries by User Type & Recruiter Subtype
+  if (resource) {
+    // Client User Type
+    if (userType === "CLIENT" || role.startsWith("CLIENT_")) {
+      const userClient = user.clientId || user.organizationId;
+      if (resource.clientId && resource.clientId !== userClient) {
+        return {
+          allowed: false,
+          reason: `Cross-client boundary access denied. Target: ${resource.clientId}, User: ${userClient}`,
+        };
+      }
+    }
+
+    // Vendor Admin User Type
+    if (userType === "VENDOR" || role === "VENDOR_ADMIN") {
+      const userVendor = user.vendorId || user.organizationId;
+      if (resource.vendorId && resource.vendorId !== userVendor) {
+        return {
+          allowed: false,
+          reason: `Cross-vendor boundary access denied. Target: ${resource.vendorId}, User: ${userVendor}`,
+        };
+      }
+    }
+
+    // Recruiter User Type & Subtype evaluation
+    if (userType === "RECRUITER" || role === "RECRUITER" || role === "VENDOR_RECRUITER") {
+      const subtype = normalizeRecruiterSubtype(user.recruiterSubtype, role);
+
+      if (subtype === "INTERNAL") {
+        // Internal Recruiter: Assigned / permitted requirements across internal team
+        if (resource.requirementId && user.requirementScope === "ASSIGNED_ONLY") {
+          const isAssigned =
+            (user.assignedRequirementIds && user.assignedRequirementIds.includes(resource.requirementId)) ||
+            (resource.assignedRecruiterIds && resource.assignedRecruiterIds.includes(user.uid));
+          if (!isAssigned) {
+            return {
+              allowed: false,
+              reason: `Internal recruiter access restricted to assigned requirement: ${resource.requirementId}`,
+            };
+          }
+        }
+      } else if (subtype === "VENDOR") {
+        // Vendor Recruiter: Vendor Org + Assigned Requirements
+        const userVendor = user.vendorId || user.organizationId;
+        if (resource.vendorId && resource.vendorId !== userVendor) {
+          return {
+            allowed: false,
+            reason: `Vendor recruiter access denied outside mapped vendor: ${userVendor}`,
+          };
+        }
+
+        if (resource.requirementId) {
+          // If requirement specifies authorized vendors
+          if (
+            resource.authorizedVendorIds &&
+            resource.authorizedVendorIds.length > 0 &&
+            resource.distributionState !== "OPEN_ALL_VENDORS"
+          ) {
+            if (!resource.authorizedVendorIds.includes(userVendor)) {
+              return {
+                allowed: false,
+                reason: `Requirement ${resource.requirementId} is not distributed to vendor ${userVendor}`,
+              };
+            }
+          }
+
+          if (user.requirementScope === "ASSIGNED_ONLY" && user.assignedRequirementIds?.length) {
+            if (!user.assignedRequirementIds.includes(resource.requirementId)) {
+              return {
+                allowed: false,
+                reason: `Requirement ${resource.requirementId} is not assigned to this recruiter seat.`,
+              };
+            }
+          }
+        }
+      } else if (subtype === "FREELANCE") {
+        // Freelance Recruiter: Strictly Explicitly Assigned Requirements Only
+        if (resource.requirementId) {
+          const isAssigned =
+            (user.assignedRequirementIds && user.assignedRequirementIds.includes(resource.requirementId)) ||
+            (resource.assignedRecruiterIds && resource.assignedRecruiterIds.includes(user.uid));
+          if (!isAssigned) {
+            return {
+              allowed: false,
+              reason: `Freelance recruiter access strictly limited to explicitly assigned requirements. Missing assignment for ${resource.requirementId}`,
+            };
+          }
+        } else if (resource.vendorId && resource.vendorId !== "ORG-FREELANCE-NETWORK") {
+          return {
+            allowed: false,
+            reason: "Freelance recruiter cannot access broader vendor agency databases.",
+          };
+        }
+      }
+    }
+  }
+
+  return { allowed: true };
+}
+
