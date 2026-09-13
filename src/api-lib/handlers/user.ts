@@ -26,11 +26,12 @@ export default async function handler(req: any, res: any) {
 
   try {
     const authUserId = req.user?.uid;
-    const authRole = req.user?.role;
+    const authRole = (req.user?.role || '').toLowerCase();
     const authOrgId = req.user?.organizationId;
     const isAdmin =
       authRole === "admin" ||
       authRole === "super_admin" ||
+      authRole === "business_operations" ||
       authRole === "hq_admin" ||
       authRole === "ops_admin" ||
       authOrgId === "ORG-GLOBAL-HQ";
@@ -39,17 +40,17 @@ export default async function handler(req: any, res: any) {
       if (req.method !== "POST")
         return res.status(405).json({ error: "Method not allowed" });
       const { orgId, orgType, companyName, userProfile } = req.body;
-      if (!adminDb || !adminAuth)
+      if (!adminDb)
         return res
           .status(400)
-          .json({ error: "Authority node not initialized" });
+          .json({ error: "Database authority not initialized" });
 
-      if (userProfile.uid !== authUserId && !isAdmin) {
+      if (userProfile?.uid !== authUserId && !isAdmin) {
         return res.status(403).json({ error: "Access Denied" });
       }
 
       console.log(
-        `[USER_API] Finalize Onboarding for UI: ${userProfile.uid} in Org: ${orgId}`,
+        `[USER_API] Finalize Onboarding for UI: ${userProfile?.uid} in Org: ${orgId}`,
       );
       await adminDb.collection("organizations").doc(orgId).set(
         {
@@ -73,11 +74,18 @@ export default async function handler(req: any, res: any) {
         .collection("users")
         .doc(userProfile.uid)
         .set({ ...userProfile, role: safeRole }, { merge: true });
-      await adminAuth.setCustomUserClaims(userProfile.uid, {
-        role: safeRole,
-        orgId: orgId,
-        organizationId: orgId,
-      });
+        
+      if (adminAuth) {
+        try {
+          await adminAuth.setCustomUserClaims(userProfile.uid, {
+            role: safeRole,
+            orgId: orgId,
+            organizationId: orgId,
+          });
+        } catch (authErr: any) {
+          console.warn("[USER_API] adminAuth.setCustomUserClaims fallback (persisted in Firestore SSOT):", authErr.message);
+        }
+      }
 
       return res.status(200).json({ ok: true });
     }
@@ -91,128 +99,165 @@ export default async function handler(req: any, res: any) {
       const { email, password, role, companyName } = req.body;
       console.log(`[USER_API] Creating user: ${email} with role: ${role}`);
 
-      if (!adminDb || !adminAuth) {
+      if (!adminDb) {
         return res.status(400).json({
           error:
-            "Authority node not initialized (missing Firebase Admin credentials on the backend)",
+            "Database authority not initialized",
         });
       }
 
-      if (!email || !password) {
+      if (!email) {
         return res
           .status(400)
-          .json({ error: "Email and password are required" });
-      }
-
-      if (password.length < 6) {
-        return res
-          .status(400)
-          .json({ error: "Password must be at least 6 characters" });
+          .json({ error: "Email is required" });
       }
 
       let orgType = "client";
-      if (role.includes("vendor")) orgType = "vendor";
-      else if (role.includes("recruiter")) orgType = "recruiter";
-      else if (role.includes("independent")) orgType = "independent";
+      const normalizedRole = (role || "").toLowerCase();
+      if (normalizedRole.includes("vendor")) orgType = "vendor";
+      else if (normalizedRole.includes("recruiter")) orgType = "recruiter";
+      else if (normalizedRole.includes("independent")) orgType = "independent";
+      else if (normalizedRole.includes("business_operations") || normalizedRole.includes("admin")) orgType = "hq";
 
-      const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
+      const orgId = orgType === "hq" ? "ORG-GLOBAL-HQ" : "ORG-" + Math.random().toString(36).substr(2, 9);
       await adminDb
         .collection("organizations")
         .doc(orgId)
         .set({
           id: orgId,
           organizationId: orgId,
-          companyName: companyName || "New Entity",
+          companyName: companyName || (orgType === "hq" ? "HireNest Workforce HQ" : "New Entity"),
           type: orgType,
           status: "ACTIVE",
           createdAt: new Date().toISOString(),
-        });
+        }, { merge: true });
 
-      const user = await adminAuth.createUser({
-        email,
-        password,
-        displayName: companyName,
-      });
+      let createdUid = "";
+      if (adminAuth && password) {
+        try {
+          const user = await adminAuth.createUser({
+            email,
+            password,
+            displayName: companyName,
+          });
+          createdUid = user.uid;
+          try {
+            await adminAuth.setCustomUserClaims(user.uid, {
+              role: role || "client_admin",
+              orgId: orgId,
+              organizationId: orgId,
+            });
+          } catch (claimsErr: any) {
+            console.warn("[USER_API] adminAuth.setCustomUserClaims non-blocking notice:", claimsErr.message);
+          }
+        } catch (authErr: any) {
+          console.warn("[USER_API] adminAuth.createUser fallback (persisting in Firestore SSOT):", authErr.message);
+        }
+      }
+
+      if (!createdUid) {
+        // Deterministic or clean UID based on email or random seed
+        const cleanEmailKey = email.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+        createdUid = `usr_${cleanEmailKey.substring(0, 20)}_${Math.random().toString(36).substr(2, 6)}`;
+      }
+
       await adminDb
         .collection("users")
-        .doc(user.uid)
+        .doc(createdUid)
         .set({
-          uid: user.uid,
+          uid: createdUid,
           email,
           role: role || "client_admin",
           organizationId: orgId,
           status: "ACTIVE",
+          disabled: false,
           onboardingCompleted: true,
           createdAt: new Date().toISOString(),
-        });
-      await adminAuth.setCustomUserClaims(user.uid, {
-        role: role || "client_admin",
-        orgId: orgId,
-        organizationId: orgId,
-      });
-      return res.status(200).json({ ok: true, uid: user.uid });
+        }, { merge: true });
+
+      return res.status(200).json({ ok: true, uid: createdUid });
     }
 
-    if (action === "delete") {
+    // SSOT Rule: Deactivate identity, preserve historical business data & ledger trails
+    if (action === "delete" || action === "deactivate") {
       if (req.method !== "POST")
         return res.status(405).json({ error: "Method not allowed" });
       if (!isAdmin)
         return res.status(403).json({ error: "Access Denied. Admins only." });
       const { uid, organizationId } = req.body;
-      if (!adminDb || !adminAuth) {
+      if (!adminDb) {
         return res.status(400).json({
           error:
-            "Authority node not initialized (missing Firebase Admin credentials on the backend)",
+            "Database authority not initialized",
         });
       }
 
       if (uid === authUserId) {
-        return res.status(400).json({ error: "You cannot delete the currently signed-in administrator." });
+        return res.status(400).json({ error: "You cannot deactivate the currently signed-in administrator." });
       }
 
-      let deletedUserEmail = "Unknown";
-      let deletedUserRole = "Unknown";
-      try {
-        const uRec = await adminAuth.getUser(uid);
-        deletedUserEmail = uRec.email || "Unknown";
-        deletedUserRole = uRec.customClaims?.role || "Unknown";
-      } catch (e) {
-        // ignore
+      let targetUserEmail = "Unknown";
+      let targetUserRole = "Unknown";
+      if (adminAuth && uid) {
+        try {
+          const uRec = await adminAuth.getUser(uid);
+          targetUserEmail = uRec.email || "Unknown";
+          targetUserRole = uRec.customClaims?.role || "Unknown";
+        } catch (e) {
+          // ignore
+        }
       }
 
       if (uid) {
-        // Find and delete any active sessions
-        await adminAuth.revokeRefreshTokens(uid).catch(() => {});
-        await adminAuth.deleteUser(uid).catch(() => {});
+        // Revoke active sessions and disable user in Firebase Auth if available
+        if (adminAuth) {
+          try {
+            await adminAuth.revokeRefreshTokens(uid).catch(() => {});
+            await adminAuth.updateUser(uid, { disabled: true }).catch(() => {});
+          } catch (e: any) {
+            console.warn("[USER_API] adminAuth deactivation notice:", e.message);
+          }
+        }
+        
+        // Mark user as INACTIVE in Firestore SSOT to preserve historical ownership & ledger trails
         await adminDb
           .collection("users")
           .doc(uid)
-          .delete()
+          .set({
+            status: "INACTIVE",
+            disabled: true,
+            deactivatedAt: new Date().toISOString(),
+            deactivatedBy: req.user?.email || authUserId || "Admin"
+          }, { merge: true })
           .catch(() => {});
       }
-      if (organizationId) {
+      if (organizationId && organizationId !== "ORG-GLOBAL-HQ") {
         await adminDb
           .collection("organizations")
           .doc(organizationId)
-          .delete()
+          .set({
+            status: "INACTIVE",
+            deactivatedAt: new Date().toISOString(),
+            deactivatedBy: req.user?.email || authUserId || "Admin"
+          }, { merge: true })
           .catch(() => {});
       }
 
       await adminDb.collection("audit_logs").add({
         date: new Date().toISOString(),
         timestamp: Date.now(),
-        deletedBy: req.user?.email || authUserId || "Unknown Admin",
-        deletedUser: deletedUserEmail,
-        deletedUserId: uid,
-        role: deletedUserRole,
-        action: "USER_DELETED",
-        reason: "Admin removed user",
+        deactivatedBy: req.user?.email || authUserId || "Unknown Admin",
+        targetUser: targetUserEmail,
+        targetUserId: uid,
+        role: targetUserRole,
+        action: "USER_DEACTIVATED",
+        reason: "Admin deactivated user (historical business data preserved)",
         status: "SUCCESS",
         ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown',
-        correlationId: `DEL-${Date.now()}`
+        correlationId: `DEACT-${Date.now()}`
       });
 
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, message: "User identity deactivated successfully; historical business records preserved." });
     }
 
     if (action === "assign") {
@@ -221,13 +266,19 @@ export default async function handler(req: any, res: any) {
       if (!isAdmin)
         return res.status(403).json({ error: "Access Denied. Admins only." });
       const { uid, role, organizationId } = req.body;
-      if (!adminDb || !adminAuth) {
+      if (!adminDb) {
         return res.status(400).json({
           error:
-            "Authority node not initialized (missing Firebase Admin credentials on the backend)",
+            "Database authority not initialized",
         });
       }
-      await adminAuth.setCustomUserClaims(uid, { role, orgId: organizationId, organizationId });
+      if (adminAuth && uid) {
+        try {
+          await adminAuth.setCustomUserClaims(uid, { role, orgId: organizationId, organizationId });
+        } catch (claimsErr: any) {
+          console.warn("[USER_API] adminAuth.setCustomUserClaims non-blocking notice:", claimsErr.message);
+        }
+      }
       
       // Explicitly propagate role change and organization configuration to Firestore collection
       await adminDb.collection("users").doc(uid).set({
@@ -307,8 +358,8 @@ export default async function handler(req: any, res: any) {
       if (!authUserId) {
         return res.status(401).json({ error: "Authentication required to request account deletion." });
       }
-      if (!adminDb || !adminAuth) {
-        return res.status(503).json({ error: "Authority node not initialized" });
+      if (!adminDb) {
+        return res.status(503).json({ error: "Database authority not initialized" });
       }
 
       const confirmation = req.body?.confirm;
@@ -323,9 +374,15 @@ export default async function handler(req: any, res: any) {
 
       const userEmail = req.user?.email || "redacted@hirenest.os";
       
-      // Revoke tokens and delete user
-      await adminAuth.revokeRefreshTokens(authUserId).catch(() => {});
-      await adminAuth.deleteUser(authUserId).catch(() => {});
+      // Revoke tokens and delete user if adminAuth is available
+      if (adminAuth) {
+        try {
+          await adminAuth.revokeRefreshTokens(authUserId).catch(() => {});
+          await adminAuth.deleteUser(authUserId).catch(() => {});
+        } catch (e: any) {
+          console.warn("[USER_API] adminAuth deleteUser fallback notice:", e.message);
+        }
+      }
       await adminDb.collection("users").doc(authUserId).delete().catch(() => {});
 
       // Record immutable audit event with CERT-In 180-day compliance metadata

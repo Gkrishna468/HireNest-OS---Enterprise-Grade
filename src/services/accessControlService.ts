@@ -5,11 +5,12 @@ import { db } from "../lib/firebase";
 
 export interface HireNestAccessContext {
   userId: string;
-  role: 'ADMIN' | 'SUPER_ADMIN' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | 'GLOBAL_HQ' | string;
+  role: 'ADMIN' | 'SUPER_ADMIN' | 'BUSINESS_OPERATIONS' | 'BUSINESS_MANAGER' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | 'CANDIDATE' | 'GLOBAL_HQ' | string;
   organizationId: string;
   recruiterId?: string;
   vendorId?: string;
   clientId?: string;
+  email?: string;
   permissions?: string[];
 }
 
@@ -20,7 +21,8 @@ export type OperationalPermission =
   | 'SUBMIT'
   | 'EDIT'
   | 'APPROVE'
-  | 'MESSAGE';
+  | 'MESSAGE'
+  | 'DEACTIVATE';
 
 export interface AttributionSnapshot {
   submittedAt: string;
@@ -46,17 +48,37 @@ export class AccessControlService {
    * Helper to build a standardized HireNestAccessContext from raw user session objects
    */
   static buildAccessContext(user: any): HireNestAccessContext {
-    const role = (user?.role || user?.userRole || 'RECRUITER').toUpperCase();
-    const orgId = user?.orgId || user?.organizationId || user?.vendorId || user?.clientId || 'HQ';
+    const rawRole = user?.role || user?.userRole || 'RECRUITER';
+    const role = rawRole.toUpperCase();
+    const orgId = user?.orgId || user?.organizationId || user?.vendorId || user?.clientId || 'ORG-GLOBAL-HQ';
+    const userId = user?.id || user?.uid || 'anonymous';
     return {
-      userId: user?.id || user?.uid || 'user-default',
+      userId,
       role,
       organizationId: orgId,
-      recruiterId: role === 'RECRUITER' ? (user?.id || user?.recruiterId || 'recruiter-rahul') : user?.recruiterId,
-      vendorId: role === 'VENDOR' ? orgId : user?.vendorId,
-      clientId: role === 'CLIENT' ? orgId : user?.clientId,
+      email: user?.email || '',
+      recruiterId: role === 'RECRUITER' ? (user?.recruiterId || userId) : user?.recruiterId,
+      vendorId: role === 'VENDOR' ? (user?.vendorId || orgId) : user?.vendorId,
+      clientId: role === 'CLIENT' ? (user?.clientId || orgId) : user?.clientId,
       permissions: user?.permissions || []
     };
+  }
+
+  /**
+   * Helper to check if role is an administrative / business operations authority
+   */
+  static isOpsAdmin(role?: string): boolean {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    return (
+      r === 'ADMIN' ||
+      r === 'SUPER_ADMIN' ||
+      r === 'GLOBAL_HQ' ||
+      r === 'HQ_ADMIN' ||
+      r === 'OPS_ADMIN' ||
+      r === 'BUSINESS_OPERATIONS' ||
+      r === 'PLATFORM_AUTHORITY'
+    );
   }
 
   /**
@@ -64,7 +86,7 @@ export class AccessControlService {
    */
   static async canViewRequirement(context: HireNestAccessContext, requirementId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') {
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') {
       return true;
     }
 
@@ -83,8 +105,8 @@ export class AccessControlService {
         const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
         if (!reqSnap.exists()) return false;
         const req = reqSnap.data();
-        const assignedRecruiter = req.assignedRecruiterId || req.recruiterId || 'recruiter-rahul';
-        return assignedRecruiter === rId;
+        const assignedRecruiter = req.assignedRecruiterId || req.recruiterId;
+        return assignedRecruiter === rId || !assignedRecruiter;
       } catch (err) {
         return false;
       }
@@ -113,7 +135,7 @@ export class AccessControlService {
    */
   static async canEditRequirement(context: HireNestAccessContext, requirementId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') {
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') {
       return true;
     }
     if (role === 'RECRUITER') {
@@ -124,12 +146,12 @@ export class AccessControlService {
 
   /**
    * Authoritatively determines if a user can view a given candidate.
-   * Admin, Super Admin, and Recruiters can view all.
+   * Admin, Business Operations, Business Manager, and Recruiters can view all.
    * Vendors can view direct candidates or their own submitted/sourced candidates.
    */
   static async canViewCandidate(context: HireNestAccessContext, candidateId: string, candidateData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ' || role === 'HQ_ADMIN' || role === 'OPS_ADMIN') {
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') {
       return true;
     }
 
@@ -189,7 +211,7 @@ export class AccessControlService {
    */
   static async canEditCandidate(context: HireNestAccessContext, candidateId: string, candidateData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') return true;
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') return true;
     if (role === 'VENDOR') return await this.canViewCandidate(context, candidateId, candidateData);
     if (role === 'RECRUITER') return true;
     return false;
@@ -217,7 +239,7 @@ export class AccessControlService {
    */
   static async canViewSubmission(context: HireNestAccessContext, submissionId: string, submissionData?: any): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') {
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') {
       return true;
     }
 
@@ -257,7 +279,7 @@ export class AccessControlService {
    */
   static async canCreateSubmission(context: HireNestAccessContext, requirementId: string, vendorId?: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') return true;
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') return true;
     if (role === 'RECRUITER') return await this.canViewRequirement(context, requirementId);
     if (role === 'VENDOR') {
       const targetVendor = vendorId || context.vendorId || context.organizationId;
@@ -271,7 +293,7 @@ export class AccessControlService {
    */
   static async canViewRecruiter(context: HireNestAccessContext, recruiterId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') {
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') {
       return true;
     }
 
@@ -299,7 +321,7 @@ export class AccessControlService {
    */
   static async canViewVendor(context: HireNestAccessContext, vendorId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') return true;
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') return true;
     if (role === 'VENDOR') return (context.vendorId || context.organizationId) === vendorId;
     if (role === 'RECRUITER') {
       const rId = context.recruiterId || context.userId;
@@ -314,7 +336,7 @@ export class AccessControlService {
    */
   static async canViewClient(context: HireNestAccessContext, clientId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ' || role === 'RECRUITER') return true;
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER' || role === 'RECRUITER') return true;
     if (role === 'CLIENT') return (context.clientId || context.organizationId) === clientId;
     return false;
   }
@@ -324,7 +346,7 @@ export class AccessControlService {
    */
   static async canAccessRequirementVendorAuthorization(context: HireNestAccessContext, requirementId: string, vendorId: string): Promise<boolean> {
     const role = (context.role || '').toUpperCase();
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'GLOBAL_HQ') return true;
+    if (this.isOpsAdmin(role) || role === 'BUSINESS_MANAGER') return true;
     if (role === 'VENDOR') return (context.vendorId || context.organizationId) === vendorId && await requirementVendorService.canVendorViewRequirement(vendorId, requirementId);
     if (role === 'RECRUITER') return await this.canViewRequirement(context, requirementId);
     return false;
@@ -335,7 +357,7 @@ export class AccessControlService {
    */
   static isRequirementAuthorized(
     actorId: string,
-    role: 'ADMIN' | 'SUPER_ADMIN' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | string,
+    role: string,
     requirement: {
       assignedRecruiterId?: string;
       recruiterId?: string;
@@ -347,7 +369,17 @@ export class AccessControlService {
     }
   ): boolean {
     const normRole = (role || '').toUpperCase();
-    if (normRole === 'ADMIN' || normRole === 'SUPER_ADMIN' || normRole === 'GLOBAL_HQ' || normRole === 'HQ_ADMIN' || normRole === 'OPS_ADMIN' || actorId === 'ORG-GLOBAL-HQ' || actorId === 'HQ') {
+    if (
+      normRole === 'ADMIN' ||
+      normRole === 'SUPER_ADMIN' ||
+      normRole === 'GLOBAL_HQ' ||
+      normRole === 'HQ_ADMIN' ||
+      normRole === 'OPS_ADMIN' ||
+      normRole === 'BUSINESS_OPERATIONS' ||
+      normRole === 'BUSINESS_MANAGER' ||
+      actorId === 'ORG-GLOBAL-HQ' ||
+      actorId === 'HQ'
+    ) {
       return true;
     }
     if (normRole === 'VENDOR') {
@@ -356,7 +388,7 @@ export class AccessControlService {
     }
     if (normRole === 'RECRUITER') {
       const assigned = requirement.assignedRecruiterId || requirement.recruiterId;
-      return assigned === actorId;
+      return !assigned || assigned === actorId;
     }
     if (normRole === 'CLIENT') {
       const client = requirement.clientId || requirement.client_id;
@@ -370,7 +402,7 @@ export class AccessControlService {
    */
   static canAccessRequirement(
     actorId: string,
-    role: 'ADMIN' | 'SUPER_ADMIN' | 'RECRUITER' | 'VENDOR' | 'CLIENT' | string,
+    role: string,
     requirement: any
   ): boolean {
     return this.isRequirementAuthorized(actorId, role, requirement);
@@ -378,6 +410,7 @@ export class AccessControlService {
 
   /**
    * Generates an immutable attribution snapshot for submission tracking
+   * Note: Invariant - everything must be attributed to an actual user ID
    */
   static createAttributionSnapshot(params: {
     requirementId: string;
@@ -389,7 +422,7 @@ export class AccessControlService {
     clientId: string;
     clientName: string;
     authorizationId: string;
-    submittedByUserId?: string;
+    submittedByUserId: string;
   }): AttributionSnapshot & { frozen: boolean } {
     return {
       submittedAt: new Date().toISOString(),
@@ -402,7 +435,7 @@ export class AccessControlService {
       clientId: params.clientId,
       clientName: params.clientName,
       authorizationId: params.authorizationId,
-      submittedByUserId: params.submittedByUserId || params.vendorId || 'system',
+      submittedByUserId: params.submittedByUserId || 'unspecified_user',
       version: '1.0.0',
       frozen: true
     };

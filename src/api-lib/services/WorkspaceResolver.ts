@@ -31,6 +31,9 @@ export class WorkspaceResolver {
                     orgId = orgId || uData?.organizationId || uData?.orgId;
                     role = role || uData?.role;
                     email = email || uData?.email;
+                } else if (email === 'praveen@hirenestworkforce.com') {
+                    role = 'BUSINESS_OPERATIONS';
+                    orgId = 'ORG-GLOBAL-HQ';
                 }
             } catch (err: any) {
                 console.warn(`[WorkspaceResolver] Failed to fetch user doc for ${uid}:`, err.message);

@@ -183,6 +183,7 @@ import { adminAuth, db as adminDb } from './src/lib/firebase-admin';
 import { verifyAuth } from './src/api-lib/middlewares/authMiddleware.js';
 import adminHandler from './src/api-lib/handlers/admin';
 import userHandler from './src/api-lib/handlers/user';
+import userAdminHandler from './src/api-lib/handlers/user-admin';
 import candidatesHandler from './src/api-lib/handlers/candidates';
 import matchingGlobalHandler from './src/api-lib/handlers/matching-global';
 import intelHandler from './src/api-lib/handlers/intel';
@@ -624,12 +625,18 @@ hirenest_active_requests 0
 
     try {
       switch (apiPath) {
+        case 'user-admin':
         case 'create-user':
         case 'user/create':
         case 'delete-user':
+        case 'deactivate-user':
         case 'user/delete':
+        case 'user/deactivate':
         case 'assign-role':
         case 'user/assign-role':
+        case 'user-roles':
+          return await userAdminHandler(req, res);
+
         case 'user-context':
         case 'user/context':
         case 'user':
@@ -890,15 +897,37 @@ hirenest_active_requests 0
   });
 
   // Vite integration
-  const distIndexPath = path.join(process.cwd(), 'dist', 'index.html');
-  const isProd = process.env.NODE_ENV !== 'development';
+  const distPath = path.join(process.cwd(), 'dist');
+  const distIndexPath = path.join(distPath, 'index.html');
 
-  const serveStaticFiles = () => {
-    const distPath = path.join(process.cwd(), 'dist');
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteImportError) {
+      console.warn("[Server] Vite middleware initialization failed, falling back to static serving:", viteImportError);
+      app.use(express.static(distPath));
+      app.use((req, res) => {
+        const url = req.originalUrl || req.url;
+        if (url.startsWith('/api') || req.path?.startsWith('/api') || url.startsWith('/v1') || req.path?.startsWith('/v1')) {
+          return res.status(404).json({ success: false, error: `API endpoint ${url} not found` });
+        }
+        if (fs.existsSync(distIndexPath)) {
+          res.sendFile(distIndexPath);
+        } else {
+          res.status(200).send(`<!DOCTYPE html><html><head><title>HireNestOS</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>`);
+        }
+      });
+    }
+  } else {
     app.use(express.static(distPath));
     app.use((req, res) => {
       const url = req.originalUrl || req.url;
-      if (url.startsWith('/api') || req.path?.startsWith('/api')) {
+      if (url.startsWith('/api') || req.path?.startsWith('/api') || url.startsWith('/v1') || req.path?.startsWith('/v1')) {
         return res.status(404).json({ success: false, error: `API endpoint ${url} not found` });
       }
       if (fs.existsSync(distIndexPath)) {
@@ -907,37 +936,6 @@ hirenest_active_requests 0
         res.status(404).send('Application build not found. Please build the project.');
       }
     });
-  };
-
-  if (!isProd) {
-    try {
-      const { createServer: createViteServer } = await import("vite");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'custom',
-      });
-      app.use(vite.middlewares);
-      
-      app.use(async (req, res, next) => {
-        const url = req.originalUrl || req.url;
-        if (url.startsWith('/api') || req.path?.startsWith('/api')) {
-          return res.status(404).json({ success: false, error: `API endpoint ${url} not found` });
-        }
-        try {
-          let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
-          template = await vite.transformIndexHtml(url, template);
-          res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
-        } catch (e) {
-          vite.ssrFixStacktrace(e);
-          next(e);
-        }
-      });
-    } catch (viteImportError) {
-      console.warn("[Server] Vite is not available in this environment. Falling back to production static serving mode.");
-      serveStaticFiles();
-    }
-  } else {
-    serveStaticFiles();
   }
 
   const PORT = 3000;

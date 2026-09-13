@@ -1,1042 +1,935 @@
 import React, { useState, useEffect } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { Button } from "../lib/Button";
 import { cn } from "../lib/utils";
-import { Trash2, Check, Save, Lock, Clock } from "lucide-react";
+import {
+  ShieldAlert,
+  ShieldCheck,
+  Check,
+  Lock,
+  Clock,
+  UserPlus,
+  RefreshCw,
+  Building,
+  UserCheck,
+  AlertCircle,
+  Eye,
+  KeyRound,
+  ShieldX,
+  Sparkles,
+} from "lucide-react";
 import { useSystemStore } from "../stores/SystemStore";
-
-function SafeUserRow({ 
-  u, 
-  getRoleCategory, 
-  safeInitial, 
-  getRoleLabel, 
-  setSelectedUserForTracking, 
-  VerificationBadge, 
-  auth, 
-  setIsSubmitting, 
-  setUserToDelete, 
-  setEditingUser, 
-  isSubmitting,
-  handleSyncUserRole
-}: any) {
-  try {
-    const userId = u?.id || u?.uid || "unknown";
-    const userRole = u?.role || "member";
-    const userEmail = u?.email || "No Email Provided";
-    const displayName = u?.displayName || u?.name || "Anonymous User";
-    const orgName = u?.org?.companyName || u?.org?.name || u?.organizationId || "unmapped entity";
-    const plan = u?.org?.plan || null;
-    const lastLogin = u?.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never";
-
-    return (
-      <div key={userId} className="group flex items-center justify-between p-6 bg-white border-2 border-slate-50 rounded-[28px] hover:border-indigo-100 hover:shadow-xl hover:shadow-slate-50 transition-all">
-        <div className="flex items-center gap-6">
-          <div className={cn(
-            "h-12 w-12 rounded-2xl flex items-center justify-center font-black",
-            getRoleCategory(userRole) === 'GOVERNANCE' ? 'bg-slate-900 text-white' :
-            getRoleCategory(userRole) === 'DEMAND' ? 'bg-indigo-600 text-white' : 'bg-amber-500 text-white'
-          )}>
-            {safeInitial(userEmail || displayName, 'U')}
-          </div>
-          <div className="text-left">
-            <div className="font-black text-slate-900 lowercase tracking-tight flex items-center gap-2">
-              <button onClick={() => setSelectedUserForTracking(u)} className="hover:text-indigo-600 transition-colors text-left underline decoration-slate-200 underline-offset-4">
-                {userEmail || displayName}
-              </button>
-              {userRole === 'admin' && <Check size={12} className="text-indigo-600" />}
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-               <span className="text-[10px] text-slate-400 font-bold lowercase tracking-widest">
-                  {orgName.toLowerCase()}
-                  {plan && (
-                    <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] uppercase font-black">
-                      {plan}
-                    </span>
-                  )}
-               </span>
-               <span className="h-1 w-1 rounded-full bg-slate-200" />
-               <span className={cn(
-                 "text-[10px] font-black lowercase tracking-widest",
-                 getRoleCategory(userRole) === 'GOVERNANCE' ? 'text-slate-900' :
-                 getRoleCategory(userRole) === 'DEMAND' ? 'text-indigo-600' : 'text-amber-600'
-               )}>
-                 {getRoleLabel(userRole).toLowerCase()}
-               </span>
-            </div>
-            <div className="mt-2 flex items-center gap-4">
-               <VerificationBadge verification={u?.verification} role={userRole} email={userEmail} />
-               <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                 <Clock size={12} className="text-slate-400" />
-                 {lastLogin}
-               </div>
-               <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                 <span className={cn("w-1.5 h-1.5 rounded-full", u?.disabled ? "bg-red-500" : "bg-emerald-500")} />
-                 {u?.disabled ? 'Disabled' : 'Active'}
-               </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-           <button 
-              onClick={() => handleSyncUserRole(userId, userEmail, userRole, u?.organizationId)}
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-              title="Sync IAM Custom Claims"
-              disabled={isSubmitting}
-           >
-              <Lock size={16} />
-           </button>
-           <button 
-              onClick={() => setUserToDelete({ id: userId, orgId: u?.organizationId, email: userEmail, name: displayName, role: userRole, data: u })}
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm"
-           >
-              <Trash2 size={16} />
-           </button>
-        </div>
-      </div>
-    );
-  } catch (err) {
-    console.error("Failed to render corrupt user record:", err);
-    return (
-      <div className="p-6 bg-rose-50 border-2 border-rose-100 rounded-[28px] text-xs text-rose-700 flex items-center justify-between">
-        <div className="text-left">
-          <span className="font-bold">Corrupt User Record Detected</span> (ID: {u?.id || u?.uid || "unknown"})
-        </div>
-        <div className="text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-black">Malformed Data</div>
-      </div>
-    );
-  }
-}
+import {
+  AUTHORITATIVE_ROLES,
+  ROLE_CATALOG,
+  getPermissionsForRole,
+  isRoleAdminEquivalent,
+  normalizeRole,
+  SystemRole,
+} from "../lib/rbac";
 
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [users, setUsers] = useState<any[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncMode, setSyncMode] = useState<string>("INITIALIZING");
-  const [nodeId, setNodeId] = useState<string>("");
-  const [dbStatus, setDbStatus] = useState<{ projectId: string, connected: boolean, lastCheck: string }>({ 
-    projectId: 'initializing', 
-    connected: false, 
-    lastCheck: '-' 
-  });
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "DEMAND" | "SUPPLY" | "GOVERNANCE" | "ONBOARDING" | "PERMISSIONS">("ALL");
-  const [onboardingRequests, setOnboardingRequests] = useState<any[]>([]);
-  
-  // Form state
+  const [successMsg, setSuccessMsg] = useState("");
+  const [activeTab, setActiveTab] = useState<"ALL" | "GOVERNANCE" | "DEMAND" | "SUPPLY" | "PERMISSIONS">("ALL");
+
+  // Form state for creating user
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<any>("client_admin");
+  const [role, setRole] = useState<SystemRole>("CLIENT_ADMIN");
   const [companyName, setCompanyName] = useState("");
+  const [selectedOrgId, setSelectedOrgId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [userToDelete, setUserToDelete] = useState<{ id: string, orgId: string, email: string, name: string, role: string, data?: any } | null>(null);
-  const [selectedUserForTracking, setSelectedUserForTracking] = useState<any>(null);
 
-  const roles = [
-    { value: 'super_admin', label: 'platform authority (hq)', category: 'GOVERNANCE' },
-    { value: 'client_admin', label: 'Client', category: 'DEMAND' },
-    { value: 'vendor_admin', label: 'Vendor HQ', category: 'SUPPLY' },
-    { value: 'vendor_recruiter', label: 'Vendor Recruiter', category: 'SUPPLY' },
-    { value: 'recruiter', label: 'Recruiter', category: 'SUPPLY' },
-    { value: 'independent', label: 'Independent', category: 'SUPPLY' },
-    { value: 'ACCOUNT_MANAGER', label: 'account manager', category: 'DEMAND' },
-    { value: 'ops_admin', label: 'ops administrator', category: 'GOVERNANCE' },
-  ];
+  // Modals state
+  const [selectedUserDetail, setSelectedUserDetail] = useState<any | null>(null);
+  const [userToChangeRole, setUserToChangeRole] = useState<any | null>(null);
+  const [newRoleForChange, setNewRoleForChange] = useState<SystemRole>("VENDOR_RECRUITER");
+  const [newVendorIdForChange, setNewVendorIdForChange] = useState("");
+  const [userToDeactivate, setUserToDeactivate] = useState<any | null>(null);
 
-  const getRoleCategory = (r?: string) => {
-    if (!r) return 'DEMAND';
-    return roles.find(ro => ro.value === r)?.category || 'DEMAND';
-  };
+  const activeActorRole = normalizeRole(orgData?.role || (auth.currentUser as any)?.role);
+  const isActorAdmin = isRoleAdminEquivalent(activeActorRole);
 
-  const getRoleLabel = (r?: string) => {
-    if (!r) return 'Member';
-    return roles.find(ro => ro.value === r)?.label || r;
-  };
-
-  const safeInitial = (text?: string, fallback = 'U') => {
-    if (!text || typeof text !== 'string') return fallback.toLowerCase();
-    const trimmed = text.trim();
-    return trimmed.length > 0 ? trimmed.charAt(0).toLowerCase() : fallback.toLowerCase();
-  };
-
-  const VerificationBadge = ({ verification, role, email }: { verification: any, role: string, email: string }) => {
-    const trustScore = verification?.trustScore || 0;
-    const isGlobalHQ = role === 'super_admin' || role === 'hq_admin';
-
-    if (isGlobalHQ) {
-      return (
-        <div className="flex items-center gap-1">
-          <span className="text-[8px] bg-slate-900 text-white px-2 py-0.5 rounded font-black lowercase tracking-widest">global authority node</span>
-          <span className="text-[10px] font-black text-indigo-600 ml-2 whitespace-nowrap lowercase tracking-tighter">trust: 100</span>
-        </div>
-      );
-    }
-
-    if (!verification) return <span className="text-[8px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black tracking-widest lowercase">unverified node</span>;
-    
-    return (
-      <div className="flex items-center gap-1">
-        {verification.emailVerified && <span className="text-[8px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black lowercase">email</span>}
-        {verification.identityVerified && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded font-black lowercase">identity</span>}
-        {verification.businessVerified && <span className="text-[8px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-black lowercase">business</span>}
-        {verification.aadhaarVerified && <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded font-black lowercase">aadhaar</span>}
-        <span className="text-[10px] font-black text-indigo-600 ml-2 whitespace-nowrap lowercase tracking-tighter">trust: {trustScore}</span>
-      </div>
-    );
-  };
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        fetchUsers();
-      } else {
-        setLoading(false);
-        setError("IDENTITY_REQUIRED: Please sign in with an authorized Global HQ node account.");
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsersAndOrgs = async () => {
     setLoading(true);
     setError("");
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("No active identity found. Access Denied.");
-      
-      const token = await user.getIdToken();
-      // Fetch everything via governance API (bypasses rules via Admin SDK)
-      const govResp = await fetch('/api/governance', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const token = await auth.currentUser?.getIdToken();
+      // 1. Try fetching via authoritative backend endpoint
+      const res = await fetch("/api/user-admin?action=list", {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
 
-      if (govResp.ok) {
-        const data = await govResp.json();
-        const orgs = data.organizations || [];
-        const remoteUsers = (data.users || []).filter((u: any) => !u.deleted);
-        const remoteRequests = data.onboarding_requests || [];
-
-        setSyncMode(data.mode || (data.isMock ? "FALLBACK" : "LIVE"));
-        setNodeId(data.nodeId || "");
-        setDbStatus({
-          projectId: data.nodeId || 'unknown',
-          connected: data.mode !== 'FALLBACK' && data.mode !== 'FATAL_FALLBACK',
-          lastCheck: new Date().toLocaleTimeString()
-        });
-        
-        setUsers(remoteUsers.map((u: any) => {
-          const orgId = u.organizationId || u.orgId || (u.org && u.org.id);
-          const org = orgs.find((o: any) => o.id === orgId || o.organizationId === orgId);
-          return { ...u, id: u.uid || u.id, uid: u.uid || u.id, org };
-        }));
-
-        setOnboardingRequests(remoteRequests);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users) {
+          setUsers(data.users);
+        }
       } else {
-        throw new Error("Governance metadata handshake failed");
-      }
-    } catch (err: any) {
-      if (err.message?.toLowerCase().includes('permission')) {
-        console.warn("Governance Queue: ACCESS_DENIED. Check Rules/IAM.");
-        setError(`DATABASE ACCESS DENIED: Authority Rejection for [${auth.currentUser?.email}]. Ensure you have granted IAM permissions to the service account shown in the Security & Trust dashboard.`);
-      }
-      console.warn("Governance API failed, attempting Firestore fallback", err.message);
-      setSyncMode("FS_FALLBACK");
-      try {
-        const [userSnap, orgSnap, reqSnap] = await Promise.all([
-          getDocs(query(collection(db, "users"), limit(25))),
-          getDocs(query(collection(db, "organizations"), limit(25))),
-          getDocs(query(collection(db, "onboarding_requests"), limit(25)))
+        // Fallback to direct Firestore query
+        const [userSnap, orgSnap] = await Promise.all([
+          getDocs(query(collection(db, "users"), limit(100))),
+          getDocs(query(collection(db, "organizations"), limit(100))),
         ]);
-        const orgs = orgSnap.docs.map(d => ({ id: d.id, ...d.data() }) as any);
-        setUsers(userSnap.docs.map(d => {
+
+        const orgs = orgSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any);
+        setOrganizations(orgs);
+
+        const loadedUsers = userSnap.docs.map((d) => {
           const u = d.data() as any;
-          const org = orgs.find(o => o.id === u.organizationId);
-          return { id: d.id, uid: d.id, ...u, org };
-        }).filter((u: any) => !u.deleted));
-        setOnboardingRequests(reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (fErr: any) {
-        const identity = auth.currentUser?.email?.toLowerCase() || "Unknown Identity";
-        setError(`IDENTITY ACCESS DENIED: Authority Rejection for [${identity}]. Ensure your email has Admin authority and you have granted IAM permissions to the service account in GCP Console.`);
+          const roleNorm = normalizeRole(u.role);
+          const roleDef = ROLE_CATALOG[roleNorm];
+          const org = orgs.find((o) => o.id === u.organizationId || o.id === u.vendorId);
+          return {
+            id: d.id,
+            uid: u.uid || d.id,
+            email: u.email || "",
+            displayName: u.displayName || u.name || u.email?.split("@")[0] || "User",
+            role: roleNorm,
+            roleDisplayName: roleDef?.displayName || roleNorm,
+            category: roleDef?.category || "GOVERNANCE",
+            isAdminEquivalent: roleDef?.isAdminEquivalent || false,
+            permissions: u.permissions || getPermissionsForRole(roleNorm),
+            organizationId: u.organizationId || "",
+            vendorId: u.vendorId || (roleNorm === "VENDOR_RECRUITER" ? u.organizationId : undefined),
+            managedByVendorId: u.managedByVendorId || u.vendorId || "",
+            org,
+            status: u.status || (u.disabled ? "INACTIVE" : "ACTIVE"),
+            disabled: u.disabled || u.status === "INACTIVE",
+            createdByUserId: u.createdByUserId || "",
+            createdByEmail: u.createdByEmail || "",
+            createdAt: u.createdAt || "",
+            updatedAt: u.updatedAt || "",
+            deactivatedAt: u.deactivatedAt || "",
+            deactivatedBy: u.deactivatedBy || "",
+          };
+        });
+
+        setUsers(loadedUsers);
       }
+
+      // Also ensure organizations are populated
+      const orgSnap = await getDocs(query(collection(db, "organizations"), limit(100)));
+      setOrganizations(orgSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
+    } catch (err: any) {
+      console.error("[AdminUsersManager] Fetch failed:", err);
+      setError(`Failed to load identity matrix: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSyncUserRole = async (userId: string, userEmail: string, userRole: string, organizationId?: string) => {
-    console.log(`[IAM Custom Claims Sync] Initializing sync check for ${userEmail} (${userId}) to role [${userRole}]`);
-    if (!confirm(`Sync ${userEmail} role [${userRole}] to Custom Claims? This enables enterprise rule enforcement.`)) {
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      console.log("[IAM Custom Claims Sync] Requesting fresh client authorization token...");
-      const token = await auth.currentUser?.getIdToken();
-      console.log("[IAM Custom Claims Sync] Dispatching POST request to /api/assign-role...");
-      const resp = await fetch('/api/assign-role', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({ uid: userId, role: userRole, organizationId: organizationId })
-      });
-      
-      if (resp.ok) {
-        console.log(`[IAM Custom Claims Sync] Successful response from backend for ${userEmail}`);
-        alert("IAM Role synchronized. Access Protocol Updated.");
-        
-        if (userId === auth.currentUser?.uid) {
-          console.log("[IAM Custom Claims Sync] Target user is active admin. Force-refreshing active user ID token to propagate claims immediately...");
-          await auth.currentUser?.getIdToken(true);
-          useSystemStore.setState((state) => ({
-            userData: state.userData ? { ...state.userData, role: userRole } : null
-          }));
-          console.log("[IAM Custom Claims Sync] Active user session and Zustand store state successfully updated.");
-        } else {
-          console.log("[IAM Custom Claims Sync] Note: For changes to take effect on target user's active session, they will need to refresh their session or re-authenticate.");
-        }
-      } else {
-        const errData = await resp.json().catch(() => ({}));
-        console.error("[IAM Custom Claims Sync] Server rejected request:", errData);
-        alert(`IAM sync failed: ${errData.error || "Unknown server response"}`);
-      }
-    } catch (e) {
-      console.error("[IAM Custom Claims Sync] Handshake/Network error during claim propagation:", e);
-      alert("Network handshake failure");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleApproveRequest = async (requestId: string, targetRole: string) => {
-    if (!window.confirm("Approve this request and provision live authority?")) return;
-    setIsSubmitting(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/approve-request', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ requestId, role: targetRole })
-      });
-      if (!response.ok) throw new Error("Approval protocol failed");
-      await fetchUsers();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCreateUserClientFallback = async (emailVal: string, passwordVal: string, roleVal: string, companyNameVal: string) => {
-    console.log("[ClientOnboarding] Falling back to local client-side onboarding due to authority node credential exception.");
-    
-    const { initializeApp: initClientApp, deleteApp } = await import("firebase/app");
-    const { getAuth: getClientAuth, createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
-    const { doc, setDoc } = await import("firebase/firestore");
-    const firebaseConfig = (await import("../../firebase-applet-config.json")).default;
-    
-    const config = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || firebaseConfig.apiKey,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || firebaseConfig.appId,
-    };
-
-    const tempAppName = `temp-onboard-${Date.now()}`;
-    const tempApp = initClientApp(config, tempAppName);
-    const tempAuth = getClientAuth(tempApp);
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(tempAuth, emailVal, passwordVal);
-      const newUid = userCredential.user.uid;
-      console.log("[ClientOnboarding] Auth account created client-side under UID:", newUid);
-
-      const orgId = "ORG-" + Math.random().toString(36).substr(2, 9);
-      let orgType = 'client';
-      if (roleVal?.includes('vendor')) orgType = 'vendor';
-      else if (roleVal?.includes('recruiter')) orgType = 'recruiter';
-      else if (roleVal?.includes('independent')) orgType = 'independent';
-
-      await setDoc(doc(db, "organizations", orgId), {
-        id: orgId,
-        organizationId: orgId,
-        companyName: companyNameVal || "New Entity",
-        type: orgType,
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString()
-      });
-
-      await setDoc(doc(db, "users", newUid), {
-        uid: newUid,
-        email: emailVal,
-        role: roleVal || 'client_admin',
-        organizationId: orgId,
-        status: 'ACTIVE',
-        onboardingCompleted: true,
-        createdAt: new Date().toISOString()
-      });
-
-      await signOut(tempAuth);
-      await deleteApp(tempApp);
-
-      return { ok: true, uid: newUid };
-    } catch (err: any) {
-      try {
-        await deleteApp(tempApp);
-      } catch (_) {}
-      throw err;
-    }
-  };
+  useEffect(() => {
+    fetchUsersAndOrgs();
+  }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError("");
+    setSuccessMsg("");
 
     try {
       if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters for Firebase security protocols.");
+        throw new Error("Password must be at least 6 characters.");
+      }
+
+      if (role === "VENDOR_RECRUITER" && !selectedOrgId) {
+        throw new Error("Vendor Recruiter must be mapped to a Vendor Organization.");
       }
 
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+      const res = await fetch("/api/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ email, password, role, companyName })
+        body: JSON.stringify({
+          email,
+          password,
+          role,
+          companyName: companyName || (role.includes("VENDOR") ? "Vendor Agency" : "Client Organization"),
+          organizationId: selectedOrgId || undefined,
+          vendorId: role === "VENDOR_RECRUITER" ? selectedOrgId : undefined,
+        }),
       });
 
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        let errorMessage = "Onboarding failed";
-        
-        if (contentType && contentType.includes("application/json")) {
-          const errData = await response.json();
-          errorMessage = errData.error || errorMessage;
-        } else {
-          const text = await response.text();
-          errorMessage = text || `Server error (${response.status})`;
-        }
-        
-        console.warn(`[Onboarding] Primary API failed: ${errorMessage}. Invoking client fallback...`);
-        await handleCreateUserClientFallback(email, password, role, companyName);
-        console.log("[Onboarding] Client-side user fallback successful!");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create user identity.");
       }
 
+      setSuccessMsg(`User ${email} successfully provisioned with role [${ROLE_CATALOG[role].displayName}].`);
       setEmail("");
       setPassword("");
       setCompanyName("");
-      await fetchUsers();
+      setSelectedOrgId("");
+      await fetchUsersAndOrgs();
     } catch (err: any) {
-       console.warn(`[Onboarding] API error encountered (${err.message}). Invoking client-side setup...`);
-       try {
-         await handleCreateUserClientFallback(email, password, role, companyName);
-         setEmail("");
-         setPassword("");
-         setCompanyName("");
-         await fetchUsers();
-       } catch (fallbackError: any) {
-         setError(`Onboarding failed. Details: ${fallbackError.message}`);
-       }
+      setError(err.message || "Failed to create user.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const executeDeleteUser = async () => {
-    if (!userToDelete) return;
+  const handleSaveRoleChange = async () => {
+    if (!userToChangeRole) return;
+    setIsSubmitting(true);
+    setError("");
+    setSuccessMsg("");
+
     try {
-      setIsSubmitting(true);
+      if (newRoleForChange === "VENDOR_RECRUITER" && !newVendorIdForChange && !userToChangeRole.vendorId) {
+        throw new Error("Vendor Recruiter must have an assigned Vendor Organization.");
+      }
+
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/delete-user', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+      const res = await fetch("/api/assign-role", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ uid: userToDelete.id, organizationId: userToDelete.orgId })
+        body: JSON.stringify({
+          uid: userToChangeRole.uid || userToChangeRole.id,
+          role: newRoleForChange,
+          organizationId: newRoleForChange === "VENDOR_RECRUITER" ? (newVendorIdForChange || userToChangeRole.organizationId) : userToChangeRole.organizationId,
+          vendorId: newRoleForChange === "VENDOR_RECRUITER" ? (newVendorIdForChange || userToChangeRole.vendorId) : undefined,
+        }),
       });
+
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to delete user");
+        throw new Error(data.error || "Failed to update role.");
       }
-      setUserToDelete(null);
-      await fetchUsers();
+
+      setSuccessMsg(`Role for ${userToChangeRole.email} updated to [${ROLE_CATALOG[newRoleForChange].displayName}].`);
+      setUserToChangeRole(null);
+      if (selectedUserDetail && (selectedUserDetail.uid === userToChangeRole.uid || selectedUserDetail.id === userToChangeRole.id)) {
+        setSelectedUserDetail(null);
+      }
+      await fetchUsersAndOrgs();
     } catch (err: any) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err.message || "Failed to assign role.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const filteredUsers = users.filter(u => {
+  const handleExecuteDeactivate = async () => {
+    if (!userToDeactivate) return;
+    setIsSubmitting(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/deactivate-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          uid: userToDeactivate.uid || userToDeactivate.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to deactivate user.");
+      }
+
+      setSuccessMsg(`Identity for ${userToDeactivate.email} deactivated. Historical business records and ledger preserved.`);
+      setUserToDeactivate(null);
+      if (selectedUserDetail && (selectedUserDetail.uid === userToDeactivate.uid || selectedUserDetail.id === userToDeactivate.id)) {
+        setSelectedUserDetail(null);
+      }
+      await fetchUsersAndOrgs();
+    } catch (err: any) {
+      setError(err.message || "Failed to deactivate user.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
     if (activeTab === "ALL") return true;
-    return getRoleCategory(u.role) === activeTab;
+    return u.category === activeTab;
   });
 
-  const isAdmin = orgData?.role === 'admin' || orgData?.role === 'super_admin' || orgData?.role === 'ops_admin';
+  const vendorOrgs = organizations.filter((o) => o.type === "vendor" || o.id?.startsWith("ORG-V"));
+  const clientOrgs = organizations.filter((o) => o.type === "client" || o.id?.startsWith("ORG-C"));
 
-  if (!isAdmin) {
-    return <div className="p-8 text-red-500 font-bold uppercase tracking-tight">Access Denied. Global HQ Node Only.</div>;
+  if (!isActorAdmin) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="bg-red-50 border-2 border-red-200 rounded-3xl p-8 text-center">
+          <ShieldX className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-red-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-red-700">
+            User administration is restricted to <strong>Platform Authority (HQ)</strong> and <strong>Business Operations (HQ)</strong>.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-12 flex items-center justify-between">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight lowercase">identity protocol matrix</h1>
-            <p className="text-slate-400 font-bold text-[10px] lowercase tracking-widest mt-1">
-              <span className="text-indigo-600">governance protocol hub</span> • platform node authority & scaling
-            </p>
-        </div>
-        <div className="flex bg-slate-900 p-1 rounded-xl items-center gap-2">
-          {nodeId && (
-            <div className="px-3 py-1 bg-indigo-600 rounded-lg text-[8px] font-black text-white uppercase tracking-tighter">
-               ID: {nodeId}
-            </div>
-          )}
-          <div className="px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-            <div className={cn(
-              "h-2 w-2 rounded-full animate-pulse",
-              syncMode === 'LIVE' ? 'bg-emerald-500' : 
-              syncMode === 'HYBRID_MOCK' ? 'bg-amber-500' : 'bg-red-500'
-            )} />
-            Node Sync: {syncMode}
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">HireNest Workforce Identity & Access</h1>
+            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-xs font-bold uppercase tracking-wider">
+              SSOT Enforced
+            </span>
           </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Authoritative 7-Role RBAC model with vendor-recruiter hierarchy, creator attribution, and non-destructive deactivation.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={fetchUsersAndOrgs}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-xl text-xs font-bold border-slate-200"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="border-2 border-slate-100 rounded-[32px] p-8 transition-all bg-white shadow-sm">
-            <h2 className="text-xs font-black lowercase tracking-[0.2em] text-slate-400 mb-8 flex items-center gap-2">
-               <Save size={14} className="text-indigo-600" />
-               onboard new node
-            </h2>
-            
-            {error && (
-              <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4">
-                <p className="text-[10px] font-black lowercase tracking-widest text-red-600 mb-2">{error}</p>
-                {error.toUpperCase().includes("API_DISABLED") || 
-                 error.toUpperCase().includes("INFRASTRUCTURE_FAILURE") || 
-                 error.toUpperCase().includes("ACCESS DENIED") ||
-                 error.toUpperCase().includes("PERMISSION_DENIED") ? (
-                  <div className="space-y-2">
-                    <p className="text-[9px] text-red-500 font-bold leading-relaxed">
-                      critical: identity protocol requires "identity toolkit api" and correct "iam roles" (including service usage consumer) for the service account in project {nodeId || 'hirenest-os'}.
-                    </p>
-                    <div className="flex gap-2">
-                        <a 
-                          href={`https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=${nodeId || 'hirenest-os'}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block bg-red-600 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
-                        >
-                          Enable API
-                        </a>
-                        <a 
-                          href={`https://console.cloud.google.com/iam-admin/iam?project=${nodeId || 'hirenest-os'}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block bg-slate-800 text-white text-[9px] font-black px-3 py-2 rounded-lg hover:bg-slate-900 transition-all uppercase tracking-tighter"
-                        >
-                          Grant IAM Roles
-                        </a>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-            
-            <form onSubmit={handleCreateUser} className="space-y-6">
+      {/* Notifications */}
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-center gap-3 text-sm font-medium">
+          <AlertCircle size={18} className="text-rose-600 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {successMsg && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl flex items-center gap-3 text-sm font-medium">
+          <ShieldCheck size={18} className="text-emerald-600 flex-shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Layout Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column: Onboard New User Form */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+              <UserPlus className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-900">Provision User Identity</h2>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-slate-500 lowercase tracking-widest mb-2">entity name</label>
-                <input
-                  type="text"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
-                  placeholder="e.g. apex agency"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 lowercase tracking-widest mb-2">node email</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">User Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
-                  placeholder="user@example.com"
+                  placeholder="name@company.com"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-medium outline-none transition-all"
                 />
               </div>
- 
+
               <div>
-                <label className="block text-[10px] font-black text-slate-500 lowercase tracking-widest mb-2">initial key</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Initial Password</label>
                 <input
-                  type="text" 
+                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none"
-                  placeholder="secure key"
+                  placeholder="Min 6 characters"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-medium outline-none transition-all"
                 />
               </div>
- 
+
               <div>
-                <label className="block text-[10px] font-black text-slate-500 lowercase tracking-widest mb-2">node role</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Authoritative Role</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl p-4 text-sm font-bold focus:bg-white transition-all outline-none appearance-none"
+                  onChange={(e) => {
+                    const newR = e.target.value as SystemRole;
+                    setRole(newR);
+                    setSelectedOrgId("");
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-semibold outline-none transition-all"
                 >
-                  {roles.filter(r => r.value !== 'admin').map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                  <option value="admin">platform authority (hq)</option>
+                  <optgroup label="Governance (HQ)">
+                    <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                    <option value="BUSINESS_OPERATIONS">Business Operations (HQ)</option>
+                  </optgroup>
+                  <optgroup label="Demand (Clients)">
+                    <option value="CLIENT_ADMIN">Client Admin</option>
+                    <option value="CLIENT_HM">Client Hiring Manager</option>
+                    <option value="CLIENT_FINANCE">Client Finance</option>
+                  </optgroup>
+                  <optgroup label="Supply (Vendors)">
+                    <option value="VENDOR_ADMIN">Vendor Admin</option>
+                    <option value="VENDOR_RECRUITER">Vendor Recruiter</option>
+                  </optgroup>
                 </select>
               </div>
- 
-              <Button 
-                type="submit" 
-                disabled={isSubmitting} 
-                className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-slate-900 font-black lowercase tracking-[0.2em] text-[11px] transition-all shadow-xl shadow-indigo-100"
+
+              {/* Hierarchy enforcement: Vendor Recruiter requires mapped Vendor Org */}
+              {role === "VENDOR_RECRUITER" ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Mapped Vendor Organization <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={selectedOrgId}
+                    onChange={(e) => setSelectedOrgId(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-medium outline-none transition-all"
+                  >
+                    <option value="">Select Vendor Agency...</option>
+                    {vendorOrgs.map((vo) => (
+                      <option key={vo.id} value={vo.id}>
+                        {vo.companyName || vo.name || vo.id} ({vo.id})
+                      </option>
+                    ))}
+                    {vendorOrgs.length === 0 && <option value="ORG-VENDOR-DEFAULT">Default Vendor Agency (ORG-VENDOR-DEFAULT)</option>}
+                  </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Recruiters must be strictly mapped under a parent Vendor entity.
+                  </p>
+                </div>
+              ) : role.startsWith("CLIENT") ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Client Organization (Optional)
+                  </label>
+                  <select
+                    value={selectedOrgId}
+                    onChange={(e) => setSelectedOrgId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-medium outline-none transition-all"
+                  >
+                    <option value="">Auto-create or pick client...</option>
+                    {clientOrgs.map((co) => (
+                      <option key={co.id} value={co.id}>
+                        {co.companyName || co.name || co.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Company / Entity Name</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Apex Staffing / Enterprise Corp"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white rounded-xl p-3 text-sm font-medium outline-none transition-all"
+                />
+              </div>
+
+              {/* Real-time Permission Preview */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>Permissions granted by this role</span>
+                  <span className="text-indigo-600">{ROLE_CATALOG[role].permissions.length} total</span>
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1 text-xs text-slate-600">
+                  {ROLE_CATALOG[role].permissions.map((perm) => (
+                    <div key={perm} className="flex items-center gap-1.5">
+                      <Check size={12} className="text-emerald-600 flex-shrink-0" />
+                      <span className="font-mono text-[11px]">{perm}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition-all"
               >
-                {isSubmitting ? "syncing..." : "onboard identity"}
+                {isSubmitting ? "Provisioning..." : "Provision User"}
               </Button>
             </form>
           </div>
- 
-          <div className="bg-slate-900 rounded-[32px] p-8 text-white">
-            <h3 className="text-[10px] font-black lowercase tracking-[0.3em] text-slate-500 mb-6 text-center">Protocol Connectivity</h3>
-            <div className="space-y-4">
-               <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Node ID</span>
-                 <span className="text-[10px] font-mono text-indigo-400 truncate max-w-[120px]">{dbStatus.projectId}</span>
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Sync Status</span>
-                 <span className={cn(
-                   "text-[10px] font-black lowercase tracking-widest",
-                   dbStatus.connected ? "text-emerald-400" : "text-amber-400"
-                 )}>
-                   {dbStatus.connected ? "verified" : "fallback_mode"}
-                 </span>
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black lowercase tracking-widest text-slate-400">Last Latency</span>
-                 <span className="text-[10px] font-mono text-slate-500">{dbStatus.lastCheck}</span>
-               </div>
-               <div className="pt-4 border-t border-slate-800">
-                  <Button 
-                    variant="ghost" 
-                    onClick={fetchUsers}
-                    className="w-full text-[9px] h-8 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg tracking-widest uppercase font-black"
-                  >
-                    Refresh Matrix
-                  </Button>
-               </div>
-            </div>
-          </div>
-
-          <div className="bg-white border-2 border-slate-50 rounded-[32px] p-8">
-            <h3 className="text-[10px] font-black lowercase tracking-[0.3em] text-slate-400 mb-6 text-center">node composition</h3>
-            <div className="space-y-4">
-               {['GOVERNANCE', 'DEMAND', 'SUPPLY'].map(cat => {
-                 const count = users.filter(u => getRoleCategory(u.role) === cat).length;
-                 return (
-                   <div key={cat} className="flex items-center justify-between">
-                     <span className="text-[10px] font-black lowercase tracking-widest text-slate-500">{cat.toLowerCase()}</span>
-                     <span className="bg-slate-50 px-3 py-1 rounded-lg text-[10px] text-slate-900 font-black">{count}</span>
-                   </div>
-                 );
-               })}
-            </div>
-          </div>
         </div>
 
-        <div className="lg:col-span-3 space-y-6">
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY", "ONBOARDING", "PERMISSIONS"] as const).map(tab => (
+        {/* Right Column: User Management Matrix & Role Catalog */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Tabs */}
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
+            {(["ALL", "GOVERNANCE", "DEMAND", "SUPPLY", "PERMISSIONS"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "px-6 py-3 rounded-xl text-[10px] font-black lowercase tracking-widest transition-all relative",
-                  activeTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                  "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                  activeTab === tab ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 )}
               >
-                {tab.toLowerCase()}
-                {tab === "ONBOARDING" && onboardingRequests.filter(r => r.verificationStatus === 'PENDING').length > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">{onboardingRequests.filter(r => r.verificationStatus === 'PENDING').length}</span>
-                )}
+                {tab === "ALL" ? "All Users" : tab === "PERMISSIONS" ? "Role & Permissions Catalog" : tab}
               </button>
             ))}
           </div>
 
-          <div className="bg-white border-2 border-slate-50 rounded-[40px] p-10 shadow-sm">
-            <div className="space-y-4">
+          {activeTab === "PERMISSIONS" ? (
+            /* Authoritative Role Catalog Tab */
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Authoritative Role & Permission Catalog</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Single source of truth role definitions. No arbitrary or unassigned permissions.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {AUTHORITATIVE_ROLES.map((roleDef) => (
+                  <div key={roleDef.id} className="border border-slate-200 rounded-2xl p-5 bg-slate-50/50 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-slate-900 text-base">{roleDef.displayName}</span>
+                        <span className="text-xs font-mono text-slate-500">[{roleDef.id}]</span>
+                        {roleDef.isAdminEquivalent && (
+                          <span className="px-2 py-0.5 bg-slate-900 text-white rounded text-[10px] font-black uppercase">
+                            Admin Equivalent
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                        Category: {roleDef.category}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600">{roleDef.description}</p>
+                    <div className="text-xs font-semibold text-slate-500">
+                      <strong>Scope:</strong> {roleDef.scopeDescription}
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        Authoritative Permissions ({roleDef.permissions.length})
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 bg-white p-3 rounded-xl border border-slate-200">
+                        {roleDef.permissions.map((p) => (
+                          <div key={p} className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                            <Check size={12} className="text-emerald-600 flex-shrink-0" />
+                            <span className="font-mono">{p}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Users List */
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-base font-bold text-slate-900">
+                  Registered Identities ({filteredUsers.length})
+                </h2>
+              </div>
+
               {loading ? (
-                <div className="py-32 text-center text-[10px] font-black lowercase tracking-[0.3em] text-slate-400">syncing matrix...</div>
-              ) : activeTab === "PERMISSIONS" ? (
-                <div className="space-y-6">
-                   <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
-                      <h3 className="text-sm font-black lowercase italic tracking-tight">saas capability matrix</h3>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Pricing & Variations</p>
-                   </div>
-                   <div className="space-y-4">
-                     {[
-                       { role: "super_admin", access: "Full System Write & Read, Billing, Orchestration", tier: "Global HQ" },
-                       { role: "vendor_admin", access: "Vendor OS, Master Agency Settings, Sub-recruiter Management, Job Visibility", tier: "Enterprise Vendor" },
-                       { role: "vendor_recruiter", access: "Candidate Submission, Job Matching, Deal Rooms", tier: "Sub-seat (Vendor)" },
-                       { role: "client_admin", access: "Client OS, Requisition Creation, Candidate Review, Offers", tier: "Enterprise Client" },
-                       { role: "independent", access: "Single-seat Recruiting, Job Matching, Candidate Submission", tier: "Pro Seat" },
-                     ].map((item, idx) => (
-                       <div key={idx} className="flex flex-col md:flex-row justify-between p-6 bg-slate-50 rounded-[28px] border-2 border-slate-100 items-start md:items-center gap-4">
-                         <div>
-                           <div className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-1">{item.role}</div>
-                           <div className="text-sm font-medium text-slate-700">{item.access}</div>
-                         </div>
-                         <div className="bg-white px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase border border-slate-200">
-                           {item.tier}
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-              ) : activeTab === "ONBOARDING" ? (
-                <div className="space-y-6">
-                   <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
-                      <h3 className="text-sm font-black lowercase italic tracking-tight">network verification center</h3>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global Admission Queue</p>
-                   </div>
-                   {onboardingRequests.map(req => (
-                     <div key={req.id} className="group p-6 bg-slate-50 border-2 border-slate-100 rounded-[32px] hover:border-indigo-200 hover:bg-white hover:shadow-2xl transition-all">
-                        <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-6">
-                              <div className={cn(
-                                "h-14 w-14 rounded-2xl flex items-center justify-center text-white font-black",
-                                req.verificationStatus === 'VERIFIED' ? 'bg-emerald-500' : 'bg-indigo-600'
-                              )}>
-                                 {safeInitial(req.companyName || req.email, 'O')}
-                              </div>
-                              <div>
-                                 <div className="text-sm font-black text-slate-900 tracking-tight">{req.companyName || 'Unnamed Entity'}</div>
-                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] text-slate-400 font-bold lowercase tracking-widest">{req.email || 'No email'}</span>
-                                    <span className="h-1 w-1 rounded-full bg-slate-200" />
-                                    <span className={cn(
-                                      "text-[10px] font-black uppercase tracking-tighter",
-                                      req.type === 'client' ? 'text-indigo-600' : 'text-amber-600'
-                                    )}>{req.type} invitation</span>
-                                 </div>
-                                 <div className="mt-2 flex items-center gap-2">
-                                    <span className={cn(
-                                      "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
-                                      req.verificationStatus === 'PENDING' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
-                                    )}>{req.verificationStatus}</span>
-                                    <span className="text-[10px] font-black text-red-500 ml-2">Risk: {req.riskScore}</span>
-                                 </div>
-                              </div>
-                           </div>
-                           
-                           {req.verificationStatus === 'PENDING' && (
-                             <div className="flex items-center gap-3">
-                                <select 
-                                  className="bg-white border border-slate-200 rounded-lg text-[10px] font-bold p-2 outline-none focus:ring-1 focus:ring-indigo-500"
-                                  id={`role-${req.id}`}
-                                >
-                                  {roles.filter(r => !r.value.includes('hq')).map(r => (
-                                    <option key={r.value} value={r.value}>{r.label}</option>
-                                  ))}
-                                </select>
-                                <Button 
-                                  size="sm"
-                                  onClick={() => {
-                                    const roleSelect = document.getElementById(`role-${req.id}`) as HTMLSelectElement;
-                                    handleApproveRequest(req.id, roleSelect.value);
-                                  }}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black py-2 px-6"
-                                >
-                                  Approve & Provision
-                                </Button>
-                             </div>
-                           )}
-                        </div>
-                     </div>
-                   ))}
-                   {onboardingRequests.length === 0 && (
-                     <div className="py-20 text-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100">
-                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Queue Empty</p>
-                     </div>
-                   )}
-                </div>
+                <div className="py-16 text-center text-sm font-semibold text-slate-400">Loading user matrix...</div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="py-16 text-center text-sm font-semibold text-slate-400">No users found in this category.</div>
               ) : (
-                <>
-                  {filteredUsers.map(u => (
-                    <SafeUserRow 
-                       key={u.id || Math.random().toString()} 
-                       u={u} 
-                       getRoleCategory={getRoleCategory} 
-                       safeInitial={safeInitial} 
-                       getRoleLabel={getRoleLabel} 
-                       setSelectedUserForTracking={setSelectedUserForTracking} 
-                       VerificationBadge={VerificationBadge} 
-                       auth={auth} 
-                       setIsSubmitting={setIsSubmitting} 
-                       setUserToDelete={setUserToDelete} 
-                       setEditingUser={setEditingUser} 
-                       isSubmitting={isSubmitting} 
-                       handleSyncUserRole={handleSyncUserRole}
-                    />
-                  ))}
-                  {false && filteredUsers.map(u => (
-                    <div key={u.id} className="group flex items-center justify-between p-6 bg-white border-2 border-slate-50 rounded-[28px] hover:border-indigo-100 hover:shadow-xl hover:shadow-slate-50 transition-all">
-                      <div className="flex items-center gap-6">
-                        <div className={cn(
-                          "h-12 w-12 rounded-2xl flex items-center justify-center font-black",
-                          getRoleCategory(u.role) === 'GOVERNANCE' ? 'bg-slate-900 text-white' :
-                          getRoleCategory(u.role) === 'DEMAND' ? 'bg-indigo-600 text-white' : 'bg-amber-500 text-white'
-                        )}>
-                          {safeInitial(u.email || u.displayName || u.name, 'U')}
+                <div className="space-y-3">
+                  {filteredUsers.map((u) => {
+                    const roleDef = ROLE_CATALOG[u.role as SystemRole];
+                    const isInactive = u.status === "INACTIVE" || u.disabled;
+
+                    return (
+                      <div
+                        key={u.uid || u.id}
+                        className={cn(
+                          "flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl border transition-all gap-4",
+                          isInactive
+                            ? "bg-slate-50 border-slate-200 opacity-60"
+                            : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm"
+                        )}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 mt-0.5",
+                              roleDef?.category === "GOVERNANCE"
+                                ? "bg-slate-900 text-white"
+                                : roleDef?.category === "DEMAND"
+                                ? "bg-indigo-600 text-white"
+                                : "bg-amber-600 text-white"
+                            )}
+                          >
+                            {(u.email || "U").charAt(0).toUpperCase()}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => setSelectedUserDetail(u)}
+                                className="font-bold text-slate-900 hover:text-indigo-600 text-sm underline decoration-slate-200 underline-offset-2 text-left"
+                              >
+                                {u.email}
+                              </button>
+                              {roleDef?.isAdminEquivalent && (
+                                <span className="px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black uppercase rounded">
+                                  HQ Authority
+                                </span>
+                              )}
+                              {isInactive && (
+                                <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[9px] font-black uppercase rounded">
+                                  Deactivated / Inactive
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                              <span className="font-semibold text-slate-700">{roleDef?.displayName || u.role}</span>
+                              <span>•</span>
+                              <span>{u.org?.companyName || u.organizationId || "HireNest Workforce"}</span>
+                              {u.vendorId && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-amber-700 font-medium">Vendor: {u.vendorId}</span>
+                                </>
+                              )}
+                            </div>
+
+                            {u.createdByEmail && (
+                              <div className="text-[11px] text-slate-400">
+                                Created by: <span className="text-slate-600 font-medium">{u.createdByEmail}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-black text-slate-900 lowercase tracking-tight flex items-center gap-2">
-                            <button onClick={() => setSelectedUserForTracking(u)} className="hover:text-indigo-600 transition-colors text-left underline decoration-slate-200 underline-offset-4">
-                              {u.email || u.displayName || u.name || 'Anonymous User'}
-                            </button>
-                            {u.role === 'admin' && <Check size={12} className="text-indigo-600" />}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1">
-                             <span className="text-[10px] text-slate-400 font-bold lowercase tracking-widest">
-                               {u.org?.companyName?.toLowerCase() || 'unmapped entity'}
-                               {u.org?.plan && (
-                                 <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] uppercase font-black">
-                                   {u.org.plan}
-                                 </span>
-                               )}
-                             </span>
-                             <span className="h-1 w-1 rounded-full bg-slate-200" />
-                             <span className={cn(
-                               "text-[10px] font-black lowercase tracking-widest",
-                               getRoleCategory(u.role) === 'GOVERNANCE' ? 'text-slate-900' :
-                               getRoleCategory(u.role) === 'DEMAND' ? 'text-indigo-600' : 'text-amber-600'
-                             )}>
-                               {getRoleLabel(u.role).toLowerCase()}
-                             </span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-4">
-                             <VerificationBadge verification={u.verification} role={u.role} email={u.email} />
-                             <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                               <Clock size={12} className="text-slate-400" />
-                               {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
-                             </div>
-                             <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                               <span className={cn("w-1.5 h-1.5 rounded-full", u.disabled ? "bg-red-500" : "bg-emerald-500")} />
-                               {u.disabled ? 'Disabled' : 'Active'}
-                             </div>
-                          </div>
+
+                        <div className="flex items-center gap-2 self-end md:self-center">
+                          <Button
+                            variant="outline"
+                            onClick={() => setSelectedUserDetail(u)}
+                            className="text-xs h-9 px-3 rounded-xl border-slate-200 hover:bg-slate-50"
+                          >
+                            <Eye size={14} className="mr-1.5" />
+                            View Permissions
+                          </Button>
+
+                          {!isInactive && (
+                            <>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setUserToChangeRole(u);
+                                  setNewRoleForChange(u.role);
+                                  setNewVendorIdForChange(u.vendorId || "");
+                                }}
+                                className="text-xs h-9 px-3 rounded-xl border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+                              >
+                                Change Role
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                onClick={() => setUserToDeactivate(u)}
+                                className="text-xs h-9 px-3 rounded-xl border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
+                              >
+                                Deactivate
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button 
-                            onClick={async () => {
-                              if (confirm(`Sync ${u.email} role [${u.role}] to Custom Claims? This enables enterprise rule enforcement.`)) {
-                                try {
-                                  setIsSubmitting(true);
-                                  console.log("[IAM Custom Claims Sync] Requesting fresh client ID token..."); const token = await auth.currentUser?.getIdToken();
-                                  const resp = await fetch('/api/assign-role', {
-                                    method: 'POST',
-                                    headers: { 
-                                      'Content-Type': 'application/json',
-                                      'Authorization': `Bearer ${token}` 
-                                    },
-                                    body: JSON.stringify({ uid: u.id, role: u.role, organizationId: u.organizationId })
-                                  });
-                                  if (resp.ok) alert("IAM Role synchronized. Access Protocol Updated.");
-                                  else alert("IAM sync failed.");
-                                } catch (e) {
-                                  alert("Network handshake failure");
-                                } finally {
-                                  setIsSubmitting(false);
-                                }
-                              }
-                            }}
-                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                            title="Sync IAM Custom Claims"
-                         >
-                            <Lock size={16} />
-                         </button>
-                         <button 
-                            onClick={() => setUserToDelete({ id: u.id, orgId: u.organizationId, email: u.email, name: u.name || "Unknown", role: u.role, data: u })}
-                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                         >
-                            <Trash2 size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredUsers.length === 0 && (
-                    <div className="py-20 text-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100">
-                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Zero Nodes in Category</p>
-                    </div>
-                  )}
-                </>
+                    );
+                  })}
+                </div>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Delete User Confirmation Modal */}
-      {userToDelete && (
+      {/* User Details & Permissions Modal (Exact Layout Matching Specification) */}
+      {selectedUserDetail && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
-                <Trash2 size={32} className="text-red-500" />
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">{selectedUserDetail.email}</h2>
+                <p className="text-sm font-bold text-indigo-600">
+                  {ROLE_CATALOG[selectedUserDetail.role as SystemRole]?.displayName || selectedUserDetail.role}
+                </p>
               </div>
-            </div>
-            
-            <h2 className="text-xl font-bold text-center text-slate-900 mb-2">Delete User Permanently</h2>
-            
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6">
-              <div className="flex justify-between py-2 border-b border-slate-200">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Name</span>
-                <span className="text-sm font-semibold text-slate-900">{userToDelete.name}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-200">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Email</span>
-                <span className="text-sm font-semibold text-slate-900">{userToDelete.email}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Role</span>
-                <span className="text-sm font-semibold text-slate-900">{getRoleLabel(userToDelete.role)}</span>
-              </div>
-            </div>
-            
-            <p className="text-center text-sm font-semibold text-red-600 mb-6 px-4">
-              ⚠️ This action cannot be undone. It is highly recommended to export their data before permanent deletion.
-            </p>
-            
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => {
-                  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userToDelete.data || userToDelete, null, 2));
-                  const dlAnchorElem = document.createElement('a');
-                  dlAnchorElem.setAttribute("href", dataStr);
-                  dlAnchorElem.setAttribute("download", `user_export_${userToDelete.email}.json`);
-                  dlAnchorElem.click();
-                }}
-                className="w-full py-3 px-4 rounded-xl border-2 border-indigo-100 bg-indigo-50 text-indigo-700 font-black tracking-widest uppercase text-[10px] hover:bg-indigo-100 transition-colors"
-                disabled={isSubmitting}
+              <button
+                onClick={() => setSelectedUserDetail(null)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1"
               >
-                Export Data (JSON)
+                ✕
               </button>
-              
-              <div className="flex gap-4">
-                <button 
-                  onClick={() => setUserToDelete(null)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={executeDeleteUser}
-                  disabled={isSubmitting}
-                  className="flex-1 py-3 px-4 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? "Deleting..." : "Delete Permanently"}
-                </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">ROLE</span>
+                <span className="text-sm font-bold text-slate-900">
+                  {ROLE_CATALOG[selectedUserDetail.role as SystemRole]?.displayName}
+                </span>
               </div>
+
+              {ROLE_CATALOG[selectedUserDetail.role as SystemRole]?.isAdminEquivalent && (
+                <div className="inline-block px-3 py-1 bg-slate-900 text-white text-xs font-black uppercase rounded-lg tracking-wider">
+                  ADMIN-EQUIVALENT
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl text-xs">
+                <div>
+                  <span className="text-slate-400 font-bold block mb-0.5">Created By</span>
+                  <span className="font-semibold text-slate-700">
+                    {selectedUserDetail.createdByEmail || selectedUserDetail.createdByUserId || "System Genesis"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block mb-0.5">Created At</span>
+                  <span className="font-semibold text-slate-700">
+                    {selectedUserDetail.createdAt ? new Date(selectedUserDetail.createdAt).toLocaleString() : "Unknown"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block mb-0.5">Organization / Mapped Vendor</span>
+                  <span className="font-semibold text-slate-700">
+                    {selectedUserDetail.org?.companyName || selectedUserDetail.organizationId || "HireNest Workforce"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block mb-0.5">Status</span>
+                  <span
+                    className={cn(
+                      "font-bold uppercase",
+                      selectedUserDetail.status === "ACTIVE" && !selectedUserDetail.disabled
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    )}
+                  >
+                    {selectedUserDetail.status || (selectedUserDetail.disabled ? "INACTIVE" : "ACTIVE")}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">
+                  ENABLED PERMISSIONS ({getPermissionsForRole(selectedUserDetail.role).length})
+                </span>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-56 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {getPermissionsForRole(selectedUserDetail.role).map((p) => (
+                    <div key={p} className="flex items-center gap-1.5 text-slate-700 font-mono text-[11px]">
+                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span>{p}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedUserDetail(null)}
+                className="rounded-xl text-xs font-bold"
+              >
+                Close
+              </Button>
+
+              {selectedUserDetail.status !== "INACTIVE" && !selectedUserDetail.disabled && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      setUserToChangeRole(selectedUserDetail);
+                      setNewRoleForChange(selectedUserDetail.role);
+                      setNewVendorIdForChange(selectedUserDetail.vendorId || "");
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl"
+                  >
+                    CHANGE ROLE
+                  </Button>
+                  <Button
+                    onClick={() => setUserToDeactivate(selectedUserDetail)}
+                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl"
+                  >
+                    DEACTIVATE
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Real-time Tracking Modal */}
-      {selectedUserForTracking && (
+      {/* Change Role Modal */}
+      {userToChangeRole && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
-            
-            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-              <h2 className="text-xl font-black text-slate-900 lowercase italic">identity telemetry</h2>
-              <span className={cn(
-                "px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest",
-                selectedUserForTracking.isOnline ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-              )}>
-                {selectedUserForTracking.isOnline ? "Active Session" : "Offline"}
-              </span>
+          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl relative space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Change Role & Permissions</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{userToChangeRole.email}</p>
+              </div>
+              <button
+                onClick={() => setUserToChangeRole(null)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1"
+              >
+                ✕
+              </button>
             </div>
-            
+
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                <div className={cn(
-                  "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl text-white",
-                  getRoleCategory(selectedUserForTracking.role) === 'GOVERNANCE' ? 'bg-slate-900' :
-                  getRoleCategory(selectedUserForTracking.role) === 'DEMAND' ? 'bg-indigo-600' : 'bg-amber-500'
-                )}>
-                  {safeInitial(selectedUserForTracking.email || selectedUserForTracking.displayName || selectedUserForTracking.name, 'U')}
-                </div>
-                <div>
-                  <div className="font-black text-slate-900 lowercase text-lg">{selectedUserForTracking.email || selectedUserForTracking.displayName || selectedUserForTracking.name || 'User'}</div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    {getRoleLabel(selectedUserForTracking.role)} Node
-                  </div>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Role</label>
+                <select
+                  value={newRoleForChange}
+                  onChange={(e) => setNewRoleForChange(e.target.value as SystemRole)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 rounded-xl p-3 text-sm font-semibold outline-none"
+                >
+                  <optgroup label="Governance (HQ)">
+                    <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                    <option value="BUSINESS_OPERATIONS">Business Operations (HQ)</option>
+                  </optgroup>
+                  <optgroup label="Demand (Clients)">
+                    <option value="CLIENT_ADMIN">Client Admin</option>
+                    <option value="CLIENT_HM">Client Hiring Manager</option>
+                    <option value="CLIENT_FINANCE">Client Finance</option>
+                  </optgroup>
+                  <optgroup label="Supply (Vendors)">
+                    <option value="VENDOR_ADMIN">Vendor Admin</option>
+                    <option value="VENDOR_RECRUITER">Vendor Recruiter</option>
+                  </optgroup>
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl border border-slate-100">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Login</div>
-                  <div className="font-bold text-slate-700 text-sm">
-                    {selectedUserForTracking.lastLoginAt ? new Date(selectedUserForTracking.lastLoginAt).toLocaleString() : 'Never'}
-                  </div>
+              {/* If Vendor Recruiter is selected, show Vendor mapping */}
+              {newRoleForChange === "VENDOR_RECRUITER" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Mapped Vendor Organization <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={newVendorIdForChange}
+                    onChange={(e) => setNewVendorIdForChange(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 rounded-xl p-3 text-sm font-semibold outline-none"
+                  >
+                    <option value="">Select Vendor...</option>
+                    {vendorOrgs.map((vo) => (
+                      <option key={vo.id} value={vo.id}>
+                        {vo.companyName || vo.name || vo.id} ({vo.id})
+                      </option>
+                    ))}
+                    {vendorOrgs.length === 0 && <option value="ORG-VENDOR-DEFAULT">Default Vendor Agency</option>}
+                  </select>
                 </div>
-                <div className="p-4 rounded-2xl border border-slate-100">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Created At</div>
-                  <div className="font-bold text-slate-700 text-sm">
-                    {selectedUserForTracking.createdAt ? new Date(selectedUserForTracking.createdAt).toLocaleString() : 'Unknown'}
-                  </div>
+              )}
+
+              {/* Dynamic Permissions Enabled By Role */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>Permissions enabled by this role</span>
+                  <span className="text-indigo-600 font-mono">{ROLE_CATALOG[newRoleForChange].permissions.length} total</span>
                 </div>
-                <div className="p-4 rounded-2xl border border-slate-100">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Organization</div>
-                  <div className="font-bold text-slate-700 text-sm">
-                    {selectedUserForTracking.org?.companyName || 'Unmapped'}
-                  </div>
-                </div>
-                <div className="p-4 rounded-2xl border border-slate-100">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">UID</div>
-                  <div className="font-mono text-slate-700 text-[10px] truncate">
-                    {selectedUserForTracking.uid || selectedUserForTracking.id}
-                  </div>
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 text-xs text-slate-700">
+                  {ROLE_CATALOG[newRoleForChange].permissions.map((perm) => (
+                    <div key={perm} className="flex items-center gap-1.5">
+                      <Check size={13} className="text-emerald-600 flex-shrink-0" />
+                      <span className="font-mono text-[11px]">{perm}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            
-            <div className="mt-8 flex justify-end">
-              <button 
-                onClick={() => setSelectedUserForTracking(null)}
-                className="py-3 px-8 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px] hover:bg-slate-800 transition-colors"
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button
+                variant="outline"
+                onClick={() => setUserToChangeRole(null)}
+                disabled={isSubmitting}
+                className="rounded-xl text-xs font-bold"
               >
-                Close Telemetry
-              </button>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveRoleChange}
+                disabled={isSubmitting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl px-5"
+              >
+                {isSubmitting ? "Saving..." : "Save Role & Permissions"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Safe Deactivate Modal */}
+      {userToDeactivate && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <ShieldAlert size={28} />
+              </div>
+              <h2 className="text-xl font-black text-slate-900">Deactivate & Revoke Access</h2>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to deactivate <strong>{userToDeactivate.email}</strong>?
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+                <span>Firebase active sessions revoked and Auth account disabled.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+                <span>Firestore status set to <code>INACTIVE</code>.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  <strong>Historical Preservation:</strong> Submissions, requirements, candidate profiles, interviews, offers, and audit logs remain strictly preserved.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setUserToDeactivate(null)}
+                disabled={isSubmitting}
+                className="rounded-xl text-xs font-bold flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExecuteDeactivate}
+                disabled={isSubmitting}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex-1"
+              >
+                {isSubmitting ? "Deactivating..." : "Deactivate & Revoke"}
+              </Button>
             </div>
           </div>
         </div>
@@ -1044,4 +937,3 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     </div>
   );
 }
-

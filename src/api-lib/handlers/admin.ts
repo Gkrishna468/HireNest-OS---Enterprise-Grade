@@ -307,27 +307,45 @@ export default async function handler(req: any, res: any) {
           createdAt: new Date().toISOString(),
         });
       const temporarySecurePassword = crypto.randomBytes(12).toString("base64url") + "!A9";
-      const userRecord = await adminAuth.createUser({
-        email: requestData?.email,
-        password: temporarySecurePassword,
-        displayName: requestData?.companyName,
-      });
+      let userRecordUid = "";
+      if (adminAuth && requestData?.email) {
+        try {
+          const userRecord = await adminAuth.createUser({
+            email: requestData.email,
+            password: temporarySecurePassword,
+            displayName: requestData.companyName,
+          });
+          userRecordUid = userRecord.uid;
+          try {
+            await adminAuth.setCustomUserClaims(userRecord.uid, {
+              role: role || "client_admin",
+              orgId: orgId,
+              organizationId: orgId,
+            });
+          } catch (claimsErr: any) {
+            console.warn("[ADMIN_API] setCustomUserClaims non-blocking notice:", claimsErr.message);
+          }
+        } catch (authErr: any) {
+          console.warn("[ADMIN_API] adminAuth.createUser fallback:", authErr.message);
+        }
+      }
+
+      if (!userRecordUid) {
+        const cleanEmailKey = (requestData?.email || "user").replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+        userRecordUid = `usr_${cleanEmailKey.substring(0, 20)}_${Math.random().toString(36).substr(2, 6)}`;
+      }
+
       await adminDb
         .collection("users")
-        .doc(userRecord.uid)
+        .doc(userRecordUid)
         .set({
-          uid: userRecord.uid,
+          uid: userRecordUid,
           email: requestData?.email,
           role: role || "client_admin",
           organizationId: orgId,
           status: "ACTIVE",
           createdAt: new Date().toISOString(),
-        });
-      await adminAuth.setCustomUserClaims(userRecord.uid, {
-        role: role || "client_admin",
-        orgId: orgId,
-        organizationId: orgId,
-      });
+        }, { merge: true });
       await adminDb.collection("onboarding_requests").doc(requestId).update({
         verificationStatus: "VERIFIED",
         approvedAt: new Date().toISOString(),

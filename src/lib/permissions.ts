@@ -1,29 +1,40 @@
-export const checkIsAdmin = (role?: string | null, orgId?: string | null) => {
+import { isRoleAdminEquivalent, normalizeRole } from "./rbac.js";
+
+export const checkIsAdmin = (role?: string | null, _orgId?: string | null) => {
   if (!role) return false;
-  const normalizedRole = role.toLowerCase().trim();
-  return (
-    normalizedRole === "admin" ||
-    normalizedRole === "super_admin" ||
-    normalizedRole === "ops_admin" ||
-    normalizedRole === "hq_admin" ||
-    orgId === "ORG-GLOBAL-HQ"
-  );
+  return isRoleAdminEquivalent(role);
+};
+
+export const checkIsBusinessOperations = (role?: string | null) => {
+  if (!role) return false;
+  const norm = normalizeRole(role);
+  return norm === "BUSINESS_OPERATIONS" || norm === "PLATFORM_AUTHORITY";
+};
+
+export const checkIsBusinessManager = (role?: string | null) => {
+  if (!role) return false;
+  const norm = normalizeRole(role);
+  return norm === "BUSINESS_OPERATIONS" || norm === "PLATFORM_AUTHORITY";
 };
 
 export const checkIsClient = (role: string) => {
-  return role === "client" || role === "client_admin" || role === "client_hm" || role === "client_finance" || role === "client_recruiter";
+  const norm = normalizeRole(role);
+  return norm === "CLIENT_ADMIN" || norm === "CLIENT_HM" || norm === "CLIENT_FINANCE";
 };
 
 export const checkIsVendor = (role: string) => {
-  return role === "vendor" || role === "vendor_admin" || role === "vendor_recruiter";
+  const norm = normalizeRole(role);
+  return norm === "VENDOR_ADMIN" || norm === "VENDOR_RECRUITER";
 };
 
 export const checkIsRecruiter = (role: string) => {
-  return role === "recruiter" || role === "independent_recruiter" || role === "freelancer_recruiter";
+  const norm = normalizeRole(role);
+  return norm === "VENDOR_RECRUITER";
 };
 
 export const checkIsIndependent = (role: string) => {
-  return role === "independent" || role === "independent_vendor" || role === "independent_consultant";
+  const norm = normalizeRole(role);
+  return norm === "VENDOR_RECRUITER";
 };
 
 export const checkIsCandidate = (role?: string | null) => {
@@ -42,4 +53,6 @@ export const CANDIDATE_PERMISSIONS = [
   "documents.read.own",
   "screening.submit.own"
 ] as const;
+
+
 
