@@ -1,5 +1,5 @@
-import { adminDb } from '../../lib/firebase-admin';
-import { AgentMemory, AgentExecutionContext } from './types';
+import { adminDb } from '../../lib/firebase-admin.js';
+import { AgentMemory, AgentExecutionContext } from './types.js';
 
 export class AgentExecutionContextHelper {
   /**

@@ -1,4 +1,4 @@
-import { AISkill } from '../skills/types';
+import { AISkill } from '../skills/types.js';
 
 export class SkillRegistry {
   private skills: Map<string, AISkill> = new Map();

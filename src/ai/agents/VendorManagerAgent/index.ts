@@ -1,10 +1,10 @@
-import { HireNestAgent, AgentMetadata, AgentExecutionContext, AgentResult } from '../../orchestrator/types';
-import { VendorManagerAgentMetadata } from './metadata';
-import { VENDOR_SYSTEM_PROMPT } from './prompts';
-import { AIGateway } from '../../../api-lib/services/AIGateway';
-import { AgentExecutionContextHelper } from '../../orchestrator/AgentExecutionContext';
-import { AgentResultHelper } from '../../orchestrator/AgentResult';
-import { globalAgentRegistry } from '../../orchestrator/AgentRegistry';
+import { HireNestAgent, AgentMetadata, AgentExecutionContext, AgentResult } from '../../orchestrator/types.js';
+import { VendorManagerAgentMetadata } from './metadata.js';
+import { VENDOR_SYSTEM_PROMPT } from './prompts.js';
+import { AIGateway } from '../../../api-lib/services/AIGateway.js';
+import { AgentExecutionContextHelper } from '../../orchestrator/AgentExecutionContext.js';
+import { AgentResultHelper } from '../../orchestrator/AgentResult.js';
+import { globalAgentRegistry } from '../../orchestrator/AgentRegistry.js';
 
 export class VendorManagerAgent implements HireNestAgent {
   metadata: AgentMetadata = VendorManagerAgentMetadata;

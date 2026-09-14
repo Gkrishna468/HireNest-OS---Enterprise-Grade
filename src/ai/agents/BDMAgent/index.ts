@@ -1,10 +1,10 @@
-import { HireNestAgent, AgentMetadata, AgentExecutionContext, AgentResult } from '../../orchestrator/types';
-import { BDMAgentMetadata } from './metadata';
-import { BDM_SYSTEM_PROMPT } from './prompts';
-import { AIGateway } from '../../../api-lib/services/AIGateway';
-import { AgentExecutionContextHelper } from '../../orchestrator/AgentExecutionContext';
-import { AgentResultHelper } from '../../orchestrator/AgentResult';
-import { globalAgentRegistry } from '../../orchestrator/AgentRegistry';
+import { HireNestAgent, AgentMetadata, AgentExecutionContext, AgentResult } from '../../orchestrator/types.js';
+import { BDMAgentMetadata } from './metadata.js';
+import { BDM_SYSTEM_PROMPT } from './prompts.js';
+import { AIGateway } from '../../../api-lib/services/AIGateway.js';
+import { AgentExecutionContextHelper } from '../../orchestrator/AgentExecutionContext.js';
+import { AgentResultHelper } from '../../orchestrator/AgentResult.js';
+import { globalAgentRegistry } from '../../orchestrator/AgentRegistry.js';
 
 export class BDMAgent implements HireNestAgent {
   metadata: AgentMetadata = BDMAgentMetadata;

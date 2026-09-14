@@ -1,4 +1,4 @@
-import { AgentMetadata, HireNestAgent } from './types';
+import { AgentMetadata, HireNestAgent } from './types.js';
 
 export class AgentRegistry {
   private agents: Map<string, HireNestAgent> = new Map();

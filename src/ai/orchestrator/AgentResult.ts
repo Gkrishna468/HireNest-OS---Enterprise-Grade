@@ -1,4 +1,4 @@
-import { AgentResult } from './types';
+import { AgentResult } from './types.js';
 
 export class AgentResultHelper {
   /**

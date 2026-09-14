@@ -1,5 +1,5 @@
-import { AISkill, SkillResult, SkillContext } from './types';
-import { globalSkillRegistry } from '../orchestrator/SkillRegistry';
+import { AISkill, SkillResult, SkillContext } from './types.js';
+import { globalSkillRegistry } from '../orchestrator/SkillRegistry.js';
 import { z } from 'zod';
 
 export const JDEnrichmentInputSchema = z.object({

@@ -1,4 +1,4 @@
-import { AgentMetadata } from '../../orchestrator/types';
+import { AgentMetadata } from '../../orchestrator/types.js';
 
 export const VendorManagerAgentMetadata: AgentMetadata = {
   id: 'vendor_manager_agent',

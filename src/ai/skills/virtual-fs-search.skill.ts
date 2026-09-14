@@ -1,6 +1,6 @@
-import { AISkill, SkillResult, SkillContext } from './types';
-import { globalSkillRegistry } from '../orchestrator/SkillRegistry';
-import { vfsAdapter, VFSQueryResult } from '../mirage/VirtualFilesystemAdapter';
+import { AISkill, SkillResult, SkillContext } from './types.js';
+import { globalSkillRegistry } from '../orchestrator/SkillRegistry.js';
+import { vfsAdapter, VFSQueryResult } from '../mirage/VirtualFilesystemAdapter.js';
 import { z } from 'zod';
 
 export const VirtualFSSearchInputSchema = z.object({

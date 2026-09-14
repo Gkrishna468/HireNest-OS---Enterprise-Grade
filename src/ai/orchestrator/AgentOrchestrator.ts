@@ -1,23 +1,23 @@
-import { globalSkillRegistry } from './SkillRegistry';
-import { SkillResult, SkillContext } from '../skills/types';
-import { globalAgentRegistry } from './AgentRegistry';
-import { AgentExecutionContext, AgentResult, HireNestAgent } from './types';
-import { AgentExecutionContextHelper } from './AgentExecutionContext';
-import { AgentResultHelper } from './AgentResult';
-import { AIGateway } from '../../api-lib/services/AIGateway';
+import { globalSkillRegistry } from './SkillRegistry.js';
+import { SkillResult, SkillContext } from '../skills/types.js';
+import { globalAgentRegistry } from './AgentRegistry.js';
+import { AgentExecutionContext, AgentResult, HireNestAgent } from './types.js';
+import { AgentExecutionContextHelper } from './AgentExecutionContext.js';
+import { AgentResultHelper } from './AgentResult.js';
+import { AIGateway } from '../../api-lib/services/AIGateway.js';
 
 // Ensure all agents register themselves by importing them
-import '../agents/RecruiterAgent/index';
-import '../agents/MatchingAgent/index';
-import '../agents/VendorManagerAgent/index';
-import '../agents/BDMAgent/index';
-import '../agents/ExecutiveDashboardAgent/index';
-import '../agents/RecruitmentAgentTeam';
-import '../agents/AccountIntelligenceAgent';
-import '../agents/AICOOResolutionEngine';
+import '../agents/RecruiterAgent/index.js';
+import '../agents/MatchingAgent/index.js';
+import '../agents/VendorManagerAgent/index.js';
+import '../agents/BDMAgent/index.js';
+import '../agents/ExecutiveDashboardAgent/index.js';
+import '../agents/RecruitmentAgentTeam.js';
+import '../agents/AccountIntelligenceAgent.js';
+import '../agents/AICOOResolutionEngine.js';
 
-import { GovernanceExecutionGate } from './GovernanceExecutionGate';
-import { AgentExecutionLedger } from './AgentExecutionLedger';
+import { GovernanceExecutionGate } from './GovernanceExecutionGate.js';
+import { AgentExecutionLedger } from './AgentExecutionLedger.js';
 
 // There is no dedicated RBAC/permission-issuing system anywhere in this
 // codebase — callers never populate `context.permissions` themselves, they
