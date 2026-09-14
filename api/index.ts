@@ -161,17 +161,117 @@ if (typeof (Math as any).sumPrecise !== 'function') {
 
 import { adminAuth } from '../src/lib/firebase-admin.js';
 import adminHandler from '../src/api-lib/handlers/admin.js';
+import agentsExecuteHandler from '../src/api-lib/handlers/agents-execute.js';
+import aiGatewayHandler from '../src/api-lib/handlers/ai-gateway.js';
+import aiHealthHandler from '../src/api-lib/handlers/ai-health.js';
+import analyticsHandler from '../src/api-lib/handlers/analytics.js';
+import automationEventsHandler from '../src/api-lib/handlers/automation-events.js';
+import billingHandler from '../src/api-lib/handlers/billing.js';
+import bulkParseResumesHandler from '../src/api-lib/handlers/bulk-parse-resumes.js';
+import candidateScreenHandler from '../src/api-lib/handlers/candidate-screen.js';
 import candidatesHandler from '../src/api-lib/handlers/candidates.js';
-import rescanMatchesHandler from '../src/api-lib/handlers/rescan-matches.js';
+import cleanupMatchesHandler from '../src/api-lib/handlers/cleanup-matches.js';
+import clientAiMatchesHandler from '../src/api-lib/handlers/client-ai-matches.js';
 import clientCandidateHandler from '../src/api-lib/handlers/client-candidate.js';
 import clientSubmissionsHandler from '../src/api-lib/handlers/client-submissions.js';
-import repairCandidatesHandler from '../src/api-lib/handlers/repair-candidates.js';
-import validateSubmissionHandler from '../src/api-lib/handlers/validate-submission.js';
-import parseJdHandler from '../src/api-lib/handlers/parse-jd.js';
+import communicationHandler from '../src/api-lib/handlers/communication.js';
+import copilotHandler from '../src/api-lib/handlers/copilot.js';
+import cronHandler from '../src/api-lib/handlers/cron.js';
+import dailyBriefingHandler from '../src/api-lib/handlers/daily-briefing.js';
+import eventsHandler from '../src/api-lib/handlers/events.js';
+import executiveMetricsHandler from '../src/api-lib/handlers/executive-metrics.js';
 import extractTextHandler from '../src/api-lib/handlers/extract-text.js';
-import publicCandidateResumeHandler from '../src/api-lib/handlers/public-candidate-resume.js';
+import googleProxyHandler from '../src/api-lib/handlers/google-proxy.js';
+import integrationsHandler from '../src/api-lib/handlers/integrations.js';
+import intelHandler from '../src/api-lib/handlers/intel.js';
+import interviewsHandler from '../src/api-lib/handlers/interviews.js';
+import killSwitchHandler from '../src/api-lib/handlers/kill-switch.js';
 import matchDetailedHandler from '../src/api-lib/handlers/match-candidates-detailed.js';
-import bulkParseResumesHandler from '../src/api-lib/handlers/bulk-parse-resumes.js';
+import matchHealthHandler from '../src/api-lib/handlers/match-health.js';
+import matchingGlobalHandler from '../src/api-lib/handlers/matching-global.js';
+import networkMappingHandler from '../src/api-lib/handlers/network-mapping.js';
+import oauthHandler from '../src/api-lib/handlers/oauth.js';
+import opsHandler from '../src/api-lib/handlers/ops.js';
+import parseJdHandler from '../src/api-lib/handlers/parse-jd.js';
+import publicCandidateResumeHandler from '../src/api-lib/handlers/public-candidate-resume.js';
+import publicHandler from '../src/api-lib/handlers/public.js';
+import reactivationHandler from '../src/api-lib/handlers/reactivation.js';
+import rebuildMatrixHandler from '../src/api-lib/handlers/rebuild-matrix.js';
+import recruiterOsHandler from '../src/api-lib/handlers/recruiter-os.js';
+import repairCandidatesHandler from '../src/api-lib/handlers/repair-candidates.js';
+import rescanMatchesHandler from '../src/api-lib/handlers/rescan-matches.js';
+import rescanResumeHandler from '../src/api-lib/handlers/rescan-resume.js';
+import resumeLedgerHandler from '../src/api-lib/handlers/resume-ledger.js';
+import rufloHandler from '../src/api-lib/handlers/ruflo.js';
+import searchCandidatesHandler from '../src/api-lib/handlers/search-candidates.js';
+import submissionsHandler from '../src/api-lib/handlers/submissions.js';
+import syncRequirementsHandler from '../src/api-lib/handlers/sync-requirements.js';
+import userAdminHandler from '../src/api-lib/handlers/user-admin.js';
+import userHandler from '../src/api-lib/handlers/user.js';
+import validateSubmissionHandler from '../src/api-lib/handlers/validate-submission.js';
+import workflowsHandler from '../src/api-lib/handlers/workflows.js';
+import workspaceHandler from '../src/api-lib/handlers/workspace.js';
+
+// --- DETERMINISTIC HANDLER REGISTRY ---
+const EXACT_HANDLER_REGISTRY: Record<string, any> = {
+  admin: adminHandler,
+  candidates: candidatesHandler,
+  'user-admin': userAdminHandler,
+  'create-user': userAdminHandler,
+  'assign-role': userAdminHandler,
+  'deactivate-user': userAdminHandler,
+  'reactivate-user': userAdminHandler,
+  'executive-metrics': executiveMetricsHandler,
+  'rescan-matches': rescanMatchesHandler,
+  'client-candidate': clientCandidateHandler,
+  'client-submissions': clientSubmissionsHandler,
+  'client-ai-matches': clientAiMatchesHandler,
+  submissions: submissionsHandler,
+  'repair-candidates': repairCandidatesHandler,
+  'validate-submission': validateSubmissionHandler,
+  'parse-jd': parseJdHandler,
+  'extract-text': extractTextHandler,
+  'public-candidate-resume': publicCandidateResumeHandler,
+  'match-detailed': matchDetailedHandler,
+  'match-candidates-detailed': matchDetailedHandler,
+  'matching-global': matchingGlobalHandler,
+  'bulk-parse': bulkParseResumesHandler,
+  'bulk-parse-resumes': bulkParseResumesHandler,
+  interviews: interviewsHandler,
+  intel: intelHandler,
+  analytics: analyticsHandler,
+  user: userHandler,
+  workflows: workflowsHandler,
+  oauth: oauthHandler,
+  google: googleProxyHandler,
+  workspace: workspaceHandler,
+  cron: cronHandler,
+  public: publicHandler,
+  communication: communicationHandler,
+  billing: billingHandler,
+  events: eventsHandler,
+  ruflo: rufloHandler,
+  'kill-switch': killSwitchHandler,
+  'recruiter-os': recruiterOsHandler,
+  'daily-briefing': dailyBriefingHandler,
+  'sync-requirements': syncRequirementsHandler,
+  agents: agentsExecuteHandler,
+  'ai-gateway': aiGatewayHandler,
+  'ai-health': aiHealthHandler,
+  'automation-events': automationEventsHandler,
+  'candidate-screen': candidateScreenHandler,
+  'cleanup-matches': cleanupMatchesHandler,
+  integrations: integrationsHandler,
+  copilot: copilotHandler,
+  'match-health': matchHealthHandler,
+  'network-mapping': networkMappingHandler,
+  ops: opsHandler,
+  reactivation: reactivationHandler,
+  'rebuild-matrix': rebuildMatrixHandler,
+  'rescan-resume': rescanResumeHandler,
+  'resume-ledger': resumeLedgerHandler,
+  'search-candidates': searchCandidatesHandler,
+};
 
 export default async function handler(req: any, res: any) {
   try {
@@ -243,75 +343,98 @@ export default async function handler(req: any, res: any) {
     });
     console.log("Matched API path:", path);
 
-    const loadHandler = async (modulePath: string) => {
-      try {
-        return (await import(modulePath)).default;
-      } catch (err: any) {
-        if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.message?.includes('Cannot find module')) {
-          const alternate = modulePath.endsWith('.js')
-            ? modulePath.slice(0, -3)
-            : `${modulePath}.js`;
-          return (await import(alternate)).default;
-        }
-        throw err;
-      }
-    };
+    // --- Deterministic Handler Lookup ---
+    let targetHandler: any = null;
 
-    let targetHandler: any;
-
-    if (path === 'candidates' || action === 'candidates' || action === 'all-candidates') targetHandler = candidatesHandler;
-    else if (path === 'rescan-matches' || action === 'rescan-matches') targetHandler = rescanMatchesHandler;
-    else if (path === 'admin')            targetHandler = adminHandler;
-    else if (path === 'user-admin' || path === 'create-user' || path === 'assign-role' || path === 'deactivate-user' || path?.startsWith('user-admin')) targetHandler = await loadHandler('../src/api-lib/handlers/user-admin.js');
-    else if (path === 'client-candidate') targetHandler = clientCandidateHandler;
-    else if (path === 'client-submissions') targetHandler = clientSubmissionsHandler;
-    else if (path === 'submissions' || path?.startsWith('submissions/')) targetHandler = await loadHandler('../src/api-lib/handlers/submissions.js');
-    else if (path === 'repair-candidates') targetHandler = repairCandidatesHandler;
-    else if (path === 'validate-submission') targetHandler = validateSubmissionHandler;
-    else if (path === 'parse-jd')          targetHandler = parseJdHandler;
-    else if (path === 'extract-text')      targetHandler = extractTextHandler;
-    else if (path === 'public-candidate-resume' || path === 'public/candidate-resume') targetHandler = publicCandidateResumeHandler;
-    else if (path === 'match-detailed')    targetHandler = matchDetailedHandler;
-    else if (path === 'bulk-parse' || path === 'bulk-parse-resumes')        targetHandler = bulkParseResumesHandler;
-    else if (path === 'interviews')        targetHandler = await loadHandler('../src/api-lib/handlers/interviews.js');
-    else if (path === 'intel')             targetHandler = await loadHandler('../src/api-lib/handlers/intel.js');
-    else if (path === 'analytics')         targetHandler = await loadHandler('../src/api-lib/handlers/analytics.js');
-    else if (path === 'user')              targetHandler = await loadHandler('../src/api-lib/handlers/user.js');
-    else if (path === 'workflows')         targetHandler = await loadHandler('../src/api-lib/handlers/workflows.js');
-    else if (path?.startsWith('oauth'))    targetHandler = await loadHandler('../src/api-lib/handlers/oauth.js');
-    else if (path?.startsWith('google'))   targetHandler = await loadHandler('../src/api-lib/handlers/google-proxy.js');
-    else if (path?.startsWith('workspace')) targetHandler = await loadHandler('../src/api-lib/handlers/workspace.js');
-    else if (path?.startsWith('cron'))      targetHandler = await loadHandler('../src/api-lib/handlers/cron.js');
-    else if (path?.startsWith('public'))    targetHandler = await loadHandler('../src/api-lib/handlers/public.js');
-    else if (path?.startsWith('communication')) targetHandler = await loadHandler('../src/api-lib/handlers/communication.js');
-    else if (path?.startsWith('billing'))   targetHandler = await loadHandler('../src/api-lib/handlers/billing.js');
-    else if (path?.startsWith('events'))    targetHandler = await loadHandler('../src/api-lib/handlers/events.js');
-    else if (path?.startsWith('ruflo'))     targetHandler = await loadHandler('../src/api-lib/handlers/ruflo.js');
-    else if (path?.startsWith('kill-switch')) targetHandler = await loadHandler('../src/api-lib/handlers/kill-switch.js');
-    else if (path?.startsWith('recruiter-os')) targetHandler = await loadHandler('../src/api-lib/handlers/recruiter-os.js');
-    else if (path?.startsWith('executive-metrics')) targetHandler = await loadHandler('../src/api-lib/handlers/executive-metrics.js');
-    else if (path?.startsWith('daily-briefing')) targetHandler = await loadHandler('../src/api-lib/handlers/daily-briefing.js');
-    else if (path === 'sync-requirements' || path?.startsWith('sync-requirements')) targetHandler = await loadHandler('../src/api-lib/handlers/sync-requirements.js');
-    else if (path === 'agents' || path?.startsWith('agents/')) targetHandler = await loadHandler('../src/api-lib/handlers/agents-execute.js');
-    else if (path === 'ops' || path?.startsWith('ops/')) {
+    if (path && EXACT_HANDLER_REGISTRY[path]) {
+      targetHandler = EXACT_HANDLER_REGISTRY[path];
+    } else if (path?.startsWith('user-admin/')) {
+      targetHandler = userAdminHandler;
+    } else if (path?.startsWith('submissions/')) {
+      targetHandler = submissionsHandler;
+    } else if (path?.startsWith('agents/')) {
+      targetHandler = agentsExecuteHandler;
+    } else if (path?.startsWith('oauth')) {
+      targetHandler = oauthHandler;
+    } else if (path?.startsWith('google')) {
+      targetHandler = googleProxyHandler;
+    } else if (path?.startsWith('workspace')) {
+      targetHandler = workspaceHandler;
+    } else if (path?.startsWith('cron')) {
+      targetHandler = cronHandler;
+    } else if (path?.startsWith('public')) {
+      targetHandler = publicHandler;
+    } else if (path?.startsWith('communication')) {
+      targetHandler = communicationHandler;
+    } else if (path?.startsWith('billing')) {
+      targetHandler = billingHandler;
+    } else if (path?.startsWith('events')) {
+      targetHandler = eventsHandler;
+    } else if (path?.startsWith('ruflo')) {
+      targetHandler = rufloHandler;
+    } else if (path?.startsWith('kill-switch')) {
+      targetHandler = killSwitchHandler;
+    } else if (path?.startsWith('recruiter-os')) {
+      targetHandler = recruiterOsHandler;
+    } else if (path?.startsWith('executive-metrics')) {
+      targetHandler = executiveMetricsHandler;
+    } else if (path?.startsWith('daily-briefing')) {
+      targetHandler = dailyBriefingHandler;
+    } else if (path?.startsWith('sync-requirements')) {
+      targetHandler = syncRequirementsHandler;
+    } else if (path?.startsWith('ops/')) {
       req.path = '/' + path;
-      targetHandler = await loadHandler('../src/api-lib/handlers/ops.js');
-    }
-    else {
-      // Provide fallback based on `action` parameter if `path` is not exactly one of the above.
+      targetHandler = opsHandler;
+    } else if (action) {
+      // Fallback based on `action` parameter if `path` was generic or rewrite-mapped
       switch (action) {
-        case 'candidate': targetHandler = clientCandidateHandler; break;
-        case 'submissions': targetHandler = clientSubmissionsHandler; break;
-        case 'repair': targetHandler = repairCandidatesHandler; break;
-        case 'validate-submission': targetHandler = validateSubmissionHandler; break;
-        case 'parse-jd': targetHandler = parseJdHandler; break;
-        case 'extract-text': targetHandler = extractTextHandler; break;
-        case 'public-candidate-resume': targetHandler = publicCandidateResumeHandler; break;
-        case 'match-detailed': targetHandler = matchDetailedHandler; break;
+        case 'candidates':
+        case 'all-candidates':
+          targetHandler = candidatesHandler;
+          break;
+        case 'rescan-matches':
+          targetHandler = rescanMatchesHandler;
+          break;
+        case 'candidate':
+          targetHandler = clientCandidateHandler;
+          break;
+        case 'submissions':
+          targetHandler = clientSubmissionsHandler;
+          break;
+        case 'repair':
+          targetHandler = repairCandidatesHandler;
+          break;
+        case 'validate-submission':
+          targetHandler = validateSubmissionHandler;
+          break;
+        case 'parse-jd':
+          targetHandler = parseJdHandler;
+          break;
+        case 'extract-text':
+          targetHandler = extractTextHandler;
+          break;
+        case 'public-candidate-resume':
+          targetHandler = publicCandidateResumeHandler;
+          break;
+        case 'match-detailed':
+          targetHandler = matchDetailedHandler;
+          break;
         case 'bulk-parse':
-        case 'bulk-parse-resumes': targetHandler = bulkParseResumesHandler; break;
-        default: targetHandler = adminHandler; break;
+        case 'bulk-parse-resumes':
+          targetHandler = bulkParseResumesHandler;
+          break;
+        case 'create':
+        case 'delete':
+        case 'assign':
+        case 'context':
+          targetHandler = userHandler;
+          break;
+        default:
+          targetHandler = adminHandler;
+          break;
       }
+    } else {
+      targetHandler = adminHandler;
     }
 
     if (targetHandler) {

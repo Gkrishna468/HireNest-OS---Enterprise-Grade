@@ -131,6 +131,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "users.create",
       "users.update_role",
       "users.deactivate",
+      "users.reactivate",
       "audit.read",
     ],
   },
@@ -249,7 +250,6 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "requirements.read",
       "budgets.manage",
       "budgets.read",
-      "budget.read",
       "commercials.read",
       "placements.read",
     ],
@@ -266,6 +266,8 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
     permissions: [
       "dashboard.read",
       "requirements.read",
+      "vendors.read",
+      "vendors.update",
       "vendors.manage_recruiters",
       "candidates.read",
       "candidates.create",
@@ -425,14 +427,19 @@ export function canActorAssignRole(actorRole: string | null | undefined, targetR
   const isActorAdmin = isRoleAdminEquivalent(actorRole);
   const isTargetAdmin = isRoleAdminEquivalent(targetRole);
 
+  const actorNorm = normalizeRole(actorRole);
+  const targetNorm = normalizeRole(targetRole);
+
+  if (actorNorm === "BUSINESS_OPERATIONS" && targetNorm === "PLATFORM_AUTHORITY") {
+    return false;
+  }
+
   if (isTargetAdmin && !isActorAdmin) {
     return false;
   }
 
-  const actorNorm = normalizeRole(actorRole);
   if (actorNorm === "VENDOR_ADMIN") {
     // Vendor Admin can only assign/create Vendor Recruiter seats
-    const targetNorm = normalizeRole(targetRole);
     return targetNorm === "RECRUITER" || targetNorm === "VENDOR_RECRUITER";
   }
 
@@ -473,13 +480,24 @@ export function canUserPerformAction(
     assignedRecruiterIds?: string[];
     distributionState?: string;
   }
-): { allowed: boolean; reason?: string } {
+ ): { allowed: boolean; reason?: string } {
   // 1. Account status check
   if (user.status === "INACTIVE") {
     return { allowed: false, reason: "User identity is inactive. Access revoked." };
   }
 
   const role = normalizeRole(user.role);
+
+  // CRITICAL SECURITY ENFORCEMENT: system.manage and security.configure are strictly PLATFORM_AUTHORITY ONLY
+  if (permission === "system.manage" || permission === "security.configure") {
+    if (role !== "PLATFORM_AUTHORITY") {
+      return {
+        allowed: false,
+        reason: `Administrative permission '${permission}' is strictly restricted to Platform Authority (PLATFORM_AUTHORITY).`,
+      };
+    }
+  }
+
   const isAdmin = user.isAdminEquivalent ?? isRoleAdminEquivalent(role);
   const userType: UserType = user.userType || getUserTypeForRole(role);
 

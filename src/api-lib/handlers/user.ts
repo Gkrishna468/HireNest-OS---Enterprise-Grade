@@ -1,5 +1,5 @@
 import { adminDb, adminAuth } from "../../lib/firebase-admin.js";
-import { normalizeRole, getPermissionsForRole, isRoleAdminEquivalent } from "../../lib/rbac.js";
+import { normalizeRole, getPermissionsForRole, isRoleAdminEquivalent, normalizeRecruiterSubtype } from "../../lib/rbac.js";
 
 export default async function handler(req: any, res: any) {
   // Extract action from path or query
@@ -409,8 +409,17 @@ export default async function handler(req: any, res: any) {
 
     // Default to Context
     let requirements: any[] = [];
+    let dbUserData: any = null;
+
     if (adminDb) {
       try {
+        if (authUserId) {
+          const uDoc = await adminDb.collection("users").doc(authUserId).get();
+          if (uDoc.exists) {
+            dbUserData = uDoc.data();
+          }
+        }
+
         const queryOrgId = isAdmin
           ? req.query.orgId || req.body.orgId || authOrgId
           : authOrgId;
@@ -421,7 +430,6 @@ export default async function handler(req: any, res: any) {
           console.log(
             `[USER_API] Fetching proxy requirements for orgId: ${queryOrgId} under role: ${queryRole}`,
           );
-          let requirementsSnap;
           const allReqsSnap = await adminDb
             .collection("requirements_public")
             .get();
@@ -441,12 +449,37 @@ export default async function handler(req: any, res: any) {
             queryRole?.includes("recruiter") ||
             queryRole?.includes("independent")
           ) {
-            // Supply layer sees all non-deleted, active/published public requirements
+            // Supply layer / Recruiter family checks
+            const subtype = dbUserData ? normalizeRecruiterSubtype(dbUserData.recruiterSubtype, queryRole) : "INTERNAL";
+            const reqScope = dbUserData?.requirementScope || "ASSIGNED_ONLY";
+            const assignedIds = dbUserData?.assignedRequirementIds || [];
+            const userVendor = dbUserData?.vendorId || dbUserData?.organizationId || "";
+
             requirements = allReqsSnap.docs
               .map((doc: any) => ({ id: doc.id, ...doc.data() }))
               .filter((r: any) => {
                 const s = (r.status || "").toUpperCase();
-                return s !== "DELETED" && s !== "ARCHIVED" && s !== "DRAFT";
+                if (s === "DELETED" || s === "ARCHIVED" || s === "DRAFT") return false;
+
+                if (subtype === "INTERNAL") {
+                  if (reqScope === "ASSIGNED_ONLY") {
+                    return assignedIds.includes(r.id) || (r.assignedRecruiterIds && r.assignedRecruiterIds.includes(authUserId));
+                  }
+                  return true;
+                } else if (subtype === "VENDOR") {
+                  // Must be distributed to vendor
+                  const isDistributed = !r.authorizedVendorIds || r.authorizedVendorIds.length === 0 || r.distributionState === "OPEN_ALL_VENDORS" || (userVendor && r.authorizedVendorIds.includes(userVendor));
+                  if (!isDistributed) return false;
+
+                  if (reqScope === "ASSIGNED_ONLY" && assignedIds.length > 0) {
+                    return assignedIds.includes(r.id);
+                  }
+                  return true;
+                } else if (subtype === "FREELANCE") {
+                  // Strictly explicit assignments only
+                  return assignedIds.includes(r.id) || (r.assignedRecruiterIds && r.assignedRecruiterIds.includes(authUserId));
+                }
+                return true;
               });
           } else {
             // Clients see their own requirements and all active public requirements
@@ -482,19 +515,24 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const authoritativeRole = normalizeRole(authRole || (isAdmin ? "BUSINESS_OPERATIONS" : "VENDOR_RECRUITER"));
+    const authoritativeRole = normalizeRole(dbUserData?.role || authRole || (isAdmin ? "BUSINESS_OPERATIONS" : "VENDOR_RECRUITER"));
     const authoritativePermissions = getPermissionsForRole(authoritativeRole);
 
     return res.status(200).json({
       success: true,
       user: {
         uid: authUserId || "anonymous",
-        name: "Enterprise User",
+        name: dbUserData?.displayName || dbUserData?.name || "Enterprise User",
         role: authoritativeRole,
-        organizationId: authOrgId || (isRoleAdminEquivalent(authoritativeRole) ? "ORG-GLOBAL-HQ" : "ORG-DEFAULT"),
-        status: "active",
-        permissions: authoritativePermissions,
+        organizationId: dbUserData?.organizationId || authOrgId || (isRoleAdminEquivalent(authoritativeRole) ? "ORG-GLOBAL-HQ" : "ORG-DEFAULT"),
+        status: dbUserData?.status || "active",
+        permissions: dbUserData?.permissions || authoritativePermissions,
         isAdminEquivalent: isRoleAdminEquivalent(authoritativeRole),
+        recruiterSubtype: dbUserData?.recruiterSubtype || dbUserData?.subtype || "INTERNAL",
+        requirementScope: dbUserData?.requirementScope || "ASSIGNED_ONLY",
+        assignedRequirementIds: dbUserData?.assignedRequirementIds || [],
+        vendorId: dbUserData?.vendorId || "",
+        clientId: dbUserData?.clientId || "",
       },
       requirements,
       environment: "production",

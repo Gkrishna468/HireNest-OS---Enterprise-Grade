@@ -757,13 +757,15 @@ const AppContent = () => {
                 active={location.pathname === "/ai-operations"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
-              <SidebarItem
-                to="/ops"
-                icon={Briefcase}
-                label="Operations"
-                active={location.pathname === "/ops"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
+              {role === "PLATFORM_AUTHORITY" && (
+                <SidebarItem
+                  to="/ops"
+                  icon={Briefcase}
+                  label="Operations"
+                  active={location.pathname === "/ops"}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+              )}
               <SidebarItem
                 to="/crm"
                 icon={DollarSign}
@@ -1138,7 +1140,7 @@ const AppContent = () => {
             )}
             {isAdmin && <Route path="/trace" element={<TraceView />} />}
             {isAdmin && <Route path="/map" element={<MemoryMapView />} />}
-            {isAdmin && <Route path="/ops" element={<AdminOpsDashboard />} />}
+            {role === "PLATFORM_AUTHORITY" && <Route path="/ops" element={<AdminOpsDashboard />} />}
             {isAdmin && <Route path="/security" element={<AdminSecurityDashboard />} />}
             {isAdmin && <Route path="/sla" element={<SLAIntelligenceTab />} />}
             {(isAdmin || isVendor || isRecruiter) && (

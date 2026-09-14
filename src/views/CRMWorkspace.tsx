@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Building2,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Users,
   Target,
@@ -26,6 +26,8 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+
+const formatINR = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
 import {
   CRMService,
   CRMOpportunityEntity,
@@ -325,10 +327,10 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 shadow-xl">
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
             <span>Total Pipeline Value</span>
-            <DollarSign className="w-4 h-4 text-emerald-400" />
+            <IndianRupee className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-white">
-            ${(totalPipeline / 1000).toFixed(0)}k
+            {formatINR(totalPipeline)}
           </div>
           <div className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5" /> {activeDealsCount} active qualified opportunities
@@ -341,7 +343,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
             <Target className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="text-2xl font-black text-cyan-300">
-            ${(expectedRevenue / 1000).toFixed(0)}k
+            {formatINR(expectedRevenue)}
           </div>
           <div className="text-[11px] text-slate-400 font-medium mt-1">
             Probability weighted realization
@@ -477,11 +479,11 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                         <div className="grid grid-cols-2 gap-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 mb-3">
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Deal Value</span>
-                            <div className="text-sm font-black text-emerald-400">${opp.dealValue.toLocaleString()}</div>
+                            <div className="text-sm font-black text-emerald-400">{formatINR(opp.dealValue)}</div>
                           </div>
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Expected Yield</span>
-                            <div className="text-sm font-black text-cyan-300">${opp.expectedRevenue.toLocaleString()} ({opp.probability}%)</div>
+                            <div className="text-sm font-black text-cyan-300">{formatINR(opp.expectedRevenue)} ({opp.probability}%)</div>
                           </div>
                         </div>
 
@@ -785,7 +787,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Commercial Value: ${(opp.dealValue / 1000).toFixed(0)}k</span>
+                      <span>Commercial Value: {formatINR(opp.dealValue)}</span>
                       <span className="text-emerald-400 font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Operational in Core OS
                       </span>

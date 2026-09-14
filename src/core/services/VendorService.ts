@@ -23,11 +23,22 @@ export class VendorService {
       enforceCoreAccess(ctx, "vendors.read", { vendorId: userVendor });
     }
 
-    const snap = await getDoc(doc(db, "vendors", vendorId));
-    if (!snap.exists()) {
+    const snap = await getDoc(doc(db, "organizations", vendorId));
+    if (!snap.exists() || snap.data()?.orgType !== "VENDOR") {
       throw new CoreResourceNotFoundError("Vendor", vendorId);
     }
-    return { ...(snap.data() as VendorEntity), id: snap.id };
+    const data = snap.data();
+    return {
+      id: snap.id,
+      name: data.companyName || data.name || "HireNest Vendor",
+      tier: data.tier || "TIER_1",
+      trustScore: data.trustScore !== undefined ? data.trustScore : 100,
+      status: data.status || "ACTIVE",
+      recruiterSeatLimit: data.recruiterSeatLimit || 5,
+      activeRecruitersCount: data.activeRecruitersCount || 1,
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    };
   }
 
   static async listVendors(ctx: HireNestAccessContext): Promise<VendorEntity[]> {
@@ -35,12 +46,40 @@ export class VendorService {
 
     if (ctx.role === "VENDOR_ADMIN" || ctx.role === "VENDOR_RECRUITER") {
       const userVendor = ctx.vendorId || ctx.organizationId;
-      const snap = await getDoc(doc(db, "vendors", userVendor));
-      return snap.exists() ? [{ ...(snap.data() as VendorEntity), id: snap.id }] : [];
+      const snap = await getDoc(doc(db, "organizations", userVendor));
+      if (snap.exists() && snap.data()?.orgType === "VENDOR") {
+        const data = snap.data();
+        return [{
+          id: snap.id,
+          name: data.companyName || data.name || "HireNest Vendor",
+          tier: data.tier || "TIER_1",
+          trustScore: data.trustScore !== undefined ? data.trustScore : 100,
+          status: data.status || "ACTIVE",
+          recruiterSeatLimit: data.recruiterSeatLimit || 5,
+          activeRecruitersCount: data.activeRecruitersCount || 1,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        }];
+      }
+      return [];
     }
 
-    const snap = await getDocs(query(collection(db, "vendors"), limit(100)));
-    return snap.docs.map((d) => ({ ...(d.data() as VendorEntity), id: d.id }));
+    const q = query(collection(db, "organizations"), where("orgType", "==", "VENDOR"), limit(100));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        name: data.companyName || data.name || "HireNest Vendor",
+        tier: data.tier || "TIER_1",
+        trustScore: data.trustScore !== undefined ? data.trustScore : 100,
+        status: data.status || "ACTIVE",
+        recruiterSeatLimit: data.recruiterSeatLimit || 5,
+        activeRecruitersCount: data.activeRecruitersCount || 1,
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || new Date().toISOString(),
+      };
+    });
   }
 
   /**

@@ -75,6 +75,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [editVendorId, setEditVendorId] = useState("");
   const [editOrgId, setEditOrgId] = useState("");
   const [userToDeactivate, setUserToDeactivate] = useState<any | null>(null);
+  const [userToReactivate, setUserToReactivate] = useState<any | null>(null);
 
   const activeActorRole = normalizeRole(orgData?.role || (auth.currentUser as any)?.role);
   const isActorAdmin = isRoleAdminEquivalent(activeActorRole);
@@ -365,6 +366,43 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
     }
   };
 
+  const handleExecuteReactivate = async () => {
+    if (!userToReactivate) return;
+    setIsSubmitting(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/reactivate-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          uid: userToReactivate.uid || userToReactivate.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to reactivate user.");
+      }
+
+      setSuccessMsg(`Identity for ${userToReactivate.email} successfully reactivated and access restored.`);
+      setUserToReactivate(null);
+      if (selectedUserDetail && (selectedUserDetail.uid === userToReactivate.uid || selectedUserDetail.id === userToReactivate.id)) {
+        setSelectedUserDetail(null);
+      }
+      await fetchUsersAndOrgs();
+    } catch (err: any) {
+      setError(err.message || "Failed to reactivate user.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
     if (activeTab === "ALL") return true;
     if (activeTab === "RECRUITERS") {
@@ -561,7 +599,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                   {userType === "HQ" && (
                     <>
                       <option value="BUSINESS_OPERATIONS">Business Operations (HQ)</option>
-                      <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                      {activeActorRole === "PLATFORM_AUTHORITY" && (
+                        <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                      )}
                     </>
                   )}
                   {userType === "CLIENT" && (
@@ -701,7 +741,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         <div className="lg:col-span-8 space-y-6">
           {/* Tabs */}
           <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit flex-wrap">
-            {(["ALL", "RECRUITERS", "GOVERNANCE", "DEMAND", "SUPPLY", "PERMISSIONS"] as const).map((tab) => (
+            {(activeActorRole === "PLATFORM_AUTHORITY"
+              ? ["ALL", "RECRUITERS", "GOVERNANCE", "DEMAND", "SUPPLY", "PERMISSIONS"] as const
+              : ["ALL", "RECRUITERS", "GOVERNANCE", "DEMAND", "SUPPLY"] as const
+            ).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -949,9 +992,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                             View
                           </Button>
 
-                          {!isInactive && (
+                          {!isInactive ? (
                             <>
                               <Button
+                                id={`edit-${u.uid || u.id}`}
                                 variant="outline"
                                 onClick={() => handleOpenEditModal(u)}
                                 className="text-xs h-9 px-3 rounded-xl border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
@@ -960,6 +1004,7 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                               </Button>
 
                               <Button
+                                id={`deactivate-${u.uid || u.id}`}
                                 variant="outline"
                                 onClick={() => setUserToDeactivate(u)}
                                 className="text-xs h-9 px-3 rounded-xl border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
@@ -967,6 +1012,15 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                                 Deactivate
                               </Button>
                             </>
+                          ) : (
+                            <Button
+                              id={`reactivate-${u.uid || u.id}`}
+                              variant="outline"
+                              onClick={() => setUserToReactivate(u)}
+                              className="text-xs h-9 px-3 rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                            >
+                              Reactivate
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1054,9 +1108,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                 Close
               </Button>
 
-              {selectedUserDetail.status !== "INACTIVE" && !selectedUserDetail.disabled && (
+              {selectedUserDetail.status !== "INACTIVE" && !selectedUserDetail.disabled ? (
                 <div className="flex items-center gap-2">
                   <Button
+                    id="detail-edit-role"
                     onClick={() => {
                       handleOpenEditModal(selectedUserDetail);
                     }}
@@ -1065,12 +1120,21 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                     EDIT ROLE & SCOPE
                   </Button>
                   <Button
+                    id="detail-deactivate"
                     onClick={() => setUserToDeactivate(selectedUserDetail)}
                     className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl"
                   >
                     DEACTIVATE
                   </Button>
                 </div>
+              ) : (
+                <Button
+                  id="detail-reactivate"
+                  onClick={() => setUserToReactivate(selectedUserDetail)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl"
+                >
+                  REACTIVATE USER
+                </Button>
               )}
             </div>
           </div>
@@ -1150,7 +1214,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                   {editUserType === "HQ" && (
                     <>
                       <option value="BUSINESS_OPERATIONS">Business Operations (HQ)</option>
-                      <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                      {activeActorRole === "PLATFORM_AUTHORITY" && (
+                        <option value="PLATFORM_AUTHORITY">Platform Authority (HQ)</option>
+                      )}
                     </>
                   )}
                   {editUserType === "CLIENT" && (
@@ -1294,6 +1360,56 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                 className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex-1"
               >
                 {isSubmitting ? "Deactivating..." : "Deactivate & Revoke"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Safe Reactivate Modal */}
+      {userToReactivate && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <ShieldCheck size={28} />
+              </div>
+              <h2 className="text-xl font-black text-slate-900">Reactivate & Restore Access</h2>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to reactivate <strong>{userToReactivate.email}</strong>?
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+                <span>Firebase Auth account enabled and user login restored.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+                <span>Firestore status restored to <code>ACTIVE</code>.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <span>All historical mappings, submission registers, and dossiers remain fully connected.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setUserToReactivate(null)}
+                disabled={isSubmitting}
+                className="rounded-xl text-xs font-bold flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExecuteReactivate}
+                disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex-1"
+              >
+                {isSubmitting ? "Reactivating..." : "Reactivate & Restore"}
               </Button>
             </div>
           </div>

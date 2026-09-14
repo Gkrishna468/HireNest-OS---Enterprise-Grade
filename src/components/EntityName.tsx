@@ -46,7 +46,13 @@ export function EntityName({ id, type, fallback = 'Unknown', className = '' }: E
         if (isMounted && recruiter) setName(recruiter.name || id);
       } else if (type === 'candidate') {
         const candidate = await getCandidate(id);
-        if (isMounted && candidate) setName((candidate as any).name || (candidate as any).fullName || id);
+        if (isMounted) {
+          if (candidate) {
+            setName((candidate as any).name || (candidate as any).fullName || id);
+          } else {
+            setName("[Orphaned Submission - Missing Profile]");
+          }
+        }
       }
     };
 

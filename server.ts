@@ -275,6 +275,7 @@ async function createServer() {
   // --- Health Endpoints ---
   app.get('/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));
   app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));
+  app.get('/ruflo/health', (req, res) => res.status(200).json({ status: 'ok', service: 'ruflo-harness' }));
   app.get('/health/ai', async (req, res) => {
       return await aiHealthHandler(req, res);
   });
@@ -630,8 +631,10 @@ hirenest_active_requests 0
         case 'user/create':
         case 'delete-user':
         case 'deactivate-user':
+        case 'reactivate-user':
         case 'user/delete':
         case 'user/deactivate':
+        case 'user/reactivate':
         case 'assign-role':
         case 'user/assign-role':
         case 'user-roles':
@@ -904,7 +907,10 @@ hirenest_active_requests 0
     try {
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: {
+          middlewareMode: true,
+          hmr: false,
+        },
         appType: 'spa',
       });
       app.use(vite.middlewares);
@@ -933,7 +939,12 @@ hirenest_active_requests 0
       if (fs.existsSync(distIndexPath)) {
         res.sendFile(distIndexPath);
       } else {
-        res.status(404).send('Application build not found. Please build the project.');
+        const rootIndexPath = path.join(process.cwd(), 'index.html');
+        if (fs.existsSync(rootIndexPath)) {
+          res.sendFile(rootIndexPath);
+        } else {
+          res.status(200).send('<!DOCTYPE html><html><head><title>HireNestOS</title></head><body><div id="root"></div></body></html>');
+        }
       }
     });
   }

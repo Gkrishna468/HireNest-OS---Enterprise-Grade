@@ -28,6 +28,7 @@ export default async function userAdminHandler(req: any, res: any) {
     const path = req.path || req.url || "";
     const action = req.query?.action || req.body?.action || (
       path.includes("create-user") ? "create" :
+      path.includes("reactivate-user") ? "reactivate" :
       path.includes("delete-user") || path.includes("deactivate-user") ? "deactivate" :
       path.includes("assign-role") ? "assign" :
       path.includes("roles") ? "roles" :
@@ -140,6 +141,10 @@ export default async function userAdminHandler(req: any, res: any) {
           : undefined;
 
       // Verify permission to create this role
+      if (targetRole === "PLATFORM_AUTHORITY" && actorRole !== "PLATFORM_AUTHORITY") {
+        return res.status(403).json({ error: "Cannot create or configure a Platform Authority user without Platform Authority privileges." });
+      }
+
       if (!isActorAdmin) {
         if (actorRole === "VENDOR_ADMIN") {
           if (targetRole !== "RECRUITER" && targetRole !== "VENDOR_RECRUITER") {
@@ -522,6 +527,75 @@ export default async function userAdminHandler(req: any, res: any) {
       return res.status(200).json({
         ok: true,
         message: "User identity deactivated and access revoked. Historical business records and ledger trails preserved.",
+      });
+    }
+
+    // 6. Reactivate User & Restore Access
+    if (action === "reactivate" || path.includes("reactivate-user")) {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+      }
+
+      const { uid } = req.body;
+      if (!uid) {
+        return res.status(400).json({ error: "User ID (uid) is required for reactivation." });
+      }
+
+      if (!adminDb) {
+        return res.status(503).json({ error: "Database authority not initialized" });
+      }
+
+      const targetDoc = await adminDb.collection("users").doc(uid).get();
+      if (!targetDoc.exists) {
+        return res.status(404).json({ error: "User not found." });
+      }
+      const targetData = targetDoc.data() || {};
+      const targetRole = normalizeRole(targetData.role);
+
+      // Authority checks:
+      // PLATFORM_AUTHORITY can reactivate users
+      if (!isActorAdmin) {
+        return res.status(403).json({ error: "Insufficient privileges to reactivate this user." });
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // Enable Firebase Auth identity
+      if (adminAuth && uid) {
+        try {
+          await adminAuth.updateUser(uid, { disabled: false }).catch(() => {});
+        } catch (authErr: any) {
+          console.warn("[UserAdmin] Auth enable notice:", authErr.message);
+        }
+      }
+
+      // Update Firestore SSOT status to ACTIVE
+      await adminDb.collection("users").doc(uid).set({
+        status: "ACTIVE",
+        disabled: false,
+        reactivatedAt: nowIso,
+        reactivatedBy: actorEmail,
+        updatedAt: nowIso,
+      }, { merge: true });
+
+      // Immutable Audit Log
+      await adminDb.collection("audit_logs").add({
+        date: nowIso,
+        timestamp: Date.now(),
+        actorId: actorUid,
+        actorEmail,
+        targetUserId: uid,
+        targetUserEmail: targetData.email || "Unknown",
+        role: targetRole,
+        action: "USER_REACTIVATED",
+        reason: "User access restored and activated.",
+        status: "SUCCESS",
+        correlationId: `REACT-${Date.now()}`,
+      });
+
+      return res.status(200).json({
+        ok: true,
+        message: "User identity reactivated and access restored.",
       });
     }
 

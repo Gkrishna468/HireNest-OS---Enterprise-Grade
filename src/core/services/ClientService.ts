@@ -41,9 +41,18 @@ export class ClientService {
     let client = memoryClients.get(clientId);
     if (!client) {
       try {
-        const snap = await getDoc(doc(db, "clients", clientId));
-        if (snap.exists()) {
-          client = { ...(snap.data() as ClientEntity), id: snap.id };
+        const snap = await getDoc(doc(db, "organizations", clientId));
+        if (snap.exists() && snap.data()?.orgType === "CLIENT") {
+          const data = snap.data();
+          client = {
+            id: snap.id,
+            name: data.companyName || data.name || "Enterprise Client",
+            status: data.status || "ACTIVE",
+            industry: data.industry || "Technology",
+            tier: data.tier || "TIER_1_ENTERPRISE",
+            createdAt: data.createdAt || new Date().toISOString(),
+            updatedAt: data.updatedAt || new Date().toISOString(),
+          } as ClientEntity;
         }
       } catch (e) {}
     }
@@ -73,12 +82,26 @@ export class ClientService {
     }
 
     try {
-      const snap = await getDocs(query(collection(db, "clients"), limit(100)));
-      const docs = snap.docs.map((d) => ({ ...(d.data() as ClientEntity), id: d.id }));
+      const q = query(collection(db, "organizations"), where("orgType", "==", "CLIENT"), limit(100));
+      const snap = await getDocs(q);
+      const docs = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.companyName || data.name || "Enterprise Client",
+          industry: data.industry || "Technology",
+          tier: data.tier || "TIER_1_ENTERPRISE",
+          status: data.status || "ACTIVE",
+          activeRequirementsCount: data.activeRequirementsCount || 0,
+          totalPlacementsCount: data.totalPlacementsCount || 0,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        } as ClientEntity;
+      });
       if (docs.length > 0) return docs;
     } catch (e) {}
 
-    return Array.from(memoryClients.values());
+    return Array.from(memoryClients.values()).filter(c => c.id.startsWith("cli-") || c.id.startsWith("CLIENT-"));
   }
 
   static async createOrUpdateClient(ctx: HireNestAccessContext, payload: Partial<ClientEntity>): Promise<ClientEntity> {
@@ -104,7 +127,17 @@ export class ClientService {
     memoryClients.set(id, entity);
 
     try {
-      await setDoc(doc(db, "clients", id), cleanData(entity), { merge: true });
+      await setDoc(doc(db, "organizations", id), {
+        id,
+        name: entity.name,
+        companyName: entity.name,
+        orgType: "CLIENT",
+        industry: entity.industry,
+        tier: entity.tier,
+        status: entity.status,
+        createdAt: entity.createdAt,
+        updatedAt: entity.updatedAt,
+      }, { merge: true });
     } catch (e) {}
 
     return entity;

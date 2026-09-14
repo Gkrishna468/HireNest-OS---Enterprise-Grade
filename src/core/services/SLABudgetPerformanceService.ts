@@ -92,7 +92,7 @@ export class BudgetService {
         totalApprovedBudget: 500000,
         allocatedBudget: 150000,
         utilizedBudget: 80000,
-        currency: "USD",
+        currency: "INR",
         fiscalYear: "FY2026",
         updatedAt: new Date().toISOString(),
       };

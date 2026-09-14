@@ -440,7 +440,13 @@ export const SubmissionsLedgerExport: React.FC<SubmissionsLedgerExportProps> = (
                   >
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-200">
-                        {sub.candidateName || "Candidate"}
+                        {(!sub.candidateId && !sub.candidateName) || sub.candidateName === "Unknown Candidate" ? (
+                          <span className="text-rose-400 text-xs font-bold font-mono">
+                            [Orphaned Submission - Missing Profile]
+                          </span>
+                        ) : (
+                          sub.candidateName || "Candidate"
+                        )}
                       </div>
                       <div className="text-xs text-slate-500">
                         {sub.candidateEmail || "Verified in pool"}

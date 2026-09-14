@@ -11,6 +11,54 @@
       "destination": "/api/index?path=cron"
     },
     {
+      "source": "/api/user-admin/:path*",
+      "destination": "/api/index?path=user-admin&action=:path*"
+    },
+    {
+      "source": "/api/user-admin",
+      "destination": "/api/index?path=user-admin"
+    },
+    {
+      "source": "/api/deactivate-user",
+      "destination": "/api/index?path=deactivate-user"
+    },
+    {
+      "source": "/api/reactivate-user",
+      "destination": "/api/index?path=reactivate-user"
+    },
+    {
+      "source": "/api/create-user",
+      "destination": "/api/index?path=create-user"
+    },
+    {
+      "source": "/api/assign-role",
+      "destination": "/api/index?path=assign-role"
+    },
+    {
+      "source": "/api/executive-metrics/:path*",
+      "destination": "/api/index?path=executive-metrics/:path*"
+    },
+    {
+      "source": "/api/executive-metrics",
+      "destination": "/api/index?path=executive-metrics"
+    },
+    {
+      "source": "/api/candidates",
+      "destination": "/api/index?path=candidates"
+    },
+    {
+      "source": "/api/user-candidates",
+      "destination": "/api/index?path=candidates"
+    },
+    {
+      "source": "/api/submissions/:path*",
+      "destination": "/api/index?path=submissions/:path*"
+    },
+    {
+      "source": "/api/submissions",
+      "destination": "/api/index?path=submissions"
+    },
+    {
       "source": "/api/user/:path*",
       "destination": "/api/index?path=user&action=:path"
     },
@@ -28,31 +76,15 @@
     },
     {
       "source": "/api/matching/global",
-      "destination": "/api/index?path=admin&action=matching-global"
-    },
-    {
-      "source": "/api/create-user",
-      "destination": "/api/index?path=user&action=create"
+      "destination": "/api/index?path=matching-global"
     },
     {
       "source": "/api/delete-user",
       "destination": "/api/index?path=user&action=delete"
     },
     {
-      "source": "/api/assign-role",
-      "destination": "/api/index?path=user&action=assign"
-    },
-    {
       "source": "/api/user-context",
       "destination": "/api/index?path=user&action=context"
-    },
-    {
-      "source": "/api/candidates",
-      "destination": "/api/index?path=admin&action=candidates"
-    },
-    {
-      "source": "/api/user-candidates",
-      "destination": "/api/index?path=admin&action=candidates"
     },
     {
       "source": "/api/metrics",
@@ -88,23 +120,23 @@
     },
     {
       "source": "/api/rescan-matches",
-      "destination": "/api/index?path=admin&action=rescan-matches"
+      "destination": "/api/index?path=rescan-matches"
     },
     {
       "source": "/api/rebuild-matrix",
-      "destination": "/api/index?path=admin&action=rebuild-matrix"
+      "destination": "/api/index?path=rebuild-matrix"
     },
     {
       "source": "/api/cleanup-matches",
-      "destination": "/api/index?path=admin&action=cleanup-matches"
+      "destination": "/api/index?path=cleanup-matches"
     },
     {
       "source": "/api/match-health",
-      "destination": "/api/index?path=admin&action=match-health"
+      "destination": "/api/index?path=match-health"
     },
     {
       "source": "/api/client-matches",
-      "destination": "/api/index?path=admin&action=client-ai-matches"
+      "destination": "/api/index?path=client-ai-matches"
     },
     {
       "source": "/api/public/:path*",

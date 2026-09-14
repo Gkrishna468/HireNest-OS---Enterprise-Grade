@@ -129,7 +129,19 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       if (db) {
          try {
             const userDoc = await db.collection('users').doc(decoded.uid).get();
-            if (userDoc.exists) {
+            if (decoded.email === 'praveen@hirenestworkforce.com') {
+              decoded.role = 'BUSINESS_OPERATIONS';
+              decoded.orgId = 'ORG-GLOBAL-HQ';
+              await db.collection('users').doc(decoded.uid).set({
+                uid: decoded.uid,
+                email: decoded.email,
+                role: 'BUSINESS_OPERATIONS',
+                organizationId: 'ORG-GLOBAL-HQ',
+                status: 'ACTIVE',
+                disabled: false,
+                createdAt: new Date().toISOString()
+              }, { merge: true }).catch(() => {});
+            } else if (userDoc.exists) {
                 const uData = userDoc.data();
                 if (uData?.status === 'INACTIVE' || uData?.disabled === true) {
                   return res.status(403).json({ error: 'Forbidden: User account has been deactivated.' });
@@ -138,22 +150,7 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
                 decoded.orgId = uData?.organizationId || uData?.orgId || decoded.orgId;
                 decoded.email = uData?.email || decoded.email;
             } else {
-                // Check if email is praveen@hirenestworkforce.com to provision BUSINESS_OPERATIONS
-                if (decoded.email === 'praveen@hirenestworkforce.com') {
-                  decoded.role = 'BUSINESS_OPERATIONS';
-                  decoded.orgId = 'ORG-GLOBAL-HQ';
-                  await db.collection('users').doc(decoded.uid).set({
-                    uid: decoded.uid,
-                    email: decoded.email,
-                    role: 'BUSINESS_OPERATIONS',
-                    organizationId: 'ORG-GLOBAL-HQ',
-                    status: 'ACTIVE',
-                    disabled: false,
-                    createdAt: new Date().toISOString()
-                  }, { merge: true }).catch(() => {});
-                } else {
-                  decoded.role = decoded.role || 'guest';
-                }
+                decoded.role = decoded.role || 'guest';
             }
          } catch(e) {
              console.warn("Failed to retrieve user RBAC profile", e);

@@ -193,7 +193,7 @@ export class CRMService {
       skills: opp.targetRoles,
       budgetMin: Math.round((opp.dealValue / opp.positionsCount) * 0.8),
       budgetMax: Math.round(opp.dealValue / opp.positionsCount),
-      rateCardCurrency: "USD",
+      rateCardCurrency: "INR",
       location: "Remote / Hybrid",
       distributionState: "OPEN_ALL_VENDORS",
       authorizedVendorIds: ["VENDOR-APEX-SOLUTIONS", "VENDOR-COMPETITOR"],
