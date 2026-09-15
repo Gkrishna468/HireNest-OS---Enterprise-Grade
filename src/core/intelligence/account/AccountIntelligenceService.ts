@@ -57,7 +57,7 @@ export class AccountIntelligenceService {
   static analyzeAccountHealth = async (
     ctx: HireNestAccessContext,
     clientId: string
-  ): Promise<AccountIntelligenceProfile & { meta: AIOutputMeta }> => {
+  ): Promise<AccountIntelligenceProfile & { clientId: string; meta: AIOutputMeta }> => {
     const res = await AccountIntelligenceService.analyzeAccount(ctx, clientId);
     return { ...res.profile, clientId, meta: res.meta };
   };

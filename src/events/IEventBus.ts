@@ -1,4 +1,4 @@
-import { EventEnvelope } from './types/EventEnvelope';
+import { EventEnvelope } from './types/EventEnvelope.js';
 
 export interface IEventBus {
   publish<T>(event: EventEnvelope<T>): Promise<void>;

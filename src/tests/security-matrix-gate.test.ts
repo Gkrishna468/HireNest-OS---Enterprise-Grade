@@ -62,11 +62,16 @@ export async function runSecurityAttackVectorTests(): Promise<SecurityAttackTest
 
   // Attack 1: Candidate A -> Candidate B application access
   const candAContext: HireNestAccessContext = {
+    uid: "CAND_ALICE_001",
     userId: "CAND_ALICE_001",
     candidateId: "CAND_ALICE_001",
     role: "CANDIDATE",
-    email: "alice@example.com"
-  };
+    email: "alice@example.com",
+    organizationId: "ORG_CAND",
+    permissions: [],
+    isAdminEquivalent: false,
+    status: "ACTIVE"
+  } as any;
   const candBApplication = {
     id: "SUB_BOB_999",
     candidateId: "CAND_BOB_002",
@@ -90,13 +95,18 @@ export async function runSecurityAttackVectorTests(): Promise<SecurityAttackTest
 
   // Attack 3: Vendor A recruiter -> Vendor B candidate bench
   const vendorARecruiterContext: HireNestAccessContext = {
+    uid: "REC_SHREEJI_01",
     userId: "REC_SHREEJI_01",
     role: "RECRUITER",
     recruiterType: "VENDOR",
     abacScope: "ASSIGNED_ONLY",
     vendorId: "VEND_SHREEJI",
-    organizationId: "VEND_SHREEJI"
-  };
+    organizationId: "VEND_SHREEJI",
+    email: "shreeji@example.com",
+    permissions: [],
+    isAdminEquivalent: false,
+    status: "ACTIVE"
+  } as any;
   const vendorBCandidate = {
     id: "CAND_TIEIN_555",
     vendorId: "VEND_TIE_IN",
@@ -114,18 +124,28 @@ export async function runSecurityAttackVectorTests(): Promise<SecurityAttackTest
     distributedVendorIds: ["VEND_OTHER"],
     vendorId: "VEND_OTHER"
   };
-  const canVendorASeeUnassignedReq = await AccessControlService.canAccessRequirement(vendorARecruiterContext, unassignedReq.id);
+  const canVendorASeeUnassignedReq = AccessControlService.canAccessRequirement((vendorARecruiterContext as any).vendorId || "", "VENDOR", unassignedReq);
   assert(!canVendorASeeUnassignedReq, "Attack 4: Vendor recruiter cannot access requirements not distributed to their vendor");
 
   // Attack 5: Freelance recruiter -> Non-explicit requirement
   const freelanceContext: HireNestAccessContext = {
+    uid: "REC_FREE_99",
     userId: "REC_FREE_99",
     role: "RECRUITER",
     recruiterType: "FREELANCE",
     abacScope: "EXPLICIT_ONLY",
-    assignedRequirementIds: ["REQ_ASSIGNED_101"]
+    assignedRequirementIds: ["REQ_ASSIGNED_101"],
+    email: "freelance@example.com",
+    organizationId: "ORG_FREELANCE",
+    permissions: [],
+    isAdminEquivalent: false,
+    status: "ACTIVE"
+  } as any;
+  const freelanceReq = {
+    id: "REQ_UNASSIGNED_888",
+    assignedRecruiterId: "REC_SOME_OTHER"
   };
-  const canFreelanceAccessOtherReq = await AccessControlService.canAccessRequirement(freelanceContext, "REQ_UNASSIGNED_888");
+  const canFreelanceAccessOtherReq = AccessControlService.canAccessRequirement(freelanceContext.userId || "", freelanceContext.role, freelanceReq);
   assert(!canFreelanceAccessOtherReq, "Attack 5: Freelance recruiter cannot access requirements outside their explicit assignments");
 
   // Attack 6: Recruiter -> HQ Admin / System settings
@@ -145,7 +165,7 @@ export async function runSecurityAttackVectorTests(): Promise<SecurityAttackTest
     grossMarginPercent: 40,
     internalBudgetCost: 120000
   };
-  const candidateSanitizedReq = CandidateJobFeedService.sanitizeForCandidate(rawRequirementWithFinancials);
+  const candidateSanitizedReq: any = CandidateJobFeedService.sanitizeForCandidate(rawRequirementWithFinancials);
   const hasLeakedFinancials =
     candidateSanitizedReq.clientBillRate !== undefined ||
     candidateSanitizedReq.vendorPayRate !== undefined ||
@@ -186,7 +206,7 @@ export async function runSecurityAttackVectorTests(): Promise<SecurityAttackTest
     tokenHash: "TOKEN_REVOKED",
     createdAt: new Date().toISOString()
   };
-  const isRevokedTokenActive = revokedInvite.status === "ACTIVE";
+  const isRevokedTokenActive = (revokedInvite.status as string) === "ACTIVE";
   assert(!isRevokedTokenActive, "Attack 10: Revoked invitation tokens are strictly rejected");
 
   // Attack 11: Reused single-use invitation

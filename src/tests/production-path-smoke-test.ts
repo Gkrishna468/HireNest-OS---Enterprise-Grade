@@ -14,8 +14,6 @@ import {
   Candidate360Service,
   SubmissionService,
   InterviewService,
-  OfferPlacementService,
-  SLABudgetPerformanceService,
   VendorService,
   ClientService,
 } from "../core/services/index.js";

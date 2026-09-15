@@ -24,7 +24,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../lib/Button";
 import { Badge } from "../lib/Badge";
-import { HireNestBrandLogo } from "../components/HireNestBrandLogo";
+import { HireNestBrandLogo } from "../components/brand/HireNestBrandLogo";
 import { auth, db } from "../lib/firebase";
 import {
   createUserWithEmailAndPassword,

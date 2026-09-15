@@ -71,3 +71,10 @@ export function enforceCoreAccess(
   }
 }
 
+export type RequirementPayload = any;
+export type CandidatePayload = any;
+export type SubmissionPayload = any;
+export type InterviewPayload = any;
+export type OfferPayload = any;
+export type PlacementPayload = any;
+

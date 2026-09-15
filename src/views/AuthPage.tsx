@@ -23,7 +23,7 @@ import {
   Star
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import { CandidateRegisterModal } from '../components/CandidateRegisterModal';
 
@@ -38,6 +38,27 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first to reset your password.');
+      setSuccessMessage('');
+      return;
+    }
+    setIsLoading(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccessMessage('Password reset email sent successfully! Please check your inbox.');
+    } catch (err: any) {
+      console.error("Password reset error:", err);
+      setError(err.message || 'Failed to send password reset email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -211,6 +232,13 @@ export default function AuthPage() {
             </div>
           )}
 
+          {successMessage && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3">
+              <CheckCircle2 className="text-emerald-500 shrink-0 mt-0.5" size={18} />
+              <p className="text-xs text-emerald-800 font-bold leading-relaxed">{successMessage}</p>
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
@@ -232,7 +260,13 @@ export default function AuthPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Password</label>
-                <button type="button" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700">Forgot password?</button>
+                <button 
+                  type="button" 
+                  onClick={handleForgotPassword}
+                  className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 outline-none transition-colors"
+                >
+                  Forgot password?
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

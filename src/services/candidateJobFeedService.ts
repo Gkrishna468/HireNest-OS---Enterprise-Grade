@@ -56,6 +56,7 @@ export interface CandidateStatusPipelineStep {
   isComplete: boolean;
   isCurrent: boolean;
   isTerminal?: boolean;
+  description: string;
 }
 
 export interface DirectCandidateInvite {
@@ -508,6 +509,16 @@ export class CandidateJobFeedService {
       candidateStatus === "Withdrawn" ||
       candidateStatus === "Closed";
 
+    const stepDescriptions: Record<string, string> = {
+      Submitted: "Application received and logged in HireNest.",
+      Screening: "Profile is undergoing recruiter and skill verification.",
+      Shortlisted: "Your profile was shortlisted for hiring manager evaluation.",
+      Interview: "Technical or client interview round in progress.",
+      Selected: "You have been selected following successful interviews.",
+      Offer: "An official offer has been released.",
+      Placed: "Congratulations! You have been placed in this role."
+    };
+
     return steps.map((s, idx) => {
       const isComplete = !isTerminal && idx < stageIndex;
       const isCurrent = !isTerminal && idx === stageIndex;
@@ -517,7 +528,8 @@ export class CandidateJobFeedService {
         stepNumber: idx + 1,
         isComplete,
         isCurrent,
-        isTerminal
+        isTerminal,
+        description: stepDescriptions[s.key] || "Under evaluation."
       };
     });
   }

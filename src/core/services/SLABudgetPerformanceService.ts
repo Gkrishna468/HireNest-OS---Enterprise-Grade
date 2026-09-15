@@ -85,14 +85,54 @@ export class BudgetService {
       } catch (e) {}
     }
     if (!data) {
-      // Default initial budget entity
+      let totalApproved = 0;
+      let totalAllocated = 0;
+      let totalUtilized = 0;
+      let currencyCode = "INR";
+
+      try {
+        const reqRef = collection(db, "requirements_public");
+        const reqQuery = query(reqRef, where("clientId", "==", clientId));
+        const reqSnap = await getDocs(reqQuery);
+
+        reqSnap.forEach((docSnap) => {
+          const reqData = docSnap.data();
+          const budget = Number(reqData.financials?.clientBudget || reqData.vendorVisibleBudget || 0);
+          if (budget > 0) {
+            totalApproved += budget;
+            if (reqData.status === "ACTIVE" || reqData.status === "PUBLISHED") {
+              totalAllocated += budget;
+            }
+          }
+          if (reqData.financials?.clientCurrency) {
+            currencyCode = reqData.financials.clientCurrency;
+          }
+        });
+
+        const subRef = collection(db, "submissions");
+        const subQuery = query(subRef, where("clientId", "==", clientId), where("status", "in", ["HIRED", "PLACED"]));
+        const subSnap = await getDocs(subQuery);
+
+        subSnap.forEach((docSnap) => {
+          const subData = docSnap.data();
+          const subRate = Number(subData.clientBillRate || subData.billingRate || 0);
+          if (subRate > 0) {
+            totalUtilized += subRate * 160;
+          } else if (subData.budgetAllocation) {
+            totalUtilized += Number(subData.budgetAllocation || 0);
+          }
+        });
+      } catch (e) {
+        console.warn("Failed to dynamically compute client budget:", e);
+      }
+
       data = {
         id: clientId,
         clientId,
-        totalApprovedBudget: 500000,
-        allocatedBudget: 150000,
-        utilizedBudget: 80000,
-        currency: "INR",
+        totalApprovedBudget: totalApproved,
+        allocatedBudget: totalAllocated,
+        utilizedBudget: totalUtilized,
+        currency: currencyCode,
         fiscalYear: "FY2026",
         updatedAt: new Date().toISOString(),
       };

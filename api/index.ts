@@ -161,7 +161,6 @@ if (typeof (Math as any).sumPrecise !== 'function') {
 
 import { adminAuth } from '../src/lib/firebase-admin.js';
 import adminHandler from '../src/api-lib/handlers/admin.js';
-import agentsExecuteHandler from '../src/api-lib/handlers/agents-execute.js';
 import aiGatewayHandler from '../src/api-lib/handlers/ai-gateway.js';
 import aiHealthHandler from '../src/api-lib/handlers/ai-health.js';
 import analyticsHandler from '../src/api-lib/handlers/analytics.js';
@@ -255,7 +254,10 @@ const EXACT_HANDLER_REGISTRY: Record<string, any> = {
   'recruiter-os': recruiterOsHandler,
   'daily-briefing': dailyBriefingHandler,
   'sync-requirements': syncRequirementsHandler,
-  agents: agentsExecuteHandler,
+  agents: (async (req: any, res: any) => {
+    const mod: any = await import('../src/api-lib/handlers/agents-execute.js');
+    return (mod.default || mod)(req, res);
+  }) as any,
   'ai-gateway': aiGatewayHandler,
   'ai-health': aiHealthHandler,
   'automation-events': automationEventsHandler,
@@ -353,7 +355,10 @@ export default async function handler(req: any, res: any) {
     } else if (path?.startsWith('submissions/')) {
       targetHandler = submissionsHandler;
     } else if (path?.startsWith('agents/')) {
-      targetHandler = agentsExecuteHandler;
+      targetHandler = (async (req: any, res: any) => {
+        const mod: any = await import('../src/api-lib/handlers/agents-execute.js');
+        return (mod.default || mod)(req, res);
+      }) as any;
     } else if (path?.startsWith('oauth')) {
       targetHandler = oauthHandler;
     } else if (path?.startsWith('google')) {

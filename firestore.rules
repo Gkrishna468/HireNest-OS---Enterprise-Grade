@@ -449,8 +449,21 @@ service cloud.firestore {
     // =====================================================
 
     match /candidateOwnership/{ownershipId} {
-      allow read: if isSignedIn(); // Used for conflict checking
-      allow write: if isSignedIn(); 
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('orgId', ''))
+      );
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(incoming().get('vendorId', '')) ||
+        isSameOrg(incoming().get('orgId', ''))
+      );
+      allow update: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(existing().get('vendorId', ''))
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /candidatePool/{candidateId} {
@@ -812,18 +825,7 @@ service cloud.firestore {
     // CANDIDATE OWNERSHIP (LEGACY / OLD)
     // =====================================================
 
-    match /candidateOwnership/{ownershipId} {
-      allow read: if isVerified();
 
-      allow create:
-      if isVerified();
-
-      allow update:
-      if isAdmin();
-
-      allow delete:
-      if isSuperAdmin();
-    }
 
     // =====================================================
     // CANDIDATE UPDATES
@@ -848,16 +850,25 @@ service cloud.firestore {
     // =====================================================
 
     match /submissions/{submissionId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('clientId', ''))
+      );
 
-      allow create:
-      if isVerified();
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(incoming().get('vendorId', '')) ||
+        isSameOrg(incoming().get('clientId', ''))
+      );
 
-      allow update:
-      if isVerified();
+      allow update: if isVerified() && (
+        isMainAdmin() ||
+        (isSameOrg(resource.data.get('vendorId', '')) && isSameOrg(incoming().get('vendorId', ''))) ||
+        (isSameOrg(resource.data.get('clientId', '')) && isSameOrg(incoming().get('clientId', '')))
+      );
 
-      allow delete:
-      if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // =====================================================
@@ -868,30 +879,52 @@ service cloud.firestore {
       allow read:
       if isVerified() &&
       (
-        isAdmin() ||
-        request.auth.uid in resource.data.participants ||
-        isSameOrg(resource.data.clientId) ||
-        isSameOrg(resource.data.vendorId)
+        isMainAdmin() ||
+        request.auth.uid in resource.data.get('participants', []) ||
+        isSameOrg(resource.data.get('clientId', '')) ||
+        isSameOrg(resource.data.get('vendorId', ''))
       );
 
       allow create:
       if isVerified() &&
-         isValidDealRoom(incoming());
+         isValidDealRoom(incoming()) &&
+         (
+           isMainAdmin() ||
+           isSameOrg(incoming().get('clientId', '')) ||
+           isSameOrg(incoming().get('vendorId', ''))
+         );
 
       allow update:
       if isVerified() &&
-         isValidDealRoom(incoming());
+         isValidDealRoom(incoming()) &&
+         (
+           isMainAdmin() ||
+           isSameOrg(resource.data.get('clientId', '')) ||
+           isSameOrg(resource.data.get('vendorId', ''))
+         );
 
       allow delete:
-      if isAdmin();
+      if isSuperAdmin();
 
       match /messages/{messageId} {
         allow read:
-        if isVerified();
+        if isVerified() &&
+        (
+          isMainAdmin() ||
+          request.auth.uid in get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('participants', []) ||
+          isSameOrg(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('clientId', '')) ||
+          isSameOrg(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('vendorId', ''))
+        );
 
         allow create:
         if isVerified() &&
-           isValidMessage(incoming());
+           isValidMessage(incoming()) &&
+           (
+             isMainAdmin() ||
+             request.auth.uid in get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('participants', []) ||
+             isSameOrg(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('clientId', '')) ||
+             isSameOrg(get(/databases/$(database)/documents/dealRooms/$(roomId)).data.get('vendorId', ''))
+           );
 
         allow update:
         if false;
@@ -1361,52 +1394,63 @@ service cloud.firestore {
     // WORKFLOW ENTITIES (INTERVIEWS, PLACEMENTS, DEAL ROOMS)
     // =====================================================
 
-    match /dealRooms/{roomId} {
-      allow read: if isVerified();
-      allow create: if isVerified();
-      allow update: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(resource.data.vendorId) ||
-        isSameOrg(resource.data.clientId)
-      );
-      allow delete: if isSuperAdmin();
-    }
-
-    match /dealRooms/{roomId}/messages/{messageId} {
-      allow read: if isVerified();
-      allow create: if isVerified();
-      allow update, delete: if isSuperAdmin();
-    }
-
     match /interviews/{interviewId} {
-      allow read: if isVerified();
-      allow create: if isVerified();
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('clientId', ''))
+      );
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(incoming().get('vendorId', '')) ||
+        isSameOrg(incoming().get('clientId', ''))
+      );
       allow update: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(resource.data.vendorId) ||
-        isSameOrg(resource.data.clientId)
+        isMainAdmin() ||
+        (isSameOrg(resource.data.get('vendorId', '')) && isSameOrg(incoming().get('vendorId', ''))) ||
+        (isSameOrg(resource.data.get('clientId', '')) && isSameOrg(incoming().get('clientId', '')))
       );
       allow delete: if isSuperAdmin();
     }
 
     match /placements/{placementId} {
-      allow read: if isVerified();
-      allow create: if isVerified();
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('clientId', ''))
+      );
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(incoming().get('vendorId', '')) ||
+        isSameOrg(incoming().get('clientId', ''))
+      );
       allow update: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(resource.data.vendorId) ||
-        isSameOrg(resource.data.clientId)
+        isMainAdmin() ||
+        (isSameOrg(resource.data.get('vendorId', '')) && isSameOrg(incoming().get('vendorId', ''))) ||
+        (isSameOrg(resource.data.get('clientId', '')) && isSameOrg(incoming().get('clientId', '')))
       );
       allow delete: if isSuperAdmin();
     }
 
     match /invoices/{invoiceId} {
-      allow read: if isVerified();
-      allow create: if isVerified();
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('clientId', ''))
+      );
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        (
+          (authRole() in ['client_admin', 'client_finance'] && isSameOrg(incoming().get('clientId', ''))) ||
+          (authRole() in ['vendor_admin', 'vendor_manager'] && isSameOrg(incoming().get('vendorId', '')))
+        )
+      );
       allow update: if isVerified() && (
-        isAdmin() ||
-        isSameOrg(resource.data.vendorId) ||
-        isSameOrg(resource.data.clientId)
+        isMainAdmin() ||
+        (
+          (authRole() in ['client_admin', 'client_finance'] && isSameOrg(resource.data.get('clientId', '')) && isSameOrg(incoming().get('clientId', ''))) ||
+          (authRole() in ['vendor_admin', 'vendor_manager'] && isSameOrg(resource.data.get('vendorId', '')) && isSameOrg(incoming().get('vendorId', '')))
+        )
       );
       allow delete: if isSuperAdmin();
     }
@@ -1481,11 +1525,6 @@ service cloud.firestore {
     match /vendor_performance/{docId} {
       allow read: if isVerified();
       allow write: if false;
-    }
-
-    match /invoices/{docId} {
-      allow read: if isVerified();
-      allow write: if isHQ() || isSuperAdmin();
     }
 
     match /vendor_payouts/{docId} {

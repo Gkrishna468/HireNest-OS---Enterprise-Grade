@@ -1,4 +1,4 @@
-import { IEventBus } from './IEventBus';
+import { IEventBus } from './IEventBus.js';
 
 export interface IEventHandler {
   handlerId: string;

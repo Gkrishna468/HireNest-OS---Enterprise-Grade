@@ -24,6 +24,7 @@ import {
   Bot,
   AlertCircle,
   Plus,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 

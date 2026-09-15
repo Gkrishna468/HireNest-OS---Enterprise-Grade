@@ -1,13 +1,13 @@
-import { EventDispatcher } from './EventDispatcher';
-import { EventHandlerRegistry } from './EventHandlerRegistry';
-import { SubmissionEventHandler } from './handlers/SubmissionEventHandler';
-import { InterviewEventHandler } from './handlers/InterviewEventHandler';
-import { OfferEventHandler } from './handlers/OfferEventHandler';
-import { VendorEventHandler } from './handlers/VendorEventHandler';
-import { AnalyticsEventHandler } from './handlers/AnalyticsEventHandler';
-import { IntelligenceEventHandler } from './handlers/IntelligenceEventHandler';
-import { ServerEventForwarder } from './handlers/ServerEventForwarder';
-import { SystemEventListener } from '../integrations/events/SystemEventListener';
+import { EventDispatcher } from './EventDispatcher.js';
+import { EventHandlerRegistry } from './EventHandlerRegistry.js';
+import { SubmissionEventHandler } from './handlers/SubmissionEventHandler.js';
+import { InterviewEventHandler } from './handlers/InterviewEventHandler.js';
+import { OfferEventHandler } from './handlers/OfferEventHandler.js';
+import { VendorEventHandler } from './handlers/VendorEventHandler.js';
+import { AnalyticsEventHandler } from './handlers/AnalyticsEventHandler.js';
+import { IntelligenceEventHandler } from './handlers/IntelligenceEventHandler.js';
+import { ServerEventForwarder } from './handlers/ServerEventForwarder.js';
+import { SystemEventListener } from '../integrations/events/SystemEventListener.js';
 
 export function initializeEventBus() {
   const eventBus = EventDispatcher.getInstance();

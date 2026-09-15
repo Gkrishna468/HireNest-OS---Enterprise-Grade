@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { aiOrchestrator } from './AgentOrchestrator';
+import { aiOrchestrator } from './AgentOrchestrator.js';
 
 /**
  * Very foundational interface for Async Tasks (aligning with MCP / Enterprise Patterns).

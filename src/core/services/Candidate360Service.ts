@@ -15,7 +15,9 @@ export interface CandidateEntity {
   currentLocation?: string;
   expectedCtc?: number;
   currentCtc?: number;
+  currency?: string;
   noticePeriodDays?: number;
+  currentCompany?: string;
   resumeUrl?: string;
   rawParsedText?: string;
   ownershipVendorId?: string;

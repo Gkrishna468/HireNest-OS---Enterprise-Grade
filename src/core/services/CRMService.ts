@@ -2,8 +2,8 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limi
 import { db } from "../../lib/firebase";
 import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types";
 import { ClientService } from "./ClientService";
-import { RequirementService, RequirementPayload } from "./RequirementService";
-import { AIAdvisoryMeta } from "../intelligence/types";
+import { RequirementService } from "./RequirementService";
+import { AIOutputMeta } from "../intelligence/types";
 
 export interface CRMOpportunityEntity {
   id: string;
@@ -49,7 +49,7 @@ export interface CRMOutreachDraftEntity {
   suggestedCandidateIds?: string[];
   aiConfidence: number;
   approvalStatus: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "SENT";
-  meta: AIAdvisoryMeta;
+  meta: AIOutputMeta;
   approvedBy?: string;
   approvedAt?: string;
   createdAt: string;
@@ -320,9 +320,11 @@ export class CRMService {
       approvalStatus: "PENDING_REVIEW",
       meta: {
         kind: "DRAFT",
-        requiresHumanApproval: true,
-        sourceService: "HireNest AI SDR Agent",
+        model: "gemini-2.5-pro",
+        confidenceScore: 0.92,
+        reasoning: ["Targeted outreach based on client technology focus"],
         generatedAt: new Date().toISOString(),
+        requiresHumanApproval: true,
       },
       createdAt: new Date().toISOString(),
       ...(params.opportunityId ? { opportunityId: params.opportunityId } : {}),

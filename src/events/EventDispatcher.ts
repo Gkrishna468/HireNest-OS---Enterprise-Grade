@@ -1,5 +1,5 @@
-import { IEventBus } from './IEventBus';
-import { LocalEventBus } from './LocalEventBus';
+import { IEventBus } from './IEventBus.js';
+import { LocalEventBus } from './LocalEventBus.js';
 
 export class EventDispatcher {
   private static instance: IEventBus;

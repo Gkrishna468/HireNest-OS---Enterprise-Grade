@@ -2,16 +2,131 @@ import { adminDb, adminAuth, runtimeMode } from "../../lib/firebase-admin.js";
 import { getAuth } from "firebase-admin/auth";
 import crypto from "crypto";
 
-const computeFinancials = async (db: any, opts: any) => ({
-  accountsReceivable: 125000,
-  unbilledTime: 45000,
-  daysSalesOutstanding: 32,
-  vendorPayoutsPending: 85000,
-  profit: 5000,
-  vendorPayout: 2000,
-  marginRate: 0.3,
-  appliedPolicy: "standard",
-});
+const computeFinancials = async (db: any, opts: any) => {
+  if (!db) {
+    return {
+      accountsReceivable: 0,
+      unbilledTime: 0,
+      daysSalesOutstanding: 0,
+      vendorPayoutsPending: 0,
+      profit: 0,
+      vendorPayout: 0,
+      marginRate: 0,
+      appliedPolicy: "standard",
+    };
+  }
+
+  try {
+    const enterpriseId = opts?.enterpriseId;
+
+    // Fetch invoices, submissions, and placements
+    let invoicesQuery = db.collection("invoices");
+    let submissionsQuery = db.collection("submissions");
+    let placementsQuery = db.collection("placements");
+
+    if (enterpriseId) {
+      invoicesQuery = invoicesQuery.where("clientId", "==", enterpriseId);
+      submissionsQuery = submissionsQuery.where("clientId", "==", enterpriseId);
+      placementsQuery = placementsQuery.where("clientId", "==", enterpriseId);
+    }
+
+    const [invoicesSnap, submissionsSnap, placementsSnap] = await Promise.all([
+      invoicesQuery.get().catch(() => ({ docs: [] })),
+      submissionsQuery.get().catch(() => ({ docs: [] })),
+      placementsQuery.get().catch(() => ({ docs: [] })),
+    ]);
+
+    // Calculate Accounts Receivable: Sum of unpaid/sent invoices
+    let accountsReceivable = 0;
+    invoicesSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.status === "UNPAID" || data.status === "SENT" || data.status === "OVERDUE" || data.status === "PENDING") {
+        accountsReceivable += Number(data.amount || data.total || 0);
+      }
+    });
+
+    // Calculate Vendor Payouts Pending: Sum of pending vendor payouts or vendor-type unpaid invoices
+    let vendorPayoutsPending = 0;
+    invoicesSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.type === "VENDOR_PAYOUT" && (data.status === "UNPAID" || data.status === "PENDING")) {
+        vendorPayoutsPending += Number(data.amount || data.total || 0);
+      }
+    });
+
+    // Calculate Unbilled Time: From active placements that haven't been fully invoiced
+    let unbilledTime = 0;
+    placementsSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.status === "ACTIVE") {
+        const billRate = Number(data.clientBillRate || data.billingRate || 0);
+        const hours = Number(data.unbilledHours || 0);
+        unbilledTime += billRate * hours;
+      }
+    });
+
+    // Calculate Days Sales Outstanding (DSO): Average time to collect payments
+    let daysSalesOutstanding = 0;
+    let paidInvoicesCount = 0;
+    let totalDaysToPay = 0;
+
+    invoicesSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.status === "PAID" && data.createdAt && data.paidAt) {
+        const created = new Date(data.createdAt).getTime();
+        const paid = new Date(data.paidAt).getTime();
+        const diffDays = Math.ceil((paid - created) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          totalDaysToPay += diffDays;
+          paidInvoicesCount++;
+        }
+      }
+    });
+
+    if (paidInvoicesCount > 0) {
+      daysSalesOutstanding = Math.round(totalDaysToPay / paidInvoicesCount);
+    }
+
+    // Profit and Payout calculation
+    let totalClientBill = 0;
+    let totalVendorPay = 0;
+
+    submissionsSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.status === "HIRED" || data.status === "PLACED") {
+        totalClientBill += Number(data.clientBillRate || 0);
+        totalVendorPay += Number(data.vendorPayRate || 0);
+      }
+    });
+
+    const profit = totalClientBill > totalVendorPay ? totalClientBill - totalVendorPay : 0;
+    const vendorPayout = totalVendorPay;
+    const marginRate = totalClientBill > 0 ? (totalClientBill - totalVendorPay) / totalClientBill : 0;
+
+    return {
+      accountsReceivable,
+      unbilledTime,
+      daysSalesOutstanding,
+      vendorPayoutsPending,
+      profit,
+      vendorPayout,
+      marginRate,
+      appliedPolicy: "standard",
+    };
+  } catch (err) {
+    console.error("Error computing live financials:", err);
+    return {
+      accountsReceivable: 0,
+      unbilledTime: 0,
+      daysSalesOutstanding: 0,
+      vendorPayoutsPending: 0,
+      profit: 0,
+      vendorPayout: 0,
+      marginRate: 0,
+      appliedPolicy: "standard",
+    };
+  }
+};
 const startSaga = async (sagaName: string, payload: any, steps: string[]) => {
   console.log(`[SAGA] Starting saga ${sagaName}`);
 };

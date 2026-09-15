@@ -1,5 +1,5 @@
-import { IEventBus } from './IEventBus';
-import { EventEnvelope } from './types/EventEnvelope';
+import { IEventBus } from './IEventBus.js';
+import { EventEnvelope } from './types/EventEnvelope.js';
 
 export class LocalEventBus implements IEventBus {
   private handlers: Map<string, Map<string, (event: EventEnvelope<any>) => Promise<void>>> = new Map();

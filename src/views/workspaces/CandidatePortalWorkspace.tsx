@@ -580,24 +580,24 @@ export default function CandidatePortalWorkspace({
   const candidateStages = CandidateJobFeedService.getCandidateLifecyclePipeline();
 
   const getStageIndex = (statusStr?: string) => {
-    const candidateStatus = CandidateJobFeedService.mapInternalStatusToCandidateStatus(statusStr);
+    const candidateStatusObj = CandidateJobFeedService.mapInternalStatusToCandidateStatus(statusStr);
     const stageOrder: CandidateFacingStatus[] = [
-      "SUBMITTED",
-      "SCREENING",
-      "SHORTLISTED",
-      "INTERVIEW",
-      "SELECTED",
-      "OFFER",
-      "PLACED"
+      "Submitted",
+      "Screening",
+      "Shortlisted",
+      "Interview",
+      "Selected",
+      "Offer",
+      "Placed"
     ];
-    const idx = stageOrder.indexOf(candidateStatus);
+    const idx = stageOrder.indexOf(candidateStatusObj.candidateStatus);
     return idx >= 0 ? idx : 0;
   };
 
   const STAGES = candidateStages.map(s => ({
     title: s.label,
     desc: s.description,
-    stage: s.stage
+    stage: s.stepNumber
   }));
 
   // AI Career Coach Message Sender
