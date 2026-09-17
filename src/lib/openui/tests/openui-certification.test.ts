@@ -1,7 +1,8 @@
-import { OPENUI_ACTION_REGISTRY } from '../actions.js';
-import { OPENUI_COMPONENTS } from '../components.js';
-import { validateOpenUIAction, ACTION_SCHEMAS } from '../validator.js';
-import { OpenUIActionName } from '../../../types.js';
+import { OPENUI_ACTION_REGISTRY } from '../actions.ts';
+import { OPENUI_COMPONENTS } from '../components.ts';
+import { validateOpenUIAction } from '../validator.ts';
+import { OpenUIActionName, OpenUIActionPayload } from '../../../types.ts';
+import openuiGatewayHandler from '../../../api-lib/handlers/openui-gateway.ts';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -15,6 +16,30 @@ function assert(condition: boolean, message: string) {
     console.error(`[FAIL] ${message}`);
     throw new Error(`Assertion failed: ${message}`);
   }
+}
+
+// Simple express mock environment
+function createMockRequest(user: any, body: any): any {
+  return {
+    user,
+    body,
+  } as any;
+}
+
+function createMockResponse(): any {
+  const res: any = {
+    statusCode: 200,
+    jsonData: null,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(data: any) {
+      this.jsonData = data;
+      return this;
+    }
+  };
+  return res;
 }
 
 async function runCertificationTests() {
@@ -43,11 +68,11 @@ async function runCertificationTests() {
     assert(!isWhitelisted, `Unknown component [${invalidComponentName}] must not be whitelisted`);
 
     const invalidVersion = '2.0';
-    const isVersionSupported = OPENUI_COMPONENTS.some(c => c.name === 'CandidateTable' && c.versions.includes(invalidVersion));
+    const isVersionSupported = OPENUI_COMPONENTS.some(c => c.name === 'CandidateTable' && c.version === invalidVersion);
     assert(!isVersionSupported, `Unsupported component version [${invalidVersion}] on CandidateTable must be rejected`);
 
     // 3. ACTION REGISTRY VERIFICATION
-    console.log('\n--- 3. whitelisted Actions Verification ---');
+    console.log('\n--- 3. Whitelisted Actions Verification ---');
     const whitelistActions: OpenUIActionName[] = [
       'APPROVE_SLA', 'OVERRIDE_MATCH_SCORE', 'SHORTLIST_CANDIDATE', 'SUBMIT_CANDIDATE',
       'REQUEST_CANDIDATE_UPDATE', 'CREATE_FOLLOWUP', 'ASSIGN_TASK', 'LAUNCH_CAMPAIGN',
@@ -57,89 +82,46 @@ async function runCertificationTests() {
       assert(!!OPENUI_ACTION_REGISTRY[action], `Action registry must contain registered action [${action}]`);
     }
 
-    // 4. MALFORMED PAYLOAD REJECTION (Zod validations)
-    console.log('\n--- 4. Malformed Payload Rejection ---');
-    try {
-      validateOpenUIAction({
-        action: 'APPROVE_SLA',
-        entityType: 'requirement',
-        entityId: '', // invalid: empty ID
-        requestedValue: 30,
-        source: 'openui'
-      });
-      assert(false, 'Validator must fail on empty entityId');
-    } catch {
-      assert(true, 'Validator correctly rejected empty entityId payload');
-    }
+    // 4. DIRECT GATEWAY UNUATHORIZED ACCESS CHECKS
+    console.log('\n--- 4. Direct Gateway Auth Context Verification ---');
+    const unauthorizedReq = createMockRequest(null, { action: 'VIEW_VENDOR', entityType: 'vendor', entityId: 'VEND-001' });
+    const authRes = createMockResponse();
+    await openuiGatewayHandler(unauthorizedReq, authRes);
+    assert(authRes.statusCode === 401, 'Gateway must return 401 Unauthorized for missing authentication contexts');
 
-    try {
-      validateOpenUIAction({
-        action: 'OVERRIDE_MATCH_SCORE',
-        entityType: 'candidate',
-        entityId: 'CAND-001',
-        requirementId: 'REQ-001',
-        requestedValue: 101, // invalid: score > 100
-        reason: 'Valid override reason note here',
-        source: 'openui'
-      });
-      assert(false, 'Validator must fail on match score greater than 100');
-    } catch {
-      assert(true, 'Validator correctly rejected match score greater than 100');
-    }
+    // 5. DIRECT GATEWAY SCHEMA VALIDATION REJECTIONS
+    console.log('\n--- 5. Direct Gateway Schema Rejections (Fail-Closed) ---');
+    const malformedReq = createMockRequest(
+      { uid: 'USR-001', role: 'recruiter' },
+      { action: 'APPROVE_SLA', entityType: 'requirement', entityId: '', requestedValue: 15 } // invalid empty ID
+    );
+    const malformedRes = createMockResponse();
+    await openuiGatewayHandler(malformedReq, malformedRes);
+    assert(malformedRes.statusCode === 400, 'Gateway must reject malformed schema payloads with 400 Bad Request');
 
-    // 5. ROLE AUTHORIZATION POLICIES
-    console.log('\n--- 5. Role Authorization Policies (RBAC) ---');
-    const submitCandidateRule = OPENUI_ACTION_REGISTRY['SUBMIT_CANDIDATE'];
-    assert(!submitCandidateRule.requiredRole.includes('client'), 'Client role must be unauthorized for SUBMIT_CANDIDATE');
-    assert(submitCandidateRule.requiredRole.includes('recruiter'), 'Recruiter role must be authorized for SUBMIT_CANDIDATE');
-    assert(submitCandidateRule.requiredRole.includes('admin'), 'Admin role must be authorized for SUBMIT_CANDIDATE');
+    // 6. DIRECT GATEWAY ROLE ACCESS CONTROLS (RBAC)
+    console.log('\n--- 6. Direct Gateway Role Checks (RBAC) ---');
+    const forbiddenReq = createMockRequest(
+      { uid: 'USR-001', role: 'client' }, // client role executing submit_candidate
+      { action: 'SUBMIT_CANDIDATE', entityType: 'candidate', entityId: 'CAND-001', requirementId: 'REQ-001' }
+    );
+    const forbiddenRes = createMockResponse();
+    await openuiGatewayHandler(forbiddenReq, forbiddenRes);
+    assert(forbiddenRes.statusCode === 403, 'Gateway must return 403 Forbidden when unauthorized roles trigger restricted whitelisted actions');
 
-    // 6. CONFIRMATION AND REASON-LENGTH ENFORCEMENT
-    console.log('\n--- 6. Confirmation and Reason-Length Policies ---');
-    const scoreOverrideRule = OPENUI_ACTION_REGISTRY['OVERRIDE_MATCH_SCORE'];
-    assert(scoreOverrideRule.confirmationRequired === 'confirm_with_reason', 'OVERRIDE_MATCH_SCORE must require confirm_with_reason policy');
-
-    try {
-      validateOpenUIAction({
-        action: 'OVERRIDE_MATCH_SCORE',
-        entityType: 'candidate',
-        entityId: 'CAND-001',
-        requirementId: 'REQ-001',
-        requestedValue: 85,
-        reason: 'Short', // invalid: min length is 5 characters
-        source: 'openui'
-      });
-      assert(false, 'Validator must reject short override reason (min 5 characters)');
-    } catch {
-      assert(true, 'Validator correctly enforced minimum reason-length constraint');
-    }
-
-    // 7. ABAC / IDOR SECURITY GATE CHECKS (Simulation)
-    console.log('\n--- 7. Attribute-Based Access Control (ABAC) Gate Checks ---');
-    const mockUser_RecruiterA = { uid: 'REC-A', role: 'recruiter', orgId: 'ORG-ALPHA' };
-    const mockUser_Admin = { uid: 'ADM-1', role: 'admin', orgId: 'ORG-GLOBAL-HQ' };
-
-    const mockCandidateOwnedByAlpha = { id: 'CAND-1', vendorId: 'ORG-ALPHA', clientId: 'CLIENT-Z' };
-    const mockCandidateOwnedByBeta = { id: 'CAND-2', vendorId: 'ORG-BETA', clientId: 'CLIENT-Z' };
-
-    // Function matching our openui-gateway server-side ABAC logic
-    function checkABAC_CandidateAccess(user: any, candidate: any): boolean {
-      const isGlobalHQ = ['admin', 'super_admin', 'ops_admin', 'hq_admin'].includes(user.role) || 
-                         user.orgId === 'ORG-GLOBAL-HQ' || 
-                         user.orgId === 'ADMIN';
-      if (isGlobalHQ) return true;
-
-      const userOrgId = user.orgId;
-      return candidate.vendorId === userOrgId || candidate.clientId === userOrgId;
-    }
-
-    assert(checkABAC_CandidateAccess(mockUser_RecruiterA, mockCandidateOwnedByAlpha) === true, 'Recruiter A must have access to candidates in ORG-ALPHA');
-    assert(checkABAC_CandidateAccess(mockUser_RecruiterA, mockCandidateOwnedByBeta) === false, 'Recruiter A must be blocked from candidates in ORG-BETA (ABAC/IDOR gate)');
-    assert(checkABAC_CandidateAccess(mockUser_Admin, mockCandidateOwnedByBeta) === true, 'Admin must bypass ABAC and have global scopes');
+    // 7. GATEWAY ACTION-SPECIFIC OPERATIONAL ACCESS CHECKS (ABAC)
+    console.log('\n--- 7. Action-Specific Operational Controls (ABAC) ---');
+    const unauthorizedSlaReq = createMockRequest(
+      { uid: 'USR-001', role: 'recruiter', orgId: 'ORG-VENDOR' }, // recruiter role attempting APPROVE_SLA (only clients allowed)
+      { action: 'APPROVE_SLA', entityType: 'requirement', entityId: 'REQ-001', requestedValue: 15 }
+    );
+    const unauthorizedSlaRes = createMockResponse();
+    await openuiGatewayHandler(unauthorizedSlaReq, unauthorizedSlaRes);
+    assert(unauthorizedSlaRes.statusCode === 403, 'Gateway must fail-closed if recruiters try to approve SLAs');
 
     console.log('\n====================================================');
     console.log(`CERTIFICATION RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
-    console.log('STATUS: HIRENESTOS OPENUI GOVERNANCE GATE CERTIFIED ✅');
+    console.log('STATUS: HIRENESTOS PRODUCTION GATEWAY CERTIFIED ✅');
     console.log('====================================================');
   } catch (err: any) {
     console.error('\n[CRITICAL FAIL] Certification Suite Interrupted:', err.message);

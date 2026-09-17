@@ -1,9 +1,21 @@
+import { Request, Response } from 'express';
 import { adminDb } from '../../lib/firebase-admin.js';
 import { validateOpenUIAction } from '../../lib/openui/validator.js';
 import { OPENUI_ACTION_REGISTRY } from '../../lib/openui/actions.js';
 import { EnterpriseRuntimeKernel } from "../os/kernel/EnterpriseRuntimeKernel.js";
+import { OpenUIActionPayload, OpenUIRole } from '../../types.js';
 
-export default async function openuiGatewayHandler(req: any, res: any) {
+interface AuthenticatedRequest extends Request {
+  user?: {
+    uid: string;
+    role?: string;
+    orgId?: string;
+    organizationId?: string;
+    email?: string;
+  };
+}
+
+export default async function openuiGatewayHandler(req: AuthenticatedRequest, res: Response) {
   try {
     // 1. Authenticate user context (populated safely by authMiddleware)
     const user = req.user;
@@ -14,7 +26,7 @@ export default async function openuiGatewayHandler(req: any, res: any) {
     const { action, entityType, entityId, requirementId, requestedValue, reason } = req.body;
 
     // 2. Validate payload against Zod definitions (fail-closed validator)
-    let validatedPayload: any;
+    let validatedPayload: OpenUIActionPayload;
     try {
       validatedPayload = validateOpenUIAction({
         action,
@@ -25,11 +37,12 @@ export default async function openuiGatewayHandler(req: any, res: any) {
         reason,
         source: 'openui',
       });
-    } catch (validationErr: any) {
-      console.error('[OpenUI Gateway] Validation failed:', validationErr.message || validationErr);
+    } catch (validationErr: unknown) {
+      const msg = validationErr instanceof Error ? validationErr.message : String(validationErr);
+      console.error('[OpenUI Gateway] Validation failed:', msg);
       return res.status(400).json({
         error: 'Bad Request: Action payload failed schema validation',
-        details: validationErr.errors || validationErr.message,
+        details: (validationErr as any).errors || msg,
       });
     }
 
@@ -40,7 +53,7 @@ export default async function openuiGatewayHandler(req: any, res: any) {
     }
 
     // 4. Role-Based Access Control (RBAC) check
-    const userRole = user.role || 'recruiter';
+    const userRole = (user.role || 'recruiter') as OpenUIRole;
     if (!actionConfig.requiredRole.includes(userRole)) {
       return res.status(403).json({
         error: `Forbidden: Role ${userRole} is unauthorized to execute ${validatedPayload.action}`,
@@ -63,45 +76,170 @@ export default async function openuiGatewayHandler(req: any, res: any) {
         return res.status(403).json({ error: 'Access Denied: Missing user organization context for ABAC scope validation' });
       }
 
-      // Candidate-bound scope checks (candidatePool)
-      if (validatedPayload.entityType === 'candidate' || validatedPayload.action.includes('CANDIDATE')) {
-        const candidateId = validatedPayload.entityType === 'candidate' ? validatedPayload.entityId : (validatedPayload.entityId || validatedPayload.requirementId);
-        if (candidateId) {
-          const candDoc = await adminDb.collection('candidatePool').doc(candidateId).get();
+      // Action-Specific ABAC Rules (Deterministic Security Checks)
+      switch (validatedPayload.action) {
+        case 'APPROVE_SLA':
+        case 'LAUNCH_CAMPAIGN': {
+          // Rule: SLA and Campaigns can only be performed by Client Managers on requirements belonging to their organization
+          const isClientUser = ['client', 'hiring_manager', 'client_hm', 'client_finance'].includes(userRole);
+          if (!isClientUser) {
+            return res.status(403).json({
+              error: `ABAC Violation: Role ${userRole} is unauthorized to perform ${validatedPayload.action} (this is a client-specific operational control).`
+            });
+          }
+
+          const reqDoc = await adminDb.collection('requirements_public').doc(validatedPayload.entityId).get();
+          if (!reqDoc.exists) {
+            return res.status(404).json({ error: `Not Found: Requirement ${validatedPayload.entityId} does not exist in requirements_public` });
+          }
+          const reqData = reqDoc.data();
+          if (reqData?.clientId !== userOrgId) {
+            return res.status(403).json({
+              error: 'ABAC Violation: You can only approve SLAs or launch campaigns on requirements owned by your organization.'
+            });
+          }
+          break;
+        }
+
+        case 'SUBMIT_CANDIDATE':
+        case 'SHORTLIST_CANDIDATE': {
+          // Rule: Submitting/shortlisting requires:
+          // 1. Candidate must be owned by the user's vendor/recruiter organization
+          // 2. Requirement must be active and either owned by the same client or explicitly shared with the vendor
+          const candidateId = validatedPayload.entityId;
+          const targetRequirementId = validatedPayload.requirementId;
+
+          if (!candidateId || !targetRequirementId) {
+            return res.status(400).json({ error: 'Bad Request: Missing candidateId or requirementId for submission context.' });
+          }
+
+          const [candDoc, reqDoc] = await Promise.all([
+            adminDb.collection('candidatePool').doc(candidateId).get(),
+            adminDb.collection('requirements_public').doc(targetRequirementId).get()
+          ]);
+
           if (!candDoc.exists) {
             return res.status(404).json({ error: `Not Found: Candidate ${candidateId} does not exist in candidatePool` });
           }
-          const candData = candDoc.data();
-          const belongsToVendor = candData?.vendorId === userOrgId;
-          const belongsToClient = candData?.clientId === userOrgId;
-          const isAssignedRecruiter = candData?.assignedRecruiterId === user.uid;
+          if (!reqDoc.exists) {
+            return res.status(404).json({ error: `Not Found: Requirement ${targetRequirementId} does not exist in requirements_public` });
+          }
 
-          if (!belongsToVendor && !belongsToClient && !isAssignedRecruiter) {
+          const candData = candDoc.data();
+          const reqData = reqDoc.data();
+
+          // Recruiter must own/manage the candidate
+          const isVendorOwner = candData?.vendorId === userOrgId;
+          const isAssignedRecruiter = candData?.assignedRecruiterId === user.uid;
+          if (!isVendorOwner && !isAssignedRecruiter) {
             return res.status(403).json({
-              error: 'ABAC Scope Violation: You do not have permissions or ownership rights to perform operations on this candidate.'
+              error: 'ABAC Violation: You can only submit/shortlist candidates that are managed/owned by your organization.'
             });
           }
-        }
-      }
 
-      // Requirement-bound scope checks (requirements_public)
-      if (validatedPayload.entityType === 'requirement' || validatedPayload.requirementId) {
-        const reqId = validatedPayload.entityType === 'requirement' ? validatedPayload.entityId : validatedPayload.requirementId;
-        if (reqId) {
-          const reqDoc = await adminDb.collection('requirements_public').doc(reqId).get();
+          // Requirement must be shared with the recruiter's organization, or they must own it (or requirement is open)
+          const isReqSharedWithVendor = reqData?.vendorId === userOrgId || 
+                                        reqData?.sharedVendors?.includes(userOrgId) || 
+                                        reqData?.status === 'OPEN';
+          if (!isReqSharedWithVendor && reqData?.clientId !== userOrgId) {
+            return res.status(403).json({
+              error: 'ABAC Violation: This requirement is not shared with or accessible to your organization.'
+            });
+          }
+          break;
+        }
+
+        case 'OVERRIDE_MATCH_SCORE': {
+          // Rule: Match score override requires admin role or Client HM (if requirement belongs to client)
+          const isAuthorizedRole = ['admin', 'super_admin', 'ops_admin', 'hq_admin', 'client_hm', 'client_recruiter'].includes(userRole);
+          if (!isAuthorizedRole) {
+            return res.status(403).json({
+              error: `ABAC Violation: Role ${userRole} is unauthorized to perform match score overrides.`
+            });
+          }
+
+          const targetRequirementId = validatedPayload.requirementId;
+          if (!targetRequirementId) {
+            return res.status(400).json({ error: 'Bad Request: Missing requirementId for match score override.' });
+          }
+
+          const reqDoc = await adminDb.collection('requirements_public').doc(targetRequirementId).get();
           if (!reqDoc.exists) {
-            return res.status(404).json({ error: `Not Found: Requirement ${reqId} does not exist in requirements_public` });
+            return res.status(404).json({ error: `Not Found: Requirement ${targetRequirementId} does not exist in requirements_public` });
           }
           const reqData = reqDoc.data();
-          const belongsToClient = reqData?.clientId === userOrgId;
-          const isVendorShared = reqData?.vendorId === userOrgId || reqData?.sharedVendors?.includes(userOrgId);
-
-          if (!belongsToClient && !isVendorShared && reqData?.status !== 'OPEN') {
+          if (reqData?.clientId !== userOrgId) {
             return res.status(403).json({
-              error: 'ABAC Scope Violation: You do not have permissions or access scope to perform operations on this requirement.'
+              error: 'ABAC Violation: You can only override match scores for requirements owned by your organization.'
             });
           }
+          break;
         }
+
+        case 'REQUEST_CANDIDATE_UPDATE': {
+          // Rule: Can request update only if candidate is owned/assigned, or is currently submitted to user's client requirement
+          const candDoc = await adminDb.collection('candidatePool').doc(validatedPayload.entityId).get();
+          if (!candDoc.exists) {
+            return res.status(404).json({ error: `Not Found: Candidate ${validatedPayload.entityId} does not exist in candidatePool` });
+          }
+          const candData = candDoc.data();
+          const isVendorOwner = candData?.vendorId === userOrgId;
+          const isClientOwner = candData?.clientId === userOrgId;
+
+          if (!isVendorOwner && !isClientOwner) {
+            // Check if there is an active submission to this client
+            const activeSubmissions = await adminDb.collection('submissions')
+              .where('candidateId', '==', validatedPayload.entityId)
+              .where('vendorOrgId', '==', userOrgId)
+              .limit(1)
+              .get();
+
+            if (activeSubmissions.empty) {
+              return res.status(403).json({
+                error: 'ABAC Violation: You do not have permission to request updates for this candidate.'
+              });
+            }
+          }
+          break;
+        }
+
+        case 'VIEW_CANDIDATE': {
+          const candDoc = await adminDb.collection('candidatePool').doc(validatedPayload.entityId).get();
+          if (!candDoc.exists) {
+            return res.status(404).json({ error: `Not Found: Candidate ${validatedPayload.entityId} does not exist in candidatePool` });
+          }
+          const candData = candDoc.data();
+          const isVendorOwner = candData?.vendorId === userOrgId;
+          const isClientOwner = candData?.clientId === userOrgId;
+          const isAssigned = candData?.assignedRecruiterId === user.uid;
+
+          if (!isVendorOwner && !isClientOwner && !isAssigned) {
+            return res.status(403).json({
+              error: 'ABAC Violation: Unauthorized candidate access scope.'
+            });
+          }
+          break;
+        }
+
+        case 'VIEW_REQUIREMENT': {
+          const reqDoc = await adminDb.collection('requirements_public').doc(validatedPayload.entityId).get();
+          if (!reqDoc.exists) {
+            return res.status(404).json({ error: `Not Found: Requirement ${validatedPayload.entityId} does not exist in requirements_public` });
+          }
+          const reqData = reqDoc.data();
+          const isClientOwner = reqData?.clientId === userOrgId;
+          const isShared = reqData?.vendorId === userOrgId || reqData?.sharedVendors?.includes(userOrgId) || reqData?.status === 'OPEN';
+
+          if (!isClientOwner && !isShared) {
+            return res.status(403).json({
+              error: 'ABAC Violation: Unauthorized requirement access scope.'
+            });
+          }
+          break;
+        }
+
+        default:
+          break;
       }
     }
 
@@ -136,16 +274,16 @@ export default async function openuiGatewayHandler(req: any, res: any) {
           .get();
 
         let submissionId = `SUB-${Date.now()}`;
-        let existingData: any = {};
+        let existingData: Record<string, unknown> = {};
         let currentStatus = "SUBMITTED";
 
         if (!querySnap.empty) {
           submissionId = querySnap.docs[0].id;
-          existingData = querySnap.docs[0].data() || {};
-          currentStatus = existingData.status || "SUBMITTED";
+          existingData = querySnap.docs[0].data() as Record<string, unknown> || {};
+          currentStatus = (existingData.status as string) || "SUBMITTED";
         }
 
-        // Evaluate State Transition through Canonical Kernel
+        // Evaluate State Transition through Canonical Kernel (Strict Fail-Closed Integration)
         try {
           const isValidTransition = await EnterpriseRuntimeKernel.state.transitionState(
             "SUBMISSION",
@@ -159,8 +297,13 @@ export default async function openuiGatewayHandler(req: any, res: any) {
               error: `State Transition Denied: Cannot transition submission from ${currentStatus} to ${newStatus} under role ${userRole}.`
             });
           }
-        } catch (stateErr: any) {
-          console.warn("[Kernel State Policy Bypass]:", stateErr.message);
+        } catch (stateErr: unknown) {
+          const msg = stateErr instanceof Error ? stateErr.message : String(stateErr);
+          console.error("[Kernel State Policy Failure - Fail Closed]:", msg);
+          return res.status(500).json({
+            error: "State Transition Denied",
+            details: `The canonical State Engine validation encountered a transaction error: ${msg}`
+          });
         }
 
         await submissionsColl.doc(submissionId).set({
@@ -179,8 +322,9 @@ export default async function openuiGatewayHandler(req: any, res: any) {
         try {
           await EnterpriseRuntimeKernel.sla.completeSLA(submissionId, "OpenUI transition state update");
           await EnterpriseRuntimeKernel.sla.initiateSLA(submissionId, newStatus);
-        } catch (slaErr: any) {
-          console.warn("[Kernel SLA Operations Warning]:", slaErr.message);
+        } catch (slaErr: unknown) {
+          const msg = slaErr instanceof Error ? slaErr.message : String(slaErr);
+          console.warn("[Kernel SLA Operations Warning]:", msg);
         }
 
         // Publish transition event to EventEngine for Notification routing
@@ -192,8 +336,9 @@ export default async function openuiGatewayHandler(req: any, res: any) {
             requirementId: validatedPayload.requirementId,
             vendorId: user.orgId || 'hq',
           });
-        } catch (eventErr: any) {
-          console.warn("[Kernel Event Publish Warning]:", eventErr.message);
+        } catch (eventErr: unknown) {
+          const msg = eventErr instanceof Error ? eventErr.message : String(eventErr);
+          console.warn("[Kernel Event Publish Warning]:", msg);
         }
 
         break;
@@ -283,11 +428,12 @@ export default async function openuiGatewayHandler(req: any, res: any) {
       message: `${validatedPayload.action} processed successfully.`,
       details: auditDetails,
     });
-  } catch (err: any) {
-    console.error('[OpenUI Gateway Error]:', err.message || err);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[OpenUI Gateway Error]:', msg);
     return res.status(500).json({
       error: 'Internal Server Error',
-      details: err.message || 'An error occurred inside the gateway processing loop',
+      details: msg,
     });
   }
 }

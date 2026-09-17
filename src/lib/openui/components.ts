@@ -81,3 +81,5 @@ export const OPENUI_COMPONENT_REGISTRY: Record<OpenUIComponentVersionedName, Ope
     allowedActions: ['LAUNCH_CAMPAIGN'],
   },
 };
+
+export const OPENUI_COMPONENTS = Object.values(OPENUI_COMPONENT_REGISTRY);

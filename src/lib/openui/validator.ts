@@ -8,7 +8,7 @@ export const OpenUIWorkspaceContextSchema = z.object({
   currentUser: z.string().optional(),
   selectedCandidates: z.array(z.string()).optional(),
   activeVendor: z.string().optional(),
-  currentFilters: z.record(z.string(), z.any()).optional(),
+  currentFilters: z.record(z.string(), z.unknown()).optional(),
   currentTab: z.string().optional(),
 }).strict();
 
@@ -16,7 +16,7 @@ export const OpenUIRenderContractSchema = z.object({
   responseType: z.enum(['text', 'generative_ui', 'multi_component', 'action_confirmation']),
   component: z.string().optional(),
   version: z.string().optional(),
-  data: z.record(z.string(), z.any()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
   actions: z.array(z.string()).optional(),
   context: OpenUIWorkspaceContextSchema.optional(),
   telemetry: z.object({
@@ -33,7 +33,7 @@ export const OpenUIRenderContractSchema = z.object({
 });
 
 // Individual Action Schema Registry
-export const ACTION_SCHEMAS: Record<OpenUIActionName, z.ZodObject<Record<string, z.ZodTypeAny>, any, any>> = {
+export const ACTION_SCHEMAS: Record<OpenUIActionName, z.ZodObject<Record<string, z.ZodTypeAny>, z.UnknownKeysBehavior, z.ZodTypeAny>> = {
   APPROVE_SLA: z.object({
     action: z.literal('APPROVE_SLA'),
     entityType: z.literal('requirement'),
