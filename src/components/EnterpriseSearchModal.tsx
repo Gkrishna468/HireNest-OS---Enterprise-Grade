@@ -340,7 +340,10 @@ export function EnterpriseSearchModal({
       const trimmedCommand = q.replace(/^>\s*/, '').toLowerCase();
       const cmds = getSystemCommands();
       const filteredCmds = trimmedCommand 
-        ? cmds.filter(c => c.title.toLowerCase().includes(trimmedCommand) || c.subtitle.toLowerCase().includes(trimmedCommand))
+        ? cmds.filter(c => 
+            (c.title || "").toLowerCase().includes(trimmedCommand) || 
+            (c.subtitle || "").toLowerCase().includes(trimmedCommand)
+          )
         : cmds;
       
       setResults(filteredCmds);
@@ -410,10 +413,10 @@ export function EnterpriseSearchModal({
 
       // Client-side exact substring filter
       const filtered = allSearchNodes.filter(item => 
-        item.title.toLowerCase().includes(qLower) || 
-        item.subtitle.toLowerCase().includes(qLower) ||
-        item.experienceNotes.toLowerCase().includes(qLower) ||
-        item.type.toLowerCase().includes(qLower)
+        (item.title || "").toLowerCase().includes(qLower) || 
+        (item.subtitle || "").toLowerCase().includes(qLower) ||
+        (item.experienceNotes || "").toLowerCase().includes(qLower) ||
+        (item.type || "").toLowerCase().includes(qLower)
       );
 
       // De-duplicate results by ID to keep the tree pristine
@@ -434,9 +437,9 @@ export function EnterpriseSearchModal({
       console.error("Advanced traversal query failed:", e);
       // Fallback to local canonical data in case of permissions or query boundaries
       const localFiltered = canonicalGraphData.filter(item => 
-        item.title.toLowerCase().includes(qLower) || 
-        item.subtitle.toLowerCase().includes(qLower) ||
-        item.experienceNotes.toLowerCase().includes(qLower)
+        (item.title || "").toLowerCase().includes(qLower) || 
+        (item.subtitle || "").toLowerCase().includes(qLower) ||
+        (item.experienceNotes || "").toLowerCase().includes(qLower)
       );
       setResults(localFiltered);
       if (localFiltered.length > 0) {

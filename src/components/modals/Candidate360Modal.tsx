@@ -19,7 +19,7 @@ import { AccessControlService } from "../../services/accessControlService";
 import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
 import { ResumeIngestionService } from "../../services/resumeIngestionService";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc, query, limit } from "firebase/firestore";
 import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
@@ -254,8 +254,8 @@ export default function Candidate360Modal({
       setInternalJobs(jobs);
       return;
     }
-    // SSOT Fallback: subscribe to requirements_public if parent did not provide jobs
-    const unsub = onSnapshot(collection(db, "requirements_public"), (snap) => {
+    // SSOT Fallback: subscribe to requirements_public if parent did not provide jobs (bounded to limit 50 to conserve reads)
+    const unsub = onSnapshot(query(collection(db, "requirements_public"), limit(50)), (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setInternalJobs(docs);
     }, (err) => console.warn("[Candidate360Modal] fallback reqs load warning:", err?.message));

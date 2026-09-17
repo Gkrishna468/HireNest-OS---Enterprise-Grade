@@ -33,7 +33,7 @@ export const OpenUIRenderContractSchema = z.object({
 });
 
 // Individual Action Schema Registry
-export const ACTION_SCHEMAS: Record<OpenUIActionName, z.ZodObject<Record<string, z.ZodTypeAny>, z.UnknownKeysBehavior, z.ZodTypeAny>> = {
+export const ACTION_SCHEMAS: Record<OpenUIActionName, z.ZodObject<any, any>> = {
   APPROVE_SLA: z.object({
     action: z.literal('APPROVE_SLA'),
     entityType: z.literal('requirement'),

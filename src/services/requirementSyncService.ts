@@ -104,7 +104,7 @@ export class RequirementSyncService {
     }
 
     // Determine column indices dynamically
-    const headers = rows[0].map(h => h.toLowerCase().trim());
+    const headers = rows[0].map(h => (h || "").toString().toLowerCase().trim());
     const clientIdx = headers.findIndex(h => h.includes('client') || h.includes('company'));
     const titleIdx = headers.findIndex(h => h.includes('requirement') || h.includes('title') || h.includes('role') || h.includes('job'));
     const modeIdx = headers.findIndex(h => h.includes('mode') || h.includes('type') || h.includes('work'));
@@ -447,7 +447,7 @@ export class RequirementSyncService {
   }
 
   private static normalizeStatus(raw: string): 'ACTIVE' | 'CLOSED' | 'HOLD' | 'EXPIRED' | 'SOURCING_PAUSED' {
-    const s = raw.toLowerCase().trim();
+    const s = (raw || "").toString().toLowerCase().trim();
     if (s === 'active' || s === 'open' || s === 'published') return 'ACTIVE';
     if (s === 'closed' || s === 'filled') return 'CLOSED';
     if (s === 'on hold' || s === 'hold' || s === 'paused') return 'HOLD';
@@ -457,7 +457,7 @@ export class RequirementSyncService {
   }
 
   private static normalizeWorkMode(raw: string): 'REMOTE' | 'ONSITE' | 'C2H' | 'HYBRID' | 'C2C' {
-    const m = raw.toLowerCase().trim();
+    const m = (raw || "").toString().toLowerCase().trim();
     if (m === 'remote') return 'REMOTE';
     if (m === 'onsite') return 'ONSITE';
     if (m === 'c2h') return 'C2H';
@@ -467,7 +467,7 @@ export class RequirementSyncService {
   }
 
   private static normalizeLocation(raw: string): string {
-    const loc = raw.trim();
+    const loc = (raw || "").toString().trim();
     const l = loc.toLowerCase();
     if (l === 'hyderabad') return 'Hyderabad, India';
     if (l === 'bangalore' || l === 'bengaluru') return 'Bangalore, India';

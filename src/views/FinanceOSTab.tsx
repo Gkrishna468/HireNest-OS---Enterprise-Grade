@@ -14,13 +14,14 @@ export default function FinanceOSTab({ userRole }: { userRole: string }) {
   const [vendors, setVendors] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    const unsubInvoices = onSnapshot(collection(db, "invoices"), (snap) => {
+    // Highly conservative default list limits (25 items) to minimize Firestore read volume and optimize billing
+    const unsubInvoices = onSnapshot(query(collection(db, "invoices"), limit(25)), (snap) => {
       setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    const unsubPayouts = onSnapshot(collection(db, "vendor_payouts"), (snap) => {
+    const unsubPayouts = onSnapshot(query(collection(db, "vendor_payouts"), limit(25)), (snap) => {
       setPayouts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    const unsubPlacements = onSnapshot(collection(db, "placements"), (snap) => {
+    const unsubPlacements = onSnapshot(query(collection(db, "placements"), limit(25)), (snap) => {
       setPlacements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     

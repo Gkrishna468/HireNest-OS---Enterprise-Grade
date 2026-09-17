@@ -317,8 +317,8 @@ export class CandidateMatchingService {
     }
 
     try {
-      // 1. Fetch public requirements strictly eligible for candidates (Active + FTE + Onsite + candidate_publish)
-      const qReqs = collection(db, "requirements_public");
+      // 1. Fetch public requirements strictly eligible for candidates (Active + FTE + Onsite + candidate_publish), bounded to max 50 items
+      const qReqs = query(collection(db, "requirements_public"), limit(50));
       const reqSnap = await getDocs(qReqs);
       const openReqs: any[] = reqSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))

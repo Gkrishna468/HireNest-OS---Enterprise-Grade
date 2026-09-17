@@ -442,7 +442,10 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {opportunities
-                .filter((o) => o.title.toLowerCase().includes(searchQuery.toLowerCase()) || o.clientName.toLowerCase().includes(searchQuery.toLowerCase()))
+                .filter((o) => 
+                  (o.title || "").toLowerCase().includes((searchQuery || "").toLowerCase()) || 
+                  (o.clientName || "").toLowerCase().includes((searchQuery || "").toLowerCase())
+                )
                 .map((opp) => {
                   const isHandoffReady = ["CLOSED_WON", "NEGOTIATION"].includes(opp.stage) && !opp.linkedRequirementId;
                   const isHandedOff = opp.stage === "DELIVERY_HANDOFF" || !!opp.linkedRequirementId;
@@ -467,7 +470,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                                 : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
                             )}
                           >
-                            {opp.stage.replace("_", " ")}
+                            {(opp.stage || "").replace("_", " ")}
                           </span>
                         </div>
 
@@ -489,7 +492,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
-                          {opp.targetRoles.map((role, idx) => (
+                          {(opp.targetRoles || []).map((role, idx) => (
                             <span key={idx} className="text-[10px] font-medium bg-slate-700/60 text-slate-300 px-2 py-0.5 rounded">
                               {role}
                             </span>

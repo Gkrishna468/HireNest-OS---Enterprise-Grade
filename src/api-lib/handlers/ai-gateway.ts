@@ -21,7 +21,8 @@ export default async function aiGatewayHandler(req: any, res: any) {
             promptVersion,
             userId,
             office,
-            agent: agent || feature
+            agent: agent || feature,
+            isAuthorizedUserAction: true
         });
 
         // Add prompt version to the response

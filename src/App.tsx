@@ -346,7 +346,7 @@ const AppContent = () => {
       }
 
       // 3. Simple Single Key Shortcuts
-      switch (e.key.toLowerCase()) {
+      switch ((e.key || '').toLowerCase()) {
         case 'n': // New Requirement context
           e.preventDefault();
           navigate('/jobs');

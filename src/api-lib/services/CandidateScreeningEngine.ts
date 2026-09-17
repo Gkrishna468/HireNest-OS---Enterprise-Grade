@@ -297,6 +297,7 @@ Evaluate candidate-JD fit rigorously and return a valid JSON object matching thi
         agent: "CandidateScreeningEngine",
         temperature: 0.1,
         systemInstruction: "You are HireNest OS's screening engine. Evaluate candidates objectively. Output valid JSON only.",
+        isAuthorizedUserAction: true,
         schema: {
           type: "object",
           properties: {

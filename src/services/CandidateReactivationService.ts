@@ -45,7 +45,7 @@ export class CandidateReactivationService {
 
     // Calculate direct skill overlap
     const matchedSkills = candSkills.filter((cs) =>
-      jobSkills.some((js) => js.toLowerCase() === cs.toLowerCase())
+      cs && typeof cs === "string" && jobSkills.some((js) => js && typeof js === "string" && js.toLowerCase() === cs.toLowerCase())
     );
     const skillRatio = jobSkills.length > 0 ? matchedSkills.length / jobSkills.length : 0.5;
     const directMatchScore = Math.min(100, Math.round(skillRatio * 100));

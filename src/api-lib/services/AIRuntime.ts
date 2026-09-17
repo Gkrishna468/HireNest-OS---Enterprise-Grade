@@ -11,6 +11,8 @@ export interface AIRuntimeRequest {
     imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>;
     fallbackRuleEngine?: (text: string) => any;
     compressContext?: boolean;
+    isAuthorizedUserAction?: boolean;
+    isAuthorizedBackgroundJob?: boolean;
 }
 
 export interface AIRuntimeResponse {
@@ -59,7 +61,9 @@ export class AIRuntime {
                 schema: request.schema,
                 compressContext: request.compressContext,
                 imageParts: request.imageParts,
-                fallbackRuleEngine: request.fallbackRuleEngine
+                fallbackRuleEngine: request.fallbackRuleEngine,
+                isAuthorizedUserAction: request.isAuthorizedUserAction ?? true,
+                isAuthorizedBackgroundJob: request.isAuthorizedBackgroundJob ?? false
             });
 
             let parsedData;

@@ -321,8 +321,8 @@ export const AddDirectCandidateModal: React.FC<AddDirectCandidateModalProps> = (
                   .filter(Boolean);
 
             const matchedSkills = reqSkills.filter((sk) =>
-              skillsList.some((cs) =>
-                cs.toLowerCase().includes(sk.toLowerCase())
+              sk && typeof sk === "string" && skillsList.some((cs) =>
+                cs && typeof cs === "string" && cs.toLowerCase().includes(sk.toLowerCase())
               )
             );
 
@@ -345,14 +345,14 @@ export const AddDirectCandidateModal: React.FC<AddDirectCandidateModalProps> = (
                 ? 7
                 : 4;
 
-            const rolePct = candDoc.currentRole && (req.title || "")
+            const rolePct = candDoc.currentRole && typeof candDoc.currentRole === "string" && (req.title || "")
               .toLowerCase()
-              .includes((candDoc.currentRole || "").toLowerCase().split(" ")[0])
+              .includes(candDoc.currentRole.toLowerCase().split(" ")[0])
               ? 15
               : 8;
 
             const compPct = 10;
-            const availPct = candDoc.noticePeriod && candDoc.noticePeriod.toLowerCase().includes("immediate") ? 5 : 3;
+            const availPct = candDoc.noticePeriod && typeof candDoc.noticePeriod === "string" && candDoc.noticePeriod.toLowerCase().includes("immediate") ? 5 : 3;
             const domainPct = 5;
 
             const totalScore = Math.min(

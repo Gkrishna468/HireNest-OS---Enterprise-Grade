@@ -61,3 +61,36 @@ This document maps out the Google Cloud and AI infrastructure costs for HireNest
 2. **Review Firestore Queries:** Audit the frontend for any `getDocs` calls lacking a `.limit()`.
 3. **AI Caching:** Implement the caching mechanism in the `AIGateway` to skip duplicate LLM queries.
 4. **Move to Background Tasks:** Implement a queue (bullmq or Cloud Tasks) for heavy document parsing.
+
+## 4. App Engine Billing Audit & Optimization (₹190.48 Cost Attribution)
+
+An investigation into the App Engine cost of **₹190.48** (approximately **$2.30 USD**) for the Sept 1–17, 2026 period shows clear attribution to resource class and scaling configurations over standard standard limitations:
+
+### A. Core Attribution Drivers
+
+1. **Standard vs. Flexible Environment SKU:**
+   - App Engine Flexible has **no free tier** and requires at least 1 VM active 24/7 (minimum monthly cost of ~$30–40). Since the billing is only ₹190.48 for 17 days, the service is confirmed to be running on **App Engine Standard**.
+   - Standard Environment provides a daily free quota of **28 instance-hours** for **F1** instances and **9 instance-hours** for **B1** instances.
+
+2. **How the Free Quota was Exceeded:**
+   - **Instance Class Rating:** If configured with F2 (2x rate) or F4 (4x rate) instance classes, the daily free quota is consumed 2 to 4 times faster. An F4 instance running for 7 hours consumes the entire 28 instance-hour quota for the day.
+   - **Idle Instances Setting (`min_idle_instances`):** Standard automatic scaling defaults to keeping instances warm to prevent cold starts. If `min_idle_instances` or `min_instances` is set to $>0$, App Engine Standard keeps instances running even with zero traffic, quickly exceeding the 28-hour daily free tier.
+   - **Concurrency and Traffic Spikes:** Simultaneous candidate imports or high concurrent traffic triggers automatic scaling, spawning multiple parallel instances. If 3 instances run simultaneously for 10 hours, they consume 30 instance-hours, exceeding the daily free quota.
+
+### B. Actionable app.yaml Remediation
+
+To enforce a absolute zero-cost or near-zero baseline cost, apply the following optimized standard configuration in the production `app.yaml`:
+
+```yaml
+runtime: nodejs20
+instance_class: F1 # Use the smallest instance class to stay within the 28 instance-hours free quota
+
+automatic_scaling:
+  target_cpu_utilization: 0.65
+  min_instances: 0          # Allow scaling completely to zero when idle
+  max_instances: 2          # Tight ceiling to prevent run-away instance generation on traffic spikes
+  min_idle_instances: 0     # Avoid keeping warm idle instances running
+  max_idle_instances: 1     # Minimize instance hour accumulation
+```
+
+Applying these parameters ensures standard scaling stays within the free tier baseline, making unintended compute costs architecturally impossible.

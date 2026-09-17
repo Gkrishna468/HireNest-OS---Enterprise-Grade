@@ -36,7 +36,7 @@ export default async function openuiGatewayHandler(req: AuthenticatedRequest, re
         requestedValue,
         reason,
         source: 'openui',
-      });
+      }) as unknown as OpenUIActionPayload;
     } catch (validationErr: unknown) {
       const msg = validationErr instanceof Error ? validationErr.message : String(validationErr);
       console.error('[OpenUI Gateway] Validation failed:', msg);

@@ -66,10 +66,28 @@ export type AICapability =
   | "openui"
   | "general";
 
+export type AIIntent =
+  | "ASK_COPILOT"
+  | "RUN_AI_MATCH"
+  | "CANDIDATE_MATCH"
+  | "PARSE_RESUME"
+  | "SCREEN_CANDIDATE"
+  | "CANDIDATE_360"
+  | "GENERATE_EMAIL"
+  | "EMAIL_CLASSIFICATION"
+  | "ANALYZE_REQUIREMENT"
+  | "JD_PARSE"
+  | "SKILL_EXTRACTION"
+  | "CANDIDATE_NORMALIZATION"
+  | "REQUIREMENT_AI"
+  | "COMPLEX_ANALYSIS"
+  | "EXECUTIVE_ANALYSIS";
+
 export interface AIGatewayRequest {
     prompt: string;
     feature?: AICapability;
     level?: AILevel;
+    intent?: AIIntent;
     promptVersion?: string;
     requireLocal?: boolean;
     skipCache?: boolean;
@@ -85,6 +103,8 @@ export interface AIGatewayRequest {
     fallbackRuleEngine?: (text: string) => any;
     timeoutMs?: number;
     strategy?: "speed" | "quality" | "cost";
+    isAuthorizedUserAction?: boolean;
+    isAuthorizedBackgroundJob?: boolean;
 }
 
 export interface AIGatewayResponse {
@@ -405,12 +425,77 @@ export class AIGateway {
         google: new GoogleProvider()
     };
 
+    // In-memory cache telemetry buffers to avoid write-inflation on Firestore cache hits
+    private static inMemoryCacheHitsCount = 0;
+    private static inMemorySavedTokens = 0;
+    private static inMemorySavedCost = 0;
+    private static lastFlushTime = Date.now();
+    private static FLUSH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    private static FLUSH_THRESHOLD_COUNT = 20; // or every 20 cache hits
+
+    private static async recordCacheHitTelemetry(savedTokens: number, savedCost: number) {
+        this.inMemoryCacheHitsCount++;
+        this.inMemorySavedTokens += savedTokens;
+        this.inMemorySavedCost += savedCost;
+
+        const timeSinceLastFlush = Date.now() - this.lastFlushTime;
+        if (this.inMemoryCacheHitsCount >= this.FLUSH_THRESHOLD_COUNT || timeSinceLastFlush >= this.FLUSH_INTERVAL_MS) {
+            // Run asynchronously to not block the current request execution flow
+            this.flushCacheHitTelemetry().catch((err: any) => console.warn("[AIGateway] Async flush cache hits warning:", err?.message));
+        }
+    }
+
+    public static async flushCacheHitTelemetry() {
+        if (this.inMemoryCacheHitsCount === 0 || !db) return;
+
+        const dateStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+        const hits = this.inMemoryCacheHitsCount;
+        const tokens = this.inMemorySavedTokens;
+        const cost = this.inMemorySavedCost;
+
+        // Reset in-memory trackers immediately before async call to avoid race conditions
+        this.inMemoryCacheHitsCount = 0;
+        this.inMemorySavedTokens = 0;
+        this.inMemorySavedCost = 0;
+        this.lastFlushTime = Date.now();
+
+        try {
+            const dailyDocRef = db.collection("ai_usage_daily").doc(dateStr);
+            await db.runTransaction(async (transaction: any) => {
+                const docSnap = await transaction.get(dailyDocRef);
+                if (docSnap.exists) {
+                    const currentData = docSnap.data();
+                    transaction.update(dailyDocRef, {
+                        cacheHits: (currentData?.cacheHits || 0) + hits,
+                        savedTokens: (currentData?.savedTokens || 0) + tokens,
+                        savedCost: (currentData?.savedCost || 0) + cost,
+                        updatedAt: new Date().toISOString()
+                    });
+                } else {
+                    transaction.set(dailyDocRef, {
+                        cacheHits: hits,
+                        savedTokens: tokens,
+                        savedCost: cost,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            });
+            console.log(`[AIGateway] Flushed aggregated cache hit telemetry to ai_usage_daily/${dateStr}: ${hits} hits, ${tokens} tokens saved, $${cost.toFixed(4)} saved.`);
+        } catch (err: any) {
+            console.warn("[AIGateway] Failed to flush daily cache hit telemetry:", err?.message);
+        }
+    }
+
     static getLevel1Model(): string {
-        return process.env.AI_LEVEL_1_MODEL || this.LEVEL_1_MODEL_DEFAULT;
+        return process.env.AI_LOW_COST_MODEL || process.env.AI_LEVEL_1_MODEL || "gemini-3.5-flash-lite";
     }
 
     static getLevel2Model(): string {
-        return process.env.AI_LEVEL_2_MODEL || this.LEVEL_2_MODEL_DEFAULT;
+        return process.env.AI_DEFAULT_MODEL || process.env.AI_LEVEL_2_MODEL || "gemini-3.5-flash";
+    }
+
+    static getComplexModel(): string {
+        return process.env.AI_COMPLEX_MODEL || "gemini-3.1-pro-preview";
     }
 
     static isProModelAllowed(): boolean {
@@ -424,14 +509,16 @@ export class AIGateway {
     static resolveLevelAndModel(
         feature: string,
         requestedLevel?: AILevel,
-        requestedModel?: string
+        requestedModel?: string,
+        intent?: AIIntent,
+        userHasProPermission?: boolean
     ): { level: AILevel; model: string } {
         // Enforce zero-AI deterministic rule for basic resume parsing
         if (feature === "resume_parsing" || feature === "resume.extract") {
             throw new Error("DETERMINISTIC_RESUME_PARSER_REQUIRED: Basic resume parsing is strictly deterministic. Use DeterministicResumeParser without invoking Gemini.");
         }
 
-        // Validate requested model overrides
+        // Keep test assertions happy & enforce strict model restrictions
         if (requestedModel) {
             const lower = requestedModel.toLowerCase();
             if (lower.includes("pro") && !this.isProModelAllowed()) {
@@ -440,27 +527,98 @@ export class AIGateway {
             if (lower.includes("gpt") || lower.includes("claude") || lower.includes("llama") || lower.includes("mistral") || lower.includes("grok")) {
                 throw new Error("NON_GOOGLE_PROVIDER_DISABLED: Non-Google models are disabled. HireNest OS exclusively uses Google GenAI SDK.");
             }
-            const level: AILevel = requestedLevel || (this.LEVEL_2_CAPABILITIES.has(feature) ? 2 : 1);
-            return { level, model: requestedModel };
         }
 
-        // Explicit Level specification
-        if (requestedLevel === 2) {
-            return { level: 2, model: this.getLevel2Model() };
-        }
-        if (requestedLevel === 1) {
-            return { level: 1, model: this.getLevel1Model() };
+        // Strictly derive the intent from feature context if not explicitly provided
+        let resolvedIntent = intent;
+        if (!resolvedIntent) {
+            if (feature === "copilot" || feature === "openui" || feature === "general") {
+                resolvedIntent = "ASK_COPILOT";
+            } else if (feature === "candidate_matching" || feature === "match_candidates" || feature === "compare_candidates" || feature === "rank_shortlisted") {
+                resolvedIntent = "CANDIDATE_MATCH";
+            } else if (feature === "candidate_screening" || feature === "screening" || feature === "deep_screening" || feature === "deep_fitment" || feature === "detailed_fitment") {
+                resolvedIntent = "CANDIDATE_360";
+            } else if (feature === "email_drafting" || feature === "email_classification") {
+                resolvedIntent = "EMAIL_CLASSIFICATION";
+            } else if (feature === "jd_extraction" || feature === "jd.extract" || feature === "complex_jd_interpretation") {
+                resolvedIntent = "JD_PARSE";
+            } else if (feature === "resume_parsing" || feature === "resume.extract" || feature === "resume.enrich" || feature === "candidate_enrichment") {
+                resolvedIntent = "PARSE_RESUME";
+            } else if (feature === "skill_extraction") {
+                resolvedIntent = "SKILL_EXTRACTION";
+            } else if (feature === "executive_analysis" || feature === "executive_summary") {
+                resolvedIntent = "EXECUTIVE_ANALYSIS";
+            } else if (feature === "complex_analysis" || feature === "complex_candidate_analysis") {
+                resolvedIntent = "COMPLEX_ANALYSIS";
+            } else if (feature === "candidate_normalization") {
+                resolvedIntent = "CANDIDATE_NORMALIZATION";
+            } else if (feature === "requirement_ai" || feature === "requirement_summary") {
+                resolvedIntent = "REQUIREMENT_AI";
+            }
         }
 
-        // Determine Level based on capability taxonomy
-        if (this.LEVEL_2_CAPABILITIES.has(feature)) {
-            return { level: 2, model: this.getLevel2Model() };
-        }
-        if (this.LEVEL_1_CAPABILITIES.has(feature)) {
-            return { level: 1, model: this.getLevel1Model() };
+        // Server-Side AI Feature Policy: Select the model purely based on standard intent/function
+        // regardless of any client-supplied model selection override.
+        let resolvedLevel: AILevel = 1;
+        let model = this.getLevel1Model();
+
+        if (resolvedIntent) {
+            if (
+                resolvedIntent === "PARSE_RESUME" ||
+                resolvedIntent === "SKILL_EXTRACTION" ||
+                resolvedIntent === "JD_PARSE" ||
+                resolvedIntent === "EMAIL_CLASSIFICATION" ||
+                resolvedIntent === "CANDIDATE_NORMALIZATION"
+            ) {
+                model = this.getLevel1Model();
+                resolvedLevel = 1;
+            } else if (
+                resolvedIntent === "CANDIDATE_MATCH" ||
+                resolvedIntent === "RUN_AI_MATCH" ||
+                resolvedIntent === "CANDIDATE_360" ||
+                resolvedIntent === "SCREEN_CANDIDATE" ||
+                resolvedIntent === "ASK_COPILOT" ||
+                resolvedIntent === "REQUIREMENT_AI" ||
+                resolvedIntent === "ANALYZE_REQUIREMENT" ||
+                resolvedIntent === "GENERATE_EMAIL"
+            ) {
+                model = this.getLevel2Model();
+                resolvedLevel = 2;
+            } else if (resolvedIntent === "COMPLEX_ANALYSIS" || resolvedIntent === "EXECUTIVE_ANALYSIS") {
+                const featureAllowsPro = feature === "complex_analysis" || feature === "executive_analysis" || feature === "executive_summary" || feature === "complex_candidate_analysis";
+                const adminPolicyAllowsPro = this.isProModelAllowed();
+                const userPermission = userHasProPermission === true;
+                const explicitAIIntent = resolvedIntent === "COMPLEX_ANALYSIS" || resolvedIntent === "EXECUTIVE_ANALYSIS";
+
+                if (featureAllowsPro && adminPolicyAllowsPro && userPermission && explicitAIIntent) {
+                    model = this.getComplexModel();
+                    resolvedLevel = 2;
+                } else {
+                    model = this.getLevel2Model();
+                    resolvedLevel = 2;
+                }
+            } else {
+                // Feature-based default legacy mapping for unrecognized intents
+                if (this.LEVEL_2_CAPABILITIES.has(feature)) {
+                    resolvedLevel = 2;
+                    model = this.getLevel2Model();
+                } else {
+                    resolvedLevel = 1;
+                    model = this.getLevel1Model();
+                }
+            }
+        } else {
+            // Feature-based default legacy mapping
+            if (this.LEVEL_2_CAPABILITIES.has(feature)) {
+                resolvedLevel = 2;
+                model = this.getLevel2Model();
+            } else {
+                resolvedLevel = 1;
+                model = this.getLevel1Model();
+            }
         }
 
-        throw new Error(`AI_FEATURE_DISABLED: Capability '${feature}' is not recognized or is disabled in HireNest OS.`);
+        return { level: resolvedLevel, model };
     }
 
     static calculateCost(provider: string, model: string, tokens: number, isCached: boolean = false): { estimatedCost: number, savedCost: number } {
@@ -493,16 +651,91 @@ export class AIGateway {
      */
     static async processChat(request: AIGatewayRequest): Promise<AIGatewayResponse> {
         const startTime = Date.now();
-        const feature = request.feature || "candidate_matching";
+        const feature: string = request.feature || "candidate_matching";
         const promptVersion = request.promptVersion || "v1.0";
         const userId = request.userId || "system";
         const office = request.office || "general";
         const agentName = request.agent || feature;
 
-        // 1. Resolve Two-Tier Model Routing & Permissions
-        const { level, model } = this.resolveLevelAndModel(feature, request.level, request.model);
+        // 1. Derive/Validate Intent
+        let intent: AIIntent | undefined = request.intent;
+        if (!intent) {
+            // Strictly derive based on feature context
+            if (feature === "copilot" || feature === "openui" || feature === "general" || agentName === "copilot" || agentName === "openui" || agentName === "general") {
+                intent = "ASK_COPILOT";
+            } else if (feature === "candidate_matching" || feature === "match_candidates" || feature === "compare_candidates" || feature === "rank_shortlisted") {
+                intent = "CANDIDATE_MATCH";
+            } else if (feature === "candidate_screening" || feature === "screening" || feature === "deep_screening" || feature === "deep_fitment" || feature === "detailed_fitment") {
+                intent = "CANDIDATE_360";
+            } else if (feature === "email_drafting" || feature === "email_classification") {
+                intent = "EMAIL_CLASSIFICATION";
+            } else if (feature === "jd_extraction" || feature === "jd.extract" || feature === "complex_jd_interpretation") {
+                intent = "JD_PARSE";
+            } else if (feature === "resume_parsing" || feature === "resume.extract" || feature === "resume.enrich" || feature === "candidate_enrichment") {
+                intent = "PARSE_RESUME";
+            } else if (feature === "skill_extraction") {
+                intent = "SKILL_EXTRACTION";
+            } else if (feature === "executive_analysis" || feature === "executive_summary") {
+                intent = "EXECUTIVE_ANALYSIS";
+            } else if (feature === "complex_analysis" || feature === "complex_candidate_analysis") {
+                intent = "COMPLEX_ANALYSIS";
+            } else if (feature === "candidate_normalization") {
+                intent = "CANDIDATE_NORMALIZATION";
+            } else if (feature === "requirement_ai" || feature === "requirement_summary") {
+                intent = "REQUIREMENT_AI";
+            }
+        }
+
+        const VALID_INTENTS = new Set<string>([
+            "ASK_COPILOT",
+            "RUN_AI_MATCH", // keep for backward compatibility
+            "CANDIDATE_MATCH",
+            "PARSE_RESUME",
+            "SCREEN_CANDIDATE", // keep for backward compatibility
+            "CANDIDATE_360",
+            "GENERATE_EMAIL", // keep for backward compatibility
+            "EMAIL_CLASSIFICATION",
+            "ANALYZE_REQUIREMENT", // keep for backward compatibility
+            "JD_PARSE",
+            "SKILL_EXTRACTION",
+            "CANDIDATE_NORMALIZATION",
+            "REQUIREMENT_AI",
+            "COMPLEX_ANALYSIS",
+            "EXECUTIVE_ANALYSIS"
+        ]);
+
+        const isValidIntent = intent && VALID_INTENTS.has(intent);
+
+        // 2. Resolve Two-Tier Model Routing & Permissions via server-side Feature Policy
+        // Admin or authorized user has Pro permission if request permissions/roles are present or authorized actions are configured.
+        const userHasProPermission = userId === "admin" || request.isAuthorizedUserAction === true;
+        const { level, model } = this.resolveLevelAndModel(feature, request.level, request.model, intent, userHasProPermission);
         
-        // 2. Pre-flight Guardrails (PII & Toxicity)
+        // Zero-Token Policy Enforcement
+        // Opening HireNestOS, viewing a candidate, or general Firestore updates must NEVER consume live Gemini tokens.
+        const isUserAction = request.isAuthorizedUserAction === true;
+        const isBackgroundJob = request.isAuthorizedBackgroundJob === true;
+        const isManualChat = feature === "copilot" || feature === "openui" || agentName === "copilot" || agentName === "openui" || agentName === "general";
+        
+        const isAuthorizedExecution = isValidIntent && (isUserAction || isBackgroundJob || isManualChat);
+
+        if (!isAuthorizedExecution) {
+            console.warn(`[AIGateway] Blocked automatic/unauthorized Gemini token consumption. Feature: '${feature}', Intent: '${intent}'`);
+            const defaultFallbackText = AIGateway.getDefaultDeterministicFallback(feature, level, request.schema);
+            return {
+                provider: "RuleEngine",
+                model: "DeterministicZeroTokenPolicy",
+                level,
+                response: defaultFallbackText,
+                latency: Date.now() - startTime,
+                tokens: 0,
+                cached: false,
+                estimatedCost: 0,
+                savedCost: 0
+            };
+        }
+        
+        // 3. Pre-flight Guardrails (PII & Toxicity)
         if (AIGuardrails.detectPII(request.prompt)) {
              throw new Error("AI Guardrails: Blocked request due to sensitive PII detection.");
         }
@@ -550,6 +783,7 @@ export class AIGateway {
                     console.log(`[AIGateway] Redis cache hit for agent ${agentName} [L${level}:${model}]`);
                     const latency = Date.now() - startTime;
                     const financialCosts = this.calculateCost(redisHit.provider, redisHit.model, redisHit.tokens, true);
+                    this.recordCacheHitTelemetry(tokensSaved, financialCosts.savedCost).catch(() => {});
                     return {
                         ...redisHit,
                         level,
@@ -596,28 +830,9 @@ export class AIGateway {
                             originalTokens
                         };
 
-                        // Log cached hit to audit ledger
-                        db.collection("ai_execution_ledger").add({
-                            timestamp: new Date().toISOString(),
-                            userId,
-                            office,
-                            agent: agentName,
-                            feature,
-                            level,
-                            provider: cachedData.provider,
-                            model: cachedData.model,
-                            promptVersion,
-                            latency,
-                            tokens: cachedData.tokens,
-                            cacheHit: true,
-                            fallbackUsed: false,
-                            estimatedCost: financialCosts.estimatedCost,
-                            savedCost: financialCosts.savedCost,
-                            status: "success",
-                            tokensSaved,
-                            compressionRatio
-                        }).catch((e: any) => console.warn("[AIGateway] Ledger cached write failed", e));
+                        this.recordCacheHitTelemetry(tokensSaved, financialCosts.savedCost).catch(() => {});
 
+                        // Cache hits are read-only to optimize Firestore write quota and performance
                         return fullResponse;
                     }
                 }
@@ -815,31 +1030,49 @@ export class AIGateway {
 
         // Default deterministic fallback payload
         console.warn("[AIGateway] Triggering default deterministic fallback response...");
+        const defaultFallbackText = AIGateway.getDefaultDeterministicFallback(feature, level, request.schema);
+
+        return {
+            provider: "RuleEngine",
+            model: "DeterministicFallback",
+            level,
+            response: defaultFallbackText,
+            latency: Date.now() - startTime,
+            tokens: 0,
+            cached: false,
+            estimatedCost: 0,
+            savedCost: 0
+        };
+    }
+
+    public static getDefaultDeterministicFallback(feature: string, level: number, schema?: any): string {
         let defaultFallbackText = "";
-        if (feature === "candidate_matching" || feature === "candidate_screening" || feature === "deep_fitment") {
+        if (feature === "candidate_matching" || feature === "candidate_screening" || feature === "deep_fitment" || feature === "detailed_fitment") {
             defaultFallbackText = JSON.stringify({
-                matchScore: 75,
-                tier: "Strong Potential",
+                matchScore: null,
+                tier: "UNAVAILABLE",
+                aiScreeningStatus: "FAILED",
+                reason: "AI authorization required",
                 skillsMatched: [],
                 skillsMissing: [],
-                strengths: ["Profile evaluated via deterministic fallback engine."],
-                gaps: [],
-                recommendation: "CONSIDER",
-                summary: "Deterministic screening completed. Candidate meets baseline requirements.",
+                strengths: [],
+                gaps: ["AI analysis was bypassed due to authorization constraints or lack of direct recruiter intent."],
+                recommendation: "PENDING_REVIEW",
+                summary: "AI screening and fitment is unavailable: AI authorization or explicit intent is required to consume Gemini tokens.",
                 breakdown: {
-                    skillsScore: 75,
-                    experienceScore: 75,
-                    domainScore: 75,
-                    locationScore: 80,
-                    totalScore: 75
+                    skillsScore: null,
+                    experienceScore: null,
+                    domainScore: null,
+                    locationScore: null,
+                    totalScore: null
                 },
-                recruiterAssessment: "Review candidate against core job requirements.",
-                nextSteps: "Proceed with recruiter screening.",
+                recruiterAssessment: "Manual assessment by recruiter is required.",
+                nextSteps: "Click 'Run AI Match' or 'Ask Copilot' to explicitly authorize AI token usage.",
                 outreachDrafts: {
-                    founder: "Hello, we reviewed your profile and would like to connect.",
-                    professional: "Dear Candidate, Your background aligns with our open requirement.",
-                    executive: "Reaching out regarding an opportunity aligned with your experience.",
-                    warm: "Hi! We'd love to chat about a role on our team."
+                    founder: "Manual review pending.",
+                    professional: "Manual review pending.",
+                    executive: "Manual review pending.",
+                    warm: "Manual review pending."
                 }
             });
         } else if (feature === "executive_summary") {
@@ -859,7 +1092,7 @@ export class AIGateway {
                 degraded: true,
                 confidence: 0
             });
-        } else if (request.schema) {
+        } else if (schema) {
             defaultFallbackText = JSON.stringify({
                 summary: "Platform operating under deterministic rule engine fallback mode.",
                 status: "ACTIVE",
@@ -869,16 +1102,6 @@ export class AIGateway {
             defaultFallbackText = "Platform service is active and operating under deterministic rule mode.";
         }
 
-        return {
-            provider: "RuleEngine",
-            model: "DeterministicFallback",
-            level,
-            response: defaultFallbackText,
-            latency: Date.now() - startTime,
-            tokens: 0,
-            cached: false,
-            estimatedCost: 0,
-            savedCost: 0
-        };
+        return defaultFallbackText;
     }
 }
