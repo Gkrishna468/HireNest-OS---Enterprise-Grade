@@ -223,7 +223,17 @@ workspaceHandler.get("/status", async (req, res) => {
   } catch (e: any) {
     console.error("[Workspace Status] Error:", e.message || e);
     const errMsg = e.message || String(e);
-    const isTokenError = errMsg.includes("invalid_grant") || errMsg.includes("Invalid Credentials") || errMsg.includes("expired") || errMsg.includes("token") || e.status === 401 || e.code === 401;
+    const isTokenError = 
+      errMsg.includes("invalid_grant") || 
+      errMsg.includes("Invalid Credentials") || 
+      errMsg.includes("expired") || 
+      errMsg.includes("token") || 
+      errMsg.includes("invalid_client") || 
+      errMsg.includes("decrypt") || 
+      errMsg.includes("Unsupported state") || 
+      errMsg.includes("authenticate data") || 
+      e.status === 401 || 
+      e.code === 401;
     const finalState = isTokenError ? "TOKEN_EXPIRED" : "ERROR";
 
     try {

@@ -24,6 +24,9 @@ import { cn } from "../lib/utils";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 import { ExplainableEvidenceCard } from "../components/ExplainableEvidenceCard";
+import { OpenUIRenderer, OpenUIComponentName } from "../components/OpenUIComponents";
+import { OpenUIActionName } from "../types";
+import { OPENUI_ACTION_REGISTRY } from "../lib/openui/actions";
 
 interface Message {
   id: string;
@@ -36,6 +39,10 @@ interface Message {
   confidence?: number;
   action?: string;
   isError?: boolean;
+  openui?: {
+    component: OpenUIComponentName;
+    props: any;
+  };
 }
 
 export default function AICopilotTab({ userRole }: { userRole: string }) {
@@ -59,7 +66,116 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
   });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [activeOpenUI, setActiveOpenUI] = useState<{ component: OpenUIComponentName; props: any } | null>(null);
+  const [activeTab, setActiveTab] = useState<"telemetry" | "openui">("telemetry");
+  const [toast, setToast] = useState<string | null>(null);
   const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(userRole);
+
+  // OpenUI Action Gateway Stateful Transactions
+  const [confirmingAction, setConfirmingAction] = useState<{
+    action: OpenUIActionName;
+    entityType: 'candidate' | 'requirement' | 'vendor' | 'submission' | 'task';
+    entityId: string;
+    requirementId?: string;
+    requestedValue?: any;
+    label: string;
+  } | null>(null);
+  const [actionReason, setActionReason] = useState("");
+  const [executingAction, setExecutingAction] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const triggerActionExecution = async (
+    action: OpenUIActionName,
+    entityType: 'candidate' | 'requirement' | 'vendor' | 'submission' | 'task',
+    entityId: string,
+    requirementId?: string,
+    requestedValue?: any
+  ) => {
+    const config = OPENUI_ACTION_REGISTRY[action];
+    if (!config) {
+      setToast(`Unknown action: ${action}`);
+      return;
+    }
+
+    // Dynamic role capability analysis
+    const userRoleNormalized = userRole === "super_admin" ? "admin" : (userRole as any);
+    if (!config.requiredRole.includes(userRoleNormalized) && userRole !== "admin") {
+      setActionError(`Your role [${userRole}] does not have authorization to perform [${action}]. Requires: ${config.requiredRole.join(", ")}`);
+      setConfirmingAction({
+        action,
+        entityType,
+        entityId,
+        requirementId,
+        requestedValue,
+        label: action.replace(/_/g, " "),
+      });
+      return;
+    }
+
+    if (config.confirmationRequired !== 'none') {
+      setActionError(null);
+      setActionReason("");
+      setConfirmingAction({
+        action,
+        entityType,
+        entityId,
+        requirementId,
+        requestedValue,
+        label: action.replace(/_/g, " "),
+      });
+    } else {
+      // Execute directly if no explicit recruiter override required
+      await executeActionApi(action, entityType, entityId, requirementId, requestedValue, "Automated compliance pass");
+    }
+  };
+
+  const executeActionApi = async (
+    action: OpenUIActionName,
+    entityType: string,
+    entityId: string,
+    requirementId?: string,
+    requestedValue?: any,
+    reasonText?: string
+  ) => {
+    setExecutingAction(true);
+    setActionError(null);
+
+    try {
+      const { auth } = await import("../lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
+
+      const response = await fetch("/api/openui-gateway", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action,
+          entityType,
+          entityId,
+          requirementId,
+          requestedValue,
+          reason: reasonText || undefined
+        })
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(resData.error || resData.details || "Gateway transaction failed");
+      }
+
+      setToast(`Transaction completed successfully: ${action}`);
+      setTimeout(() => setToast(null), 4000);
+      setConfirmingAction(null);
+    } catch (err: any) {
+      console.error("[OpenUI Client Error]:", err);
+      setActionError(err.message || "Failed to execute transaction");
+    } finally {
+      setExecutingAction(false);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -145,26 +261,18 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
     try {
         const { auth } = await import("../lib/firebase");
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch("/api/ai", {
+        const res = await fetch("/api/copilot", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify({ prompt: activeQuery, feature: "copilot", promptVersion: "v1.0" })
+            body: JSON.stringify({ query: activeQuery, context: "copilot_tab", pageData: "Enterprise Copilot Dashboard" })
         });
         
         if (!res.ok) throw new Error(await res.text());
         
-        const dataRaw = await res.json();
-        let data = dataRaw;
-        if (dataRaw.response) {
-            try {
-                data = JSON.parse(dataRaw.response);
-            } catch(e) {
-                data = { answer: dataRaw.response };
-            }
-        }
+        const data = await res.json();
         
         // Append Copilot Response
         const copilotMsg: Message = {
@@ -176,9 +284,15 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
             reason: data.reason || "Determined using semantic analysis of candidate vectors and active MSAs.",
             sources: data.sources || ["business_graph_core", "experience_engine"],
             confidence: data.confidence || 96,
-            action: data.action || "Conduct an operational review of current vendor SLA parameters."
+            action: data.action || "Conduct an operational review of current vendor SLA parameters.",
+            openui: data.openui || undefined
         };
         setMessages(prev => [...prev, copilotMsg]);
+
+        if (data.openui) {
+            setActiveOpenUI(data.openui);
+            setActiveTab("openui");
+        }
     } catch (e: any) {
         console.error("Grounded query failed", e);
         const errorMsg: Message = {
@@ -286,6 +400,22 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
                       : "bg-slate-900 border border-slate-800 text-slate-200"
                   )}>
                     {msg.text}
+                    {msg.openui && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (msg.openui) {
+                            setActiveOpenUI(msg.openui);
+                            setActiveTab("openui");
+                          }
+                        }}
+                        className="mt-3 text-[10px] h-7 font-black uppercase tracking-widest border-indigo-500/30 text-indigo-400 hover:text-indigo-200 hover:bg-indigo-950 rounded-lg flex items-center gap-1.5"
+                      >
+                        <Sparkles size={11} className="text-indigo-400 animate-pulse" />
+                        Render Component Canvas
+                      </Button>
+                    )}
                   </div>
 
                   {/* Grounding Evidence Card if Response has structured insight */}
@@ -374,53 +504,262 @@ export default function AICopilotTab({ userRole }: { userRole: string }) {
 
         </div>
 
-        {/* Right Column: Telemetry Grounding Sidebar */}
-        <div className="w-80 bg-slate-900 border-l border-slate-800 p-6 space-y-6 hidden xl:block overflow-y-auto">
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1.5 mb-2">
-              <Activity size={14} className="text-indigo-400 animate-pulse" /> Live Telemetry Context
-            </h3>
-            <p className="text-[10px] text-slate-500 font-mono">Real-time parameters utilized to ground Copilot responses.</p>
+        {/* Right Column: Generative UI & Telemetry Workspace */}
+        <div className={cn(
+          "bg-slate-900 border-l border-slate-800 p-6 flex flex-col hidden lg:flex transition-all duration-300 overflow-y-auto",
+          activeOpenUI ? "w-[500px] xl:w-[600px]" : "w-80"
+        )}>
+          {/* Workspace Tabs Header */}
+          <div className="flex border-b border-slate-800 pb-3 mb-6 items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveTab("telemetry")}
+                className={cn(
+                  "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all",
+                  activeTab === "telemetry"
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                )}
+              >
+                Telemetry
+              </button>
+              {activeOpenUI && (
+                <button
+                  onClick={() => setActiveTab("openui")}
+                  className={cn(
+                    "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5",
+                    activeTab === "openui"
+                      ? "bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/20"
+                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                  )}
+                >
+                  <Sparkles size={11} />
+                  Generative UI
+                </button>
+              )}
+            </div>
+            {activeOpenUI && (
+              <button
+                onClick={() => {
+                  setActiveOpenUI(null);
+                  setActiveTab("telemetry");
+                }}
+                className="text-[9px] font-mono text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20"
+              >
+                Close Canvas
+              </button>
+            )}
           </div>
 
-          <div className="space-y-4">
-            
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80">
-              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">STALLED PIPELINES</span>
-              <div className="text-2xl font-black text-white">{metrics.atRiskReqsCount} Requirements</div>
-              <p className="text-[9px] font-mono text-amber-500 mt-1 font-bold">Requires urgent sourcing pulses</p>
+          {/* Toast Notification for interactive responses inside the Canvas */}
+          {toast && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-mono text-[10px] uppercase font-bold rounded-lg mb-4 flex items-center gap-2 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              {toast}
             </div>
+          )}
 
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80">
-              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">AWAITING BILLING</span>
-              <div className="text-2xl font-black text-white">{metrics.placementsAwaitingInvoice} Placements</div>
-              <p className="text-[9px] font-mono text-rose-500 mt-1 font-bold">Uninvoiced revenue outstanding</p>
+          {/* Conditional Rendering of Pane Content */}
+          {activeTab === "openui" && activeOpenUI ? (
+            <div className="flex-1 flex flex-col space-y-4">
+              <div className="bg-slate-950 p-4 border border-slate-800 rounded-xl mb-2 flex items-center justify-between">
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">ACTIVE CANVAS COMPONENT</h4>
+                  <p className="text-xs font-bold text-white font-mono">{activeOpenUI.component}</p>
+                </div>
+                <div className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase font-black tracking-widest">
+                  Live
+                </div>
+              </div>
+              <div className="flex-1">
+                <OpenUIRenderer
+                  component={activeOpenUI.component}
+                  props={activeOpenUI.props}
+                  onAction={(actionName, payload) => {
+                    console.log(`[Generative UI Visual Trigger] ${actionName}:`, payload);
+                    
+                    // Map visual interactions directly to security action protocols
+                    if (actionName === "CANDIDATE_RECOMMEND") {
+                      triggerActionExecution(
+                        "SUBMIT_CANDIDATE",
+                        "candidate",
+                        payload?.id || payload?.candidateId,
+                        activeOpenUI?.props?.context?.requirementId || "REQ-001"
+                      );
+                    } else if (actionName === "CANDIDATE_DETAILS" || actionName === "VIEW_CANDIDATE") {
+                      triggerActionExecution(
+                        "VIEW_CANDIDATE",
+                        "candidate",
+                        payload?.id || payload?.candidateId
+                      );
+                    } else if (actionName === "TASK_COMPLETE" || actionName === "ASSIGN_TASK") {
+                      triggerActionExecution(
+                        "ASSIGN_TASK",
+                        "task",
+                        payload?.id || "TASK-001",
+                        undefined,
+                        payload?.name || "Assigned task parameter"
+                      );
+                    } else {
+                      setToast(`Action [${actionName}] triggered: ${JSON.stringify(payload)}`);
+                      setTimeout(() => setToast(null), 3000);
+                    }
+                  }}
+                />
+              </div>
             </div>
+          ) : (
+            <div className="space-y-6 flex-1 flex flex-col justify-between">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1.5 mb-2">
+                    <Activity size={14} className="text-indigo-400 animate-pulse" /> Live Telemetry Context
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-mono">Real-time parameters utilized to ground Copilot responses.</p>
+                </div>
 
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80">
-              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">PROJECTED REVENUE</span>
-              <div className="text-2xl font-black text-white">₹{(metrics.projectedRevenue).toLocaleString()}</div>
-              <p className="text-[9px] font-mono text-emerald-400 mt-1 font-bold">Next-15 collections forecast</p>
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-indigo-500/30 transition-colors">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">STALLED PIPELINES</span>
+                    <div className="text-2xl font-black text-white">{metrics.atRiskReqsCount} Requirements</div>
+                    <p className="text-[9px] font-mono text-amber-500 mt-1 font-bold">Requires urgent sourcing pulses</p>
+                  </div>
+
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-indigo-500/30 transition-colors">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">AWAITING BILLING</span>
+                    <div className="text-2xl font-black text-white">{metrics.placementsAwaitingInvoice} Placements</div>
+                    <p className="text-[9px] font-mono text-rose-500 mt-1 font-bold">Uninvoiced revenue outstanding</p>
+                  </div>
+
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-indigo-500/30 transition-colors">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">PROJECTED REVENUE</span>
+                    <div className="text-2xl font-black text-white">₹{(metrics.projectedRevenue).toLocaleString()}</div>
+                    <p className="text-[9px] font-mono text-emerald-400 mt-1 font-bold">Next-15 collections forecast</p>
+                  </div>
+
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-indigo-500/30 transition-colors">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">UNDERPERFORMING VENDORS</span>
+                    <div className="text-2xl font-black text-white">{metrics.underperformingVendorsCount} Vendors</div>
+                    <p className="text-[9px] font-mono text-rose-500 mt-1 font-bold">SLA breaches &gt;24 hours</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl text-center space-y-2 mt-6">
+                <Info size={16} className="text-indigo-400 mx-auto" />
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-300">Durable SSOT Grounding</h4>
+                <p className="text-[9px] text-slate-400 font-mono leading-relaxed">
+                  Every insight is traced using verified database reference lineages. Citations correspond to real graph edges.
+                </p>
+              </div>
             </div>
-
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800/80">
-              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block mb-1">UNDERPERFORMING VENDORS</span>
-              <div className="text-2xl font-black text-white">{metrics.underperformingVendorsCount} Vendors</div>
-              <p className="text-[9px] font-mono text-rose-500 mt-1 font-bold">SLA breaches &gt;24 hours</p>
-            </div>
-
-          </div>
-
-          <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl text-center space-y-2">
-            <Info size={16} className="text-indigo-400 mx-auto" />
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-300">Durable SSOT Grounding</h4>
-            <p className="text-[9px] text-slate-400 font-mono leading-relaxed">
-              Every insight is traced using verified database reference lineages. Citations correspond to real graph edges.
-            </p>
-          </div>
+          )}
         </div>
 
       </div>
+
+      {/* Stateful Action Gate Confirmation Modal */}
+      {confirmingAction && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="bg-slate-950 px-6 py-5 border-b border-slate-850 flex justify-between items-start">
+              <div>
+                <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-500/5 px-2.5 py-1 rounded border border-indigo-500/10 uppercase tracking-widest block w-fit mb-1.5">
+                  Action Governance Gate
+                </span>
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                  Confirm Transaction: {confirmingAction.label}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setConfirmingAction(null)}
+                className="text-slate-500 hover:text-white font-mono text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-slate-950 border border-slate-850 rounded-xl space-y-2">
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-slate-500 uppercase">RESOURCE IDENTIFIER:</span>
+                  <span className="text-indigo-400 font-bold">{confirmingAction.entityId}</span>
+                </div>
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-slate-500 uppercase">RESOURCE TYPE:</span>
+                  <span className="text-slate-300 font-bold uppercase">{confirmingAction.entityType}</span>
+                </div>
+                {confirmingAction.requirementId && (
+                  <div className="flex justify-between text-[10px] font-mono">
+                    <span className="text-slate-500 uppercase">REQUIREMENT ID:</span>
+                    <span className="text-slate-300 font-bold">{confirmingAction.requirementId}</span>
+                  </div>
+                )}
+              </div>
+
+              {actionError ? (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/25 text-rose-400 rounded-xl flex items-start gap-3">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-400" />
+                  <div className="space-y-1">
+                    <h5 className="text-[10px] font-black uppercase tracking-wider">Transaction Blocked</h5>
+                    <p className="text-[11px] leading-relaxed font-medium">{actionError}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl text-[11px] text-slate-300 leading-relaxed font-medium">
+                  This transaction will apply permanent updates to the canonical <strong>{confirmingAction.entityType}</strong> record in Firestore. This request will be strictly attributed to your administrative security credentials.
+                </div>
+              )}
+
+              {/* Input for reason if confirm_with_reason is flagged or as an override audit note */}
+              {confirmingAction && !actionError && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-slate-400 uppercase font-black tracking-wider block">
+                    Audit Note / Execution Justification
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    placeholder="Provide a justification or change log notes for this write action (min 5 characters)..."
+                    className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-700 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-medium h-24"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-850 flex justify-end gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmingAction(null)}
+                className="border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs"
+              >
+                Cancel
+              </Button>
+              {!actionError && (
+                <Button
+                  size="sm"
+                  onClick={() => executeActionApi(
+                    confirmingAction.action,
+                    confirmingAction.entityType,
+                    confirmingAction.entityId,
+                    confirmingAction.requirementId,
+                    confirmingAction.requestedValue,
+                    actionReason
+                  )}
+                  disabled={executingAction || actionReason.trim().length < 5}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black tracking-widest uppercase rounded-lg text-xs flex items-center gap-2 disabled:opacity-45"
+                >
+                  {executingAction ? "Executing..." : "Commit Transaction"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

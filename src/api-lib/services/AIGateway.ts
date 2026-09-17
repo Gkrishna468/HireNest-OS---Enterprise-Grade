@@ -62,6 +62,8 @@ export type AICapability =
   | "client.resolve"
   | "duplicate.detect"
   | "relationship.build"
+  | "copilot"
+  | "openui"
   | "general";
 
 export interface AIGatewayRequest {
@@ -379,7 +381,10 @@ export class AIGateway {
         "interview_question_generation",
         "email_drafting",
         "boolean_search_generation",
-        "executive_summary"
+        "executive_summary",
+        "copilot",
+        "openui",
+        "general"
     ]);
 
     public static readonly LEVEL_2_CAPABILITIES = new Set<string>([

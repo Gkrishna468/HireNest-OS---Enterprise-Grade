@@ -309,3 +309,92 @@ export interface ReactivationOpportunity {
   updatedAt: string;
 }
 
+// OpenUI Generative UI Protocol
+export type OpenUIActionName =
+  | 'APPROVE_SLA'
+  | 'OVERRIDE_MATCH_SCORE'
+  | 'SHORTLIST_CANDIDATE'
+  | 'SUBMIT_CANDIDATE'
+  | 'REQUEST_CANDIDATE_UPDATE'
+  | 'CREATE_FOLLOWUP'
+  | 'ASSIGN_TASK'
+  | 'LAUNCH_CAMPAIGN'
+  | 'VIEW_REQUIREMENT'
+  | 'VIEW_VENDOR'
+  | 'VIEW_CANDIDATE';
+
+export interface OpenUIActionPayload {
+  action: OpenUIActionName;
+  entityType: 'candidate' | 'requirement' | 'vendor' | 'submission' | 'task';
+  entityId: string;
+  requirementId?: string;
+  requestedValue?: unknown;
+  reason?: string;
+  source: 'openui';
+}
+
+export type OpenUIRole =
+  | 'admin'
+  | 'super_admin'
+  | 'ops_admin'
+  | 'hq_admin'
+  | 'recruiter'
+  | 'vendor'
+  | 'client'
+  | 'hiring_manager'
+  | 'client_hm'
+  | 'client_finance'
+  | 'client_recruiter';
+
+export interface OpenUIActionDefinition {
+  action: OpenUIActionName;
+  requiredRole: OpenUIRole[];
+  requiredPermission: string;
+  confirmationRequired: 'none' | 'confirm' | 'confirm_with_reason';
+  auditRequired: boolean;
+}
+
+export type OpenUIComponentVersionedName =
+  | 'KPIGrid@1.0'
+  | 'CandidateTable@1.0'
+  | 'CandidateCard@1.0'
+  | 'RequirementHealth@1.0'
+  | 'RequirementCard@1.0'
+  | 'VendorPerformance@1.0'
+  | 'SubmissionTimeline@1.0'
+  | 'SkillsMatrix@1.0'
+  | 'AIInsight@1.0'
+  | 'FollowUpCard@1.0'
+  | 'TaskBoard@1.0'
+  | 'RevenueCard@1.0';
+
+export interface OpenUIWorkspaceContext {
+  requirementId?: string;
+  clientId?: string;
+  currentUser?: string;
+  selectedCandidates?: string[];
+  activeVendor?: string;
+  currentFilters?: Record<string, unknown>;
+  currentTab?: string;
+}
+
+export interface OpenUIRenderContract {
+  responseType: 'text' | 'generative_ui' | 'multi_component' | 'action_confirmation';
+  component?: string;
+  version?: string;
+  data?: Record<string, unknown>;
+  actions?: OpenUIActionName[];
+  context?: OpenUIWorkspaceContext;
+  telemetry?: {
+    model?: string;
+    tokens?: number;
+    latencyMs?: number;
+    toolsCalled?: string[];
+    firestoreReads?: number;
+    firestoreWrites?: number;
+    cacheHit?: boolean;
+    confidence?: number;
+    policyChecks?: string[];
+  };
+}
+

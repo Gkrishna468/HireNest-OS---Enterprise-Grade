@@ -112,13 +112,67 @@ Format your response as a JSON object with the following properties:
 - reason (string): Brief explanation of why or the underlying data.
 - sources (array of strings): Which collections or data points were used (e.g., ["requirements_public", "dealRooms"]).
 - action (string): A recommended action to take in the system.
+- openui (optional, object): When the query relates to specific data lists, KPIs, risk factors, or financial projections, select and populate ONE of the following OpenUI components to present the data beautifully. Do not include openui if the user query is a simple text question without data groups.
+  - component (string): One of: "KPIGrid" | "CandidateTable" | "CandidateCard" | "RequirementHealth" | "RequirementCard" | "VendorPerformance" | "SubmissionTimeline" | "SkillsMatrix" | "AIInsight" | "FollowUpCard" | "TaskBoard" | "RevenueCard"
+  - props (object): The corresponding props for the chosen component. Ensure you populate it with realistic and accurate data structured as follows:
+    - KPIGrid: { metrics: Array<{ label, value, change, trend: "up"|"down"|"neutral", subtitle }> }
+    - CandidateTable: { candidates: Array<{ id, name, matchScore, role, vendor, skills: string[], status }> }
+    - CandidateCard: { candidate: { id, name, matchScore, role, vendor, trustScore, experience, noticePeriod, currentLocation, skills: string[], summary, salaryExpectation, gapAnalysis } }
+    - RequirementHealth: { requirements: Array<{ id, title, client, daysOpen, matchCount, status, risk: "Low"|"Medium"|"High", slaBreachHours }> }
+    - RequirementCard: { requirement: { id, title, client, status, priority, targetCTC, experienceRequired, requiredSkills: string[], sourcingGoal, currentSourcedCount, summary, slaDays, remainingHours } }
+    - VendorPerformance: { vendors: Array<{ id, name, trustScore, benchSize, submittedCount, placedCount, rejectRate, compliance: boolean }> }
+    - SubmissionTimeline: { timeline: Array<{ stage, date, description, active: boolean }> }
+    - SkillsMatrix: { data: Array<{ skill, weight, matchPercent, isMissing: boolean }> }
+    - AIInsight: { title, content, riskLevel: "low"|"medium"|"high", nextSteps: string[] }
+    - FollowUpCard: { task: { id, title, dueDate, requirement, priority, assignedTo } }
+    - TaskBoard: { columns: Array<{ name, cards: Array<{ id, title, subtitle, priority }> }> }
+    - RevenueCard: { stats: { projected, uninvoiced, collected, chartData: Array<{ month, Revenue }> } }
 
 JSON format only.`;
+
+    const copilotResponseSchema = {
+      type: "object",
+      properties: {
+        insight: { 
+          type: "string", 
+          description: "Main answer, analysis, or finding. Must be professional, proactive, and friendly." 
+        },
+        reason: { 
+          type: "string", 
+          description: "Brief underlying reasoning or data references used." 
+        },
+        sources: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Database collections or data points referenced."
+        },
+        action: { 
+          type: "string", 
+          description: "A highly actionable next step recommended to the user." 
+        },
+        openui: {
+          type: "object",
+          description: "Optional dynamic visualization component to present structured lists, KPIs, risk factor matrixes, or financial forecasts beautifully.",
+          properties: {
+            component: { 
+              type: "string", 
+              description: "Must be one of: KPIGrid | CandidateTable | CandidateCard | RequirementHealth | RequirementCard | VendorPerformance | SubmissionTimeline | SkillsMatrix | AIInsight | FollowUpCard | TaskBoard | RevenueCard" 
+            },
+            props: { 
+              type: "object",
+              description: "Complete set of props for the chosen component. Must populate realistic data conforming to requested types." 
+            }
+          },
+          required: ["component", "props"]
+        }
+      },
+      required: ["insight", "reason", "sources", "action"]
+    };
 
     const aiResponse = await AIRuntime.analyze({
       prompt: prompt,
       modelPreference: "fast",
-      schema: true,
+      schema: copilotResponseSchema,
       compressContext: true // Uses Headroom
     });
 

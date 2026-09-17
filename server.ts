@@ -211,6 +211,7 @@ import interviewsHandler from './src/api-lib/handlers/interviews';
 import submissionsHandler from './src/api-lib/handlers/submissions';
 import integrationsHandler from './src/api-lib/handlers/integrations';
 import copilotHandler from './src/api-lib/handlers/copilot';
+import openuiGatewayHandler from './src/api-lib/handlers/openui-gateway';
 import automationEventsHandler from './src/api-lib/handlers/automation-events';
 import candidateScreenHandler from './src/api-lib/handlers/candidate-screen';
 import communicationHandler from './src/api-lib/handlers/communication';
@@ -829,7 +830,10 @@ hirenest_active_requests 0
           
         case 'copilot':
           return await copilotHandler(req, res);
-          
+
+        case 'openui-gateway':
+          return await openuiGatewayHandler(req, res);
+
         case 'analytics':
         case 'analytics/client':
         case 'analytics/vendor':
