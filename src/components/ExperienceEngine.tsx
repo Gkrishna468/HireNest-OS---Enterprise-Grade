@@ -442,7 +442,7 @@ export function ExperienceEngine({
       )}
 
       {/* 4. Experience Engine Docked Side Panel Drawer */}
-      <div className="fixed bottom-6 right-6 z-[9000] flex flex-col items-end">
+      <div className="fixed bottom-24 lg:bottom-6 right-6 z-[9000] flex flex-col items-end">
         {/* Floating Toggle Badge button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -480,7 +480,10 @@ export function ExperienceEngine({
             </span>
           </div>
           
-          <span className="text-xs font-black uppercase tracking-wider">Experience Engine</span>
+          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+            Experience Engine
+          </span>
           {syncing && <RefreshCw size={12} className="animate-spin text-slate-400 ml-1" />}
         </button>
 

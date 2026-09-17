@@ -125,6 +125,7 @@ import { signOut } from "firebase/auth";
 import { useSystemStore } from "./stores/SystemStore";
 
 import SettingsTab from "./views/SettingsTab";
+import TalentAcquisitionTab from "./views/TalentAcquisitionTab";
 
 import BenchmarkDashboard from "./views/BenchmarkDashboard";
 import CustomerSuccessDashboard from "./views/CustomerSuccessDashboard";
@@ -507,7 +508,7 @@ const AppContent = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          "w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50 fixed lg:relative h-full transition-transform duration-300 ease-in-out",
+          "w-[min(86vw,360px)] lg:w-72 bg-white border-r border-slate-100 flex flex-col p-6 shadow-sm z-50 fixed lg:relative h-full transition-transform duration-300 ease-in-out",
           isMobileMenuOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0",
@@ -535,6 +536,13 @@ const AppContent = () => {
                 icon={LayoutDashboard}
                 label="Dashboard"
                 active={location.pathname === "/"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/talent-acquisition"
+                icon={Cpu}
+                label="Talent Acquisition"
+                active={location.pathname === "/talent-acquisition"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
@@ -744,6 +752,13 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/talent-acquisition"
+                icon={Cpu}
+                label="Talent Acquisition"
+                active={location.pathname === "/talent-acquisition"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/autonomous-operations"
                 icon={Activity}
                 label="Mission Control"
@@ -913,6 +928,7 @@ const AppContent = () => {
         <div className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<DashboardTab />} />
+            <Route path="/talent-acquisition" element={<TalentAcquisitionTab />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/signals" element={<SignalsTab />} />}
             {isAdmin && (

@@ -42,6 +42,7 @@ import {
 } from "../lib/rbac";
 
 export default function AdminUsersManager({ orgData }: { orgData: any }) {
+  const { user } = useSystemStore();
   const [users, setUsers] = useState<any[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [requirementsList, setRequirementsList] = useState<any[]>([]);
@@ -118,6 +119,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   };
 
   const fetchUsersAndOrgs = async () => {
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -205,8 +210,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   };
 
   useEffect(() => {
-    fetchUsersAndOrgs();
-  }, []);
+    if (user) {
+      fetchUsersAndOrgs();
+    }
+  }, [user]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();

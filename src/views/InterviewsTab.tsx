@@ -100,12 +100,27 @@ export default function InterviewsTab() {
 
    // Fetch candidate pool reference
    useEffect(() => {
-      const unsub = onSnapshot(collection(db, "candidates"), snap => {
-         const cmap: Record<string, any> = {};
-         snap.forEach(d => cmap[d.id] = d.data());
-         setCandidatesMap(cmap);
+      let unsubCandidates: (() => void) | null = null;
+      const unsubAuth = onAuthStateChanged(auth, (user) => {
+         if (user) {
+            unsubCandidates = onSnapshot(collection(db, "candidatePool"), snap => {
+               const cmap: Record<string, any> = {};
+               snap.forEach(d => cmap[d.id] = d.data());
+               setCandidatesMap(cmap);
+            }, (err) => {
+               console.warn("Candidates Listener Error:", err);
+            });
+         } else {
+            if (unsubCandidates) {
+               unsubCandidates();
+               unsubCandidates = null;
+            }
+         }
       });
-      return () => unsub();
+      return () => {
+         unsubAuth();
+         if (unsubCandidates) unsubCandidates();
+      };
    }, []);
 
    // Fetch user session context and subscribe to submissions
