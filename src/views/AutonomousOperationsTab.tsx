@@ -848,9 +848,8 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
         const allPass = !eventBusStopped && !mailosPaused && !geminiDisabled;
         setPreflightPass(allPass);
         if (allPass) {
-          // Fire API request
-          fetch("/api/ops/runtime/start", { method: "POST" })
-            .then(res => res.json())
+          // Fire API request safely
+          fetchJsonSafely("/api/ops/runtime/start", { method: "POST" })
             .then(result => {
               if (result.success) {
                 setTimeout(() => {
@@ -889,12 +888,28 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
     runCheck(0);
   };
 
+  const fetchJsonSafely = async (url: string, options?: RequestInit) => {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || `HTTP error ${res.status}`);
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(`Invalid JSON format: ${text.substring(0, 60)}`);
+      }
+    } catch (err: any) {
+      throw new Error(err.message || String(err));
+    }
+  };
+
   const toggleWorkforce = async () => {
     if (workforceRunning) {
       setIsSyncing(true);
       try {
-        const response = await fetch("/api/ops/runtime/stop", { method: "POST" });
-        const result = await response.json();
+        const result = await fetchJsonSafely("/api/ops/runtime/stop", { method: "POST" });
         if (result.success) {
           setWorkforceRunning(false);
           setOffices(prev => prev.map(o => ({ ...o, status: 'STOPPED' })));
@@ -914,13 +929,13 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   const handlePauseWorkforce = async () => {
     setIsSyncing(true);
     try {
-      const response = await fetch("/api/ops/runtime/pause", { method: "POST" });
-      const result = await response.json();
+      const result = await fetchJsonSafely("/api/ops/runtime/pause", { method: "POST" });
       if (result.success) {
         addLog("Runtime", "HQ manual override: operations suspended on active offices.", "TR-PAUSE");
       }
     } catch (err: any) {
       console.error("Pause failed", err);
+      addLog("Errors", `Failed pausing workforce: ${err.message}`, "TR-ERR");
     } finally {
       setIsSyncing(false);
     }
@@ -929,13 +944,13 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   const handleResumeWorkforce = async () => {
     setIsSyncing(true);
     try {
-      const response = await fetch("/api/ops/runtime/resume", { method: "POST" });
-      const result = await response.json();
+      const result = await fetchJsonSafely("/api/ops/runtime/resume", { method: "POST" });
       if (result.success) {
         addLog("Runtime", "HQ manual override: resuming workforce from suspended state.", "TR-RESUME");
       }
     } catch (err: any) {
       console.error("Resume failed", err);
+      addLog("Errors", `Failed resuming workforce: ${err.message}`, "TR-ERR");
     } finally {
       setIsSyncing(false);
     }
@@ -944,13 +959,13 @@ export default function AutonomousOperationsTab({ userRole }: { userRole: string
   const handleBootstrapWorkforce = async () => {
     setIsSyncing(true);
     try {
-      const response = await fetch("/api/ops/runtime/bootstrap", { method: "POST" });
-      const result = await response.json();
+      const result = await fetchJsonSafely("/api/ops/runtime/bootstrap", { method: "POST" });
       if (result.success) {
         addLog("Runtime", "HQ manual override: explicit system bootstrap triggered successfully.", "TR-BOOT");
       }
     } catch (err: any) {
       console.error("Bootstrap failed", err);
+      addLog("Errors", `Failed bootstrapping workforce: ${err.message}`, "TR-ERR");
     } finally {
       setIsSyncing(false);
     }

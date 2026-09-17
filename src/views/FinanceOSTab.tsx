@@ -13,17 +13,64 @@ export default function FinanceOSTab({ userRole }: { userRole: string }) {
   const [clients, setClients] = useState<Record<string, any>>({});
   const [vendors, setVendors] = useState<Record<string, any>>({});
 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
+    let invoicesDone = false;
+    let payoutsDone = false;
+    let placementsDone = false;
+    let entitiesDone = false;
+
+    const checkFinished = () => {
+      if (invoicesDone && payoutsDone && placementsDone && entitiesDone) {
+        setLoading(false);
+      }
+    };
+
+    const handleFirebaseError = (err: any) => {
+      console.error("Firebase error in FinanceOS subscription:", err);
+      const msg = err?.message || String(err);
+      if (msg.includes("permission-denied") || msg.includes("permission") || msg.includes("403") || msg.includes("Forbidden")) {
+        setError("403 Forbidden: You do not have permissions to access corporate financial ledger records.");
+      } else if (msg.includes("unauthorized") || msg.includes("401") || msg.includes("Unauthorized")) {
+        setError("401 Unauthorized: Session is expired or credentials are invalid.");
+      } else {
+        setError(`Failed to retrieve financial subscription: ${msg}`);
+      }
+      setLoading(false);
+    };
+
     // Highly conservative default list limits (25 items) to minimize Firestore read volume and optimize billing
-    const unsubInvoices = onSnapshot(query(collection(db, "invoices"), limit(25)), (snap) => {
-      setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    const unsubPayouts = onSnapshot(query(collection(db, "vendor_payouts"), limit(25)), (snap) => {
-      setPayouts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    const unsubPlacements = onSnapshot(query(collection(db, "placements"), limit(25)), (snap) => {
-      setPlacements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const unsubInvoices = onSnapshot(
+      query(collection(db, "invoices"), limit(25)), 
+      (snap) => {
+        setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        invoicesDone = true;
+        checkFinished();
+      },
+      handleFirebaseError
+    );
+
+    const unsubPayouts = onSnapshot(
+      query(collection(db, "vendor_payouts"), limit(25)), 
+      (snap) => {
+        setPayouts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        payoutsDone = true;
+        checkFinished();
+      },
+      handleFirebaseError
+    );
+
+    const unsubPlacements = onSnapshot(
+      query(collection(db, "placements"), limit(25)), 
+      (snap) => {
+        setPlacements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        placementsDone = true;
+        checkFinished();
+      },
+      handleFirebaseError
+    );
     
     // Load clients and vendors for mapping IDs to Names
     const fetchEntities = async () => {
@@ -40,8 +87,14 @@ export default function FinanceOSTab({ userRole }: { userRole: string }) {
             const vendorMap: Record<string, any> = {};
             vendorsSnap.forEach(d => vendorMap[d.id] = d.data());
             setVendors(vendorMap);
-        } catch (e) {
+
+            entitiesDone = true;
+            checkFinished();
+        } catch (e: any) {
             console.error("Failed to load entities for mapping", e);
+            // Non-blocking but update check
+            entitiesDone = true;
+            checkFinished();
         }
     };
     fetchEntities();
@@ -62,6 +115,44 @@ export default function FinanceOSTab({ userRole }: { userRole: string }) {
   const formatMoney = (amount: number) => {
     return formatINR(amount);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8 text-center bg-slate-50 font-sans">
+        <div className="w-12 h-12 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mb-4" />
+        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 animate-pulse">Loading FinanceOS...</h2>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm">Synchronizing general ledger, invoices, payout books, and placement transactions (INR).</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8 text-center bg-slate-50 font-sans">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 mb-4 shadow-sm">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase">FinanceOS Excluded</h2>
+        <p className="text-sm text-slate-500 max-w-md mt-2 mb-6">
+          {error}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 transition-all text-xs shadow-md shadow-indigo-600/15"
+          >
+            Retry General Ledger
+          </button>
+          <a
+            href="/"
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all text-xs"
+          >
+            Return to Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto">

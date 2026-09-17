@@ -47,6 +47,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
   const { user } = useSystemStore();
   const [activeTab, setActiveTab] = useState<"pipeline" | "accounts" | "contacts" | "signals" | "sdr" | "delivery">("pipeline");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<CRMOpportunityEntity[]>([]);
   const [clients, setClients] = useState<ClientEntity[]>([]);
   const [contacts, setContacts] = useState<CRMContactEntity[]>([]);
@@ -70,9 +71,21 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     try {
+      // Validate initial inputs
+      if (!orgId) {
+        throw new Error("400 Bad Request: Organization ID is missing or undefined.");
+      }
+      if (userRole === "RESTRICTED") {
+        throw new Error("403 Forbidden: Restricted user account access prohibited.");
+      }
+
       // 1. Fetch Opportunities
       const opps = await CRMService.listOpportunities(accessContext);
+      if (!opps) {
+        throw new Error("404 Not Found: Null response received from opportunities service.");
+      }
       if (opps.length > 0) {
         setOpportunities(opps);
       } else {
@@ -217,9 +230,17 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
 
       // 4. Fetch Hiring Signals
       const signalsRes = await HiringSignalService.detectHiringSignals(accessContext, "Acme Cloud Technologies");
-      setHiringSignals(signalsRes.signals || []);
-    } catch (err) {
+      setHiringSignals(signalsRes?.signals || []);
+    } catch (err: any) {
       console.error("Failed to load CRM data:", err);
+      const msg = err?.message || String(err);
+      if (msg.includes("401") || msg.includes("unauthorized") || msg.includes("Unauthorized")) {
+        setError("401 Unauthorized: Please sign in or check your CRM credentials.");
+      } else if (msg.includes("403") || msg.includes("permission") || msg.includes("enforce") || msg.includes("Forbidden")) {
+        setError("403 Forbidden: You do not have permissions to access commercial CRM records.");
+      } else {
+        setError(`Failed to retrieve CRM data: ${msg}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -277,6 +298,44 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
       alert(`Action failed: ${err.message}`);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="w-16 h-16 rounded-full border-4 border-slate-800 border-t-emerald-500 animate-spin mb-4" />
+        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Loading CRM Workspace...</h2>
+        <p className="text-xs text-slate-500 mt-1">Retrieving pipeline data and authorization tokens securely.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center font-sans p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-4 shadow-xl">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-lg font-black uppercase text-white tracking-tight">CRM Pipeline Blocked</h2>
+        <p className="text-sm text-slate-400 max-w-md mt-2 mb-6">
+          {error}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={fetchData}
+            className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition-all text-xs"
+          >
+            Retry Connection
+          </button>
+          <a
+            href="/"
+            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-all text-xs"
+          >
+            Return to Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">

@@ -503,7 +503,11 @@ export default function DashboardTab() {
             .then(async res => {
               if (!res.ok) {
                 const errRaw = await res.text();
-                console.error("[Dashboard] Non-200 response:", errRaw);
+                if (errRaw.includes("Rate exceeded") || res.status === 429) {
+                  console.warn("[Dashboard] Rate limiting active:", errRaw);
+                } else {
+                  console.error("[Dashboard] Non-200 response:", errRaw);
+                }
                 throw new Error(`API Error ${res.status}: ${errRaw.substring(0, 50)}`);
               }
               const text = await res.text();

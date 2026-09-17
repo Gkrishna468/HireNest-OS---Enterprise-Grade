@@ -8,6 +8,7 @@ import {
   ArrowDownRight,
   Target,
   Activity,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
@@ -21,6 +22,7 @@ export default function RevenueIntelligenceTab({
   orgId: string;
 }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({
     sales: { openOpps: 0, pipelineValue: 0, wonValue: 0, lostValue: 0 },
     delivery: {
@@ -47,6 +49,14 @@ export default function RevenueIntelligenceTab({
     let active = true;
     const fetchMetrics = async () => {
       try {
+        setError(null);
+        if (!orgId) {
+          throw new Error("400: Organization ID is null or undefined.");
+        }
+        if (userRole === "RESTRICTED") {
+          throw new Error("403: Forbidden - Restricted User Role.");
+        }
+
         const reqsSnap = await getDocs(query(collection(db, "requirements_public"), limit(25)));
         const reqs = reqsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -169,8 +179,16 @@ export default function RevenueIntelligenceTab({
           topRecruiters,
         } as any);
         setLoading(false);
-      } catch (err) {
-        console.error(err);
+      } catch (err: any) {
+        console.error("Failed to load Revenue metrics:", err);
+        const msg = err?.message || String(err);
+        if (msg.includes("unauthorized") || msg.includes("401") || msg.includes("Unauthorized")) {
+          setError("401 Unauthorized: Session has expired or authorization headers are invalid.");
+        } else if (msg.includes("permission-denied") || msg.includes("permission") || msg.includes("403") || msg.includes("Forbidden") || msg.includes("Restricted")) {
+          setError("403 Forbidden: You do not have permissions to access corporate revenue databases.");
+        } else {
+          setError(`Failed to retrieve Revenue metrics: ${msg}`);
+        }
         setLoading(false);
       }
     };
@@ -192,8 +210,38 @@ export default function RevenueIntelligenceTab({
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs animate-pulse">
-        Loading Revenue Intelligence...
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8 text-center bg-slate-50 font-sans">
+        <div className="w-12 h-12 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mb-4" />
+        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 animate-pulse">Loading Revenue Intelligence...</h2>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm">Synchronizing commercial ledgers, real-time demand graphs, and projected financial pipelines.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8 text-center bg-slate-50 font-sans">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 mb-4 shadow-sm">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase">Revenue Analytics Excluded</h2>
+        <p className="text-sm text-slate-500 max-w-md mt-2 mb-6">
+          {error}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 transition-all text-xs shadow-md shadow-indigo-600/15"
+          >
+            Retry Synchronization
+          </button>
+          <a
+            href="/"
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all text-xs"
+          >
+            Return to Dashboard
+          </a>
+        </div>
       </div>
     );
   }

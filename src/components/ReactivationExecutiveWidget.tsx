@@ -11,15 +11,15 @@ export const ReactivationExecutiveWidget: React.FC = () => {
     fetchMetrics();
   }, [fetchMetrics]);
 
-  const m = metrics || {
-    dormantCandidatesScanned: 12840,
-    qualifiedOpportunities: 846,
-    recruiterApprovedDispatched: 512,
-    candidatesResponded: 187,
-    responseRatePercent: 36.5,
-    interviewsGenerated: 74,
-    placementsClosed: 9,
-    formattedRecoveredRevenue: '₹18.6L INR'
+  const m = {
+    dormantCandidatesScanned: metrics?.dormantCandidatesScanned ?? 12840,
+    qualifiedOpportunities: metrics?.qualifiedOpportunities ?? 846,
+    recruiterApprovedDispatched: metrics?.recruiterApprovedDispatched ?? 512,
+    candidatesResponded: metrics?.candidatesResponded ?? 187,
+    responseRatePercent: metrics?.responseRatePercent ?? 36.5,
+    interviewsGenerated: metrics?.interviewsGenerated ?? 74,
+    placementsClosed: metrics?.placementsClosed ?? 9,
+    formattedRecoveredRevenue: metrics?.formattedRecoveredRevenue ?? '₹18.6L INR'
   };
 
   return (
@@ -66,7 +66,7 @@ export const ReactivationExecutiveWidget: React.FC = () => {
           </span>
           <div className="text-3xl font-black text-emerald-400 flex items-center gap-1">
             <IndianRupee className="w-7 h-7" />
-            {m.formattedRecoveredRevenue.replace('₹', '').replace(' INR', '')}
+            {(m.formattedRecoveredRevenue || "").replace('₹', '').replace(' INR', '')}
             <span className="text-xs text-emerald-500 font-mono font-normal ml-2">INR Net Closed</span>
           </div>
         </div>
