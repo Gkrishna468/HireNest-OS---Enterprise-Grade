@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { IVendorService } from '../contracts/IVendorService';
-import { Vendor, VendorInput, VendorUpdate } from '../../../types/Vendor';
+import { db } from '../../firebase.js';
+import { IVendorService } from '../contracts/IVendorService.js';
+import { Vendor, VendorInput, VendorUpdate } from '../../../types/Vendor.js';
 
 export class FirebaseVendorService implements IVendorService {
   private collectionName = 'vendors';

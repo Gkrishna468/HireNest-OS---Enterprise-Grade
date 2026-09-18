@@ -1,4 +1,4 @@
-import { Vendor, VendorInput, VendorUpdate } from '../../../types/Vendor';
+import { Vendor, VendorInput, VendorUpdate } from '../../../types/Vendor.js';
 
 export interface IVendorService {
   getVendor(id: string): Promise<Vendor | null>;

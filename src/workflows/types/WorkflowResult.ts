@@ -1,4 +1,4 @@
-import { WorkflowStatus } from './WorkflowStatus';
+import { WorkflowStatus } from './WorkflowStatus.js';
 
 export interface WorkflowResult {
   workflowId: string;

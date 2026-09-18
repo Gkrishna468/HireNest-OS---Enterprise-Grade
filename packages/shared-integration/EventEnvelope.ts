@@ -1,5 +1,5 @@
-import { EventType, EventPayload } from './EventTypes';
-import { TenantContext } from './TenantContext';
+import { EventType, EventPayload } from './EventTypes.js';
+import { TenantContext } from './TenantContext.js';
 
 export interface EventEnvelope {
   id: string; // Unique event ID

@@ -1,4 +1,4 @@
-import { HireNestAccessContext } from "../types";
+import { HireNestAccessContext } from "../types.js";
 
 export type AIOutputKind = "ANALYZE" | "SCORE" | "RECOMMEND" | "DRAFT" | "PREDICT";
 

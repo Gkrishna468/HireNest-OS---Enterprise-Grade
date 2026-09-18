@@ -1,4 +1,4 @@
-import { db } from "./firebase";
+import { db } from "./firebase.js";
 import { collection, addDoc, doc, setDoc, getDoc, runTransaction } from "firebase/firestore";
 
 export type Severity = "INFO" | "WARN" | "ERROR" | "CRITICAL";

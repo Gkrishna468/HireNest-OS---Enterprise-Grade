@@ -1,5 +1,5 @@
-import { TemporalContext } from '../types/TemporalContext';
-import { NotificationActivities } from '../activities/NotificationActivities';
+import { TemporalContext } from '../types/TemporalContext.js';
+import { NotificationActivities } from '../activities/NotificationActivities.js';
 
 export const clientFeedbackSLAWorkflow = async (context: TemporalContext, submissionId: string) => {
   console.log(`[Workflow: ClientFeedbackSLA] Started for submission ${submissionId}`);

@@ -1,4 +1,4 @@
-import { Recruiter, RecruiterInput, RecruiterUpdate } from '../../../types/Recruiter';
+import { Recruiter, RecruiterInput, RecruiterUpdate } from '../../../types/Recruiter.js';
 
 export interface IRecruiterService {
   getRecruiter(id: string): Promise<Recruiter | null>;

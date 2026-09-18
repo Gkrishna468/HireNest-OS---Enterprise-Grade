@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { auth } from '../lib/firebase';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { auth } from '../lib/firebase.js';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 interface SystemState {

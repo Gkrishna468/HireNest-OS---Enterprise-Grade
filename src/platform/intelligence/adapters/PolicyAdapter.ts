@@ -1,4 +1,4 @@
-import { PolicyEvaluationResult } from '../models/HIEModels';
+import { PolicyEvaluationResult } from '../models/HIEModels.js';
 
 export interface PolicyAdapter {
   evaluateCandidateOwnership(candidateId: string, recruiterId: string): Promise<PolicyEvaluationResult>;

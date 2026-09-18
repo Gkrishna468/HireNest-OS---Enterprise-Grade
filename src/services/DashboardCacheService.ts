@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { collection, getDocs, doc, getDoc, setDoc, Timestamp, query, where, limit } from "firebase/firestore";
 
 export class DashboardCacheService {

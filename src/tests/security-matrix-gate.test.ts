@@ -19,10 +19,10 @@
  * 15. candidatePublish = false requirement exposure in feed (BLOCKED)
  */
 
-import { AccessControlService, HireNestAccessContext } from "../services/accessControlService";
-import { CandidateRequirementEligibilityPolicy } from "../services/CandidateRequirementEligibilityPolicy";
-import { CandidateJobFeedService } from "../services/candidateJobFeedService";
-import { SecurityMatrixValidation } from "../services/securityMatrixValidation";
+import { AccessControlService, HireNestAccessContext } from "../services/accessControlService.js";
+import { CandidateRequirementEligibilityPolicy } from "../services/CandidateRequirementEligibilityPolicy.js";
+import { CandidateJobFeedService } from "../services/candidateJobFeedService.js";
+import { SecurityMatrixValidation } from "../services/securityMatrixValidation.js";
 
 export interface SecurityAttackTestResult {
   passed: number;

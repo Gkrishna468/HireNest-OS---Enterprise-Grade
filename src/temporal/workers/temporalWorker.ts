@@ -1,5 +1,5 @@
-import { TemporalContext } from '../config/temporalConfig';
-import { DeadLetterQueue } from '../../recovery/DeadLetterQueue';
+import { TemporalContext } from '../config/temporalConfig.js';
+import { DeadLetterQueue } from '../../recovery/DeadLetterQueue.js';
 
 export type WorkflowFn = (context: TemporalContext, ...args: any[]) => Promise<any>;
 

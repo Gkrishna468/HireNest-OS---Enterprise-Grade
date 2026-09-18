@@ -1,7 +1,7 @@
-import { auditArchitecture } from "./architectureAuditor";
-import { auditDataGovernance } from "./dataGovernanceAuditor";
-import { auditAIGovernance } from "./aiGovernanceAuditor";
-import { auditProductGovernance } from "./productGovernanceAuditor";
+import { auditArchitecture } from "./architectureAuditor.js";
+import { auditDataGovernance } from "./dataGovernanceAuditor.js";
+import { auditAIGovernance } from "./aiGovernanceAuditor.js";
+import { auditProductGovernance } from "./productGovernanceAuditor.js";
 
 export interface ReleaseAuditResult {
   architecture: { pass: boolean; log: string };

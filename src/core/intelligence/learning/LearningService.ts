@@ -1,5 +1,5 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { AIOutputMeta } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { AIOutputMeta } from "../types.js";
 
 export interface RecruiterFeedbackLoopEvent {
   matchId: string;

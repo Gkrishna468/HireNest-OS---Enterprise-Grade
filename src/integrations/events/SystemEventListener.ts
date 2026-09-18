@@ -1,7 +1,7 @@
-import { db } from "../../lib/firebase";
+import { db } from "../../lib/firebase.js";
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, setDoc } from "firebase/firestore";
-import { EventDispatcher } from "../../events/EventDispatcher";
-import { EventEnvelope } from '../../events/types/EventEnvelope';
+import { EventDispatcher } from "../../events/EventDispatcher.js";
+import { EventEnvelope } from '../../events/types/EventEnvelope.js';
 
 export class SystemEventListener {
   private static isInitialized = false;

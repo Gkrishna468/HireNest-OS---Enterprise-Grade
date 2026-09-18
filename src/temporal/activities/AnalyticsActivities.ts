@@ -1,4 +1,4 @@
-import { TemporalContext } from '../types/TemporalContext';
+import { TemporalContext } from '../types/TemporalContext.js';
 
 export const AnalyticsActivities = {
   async trackSLABreach(context: TemporalContext, entityType: string, entityId: string, durationInHours: number): Promise<void> {

@@ -1,7 +1,7 @@
-import { EventPublisher } from './EventPublisher';
-import { MappingResolver } from './MappingResolver';
-import { AuthProvider } from './AuthProvider';
-import { WebhookClient } from './WebhookClient';
+import { EventPublisher } from './EventPublisher.js';
+import { MappingResolver } from './MappingResolver.js';
+import { AuthProvider } from './AuthProvider.js';
+import { WebhookClient } from './WebhookClient.js';
 
 export class HireNestOSConnector {
   static async publishOpportunityWon(tenantId: string, opportunityId: string) {

@@ -1,7 +1,7 @@
-import { IEventBus } from '../IEventBus';
-import { IEventHandler } from '../EventHandlerRegistry';
-import { EventEnvelope } from '../types/EventEnvelope';
-import { EventTypes } from '../../lib/events/EventTypes';
+import { IEventBus } from '../IEventBus.js';
+import { IEventHandler } from '../EventHandlerRegistry.js';
+import { EventEnvelope } from '../types/EventEnvelope.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 /**
  * ServerEventForwarder bridges specific client-side events to the backend Business Event Bus.

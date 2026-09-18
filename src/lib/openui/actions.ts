@@ -1,4 +1,4 @@
-import { OpenUIActionName, OpenUIActionDefinition, OpenUIRole } from '../../types';
+import { OpenUIActionName, OpenUIActionDefinition, OpenUIRole } from '../../types.js';
 
 const ADMIN_ROLES: OpenUIRole[] = ['admin', 'super_admin', 'ops_admin', 'hq_admin'];
 const CLIENT_ROLES: OpenUIRole[] = ['client', 'hiring_manager', 'client_hm', 'client_recruiter', 'client_finance'];

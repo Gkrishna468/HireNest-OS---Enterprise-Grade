@@ -1,5 +1,5 @@
-import { WorkflowContext } from './WorkflowContext';
-import { WorkflowResult } from './WorkflowResult';
+import { WorkflowContext } from './WorkflowContext.js';
+import { WorkflowResult } from './WorkflowResult.js';
 
 export interface IWorkflow {
   name: string;

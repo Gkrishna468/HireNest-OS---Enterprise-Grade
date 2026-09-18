@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types";
-import { VendorService } from "./VendorService";
+import { db } from "../../lib/firebase.js";
+import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types.js";
+import { VendorService } from "./VendorService.js";
 
 export interface RecruiterEntity {
   id: string;

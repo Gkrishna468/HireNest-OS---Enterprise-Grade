@@ -1,10 +1,10 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { 
   collection, 
   addDoc, 
   serverTimestamp 
 } from "firebase/firestore";
-import { frontendTelemetry } from "../lib/frontendTelemetry";
+import { frontendTelemetry } from "../lib/frontendTelemetry.js";
 
 /**
  * HireNestOS Enterprise Match Engine

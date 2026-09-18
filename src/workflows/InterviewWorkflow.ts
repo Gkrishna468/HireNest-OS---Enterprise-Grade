@@ -1,9 +1,9 @@
-import { IWorkflow } from './types/IWorkflow';
-import { WorkflowContext } from './types/WorkflowContext';
-import { WorkflowResult } from './types/WorkflowResult';
-import { WorkflowStatus } from './types/WorkflowStatus';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { EventTypes } from '../lib/events/EventTypes';
+import { IWorkflow } from './types/IWorkflow.js';
+import { WorkflowContext } from './types/WorkflowContext.js';
+import { WorkflowResult } from './types/WorkflowResult.js';
+import { WorkflowStatus } from './types/WorkflowStatus.js';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { EventTypes } from '../lib/events/EventTypes.js';
 
 const ILLEGAL_TRANSITIONS: Record<string, string[]> = {
   'REJECTED': ['SCHEDULED', 'REQUESTED', 'INTERVIEW_REQUESTED'],
@@ -34,7 +34,7 @@ export class InterviewWorkflow implements IWorkflow {
          console.log(`[InterviewWorkflow] Orchestrating INTERVIEW_REQUESTED: ${context.metadata.submissionId}`);
          
          // Dynamically create a deal room entry / message using the InterviewOrchestrator
-         const { InterviewOrchestrator } = await import('../lib/workflows/InterviewOrchestrator');
+         const { InterviewOrchestrator } = await import('../lib/workflows/InterviewOrchestrator.js');
          const req = {
             submissionId: context.metadata.submissionId,
             candidateId: context.metadata.candidateId || 'unknown',

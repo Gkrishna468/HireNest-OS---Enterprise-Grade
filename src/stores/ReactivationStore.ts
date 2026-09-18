@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ReactivationOpportunity } from '../types';
+import { ReactivationOpportunity } from '../types.js';
 
 interface ReactivationState {
   opportunities: ReactivationOpportunity[];

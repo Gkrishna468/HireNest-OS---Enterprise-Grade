@@ -1,4 +1,4 @@
-import { RecruiterSubtype, UserType, RequirementScopeType } from "../lib/rbac";
+import { RecruiterSubtype, UserType, RequirementScopeType } from "../lib/rbac.js";
 
 export interface Recruiter {
   id: string; // The canonical ID (uid)

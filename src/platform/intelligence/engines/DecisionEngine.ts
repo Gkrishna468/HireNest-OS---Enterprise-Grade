@@ -1,4 +1,4 @@
-import { NextBestActionResult } from '../models/HIEModels';
+import { NextBestActionResult } from '../models/HIEModels.js';
 
 export interface DecisionEngine {
   evaluateNextAction(triggerEventType: string, eventPayload: Record<string, any>): Promise<NextBestActionResult | null>;

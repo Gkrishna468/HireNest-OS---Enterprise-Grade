@@ -1,5 +1,5 @@
-import { EventEnvelope } from '../../events/types/EventEnvelope';
-import { db } from '../../lib/firebase';
+import { EventEnvelope } from '../../events/types/EventEnvelope.js';
+import { db } from '../../lib/firebase.js';
 import { doc, setDoc } from 'firebase/firestore';
 
 export class EventPublisher {

@@ -1,7 +1,7 @@
-import { IWorkflow } from './types/IWorkflow';
-import { WorkflowContext } from './types/WorkflowContext';
-import { WorkflowResult } from './types/WorkflowResult';
-import { WorkflowStatus } from './types/WorkflowStatus';
+import { IWorkflow } from './types/IWorkflow.js';
+import { WorkflowContext } from './types/WorkflowContext.js';
+import { WorkflowResult } from './types/WorkflowResult.js';
+import { WorkflowStatus } from './types/WorkflowStatus.js';
 
 export class WorkflowRegistry {
   private static instance: WorkflowRegistry;

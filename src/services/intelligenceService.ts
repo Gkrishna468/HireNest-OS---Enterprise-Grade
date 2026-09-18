@@ -1,5 +1,5 @@
-import { db } from "../lib/firebase";
-import { ReasoningEngine, ReasoningMode } from "./reasoningService";
+import { db } from "../lib/firebase.js";
+import { ReasoningEngine, ReasoningMode } from "./reasoningService.js";
 import { 
   collection, 
   addDoc, 

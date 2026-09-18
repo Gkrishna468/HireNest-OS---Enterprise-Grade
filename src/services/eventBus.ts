@@ -1,5 +1,5 @@
-import { ServiceProvider } from "../lib/providers/ServiceProvider";
-import { EventTypes } from "../lib/events/EventTypes";
+import { ServiceProvider } from "../lib/providers/ServiceProvider.js";
+import { EventTypes } from "../lib/events/EventTypes.js";
 
 export type EventType = keyof typeof EventTypes;
 

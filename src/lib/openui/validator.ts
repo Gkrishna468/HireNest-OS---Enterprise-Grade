@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OpenUIActionName } from '../../types';
+import { OpenUIActionName } from '../../types.js';
 
 // Render Contract Validator
 export const OpenUIWorkspaceContextSchema = z.object({

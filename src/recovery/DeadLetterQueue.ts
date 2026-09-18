@@ -1,5 +1,5 @@
-import { TemporalContext } from '../temporal/config/temporalConfig';
-import { db } from '../lib/firebase';
+import { TemporalContext } from '../temporal/config/temporalConfig.js';
+import { db } from '../lib/firebase.js';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export interface DLQEvent {

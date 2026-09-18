@@ -10,10 +10,10 @@ import {
   getDoc,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../firebase";
-import { emitEvent } from "../../services/eventBus";
-import { AccessControlService } from "../../services/accessControlService";
-import { CandidateOwnershipEngine } from "./CandidateOwnershipEngine";
+import { db } from "../firebase.js";
+import { emitEvent } from "../../services/eventBus.js";
+import { AccessControlService } from "../../services/accessControlService.js";
+import { CandidateOwnershipEngine } from "./CandidateOwnershipEngine.js";
 
 export interface SubmissionRequest {
   candidateData: {
@@ -168,7 +168,7 @@ export class SubmissionOrchestrator {
       // 3. Create or Update Candidate
       if (!candidateId) {
         // Create new candidate in candidatePool (Source of truth for identity)
-        const { auth } = await import("../../lib/firebase");
+        const { auth } = await import("../../lib/firebase.js");
         let currentUserUid = auth.currentUser?.uid;
         let currentOrganizationId = "UNKNOWN";
         if (currentUserUid) {

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useSystemStore } from "../stores/SystemStore";
-import { HireNestAccessContext } from "../core/types";
-import { normalizeRole, isRoleAdminEquivalent, getPermissionsForRole } from "../lib/rbac";
+import { useSystemStore } from "../stores/SystemStore.js";
+import { HireNestAccessContext } from "../core/types.js";
+import { normalizeRole, isRoleAdminEquivalent, getPermissionsForRole } from "../lib/rbac.js";
 
 export function useHireNestAccessContext(): HireNestAccessContext | null {
   const { user, userData } = useSystemStore();

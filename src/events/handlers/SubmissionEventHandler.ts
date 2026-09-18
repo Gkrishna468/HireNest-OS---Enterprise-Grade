@@ -1,7 +1,7 @@
-import { IEventBus } from '../IEventBus';
-import { IEventHandler } from '../EventHandlerRegistry';
-import { EventEnvelope } from '../types/EventEnvelope';
-import { EventTypes } from '../../lib/events/EventTypes';
+import { IEventBus } from '../IEventBus.js';
+import { IEventHandler } from '../EventHandlerRegistry.js';
+import { EventEnvelope } from '../types/EventEnvelope.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 export class SubmissionEventHandler implements IEventHandler {
   handlerId = 'SubmissionEventHandler';
@@ -28,7 +28,7 @@ export class SubmissionEventHandler implements IEventHandler {
     // Update DealRoom status to CLOSED
     try {
       const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
+      const { db } = await import('../../lib/firebase.js');
       await updateDoc(doc(db, "dealRooms", `DR-${submissionId}`), {
         status: "CLOSED",
         updatedAt: serverTimestamp()

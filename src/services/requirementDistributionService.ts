@@ -1,5 +1,5 @@
-import { requirementVendorService } from "./requirementVendorService";
-import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
+import { requirementVendorService } from "./requirementVendorService.js";
+import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
 
 /**
  * Requirement Distribution Service Engine

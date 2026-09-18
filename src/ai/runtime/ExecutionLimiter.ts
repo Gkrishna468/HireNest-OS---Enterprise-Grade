@@ -1,4 +1,4 @@
-import { TemporalContext } from '../../temporal/config/temporalConfig';
+import { TemporalContext } from '../../temporal/config/temporalConfig.js';
 
 /**
  * Prevents AI agents / workflows from entering infinite loops or executing

@@ -1,5 +1,5 @@
-import { WorkflowEvent, WorkflowInstance } from "../../types/workflow";
-import { db } from "../../lib/firebase";
+import { WorkflowEvent, WorkflowInstance } from "../../types/workflow.js";
+import { db } from "../../lib/firebase.js";
 import { collection, doc, setDoc, updateDoc } from "firebase/firestore";
 
 /**

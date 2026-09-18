@@ -1,6 +1,6 @@
-import { ServiceProvider } from '../../lib/providers/ServiceProvider';
-import { TemporalContext } from '../types/TemporalContext';
-import { EventTypes } from '../../lib/events/EventTypes';
+import { ServiceProvider } from '../../lib/providers/ServiceProvider.js';
+import { TemporalContext } from '../types/TemporalContext.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 /**
  * Temporal Activities abstract the Service layer into execution blocks

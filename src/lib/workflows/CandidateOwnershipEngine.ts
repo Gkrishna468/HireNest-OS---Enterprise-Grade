@@ -1,4 +1,4 @@
-import { db } from "../firebase";
+import { db } from "../firebase.js";
 import { collection, doc, setDoc, getDoc, query, where, getDocs, serverTimestamp, addDoc } from "firebase/firestore";
 
 let cachedAdminDb: any = null;
@@ -6,7 +6,7 @@ async function getAdminDb() {
   if (typeof window !== "undefined") return null;
   if (!cachedAdminDb) {
     try {
-      const mod = await import("../firebase-admin");
+      const mod = await import("../firebase-admin.js");
       cachedAdminDb = mod.adminDb;
     } catch {
       cachedAdminDb = null;

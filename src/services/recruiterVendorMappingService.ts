@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { collection, query, getDocs, doc, setDoc, deleteDoc, where, onSnapshot } from "firebase/firestore";
 
 export interface RecruiterVendorMapping {

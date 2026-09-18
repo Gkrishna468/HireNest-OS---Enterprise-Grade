@@ -1,5 +1,5 @@
-import { AccessControlService, HireNestAccessContext } from "./accessControlService";
-import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy";
+import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
+import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy.js";
 
 export interface SecurityMatrixTestCase {
   roleName: string;

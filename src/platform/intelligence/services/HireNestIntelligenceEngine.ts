@@ -1,4 +1,4 @@
-import { IntelligenceEngine } from '../contracts/IntelligenceEngine';
+import { IntelligenceEngine } from '../contracts/IntelligenceEngine.js';
 import {
   CandidateEvaluationResult,
   RequirementEvaluationResult,
@@ -9,9 +9,9 @@ import {
   ForecastResult,
   RecommendationResult,
   NextBestActionResult
-} from '../models/HIEModels';
-import { AlgorithmRegistry } from '../registry/AlgorithmRegistry';
-import * as intelligenceService from '../../../services/intelligenceService';
+} from '../models/HIEModels.js';
+import { AlgorithmRegistry } from '../registry/AlgorithmRegistry.js';
+import * as intelligenceService from '../../../services/intelligenceService.js';
 
 export class HireNestIntelligenceEngineService implements IntelligenceEngine {
   private static instance: HireNestIntelligenceEngineService;

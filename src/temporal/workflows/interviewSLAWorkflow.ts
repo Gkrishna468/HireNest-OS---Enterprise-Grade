@@ -1,5 +1,5 @@
-import { TemporalContext } from '../types/TemporalContext';
-import { InterviewActivities } from '../activities/InterviewActivities';
+import { TemporalContext } from '../types/TemporalContext.js';
+import { InterviewActivities } from '../activities/InterviewActivities.js';
 
 export const interviewSLAWorkflow = async (context: TemporalContext, interviewId: string) => {
   console.log(`[Workflow: InterviewSLA] Started for interview ${interviewId}`);

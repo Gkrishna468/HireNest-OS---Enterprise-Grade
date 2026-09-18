@@ -1,4 +1,4 @@
-import { Requirement, RequirementInput, RequirementUpdate } from '../../../types/Requirement';
+import { Requirement, RequirementInput, RequirementUpdate } from '../../../types/Requirement.js';
 
 export interface IRequirementService {
   getRequirement(id: string): Promise<Requirement | null>;

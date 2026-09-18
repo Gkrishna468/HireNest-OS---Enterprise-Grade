@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { IRecruiterService } from '../contracts/IRecruiterService';
-import { Recruiter, RecruiterInput, RecruiterUpdate } from '../../../types/Recruiter';
+import { db } from '../../firebase.js';
+import { IRecruiterService } from '../contracts/IRecruiterService.js';
+import { Recruiter, RecruiterInput, RecruiterUpdate } from '../../../types/Recruiter.js';
 
 export class FirebaseRecruiterService implements IRecruiterService {
   private collectionName = 'recruiters';

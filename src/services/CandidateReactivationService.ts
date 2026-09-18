@@ -1,5 +1,5 @@
-import { ReactivationOpportunity, ReactivationSignalEvidence } from "../types";
-import { AccessControlService, HireNestAccessContext } from "./accessControlService";
+import { ReactivationOpportunity, ReactivationSignalEvidence } from "../types.js";
+import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
 
 export interface ScanOptions {
   minOpportunityScore?: number;

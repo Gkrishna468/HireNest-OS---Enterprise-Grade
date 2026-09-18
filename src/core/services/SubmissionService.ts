@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types";
-import { RequirementService } from "./RequirementService";
+import { db } from "../../lib/firebase.js";
+import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types.js";
+import { RequirementService } from "./RequirementService.js";
 
 export type SubmissionStage =
   | "SUBMITTED"

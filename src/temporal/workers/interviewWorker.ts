@@ -1,5 +1,5 @@
-import { TemporalContext } from '../types/TemporalContext';
-import { InterviewActivities } from '../activities/InterviewActivities';
+import { TemporalContext } from '../types/TemporalContext.js';
+import { InterviewActivities } from '../activities/InterviewActivities.js';
 
 /**
  * Worker orchestrates and polls for interview-related tasks.

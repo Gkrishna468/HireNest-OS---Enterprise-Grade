@@ -1,9 +1,9 @@
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types";
-import { ClientService } from "./ClientService";
-import { RequirementService } from "./RequirementService";
-import { AIOutputMeta } from "../intelligence/types";
+import { db } from "../../lib/firebase.js";
+import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError, CoreAuthorizationError } from "../types.js";
+import { ClientService } from "./ClientService.js";
+import { RequirementService } from "./RequirementService.js";
+import { AIOutputMeta } from "../intelligence/types.js";
 
 export interface CRMOpportunityEntity {
   id: string;

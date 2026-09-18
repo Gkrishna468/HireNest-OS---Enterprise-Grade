@@ -1,4 +1,4 @@
-import { TemporalContext } from '../types/TemporalContext';
+import { TemporalContext } from '../types/TemporalContext.js';
 
 export const InterviewActivities = {
   async escalateFeedbackOverdue(context: TemporalContext, interviewId: string): Promise<void> {

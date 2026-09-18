@@ -1,8 +1,8 @@
-import { IEventBus } from '../IEventBus';
-import { IEventHandler } from '../EventHandlerRegistry';
-import { EventEnvelope } from '../types/EventEnvelope';
-import { EventTypes } from '../../lib/events/EventTypes';
-import { HIE } from '../../platform/intelligence';
+import { IEventBus } from '../IEventBus.js';
+import { IEventHandler } from '../EventHandlerRegistry.js';
+import { EventEnvelope } from '../types/EventEnvelope.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
+import { HIE } from '../../platform/intelligence/index.js';
 
 export class IntelligenceEventHandler implements IEventHandler {
   handlerId = 'IntelligenceEventHandler';

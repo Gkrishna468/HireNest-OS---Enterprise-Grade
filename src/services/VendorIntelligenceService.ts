@@ -1,6 +1,6 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { doc, setDoc, serverTimestamp, increment, getDoc } from "firebase/firestore";
-import { frontendTelemetry } from "../lib/frontendTelemetry";
+import { frontendTelemetry } from "../lib/frontendTelemetry.js";
 
 export class VendorIntelligenceService {
   static async trackVendorEvent(vendorId: string, vendorName: string, tenantId: string, eventType: string, value: number = 0) {

@@ -1,4 +1,4 @@
-import { EventTypes } from '../../lib/events/EventTypes';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 export interface EventEnvelope<T> {
   id: string;

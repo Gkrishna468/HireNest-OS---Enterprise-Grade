@@ -1,4 +1,4 @@
-import { OpenUIComponentVersionedName, OpenUIActionName } from '../../types';
+import { OpenUIComponentVersionedName, OpenUIActionName } from '../../types.js';
 
 export interface OpenUIComponentMetadata {
   name: string;

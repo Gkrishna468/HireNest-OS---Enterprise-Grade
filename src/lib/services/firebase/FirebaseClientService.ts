@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { IClientService } from '../contracts/IClientService';
-import { Client, ClientInput, ClientUpdate } from '../../../types/Client';
+import { db } from '../../firebase.js';
+import { IClientService } from '../contracts/IClientService.js';
+import { Client, ClientInput, ClientUpdate } from '../../../types/Client.js';
 
 export class FirebaseClientService implements IClientService {
   private collectionName = 'clients';

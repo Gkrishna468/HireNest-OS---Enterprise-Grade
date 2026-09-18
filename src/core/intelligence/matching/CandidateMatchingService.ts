@@ -1,8 +1,8 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { RequirementService, RequirementEntity } from "../../services/RequirementService";
-import { Candidate360Service, CandidateEntity } from "../../services/Candidate360Service";
-import { SubmissionService } from "../../services/SubmissionService";
-import { AIRecommendation, AIOutputMeta } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { RequirementService, RequirementEntity } from "../../services/RequirementService.js";
+import { Candidate360Service, CandidateEntity } from "../../services/Candidate360Service.js";
+import { SubmissionService } from "../../services/SubmissionService.js";
+import { AIRecommendation, AIOutputMeta } from "../types.js";
 
 export interface MatchScoreBreakdown {
   overallScore: number; // 0 - 100

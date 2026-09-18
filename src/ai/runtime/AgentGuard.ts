@@ -1,4 +1,4 @@
-import { TemporalContext } from '../../temporal/config/temporalConfig';
+import { TemporalContext } from '../../temporal/config/temporalConfig.js';
 
 export class AgentGuard {
   static readonly PROHIBITED_ACTIONS = [

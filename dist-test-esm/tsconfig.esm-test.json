@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./out",
+    "rootDir": "..",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "experimentalDecorators": true
+  },
+  "include": [
+    "../src/**/*.ts",
+    "../api/**/*.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../src/tests/api-smoke-test.ts",
+    "../src/tests/production-esm-verify.ts"
+  ]
+}

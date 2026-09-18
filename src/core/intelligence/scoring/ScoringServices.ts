@@ -1,10 +1,10 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { ClientService } from "../../services/ClientService";
-import { RequirementService } from "../../services/RequirementService";
-import { Candidate360Service } from "../../services/Candidate360Service";
-import { VendorService } from "../../services/VendorService";
-import { RecruiterService } from "../../services/RecruiterService";
-import { AIScoreResult, AIOutputMeta } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { ClientService } from "../../services/ClientService.js";
+import { RequirementService } from "../../services/RequirementService.js";
+import { Candidate360Service } from "../../services/Candidate360Service.js";
+import { VendorService } from "../../services/VendorService.js";
+import { RecruiterService } from "../../services/RecruiterService.js";
+import { AIScoreResult, AIOutputMeta } from "../types.js";
 
 export class ClientScoringService {
   static async scoreClientHealth(ctx: HireNestAccessContext, clientId: string): Promise<AIScoreResult> {

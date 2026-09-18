@@ -1,4 +1,4 @@
-import { WorkflowInstance, WorkflowState, WorkflowEvent } from "../../types/workflow";
+import { WorkflowInstance, WorkflowState, WorkflowEvent } from "../../types/workflow.js";
 
 export class SLAMonitor {
     /**

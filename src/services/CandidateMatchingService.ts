@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import {
   collection,
   doc,
@@ -12,14 +12,14 @@ import {
   limit,
   updateDoc
 } from "firebase/firestore";
-import { SkillNormalizer } from "../resume-engine/matching/skill-normalizer";
-import { formatBudget } from "../lib/currency";
-import { UnifiedRequirementsService } from "./unifiedRequirementsService";
-import { CandidateJobFeedService } from "./candidateJobFeedService";
-import { AccessControlService, HireNestAccessContext } from "./accessControlService";
-import { emitEvent } from "./eventBus";
-import { JdParsingService } from "./jdParsingService";
-import { extractSkills, matchSkillToken } from "../resume-engine/parser/skills";
+import { SkillNormalizer } from "../resume-engine/matching/skill-normalizer.js";
+import { formatBudget } from "../lib/currency.js";
+import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
+import { CandidateJobFeedService } from "./candidateJobFeedService.js";
+import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
+import { emitEvent } from "./eventBus.js";
+import { JdParsingService } from "./jdParsingService.js";
+import { extractSkills, matchSkillToken } from "../resume-engine/parser/skills.js";
 
 export interface CandidateRequirementMatchRecord {
   id: string; // `${candidateId}_${requirementId}`

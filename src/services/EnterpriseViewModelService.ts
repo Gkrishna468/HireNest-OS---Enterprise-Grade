@@ -1,6 +1,6 @@
 // src/services/EnterpriseViewModelService.ts
 
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { 
   collection, 
   getDocs, 
@@ -12,7 +12,7 @@ import {
   getDoc,
   setDoc
 } from "firebase/firestore";
-import { ProductionDataGuard } from "../lib/ProductionDataGuard";
+import { ProductionDataGuard } from "../lib/ProductionDataGuard.js";
 
 export interface DecisionItem {
   id: string;

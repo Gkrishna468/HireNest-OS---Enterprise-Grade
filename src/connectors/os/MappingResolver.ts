@@ -1,5 +1,5 @@
-import { IntegrationMapping } from '../../../packages/shared-integration';
-import { WebhookClient } from './WebhookClient';
+import { IntegrationMapping } from '../../../packages/shared-integration/index.js';
+import { WebhookClient } from './WebhookClient.js';
 
 export class MappingResolver {
   static async resolveOsEntityId(crmEntityType: string, crmEntityId: string, osEntityType: string): Promise<string | null> {

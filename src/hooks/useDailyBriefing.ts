@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { auth } from '../lib/firebase';
+import { auth } from '../lib/firebase.js';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const FALLBACK_BRIEFING = {

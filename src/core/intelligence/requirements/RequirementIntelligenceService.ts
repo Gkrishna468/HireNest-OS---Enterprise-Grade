@@ -1,6 +1,6 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { RequirementService, RequirementEntity } from "../../services/RequirementService";
-import { AIOutputMeta, AIScoreResult, AIPredictionResult } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { RequirementService, RequirementEntity } from "../../services/RequirementService.js";
+import { AIOutputMeta, AIScoreResult, AIPredictionResult } from "../types.js";
 
 export interface RequirementDifficultyAnalysis {
   requirementId: string;

@@ -1,8 +1,8 @@
-import { db } from '../../firebase';
+import { db } from '../../firebase.js';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
-import { FirebaseEventService } from './FirebaseEventService';
-import { RequirementInput } from '../../../types/Requirement';
-import { Candidate } from '../../../types.ts';
+import { FirebaseEventService } from './FirebaseEventService.js';
+import { RequirementInput } from '../../../types/Requirement.js';
+import { Candidate } from '../../../types.js';
 
 export interface IntakeEvent {
   source: 'EMAIL' | 'PORTAL' | 'API';

@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError } from "../types";
+import { db } from "../../lib/firebase.js";
+import { HireNestAccessContext, enforceCoreAccess, CoreResourceNotFoundError } from "../types.js";
 
 export interface SLAEntity {
   id: string;

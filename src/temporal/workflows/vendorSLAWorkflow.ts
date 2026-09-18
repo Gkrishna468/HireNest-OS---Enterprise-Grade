@@ -1,6 +1,6 @@
-import { TemporalContext } from '../types/TemporalContext';
-import { SubmissionActivities } from '../activities/SubmissionActivities';
-import { NotificationActivities } from '../activities/NotificationActivities';
+import { TemporalContext } from '../types/TemporalContext.js';
+import { SubmissionActivities } from '../activities/SubmissionActivities.js';
+import { NotificationActivities } from '../activities/NotificationActivities.js';
 
 export const vendorSLAWorkflow = async (context: TemporalContext, requirementId: string, vendorId: string) => {
   console.log(`[Workflow: VendorSLA] Started for vendor ${vendorId} regarding requirement ${requirementId}`);

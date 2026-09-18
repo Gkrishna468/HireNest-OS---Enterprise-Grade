@@ -1,8 +1,8 @@
-import { requirementVendorService } from "./requirementVendorService";
-import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
-import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy";
+import { requirementVendorService } from "./requirementVendorService.js";
+import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
+import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy.js";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 
 export type RecruiterType = 'INTERNAL' | 'VENDOR' | 'FREELANCE';
 export type ABACScope = 'ASSIGNED_ONLY' | 'ALL_PERMITTED' | 'EXPLICIT_ONLY';

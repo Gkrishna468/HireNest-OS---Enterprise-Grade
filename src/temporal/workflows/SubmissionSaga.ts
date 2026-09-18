@@ -1,7 +1,7 @@
-import { TemporalContext } from '../types/TemporalContext';
+import { TemporalContext } from '../types/TemporalContext.js';
 // In a real Temporal project, this would import from '@temporalio/workflow'
 // import { proxyActivities, sleep } from '@temporalio/workflow';
-// import type { SubmissionActivities } from '../activities/SubmissionActivities';
+// import type { SubmissionActivities } from '../activities/SubmissionActivities.js';
 
 // const { evaluateCandidateMatch, notifyVendor, escalateToRecruiter, closeStaleSubmission } = proxyActivities<typeof SubmissionActivities>({
 //   startToCloseTimeout: '1 minute',

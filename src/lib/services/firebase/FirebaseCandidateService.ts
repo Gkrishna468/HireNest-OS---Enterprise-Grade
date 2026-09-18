@@ -1,8 +1,8 @@
 import { collection, doc, getDoc, setDoc, updateDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { ICandidateService } from '../contracts/ICandidateService';
-import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate';
-import { sanitizeFirestorePayload } from '../../firestoreUtils';
+import { db } from '../../firebase.js';
+import { ICandidateService } from '../contracts/ICandidateService.js';
+import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate.js';
+import { sanitizeFirestorePayload } from '../../firestoreUtils.js';
 
 export class FirebaseCandidateService implements ICandidateService {
   private collectionName = 'candidatePool';

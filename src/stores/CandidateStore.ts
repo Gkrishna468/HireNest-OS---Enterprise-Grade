@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { Candidate, CandidateInput, CandidateUpdate } from '../types/Candidate';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { Candidate, CandidateInput, CandidateUpdate } from '../types/Candidate.js';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebase.js';
 
 interface CandidateState {
   candidate: Candidate | null;
@@ -90,7 +90,7 @@ export const useCandidateStore = create<CandidateState>((set, get) => ({
           distillationStatus: "COMPLETED"
       } as any);
 
-      const { CandidateOwnershipEngine } = await import("../lib/workflows/CandidateOwnershipEngine");
+      const { CandidateOwnershipEngine } = await import("../lib/workflows/CandidateOwnershipEngine.js");
       await CandidateOwnershipEngine.establishOwnership(candId, orgId, "VENDOR", 180);
 
       set({ candidateLoading: false });

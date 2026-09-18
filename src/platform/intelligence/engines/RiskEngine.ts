@@ -1,4 +1,4 @@
-import { RequirementEvaluationResult, ConfidenceScore } from '../models/HIEModels';
+import { RequirementEvaluationResult, ConfidenceScore } from '../models/HIEModels.js';
 
 export interface RiskEngine {
   evaluateRequirementRisk(requirementId: string): Promise<RequirementEvaluationResult>;

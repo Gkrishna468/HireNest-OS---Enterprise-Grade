@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { Submission, SubmissionInput } from '../types/Submission';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { Submission, SubmissionInput } from '../types/Submission.js';
 
 interface SubmissionState {
   submissions: Submission[];
@@ -73,9 +73,9 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     try {
       await ServiceProvider.submissionService.updateInterviewEvent(id, event);
       
-      const { EventDispatcher } = await import('../events/EventDispatcher');
-      const { EventTypes } = await import('../lib/events/EventTypes');
-      const { auth } = await import('../lib/firebase');
+      const { EventDispatcher } = await import('../events/EventDispatcher.js');
+      const { EventTypes } = await import('../lib/events/EventTypes.js');
+      const { auth } = await import('../lib/firebase.js');
       
       const eventBus = EventDispatcher.getInstance();
       await eventBus.publish({
@@ -111,9 +111,9 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
       await ServiceProvider.submissionService.updateStatus(id, 'INTERVIEW_REQUESTED');
       
       // We can also trigger the Event Dispatcher here
-      const { EventDispatcher } = await import('../events/EventDispatcher');
-      const { EventTypes } = await import('../lib/events/EventTypes');
-      const { auth } = await import('../lib/firebase');
+      const { EventDispatcher } = await import('../events/EventDispatcher.js');
+      const { EventTypes } = await import('../lib/events/EventTypes.js');
+      const { auth } = await import('../lib/firebase.js');
       
       const eventBus = EventDispatcher.getInstance();
       await eventBus.publish({
@@ -143,8 +143,8 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
     try {
       await ServiceProvider.submissionService.updateStatus(id, status);
       
-      const { EventDispatcher } = await import('../events/EventDispatcher');
-      const { EventTypes } = await import('../lib/events/EventTypes');
+      const { EventDispatcher } = await import('../events/EventDispatcher.js');
+      const { EventTypes } = await import('../lib/events/EventTypes.js');
       const eventBus = EventDispatcher.getInstance();
       
       // Emit status update generically
@@ -179,7 +179,7 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
   submitCandidateProfile: async (payload: any) => {
     set({ isLoading: true, error: null });
     try {
-       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
+       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator.js");
        const res = await SubmissionOrchestrator.submitCandidate(payload);
        set({ isLoading: false });
        return res;

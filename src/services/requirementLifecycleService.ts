@@ -1,8 +1,8 @@
 import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import { AccessControlService, HireNestAccessContext } from "./accessControlService";
-import { RequirementDistributionService } from "./requirementDistributionService";
-import { emitEvent } from "./eventBus";
+import { db } from "../lib/firebase.js";
+import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
+import { RequirementDistributionService } from "./requirementDistributionService.js";
+import { emitEvent } from "./eventBus.js";
 
 export type RequirementStatus = 'ACTIVE' | 'HOLD' | 'SOURCING_PAUSED' | 'CLOSED' | 'EXPIRED';
 

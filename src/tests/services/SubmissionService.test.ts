@@ -1,6 +1,6 @@
 /// <reference types="jest" />
-import { FirebaseSubmissionService } from '../../lib/services/firebase/FirebaseSubmissionService';
-import { ISubmissionService } from '../../lib/services/contracts/ISubmissionService';
+import { FirebaseSubmissionService } from '../../lib/services/firebase/FirebaseSubmissionService.js';
+import { ISubmissionService } from '../../lib/services/contracts/ISubmissionService.js';
 
 describe('FirebaseSubmissionService', () => {
   let service: ISubmissionService;

@@ -1,9 +1,9 @@
-import { WorkflowRegistry } from './WorkflowRegistry';
-import { SubmissionWorkflow } from './SubmissionWorkflow';
-import { InterviewWorkflow } from './InterviewWorkflow';
-import { OfferWorkflow } from './OfferWorkflow';
-import { VendorWorkflow } from './VendorWorkflow';
-import { EventTypes } from '../lib/events/EventTypes';
+import { WorkflowRegistry } from './WorkflowRegistry.js';
+import { SubmissionWorkflow } from './SubmissionWorkflow.js';
+import { InterviewWorkflow } from './InterviewWorkflow.js';
+import { OfferWorkflow } from './OfferWorkflow.js';
+import { VendorWorkflow } from './VendorWorkflow.js';
+import { EventTypes } from '../lib/events/EventTypes.js';
 
 export function initializeWorkflows() {
   const registry = WorkflowRegistry.getInstance();

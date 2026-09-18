@@ -1,6 +1,6 @@
-import { db } from '../../firebase';
+import { db } from '../../firebase.js';
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { IEventService, NotificationEvent } from '../contracts/IEventService';
+import { IEventService, NotificationEvent } from '../contracts/IEventService.js';
 
 export class FirebaseEventService implements IEventService {
   async publishEvent(event: NotificationEvent): Promise<void> {

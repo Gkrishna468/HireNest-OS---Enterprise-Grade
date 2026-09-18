@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import {
   collection,
   doc,
@@ -73,7 +73,7 @@ export interface DirectCandidateInvite {
   applyCount?: number;
 }
 
-import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy";
+import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy.js";
 
 export class CandidateJobFeedService {
   /**

@@ -6,7 +6,7 @@ import {
   WorkflowInstance, 
   WorkflowType, 
   WorkflowState 
-} from "../../types/workflow";
+} from "../../types/workflow.js";
 import { v4 as uuidv4 } from "uuid";
 
 /**

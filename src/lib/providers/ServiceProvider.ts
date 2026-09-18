@@ -1,20 +1,20 @@
-import { ICandidateService } from '../services/contracts/ICandidateService';
-import { IRequirementService } from '../services/contracts/IRequirementService';
-import { ISubmissionService } from '../services/contracts/ISubmissionService';
-import { IClientService } from '../services/contracts/IClientService';
-import { IVendorService } from '../services/contracts/IVendorService';
-import { IRecruiterService } from '../services/contracts/IRecruiterService';
-import { IIdentityService } from '../services/contracts/IIdentityService';
-import { IEventService } from '../services/contracts/IEventService';
+import { ICandidateService } from '../services/contracts/ICandidateService.js';
+import { IRequirementService } from '../services/contracts/IRequirementService.js';
+import { ISubmissionService } from '../services/contracts/ISubmissionService.js';
+import { IClientService } from '../services/contracts/IClientService.js';
+import { IVendorService } from '../services/contracts/IVendorService.js';
+import { IRecruiterService } from '../services/contracts/IRecruiterService.js';
+import { IIdentityService } from '../services/contracts/IIdentityService.js';
+import { IEventService } from '../services/contracts/IEventService.js';
 
-import { FirebaseCandidateService } from '../services/firebase/FirebaseCandidateService';
-import { FirebaseRequirementService } from '../services/firebase/FirebaseRequirementService';
-import { FirebaseSubmissionService } from '../services/firebase/FirebaseSubmissionService';
-import { FirebaseClientService } from '../services/firebase/FirebaseClientService';
-import { FirebaseVendorService } from '../services/firebase/FirebaseVendorService';
-import { FirebaseRecruiterService } from '../services/firebase/FirebaseRecruiterService';
-import { FirebaseIdentityService } from '../services/firebase/FirebaseIdentityService';
-import { FirebaseEventService } from '../services/firebase/FirebaseEventService';
+import { FirebaseCandidateService } from '../services/firebase/FirebaseCandidateService.js';
+import { FirebaseRequirementService } from '../services/firebase/FirebaseRequirementService.js';
+import { FirebaseSubmissionService } from '../services/firebase/FirebaseSubmissionService.js';
+import { FirebaseClientService } from '../services/firebase/FirebaseClientService.js';
+import { FirebaseVendorService } from '../services/firebase/FirebaseVendorService.js';
+import { FirebaseRecruiterService } from '../services/firebase/FirebaseRecruiterService.js';
+import { FirebaseIdentityService } from '../services/firebase/FirebaseIdentityService.js';
+import { FirebaseEventService } from '../services/firebase/FirebaseEventService.js';
 
 class ServiceProviderLayer {
   public candidateService: ICandidateService;

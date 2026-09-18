@@ -1,6 +1,6 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { ClientService, ClientEntity } from "../../services/ClientService";
-import { AIOutputMeta, AIScoreResult, AIDraftResult } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { ClientService, ClientEntity } from "../../services/ClientService.js";
+import { AIOutputMeta, AIScoreResult, AIDraftResult } from "../types.js";
 
 export interface AccountIntelligenceProfile {
   accountId: string;

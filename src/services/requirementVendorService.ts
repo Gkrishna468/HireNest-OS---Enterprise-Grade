@@ -1,4 +1,4 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import {
   collection,
   doc,
@@ -12,8 +12,8 @@ import {
   deleteDoc,
   serverTimestamp
 } from "firebase/firestore";
-import { recruiterVendorMappingService } from "./recruiterVendorMappingService";
-import { UnifiedRequirementsService } from "./unifiedRequirementsService";
+import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
+import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`

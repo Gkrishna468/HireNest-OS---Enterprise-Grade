@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { Client } from '../types/Client';
-import { Vendor } from '../types/Vendor';
-import { Recruiter } from '../types/Recruiter';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { Client } from '../types/Client.js';
+import { Vendor } from '../types/Vendor.js';
+import { Recruiter } from '../types/Recruiter.js';
 
 interface IdentityState {
   clients: Client[];

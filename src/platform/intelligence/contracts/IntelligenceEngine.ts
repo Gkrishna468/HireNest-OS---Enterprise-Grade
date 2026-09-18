@@ -8,7 +8,7 @@ import {
   ForecastResult,
   RecommendationResult,
   NextBestActionResult
-} from '../models/HIEModels';
+} from '../models/HIEModels.js';
 
 /**
  * HireNest Intelligence Engine (HIE) Main Service Interface

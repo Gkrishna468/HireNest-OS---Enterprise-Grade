@@ -1,4 +1,4 @@
-import { ServiceProvider } from "./providers/ServiceProvider";
+import { ServiceProvider } from "./providers/ServiceProvider.js";
 
 export interface NotificationEvent {
   type: "info" | "warning" | "success" | "urgent";

@@ -1,6 +1,6 @@
-import { CRMService, CRMOpportunityEntity, ClientService, RequirementService } from "../core/services";
-import { HireNestAccessContext, CoreAuthorizationError } from "../core/types";
-import { getPermissionsForRole } from "../lib/rbac";
+import { CRMService, CRMOpportunityEntity, ClientService, RequirementService } from "../core/services/index.js";
+import { HireNestAccessContext, CoreAuthorizationError } from "../core/types.js";
+import { getPermissionsForRole } from "../lib/rbac.js";
 
 export async function runCRMConformanceTests(): Promise<{ passed: number; failed: number; errors: string[] }> {
   let passed = 0;

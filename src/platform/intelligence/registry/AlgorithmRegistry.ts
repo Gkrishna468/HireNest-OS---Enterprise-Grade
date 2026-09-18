@@ -1,4 +1,4 @@
-import { CandidateEvaluationResult, RequirementEvaluationResult } from '../models/HIEModels';
+import { CandidateEvaluationResult, RequirementEvaluationResult } from '../models/HIEModels.js';
 
 export interface MatchingAlgorithmStrategy {
   version: string;

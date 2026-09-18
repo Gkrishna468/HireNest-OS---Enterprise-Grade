@@ -1,4 +1,4 @@
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase.js";
 import { 
   collection, 
   addDoc, 
@@ -8,7 +8,7 @@ import {
   getDocs,
   limit
 } from "firebase/firestore";
-import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService";
+import { logExecutionEvent, ExecutionEventType } from "../lib/infrastructureService.js";
 
 export enum AgentType {
   VENDOR_OPTIMIZATION = "VENDOR_OPTIMIZATION",

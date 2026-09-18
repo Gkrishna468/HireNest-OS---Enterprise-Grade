@@ -1,4 +1,4 @@
-import { Submission, SubmissionInput, SubmissionUpdate } from '../../../types/Submission';
+import { Submission, SubmissionInput, SubmissionUpdate } from '../../../types/Submission.js';
 
 export interface ISubmissionService {
   getSubmission(id: string): Promise<Submission | null>;

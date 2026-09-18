@@ -1,4 +1,4 @@
-import { TemporalConfig, TemporalContext } from '../config/temporalConfig';
+import { TemporalConfig, TemporalContext } from '../config/temporalConfig.js';
 
 /**
  * Interface representing our internal Temporal Client Wrapper.

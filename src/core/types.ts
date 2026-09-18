@@ -4,7 +4,7 @@ import {
   RecruiterSubtype,
   RequirementScopeType,
   canUserPerformAction,
-} from "../lib/rbac";
+} from "../lib/rbac.js";
 
 export interface HireNestAccessContext {
   uid: string;

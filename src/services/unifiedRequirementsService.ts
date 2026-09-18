@@ -1,6 +1,6 @@
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import { AccessControlService, HireNestAccessContext } from "./accessControlService";
+import { db } from "../lib/firebase.js";
+import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
 
 /**
  * Unified Requirements Service

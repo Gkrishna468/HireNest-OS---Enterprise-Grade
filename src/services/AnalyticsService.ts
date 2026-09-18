@@ -1,6 +1,6 @@
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 import { collection, addDoc, doc, setDoc, serverTimestamp, increment } from "firebase/firestore";
-import { frontendTelemetry } from "../lib/frontendTelemetry";
+import { frontendTelemetry } from "../lib/frontendTelemetry.js";
 
 export class AnalyticsService {
   static async logOperationalEvent(tenantId: string, eventType: string, payload: any) {

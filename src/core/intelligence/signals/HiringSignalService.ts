@@ -1,5 +1,5 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { AIOutputMeta, AIRecommendation } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { AIOutputMeta, AIRecommendation } from "../types.js";
 
 export interface HiringSignal {
   id: string;

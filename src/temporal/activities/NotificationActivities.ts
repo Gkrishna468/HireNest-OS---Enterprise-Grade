@@ -1,4 +1,4 @@
-import { TemporalContext } from '../types/TemporalContext';
+import { TemporalContext } from '../types/TemporalContext.js';
 
 export const NotificationActivities = {
   async sendEmail(context: TemporalContext, to: string, templateId: string, payload: any): Promise<void> {

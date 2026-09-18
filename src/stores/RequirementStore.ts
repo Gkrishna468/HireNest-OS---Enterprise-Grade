@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ServiceProvider } from '../lib/providers/ServiceProvider';
-import { Requirement, RequirementInput, RequirementUpdate } from '../types/Requirement';
+import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
+import { Requirement, RequirementInput, RequirementUpdate } from '../types/Requirement.js';
 
 interface RequirementState {
   requirements: Requirement[];

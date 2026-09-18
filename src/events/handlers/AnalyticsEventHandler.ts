@@ -1,8 +1,8 @@
-import { IEventBus } from '../IEventBus';
-import { IEventHandler } from '../EventHandlerRegistry';
-import { EventEnvelope } from '../types/EventEnvelope';
-import { EventTypes } from '../../lib/events/EventTypes';
-import { AnalyticsService } from '../../services/AnalyticsService';
+import { IEventBus } from '../IEventBus.js';
+import { IEventHandler } from '../EventHandlerRegistry.js';
+import { EventEnvelope } from '../types/EventEnvelope.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
+import { AnalyticsService } from '../../services/AnalyticsService.js';
 
 export class AnalyticsEventHandler implements IEventHandler {
   handlerId = 'AnalyticsEventHandler';

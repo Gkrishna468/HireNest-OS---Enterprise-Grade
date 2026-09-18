@@ -1,8 +1,8 @@
-import { OPENUI_ACTION_REGISTRY } from '../actions.ts';
-import { OPENUI_COMPONENTS } from '../components.ts';
-import { validateOpenUIAction } from '../validator.ts';
-import { OpenUIActionName, OpenUIActionPayload } from '../../../types.ts';
-import openuiGatewayHandler from '../../../api-lib/handlers/openui-gateway.ts';
+import { OPENUI_ACTION_REGISTRY } from '../actions.js';
+import { OPENUI_COMPONENTS } from '../components.js';
+import { validateOpenUIAction } from '../validator.js';
+import { OpenUIActionName, OpenUIActionPayload } from '../../../types.js';
+import openuiGatewayHandler from '../../../api-lib/handlers/openui-gateway.js';
 
 let totalTests = 0;
 let passedTests = 0;

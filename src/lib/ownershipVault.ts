@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db } from './firebase.js';
 import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export async function generateIdentityHash(email: string, phone: string, name: string = "", linkedin: string = "", experience: string = ""): Promise<string | null> {

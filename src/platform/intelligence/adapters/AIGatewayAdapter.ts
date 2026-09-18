@@ -1,4 +1,4 @@
-import { HIE } from '../services/HireNestIntelligenceEngine';
+import { HIE } from '../services/HireNestIntelligenceEngine.js';
 
 export interface GroundedPromptPayload {
   userQuery: string;

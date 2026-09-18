@@ -1,4 +1,4 @@
-import { Client, ClientInput, ClientUpdate } from '../../../types/Client';
+import { Client, ClientInput, ClientUpdate } from '../../../types/Client.js';
 
 export interface IClientService {
   getClient(id: string): Promise<Client | null>;

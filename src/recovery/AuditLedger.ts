@@ -1,6 +1,6 @@
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebase.js';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { TemporalContext } from '../temporal/config/temporalConfig';
+import { TemporalContext } from '../temporal/config/temporalConfig.js';
 
 export interface AuditEntry {
   traceId: string;

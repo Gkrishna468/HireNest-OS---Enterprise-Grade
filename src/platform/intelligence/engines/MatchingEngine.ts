@@ -1,4 +1,4 @@
-import { CandidateEvaluationResult, ConfidenceScore } from '../models/HIEModels';
+import { CandidateEvaluationResult, ConfidenceScore } from '../models/HIEModels.js';
 
 export interface MatchingEngine {
   evaluateCandidateMatch(candidateId: string, requirementId: string): Promise<CandidateEvaluationResult>;

@@ -1,9 +1,9 @@
 // src/services/workflow/workflowOrchestrator.ts
 
-import { WorkflowState, WorkflowInstance, WorkflowType } from "../../types/workflow";
-import { transitionEngine } from "./transitionEngine";
-import { slaMonitor } from "./slaMonitor";
-import { eventEmitter } from "./eventEmitter";
+import { WorkflowState, WorkflowInstance, WorkflowType } from "../../types/workflow.js";
+import { transitionEngine } from "./transitionEngine.js";
+import { slaMonitor } from "./slaMonitor.js";
+import { eventEmitter } from "./eventEmitter.js";
 import { v4 as uuidv4 } from "uuid";
 
 export class WorkflowOrchestrator {

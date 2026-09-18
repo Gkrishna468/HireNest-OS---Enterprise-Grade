@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { IRequirementService } from '../contracts/IRequirementService';
-import { Requirement, RequirementInput, RequirementUpdate } from '../../../types/Requirement';
+import { db } from '../../firebase.js';
+import { IRequirementService } from '../contracts/IRequirementService.js';
+import { Requirement, RequirementInput, RequirementUpdate } from '../../../types/Requirement.js';
 
 export class FirebaseRequirementService implements IRequirementService {
   private collectionName = 'requirements_public';

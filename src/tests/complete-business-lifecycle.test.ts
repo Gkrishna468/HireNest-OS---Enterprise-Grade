@@ -10,10 +10,10 @@ import {
   SLAService,
   BudgetService,
   PerformanceService,
-} from "../core/services";
-import { AccountIntelligenceService, CandidateMatchingService } from "../core/intelligence";
-import { HireNestAccessContext, CoreAuthorizationError } from "../core/types";
-import { getPermissionsForRole } from "../lib/rbac";
+} from "../core/services/index.js";
+import { AccountIntelligenceService, CandidateMatchingService } from "../core/intelligence/index.js";
+import { HireNestAccessContext, CoreAuthorizationError } from "../core/types.js";
+import { getPermissionsForRole } from "../lib/rbac.js";
 
 export async function runEndToEndBusinessLifecycleTest(): Promise<{
   passed: number;

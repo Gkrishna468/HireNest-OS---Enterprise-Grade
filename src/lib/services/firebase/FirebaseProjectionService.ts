@@ -1,5 +1,5 @@
 import { collection, query, onSnapshot, getDocs, where, orderBy, limit } from "firebase/firestore";
-import { db } from "../../firebase";
+import { db } from "../../firebase.js";
 
 export interface DashboardMetrics {
   revenue: number;

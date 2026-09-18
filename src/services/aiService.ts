@@ -1,4 +1,4 @@
-import { auth, db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase.js";
 import { doc, getDoc } from "firebase/firestore";
 
 async function getOrgId() {

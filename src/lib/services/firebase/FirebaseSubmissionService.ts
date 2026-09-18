@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { ISubmissionService } from '../contracts/ISubmissionService';
-import { Submission, SubmissionInput } from '../../../types/Submission';
-import { EventDispatcher } from '../../../events/EventDispatcher';
-import { EventTypes } from '../../events/EventTypes';
+import { db } from '../../firebase.js';
+import { ISubmissionService } from '../contracts/ISubmissionService.js';
+import { Submission, SubmissionInput } from '../../../types/Submission.js';
+import { EventDispatcher } from '../../../events/EventDispatcher.js';
+import { EventTypes } from '../../events/EventTypes.js';
 
 export class FirebaseSubmissionService implements ISubmissionService {
   private collectionName = 'submissions';

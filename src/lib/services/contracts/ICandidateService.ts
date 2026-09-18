@@ -1,4 +1,4 @@
-import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate';
+import { Candidate, CandidateInput, CandidateUpdate } from '../../../types/Candidate.js';
 
 export interface ICandidateService {
   getCandidate(id: string): Promise<Candidate | null>;

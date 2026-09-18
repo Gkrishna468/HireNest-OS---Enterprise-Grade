@@ -1,8 +1,8 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { RequirementService, RequirementEntity } from "../../services/RequirementService";
-import { VendorService, VendorEntity } from "../../services/VendorService";
-import { RecruiterService, RecruiterEntity } from "../../services/RecruiterService";
-import { AIRecommendation, AIOutputMeta } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { RequirementService, RequirementEntity } from "../../services/RequirementService.js";
+import { VendorService, VendorEntity } from "../../services/VendorService.js";
+import { RecruiterService, RecruiterEntity } from "../../services/RecruiterService.js";
+import { AIRecommendation, AIOutputMeta } from "../types.js";
 
 export interface VendorMatchRecommendation {
   vendorId: string;

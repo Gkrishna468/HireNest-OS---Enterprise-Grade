@@ -1,6 +1,6 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { RequirementService } from "../../services/RequirementService";
-import { AIRecommendation, AIOutputMeta } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { RequirementService } from "../../services/RequirementService.js";
+import { AIRecommendation, AIOutputMeta } from "../types.js";
 
 export interface NextBestActionItem {
   id: string;

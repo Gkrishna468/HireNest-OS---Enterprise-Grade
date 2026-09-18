@@ -1,4 +1,4 @@
-import { AuthProvider } from './AuthProvider';
+import { AuthProvider } from './AuthProvider.js';
 
 export class WebhookClient {
   private static baseUrl = process.env.OS_API_URL || 'http://localhost:3000';

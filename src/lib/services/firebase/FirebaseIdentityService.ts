@@ -1,6 +1,6 @@
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { IIdentityService } from '../contracts/IIdentityService';
+import { db } from '../../firebase.js';
+import { IIdentityService } from '../contracts/IIdentityService.js';
 
 export class FirebaseIdentityService implements IIdentityService {
   async getUserProfile(uid: string): Promise<any> {

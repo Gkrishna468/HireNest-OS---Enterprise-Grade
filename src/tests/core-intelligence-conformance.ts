@@ -1,9 +1,9 @@
-import { HireNestAccessContext, enforceCoreAccess, CoreAuthorizationError } from "../core/types";
-import { VendorService } from "../core/services/VendorService";
-import { CandidateMatchingService } from "../core/intelligence/matching/CandidateMatchingService";
-import { CandidateScoringService, RequirementScoringService } from "../core/intelligence/scoring/ScoringServices";
-import { NextBestActionService } from "../core/intelligence/next-action/NextBestActionService";
-import { LearningService } from "../core/intelligence/learning/LearningService";
+import { HireNestAccessContext, enforceCoreAccess, CoreAuthorizationError } from "../core/types.js";
+import { VendorService } from "../core/services/VendorService.js";
+import { CandidateMatchingService } from "../core/intelligence/matching/CandidateMatchingService.js";
+import { CandidateScoringService, RequirementScoringService } from "../core/intelligence/scoring/ScoringServices.js";
+import { NextBestActionService } from "../core/intelligence/next-action/NextBestActionService.js";
+import { LearningService } from "../core/intelligence/learning/LearningService.js";
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {

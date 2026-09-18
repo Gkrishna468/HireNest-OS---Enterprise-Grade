@@ -1,8 +1,8 @@
-import { IWorkflow } from './types/IWorkflow';
-import { WorkflowContext } from './types/WorkflowContext';
-import { WorkflowResult } from './types/WorkflowResult';
-import { WorkflowStatus } from './types/WorkflowStatus';
-import { EventTypes } from '../lib/events/EventTypes';
+import { IWorkflow } from './types/IWorkflow.js';
+import { WorkflowContext } from './types/WorkflowContext.js';
+import { WorkflowResult } from './types/WorkflowResult.js';
+import { WorkflowStatus } from './types/WorkflowStatus.js';
+import { EventTypes } from '../lib/events/EventTypes.js';
 
 export class VendorWorkflow implements IWorkflow {
   name = 'VendorWorkflow';

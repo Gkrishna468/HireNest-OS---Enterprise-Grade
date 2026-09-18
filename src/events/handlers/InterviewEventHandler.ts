@@ -1,7 +1,7 @@
-import { IEventBus } from '../IEventBus';
-import { IEventHandler } from '../EventHandlerRegistry';
-import { EventEnvelope } from '../types/EventEnvelope';
-import { EventTypes } from '../../lib/events/EventTypes';
+import { IEventBus } from '../IEventBus.js';
+import { IEventHandler } from '../EventHandlerRegistry.js';
+import { EventEnvelope } from '../types/EventEnvelope.js';
+import { EventTypes } from '../../lib/events/EventTypes.js';
 
 export class InterviewEventHandler implements IEventHandler {
   handlerId = 'InterviewEventHandler';
@@ -16,7 +16,7 @@ export class InterviewEventHandler implements IEventHandler {
     console.log(`[InterviewEventHandler] Processing INTERVIEW_REQUESTED: ${event.id}`);
     
     // Instead of directly calling DealRoomWorkflow, we can trigger the global WorkflowRegistry
-    const { WorkflowRegistry } = await import('../../workflows/WorkflowRegistry');
+    const { WorkflowRegistry } = await import('../../workflows/WorkflowRegistry.js');
     const registry = WorkflowRegistry.getInstance();
     
     await registry.dispatch({

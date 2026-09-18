@@ -1,6 +1,6 @@
-import { HireNestAccessContext, enforceCoreAccess } from "../../types";
-import { Candidate360Service, CandidateEntity } from "../../services/Candidate360Service";
-import { AIOutputMeta, AIScoreResult, AIDraftResult } from "../types";
+import { HireNestAccessContext, enforceCoreAccess } from "../../types.js";
+import { Candidate360Service, CandidateEntity } from "../../services/Candidate360Service.js";
+import { AIOutputMeta, AIScoreResult, AIDraftResult } from "../types.js";
 
 export interface CandidateSynthesizedProfile {
   candidateId: string;
