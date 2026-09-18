@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getDynamicGreeting } from "../../lib/greetings";
 import {
   Briefcase,
@@ -39,6 +39,7 @@ import { RecruiterPerformanceModal } from "../../components/modals/RecruiterPerf
 import Requirement360Modal from "../../components/modals/Requirement360Modal";
 import { recruiterVendorMappingService, RecruiterVendorMapping } from "../../services/recruiterVendorMappingService";
 import { requirementVendorService } from "../../services/requirementVendorService";
+import { CandidateMatchingService } from "../../services/CandidateMatchingService";
 
 export default function VendorPartnerWorkspace({
   vendorName,
@@ -65,10 +66,58 @@ export default function VendorPartnerWorkspace({
   // Requirements, submissions & sheets sync state
   const [liveReqs, setLiveReqs] = useState<any[]>([]);
   const [vendorSubs, setVendorSubs] = useState<any[]>([]);
+  const [vendorCandidates, setVendorCandidates] = useState<any[]>([]);
   const [syncingSheets, setSyncingSheets] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [reqFilter, setReqFilter] = useState<string>('ALL');
   const [reqSearch, setReqSearch] = useState<string>('');
+
+  // Calculate Matches dynamically
+  const vendorMatches = useMemo(() => {
+    const list: any[] = [];
+    if (!orgId || vendorCandidates.length === 0 || liveReqs.length === 0) return list;
+
+    for (const cand of vendorCandidates) {
+      if (cand.sourceType === "DIRECT_CANDIDATE" || cand.isDirectCandidate) continue;
+
+      for (const req of liveReqs) {
+        const fit = CandidateMatchingService.evaluateFitment(
+          {
+            skills: cand.skills || [],
+            experienceYears: cand.experienceYears || cand.yearsOfExperience || 0,
+            location: cand.location || "",
+            preferredWorkMode: cand.preferredWorkMode || cand.workMode || ""
+          },
+          {
+            skills: req.skills || [],
+            experience: req.experience,
+            minExperience: req.minExperience,
+            location: req.location,
+            workMode: req.workMode,
+            jobType: req.jobType,
+            mandatorySkills: req.mandatorySkills || []
+          }
+        );
+
+        list.push({
+          candidateId: cand.id,
+          candidateName: cand.name || cand.fullName || "Candidate",
+          requirementId: req.id,
+          requirementTitle: req.title || req.role || "Technical Role",
+          score: fit.score,
+          tier: fit.tier,
+          skillsOverlap: fit.skillsOverlap,
+          missingSkills: fit.missingSkills,
+          hardGateVerdict: fit.hardGateVerdict,
+          clientName: req.clientName || "Enterprise Partner",
+          candidate: cand,
+          requirement: req
+        });
+      }
+    }
+
+    return list.sort((a, b) => b.score - a.score);
+  }, [vendorCandidates, liveReqs, orgId]);
 
   // Assigned HireNest Recruiters for this vendor
   const [assignedRecruiters, setAssignedRecruiters] = useState<RecruiterVendorMapping[]>([]);
@@ -134,10 +183,23 @@ export default function VendorPartnerWorkspace({
       });
     }
 
+    // 3. Vendor Bench Candidates listener
+    let unsubCands = () => {};
+    if (orgId) {
+      const qCands = query(collection(db, "candidatePool"), where("vendorId", "==", orgId));
+      unsubCands = onSnapshot(qCands, (snap) => {
+        if (!active) return;
+        setVendorCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (err) => {
+        if (active) console.warn("[VendorPartnerWorkspace] candidates listener error:", err.message);
+      });
+    }
+
     return () => {
       active = false;
       unsubReqs();
       unsubSubs();
+      unsubCands();
     };
   }, [orgId]);
 
@@ -664,39 +726,72 @@ export default function VendorPartnerWorkspace({
               </h3>
 
               <div className="space-y-4">
-                 {/* Top Candidate Matching Opportunity Card with Visual Confidence Meter */}
-                 <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4 relative group">
-                    <div className="flex justify-between items-center">
-                       <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400">Bench Match Advisory</span>
-                       <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-mono">96% CONFIDENCE</Badge>
+                 {vendorMatches.length === 0 ? (
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center space-y-2">
+                       <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500">Bench Match Advisory</span>
+                       <p className="text-xs text-slate-400 font-mono">No live matches yet</p>
                     </div>
+                 ) : (
+                    vendorMatches.slice(0, 2).map((match, idx) => (
+                       <div key={idx} className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4 relative group">
+                          <div className="flex justify-between items-center">
+                             <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-400">Bench Match Advisory</span>
+                             <Badge className={`border text-[9px] font-mono ${
+                                match.score >= 80 
+                                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                   : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                             }`}>
+                                {match.score}% CONFIDENCE
+                             </Badge>
+                          </div>
 
-                    <div>
-                       <h4 className="text-sm font-black text-white leading-tight">Rajesh Kumar</h4>
-                       <p className="text-xs text-slate-400 font-mono mt-1">Sr. Backend Developer (Java)</p>
-                    </div>
+                          <div>
+                             <h4 className="text-sm font-black text-white leading-tight">{match.candidateName}</h4>
+                             <p className="text-xs text-slate-400 font-mono mt-1">Matched to: {match.requirementTitle}</p>
+                             <p className="text-[10px] text-slate-500 font-mono mt-0.5">Client: {match.clientName}</p>
+                          </div>
 
-                    {/* Signature AI Confidence Meter */}
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2">
-                      <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 uppercase font-bold">
-                        <span>AI Confidence</span>
-                        <span className="text-emerald-400">HIGH 96%</span>
-                      </div>
-                      <div className="flex gap-1 text-emerald-400 font-mono text-xs select-none">
-                        <span>██████████</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-mono">
-                        8+ Years Core Java, Spring Boot, microservices + verified placement history.
-                      </p>
-                    </div>
+                          {/* Signature AI Confidence Meter */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2">
+                            <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 uppercase font-bold">
+                              <span>AI Confidence</span>
+                              <span className={match.score >= 80 ? "text-emerald-400" : "text-indigo-400"}>
+                                 {match.score >= 80 ? "HIGH" : "MODERATE"} {match.score}%
+                              </span>
+                            </div>
+                            <div className="flex gap-1 font-mono text-xs select-none">
+                              <span className={match.score >= 80 ? "text-emerald-400" : "text-indigo-400"}>
+                                {Array(Math.round(match.score / 10)).fill("█").join("")}
+                                {Array(10 - Math.round(match.score / 10)).fill("░").join("")}
+                              </span>
+                            </div>
+                            {match.skillsOverlap.length > 0 && (
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                Overlapping: {match.skillsOverlap.slice(0, 3).join(", ")}
+                              </p>
+                            )}
+                            {match.missingSkills.length > 0 && (
+                              <p className="text-[10px] text-slate-500 font-mono">
+                                Missing: {match.missingSkills.slice(0, 3).join(", ")}
+                              </p>
+                            )}
+                          </div>
 
-                    <Button 
-                       onClick={() => setSubmittingReq({ id: "java-req-102", title: "Sr. Backend Developer" })}
-                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest h-10 shadow-lg shadow-indigo-500/10"
-                    >
-                       Submit To Client
-                    </Button>
-                 </div>
+                          <Button 
+                             onClick={() => setSubmittingReq({ 
+                                id: match.requirementId, 
+                                title: match.requirementTitle,
+                                recruiterId: match.requirement.assignedRecruiterId || match.requirement.recruiterId || "recruiter-rahul",
+                                clientId: match.requirement.clientId || "client-abc",
+                                clientName: match.clientName
+                             })}
+                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest h-10 shadow-lg shadow-indigo-500/10"
+                          >
+                             Submit To Client
+                          </Button>
+                       </div>
+                    ))
+                 )}
 
                  {/* Bench Optimization Advisory */}
                  <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
@@ -704,13 +799,10 @@ export default function VendorPartnerWorkspace({
                        <Zap size={14} />
                        <span className="text-[9px] font-mono uppercase font-bold tracking-widest">Bench Optimization</span>
                     </div>
-                    <h4 className="text-xs font-bold text-white">Target React Developers</h4>
+                    <h4 className="text-xs font-bold text-white">Target In-Demand Stacks</h4>
                     <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
-                      4 Enterprise clients are actively seeking React/Node.js stacks with active SLA incentives. Sourcing from your network is advised.
+                       Enterprise clients are actively seeking modern developer stacks. Match your bench candidates to active SLA incentives for maximum yield.
                     </p>
-                    <Button variant="outline" className="w-full text-[10px] font-mono uppercase tracking-widest h-8 border-slate-800 text-slate-300 hover:bg-slate-900">
-                       Broadcast Availability
-                    </Button>
                  </div>
               </div>
 
@@ -769,22 +861,25 @@ export default function VendorPartnerWorkspace({
               
               <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6">
                  <div className="relative border-l border-slate-800 ml-3 space-y-6 text-left">
-                    <div className="relative">
-                       <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-                       <div className="pl-6">
-                          <p className="text-xs text-slate-500 font-mono mb-1">09:16 AM • Bench Evaluation</p>
-                          <h4 className="text-sm font-bold text-white">AI Scored Rajesh Kumar (96% Match)</h4>
-                          <p className="text-[11px] text-slate-400 font-mono mt-1">Evaluated against active Sr. Backend Developer requirements. Full skill coverage confirmed.</p>
+                    {vendorMatches.length > 0 ? (
+                       <div className="relative">
+                          <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                          <div className="pl-6">
+                             <p className="text-xs text-slate-500 font-mono mb-1">Just Now • Bench Evaluation</p>
+                             <h4 className="text-sm font-bold text-white">AI Scored {vendorMatches[0].candidateName} ({vendorMatches[0].score}% Match)</h4>
+                             <p className="text-[11px] text-slate-400 font-mono mt-1">Evaluated against active requirement "{vendorMatches[0].requirementTitle}". Full skills evaluated successfully.</p>
+                          </div>
                        </div>
-                    </div>
-                    <div className="relative">
-                       <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-indigo-500 animate-pulse"></div>
-                       <div className="pl-6">
-                          <p className="text-xs text-slate-500 font-mono mb-1">10:45 AM • Scheduler</p>
-                          <h4 className="text-sm font-bold text-white">Interview Scheduled for Priya Sharma</h4>
-                          <p className="text-[11px] text-slate-400 font-mono mt-1">Sourcing office matched client requirements with candidate availability slots.</p>
+                    ) : (
+                       <div className="relative">
+                          <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-slate-600"></div>
+                          <div className="pl-6">
+                             <p className="text-xs text-slate-500 font-mono mb-1">System Standby</p>
+                             <h4 className="text-sm font-bold text-white">No active matches evaluated yet</h4>
+                             <p className="text-[11px] text-slate-400 font-mono mt-1">Please register and upload candidate resumes to trigger matching algorithms.</p>
+                          </div>
                        </div>
-                    </div>
+                    )}
                  </div>
               </div>
           </div>

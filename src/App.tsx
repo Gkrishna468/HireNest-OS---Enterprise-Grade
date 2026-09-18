@@ -759,28 +759,12 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
-                to="/autonomous-operations"
-                icon={Activity}
-                label="Mission Control"
-                active={location.pathname === "/autonomous-operations"}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-              <SidebarItem
                 to="/ai-operations"
                 icon={Bot}
                 label="AI Operations"
                 active={location.pathname === "/ai-operations"}
                 onClick={() => setIsMobileMenuOpen(false)}
               />
-              {role === "PLATFORM_AUTHORITY" && (
-                <SidebarItem
-                  to="/ops"
-                  icon={Briefcase}
-                  label="Operations"
-                  active={location.pathname === "/ops"}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                />
-              )}
               <SidebarItem
                 to="/crm"
                 icon={DollarSign}

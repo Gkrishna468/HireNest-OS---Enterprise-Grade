@@ -230,6 +230,22 @@ export function CandidateRegisterModal({
         isDirectCandidate: true,
         pipelineStage: "Application Received",
         status: "ACTIVE",
+        resumeFileName: resumeFile?.name || "resume.pdf",
+        resumeText: extractedText || "",
+        parsedResumeText: extractedText || "",
+        extractedText: extractedText || "",
+        currentResumeVersion: 3,
+        resumeVersions: [
+          {
+            version: 3,
+            fileName: resumeFile?.name || "resume.pdf",
+            uploadedAt: new Date().toISOString(),
+            extractedText: extractedText || "",
+          }
+        ],
+        resumeLastParsedAt: new Date().toISOString(),
+        resumeProcessingStatus: "COMPLETED",
+        resumeParserVersion: "v1.0.0",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }, { merge: true });

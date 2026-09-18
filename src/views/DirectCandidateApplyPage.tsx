@@ -123,26 +123,36 @@ export default function DirectCandidateApplyPage() {
       if (user) {
         setIsLoadingProfile(true);
         try {
-          const profRef = doc(db, "candidate_profiles", user.uid);
-          const profSnap = await getDoc(profRef);
-          if (profSnap.exists()) {
-            const data = profSnap.data();
-            setCandidateProfile(data);
-            setFullName(data.name || user.displayName || "");
-            setEmail(data.email || user.email || "");
-            setPhone(data.phone || "");
-            if (data.skills && Array.isArray(data.skills)) {
-              setExtractedSkills(data.skills);
+          const idToken = await user.getIdToken();
+          const res = await fetch("/api/candidate-portal?action=get-profile", {
+            headers: {
+              Authorization: `Bearer ${idToken}`
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.profile) {
+              setCandidateProfile(data.profile);
+              setFullName(data.profile.name || user.displayName || "");
+              setEmail(data.profile.email || user.email || "");
+              setPhone(data.profile.phone || "");
+              if (data.profile.skills && Array.isArray(data.profile.skills)) {
+                setExtractedSkills(data.profile.skills);
+              }
             }
           } else {
             setFullName(user.displayName || "");
             setEmail(user.email || "");
           }
         } catch (err) {
-          console.warn("Failed to fetch candidate profile:", err);
+          console.warn("Failed to fetch candidate profile via API:", err);
+          setFullName(user.displayName || "");
+          setEmail(user.email || "");
         } finally {
           setIsLoadingProfile(false);
         }
+      } else {
+        setCandidateProfile(null);
       }
     });
 
@@ -209,12 +219,13 @@ export default function DirectCandidateApplyPage() {
     setSubmitError(null);
 
     try {
-      let activeUserId = currentUser?.uid;
-      let activeEmail = (currentUser?.email || email).trim().toLowerCase();
-      let activeName = (currentUser?.displayName || fullName).trim();
+      let activeUser = currentUser;
 
-      // If user is not logged in, handle Sign-In or Register
-      if (!currentUser) {
+      // If user is not logged in, handle Sign-In or Register first
+      if (!activeUser) {
+        const activeEmail = email.trim().toLowerCase();
+        const activeName = fullName.trim();
+
         if (!activeEmail || !password) {
           throw new Error("Please enter your email and password to proceed.");
         }
@@ -226,21 +237,17 @@ export default function DirectCandidateApplyPage() {
             throw new Error("Please upload your CV/Resume to complete application.");
           }
 
-          // Create Firebase Account (or recover existing account if email in use)
+          // Create Firebase Account
           let userCred: any = null;
           try {
             userCred = await createUserWithEmailAndPassword(auth, activeEmail, password);
-            activeUserId = userCred.user.uid;
-
-            await updateProfile(userCred.user, {
-              displayName: activeName
-            });
+            activeUser = userCred.user;
+            await updateProfile(activeUser, { displayName: activeName });
           } catch (authErr: any) {
             if (authErr?.code === 'auth/email-already-in-use' || authErr?.message?.includes('auth/email-already-in-use')) {
               try {
                 userCred = await signInWithEmailAndPassword(auth, activeEmail, password);
-                activeUserId = userCred.user.uid;
-                activeName = userCred.user.displayName || activeName;
+                activeUser = userCred.user;
               } catch (loginErr: any) {
                 throw new Error(
                   "An account with this email already exists. Please enter your existing account password or switch to 'Sign In'."
@@ -252,127 +259,104 @@ export default function DirectCandidateApplyPage() {
               throw authErr;
             }
           }
-
-          // Save Candidate User in `users` collection with CANDIDATE role
-          await setDoc(
-            doc(db, "users", activeUserId),
-            {
-              id: activeUserId,
-              uid: activeUserId,
-              name: activeName,
-              displayName: activeName,
-              email: activeEmail,
-              phone: phone,
-              role: "CANDIDATE",
-              userType: "Candidate",
-              organizationId: "ORG-CANDIDATE-COMMUNITY",
-              status: "ACTIVE",
-              onboardingCompleted: true,
-              createdAt: new Date().toISOString()
-            },
-            { merge: true }
-          );
-
-          // Save Candidate Profile
-          await setDoc(
-            doc(db, "candidate_profiles", activeUserId),
-            {
-              id: activeUserId,
-              userId: activeUserId,
-              name: activeName,
-              email: activeEmail,
-              phone: phone,
-              skills: extractedSkills,
-              experienceYears: extractedExpYears,
-              preferredWorkMode: "Onsite",
-              resumeFileName: resumeFile?.name || "Resume.pdf",
-              resumeText: resumeText || "",
-              sourceType: "DIRECT_CANDIDATE",
-              ownershipType: "DIRECT",
-              vendorId: null,
-              ownerType: "HIRENEST",
-              ownerId: "GLOBAL_HQ",
-              createdVia: "DIRECT_CANDIDATE_LINK",
-              inviteToken: token || null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            },
-            { merge: true }
-          );
         } else {
           // Sign In Existing Account
           const userCred = await signInWithEmailAndPassword(auth, activeEmail, password);
-          activeUserId = userCred.user.uid;
-          activeName = userCred.user.displayName || activeName;
+          activeUser = userCred.user;
         }
       }
 
-      // Prepare Application Record
-      const appRef = doc(collection(db, "applications"));
-      const appId = appRef.id;
-
-      const applicationPayload = {
-        id: appId,
-        candidateUid: activeUserId,
-        candidateName: activeName,
-        candidateEmail: activeEmail,
-        candidatePhone: phone || candidateProfile?.phone || "",
-        requirementId: job.id,
-        requirementTitle: job.title,
-        jobTitle: job.title,
-        jobLocation: job.location,
-        jobType: "FTE",
-        workMode: "Onsite",
-        status: "SUBMITTED",
-        candidateFacingStatus: "Submitted",
-        sourceType: "DIRECT_CANDIDATE",
-        appliedVia: "DIRECT_INVITE_LINK",
-        inviteToken: token || null,
-        skillsSnapshot: extractedSkills.length > 0 ? extractedSkills : candidateProfile?.skills || [],
-        experienceYearsSnapshot: extractedExpYears || candidateProfile?.experienceYears || 3,
-        resumeFileName: resumeFile?.name || candidateProfile?.resumeFileName || "Resume.pdf",
-        availability,
-        onsiteReady,
-        expectedCTC: expectedCTC || "Negotiable",
-        currentCTC: currentCTC || "Not Disclosed",
-        candidateNotes,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      await setDoc(appRef, applicationPayload);
-
-      // Create matching synchronized record in `submissions` for Global HQ visibility
-      try {
-        const subRef = doc(collection(db, "submissions"));
-        await setDoc(subRef, {
-          id: subRef.id,
-          applicationId: appId,
-          requirementId: job.id,
-          requirementTitle: job.title,
-          candidateId: activeUserId,
-          candidateUid: activeUserId,
-          candidateName: activeName,
-          candidateEmail: activeEmail,
-          candidatePhone: phone || candidateProfile?.phone || "",
-          status: "SUBMITTED",
-          sourceType: "DIRECT_CANDIDATE",
-          ownershipType: "DIRECT",
-          vendorId: null,
-          vendorName: "Direct Candidate Application",
-          ownerType: "HIRENEST",
-          ownerId: "GLOBAL_HQ",
-          skills: extractedSkills.length > 0 ? extractedSkills : candidateProfile?.skills || [],
-          experienceYears: extractedExpYears || candidateProfile?.experienceYears || 3,
-          resumeFileName: resumeFile?.name || candidateProfile?.resumeFileName || "Resume.pdf",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      } catch (subErr) {
-        console.warn("HQ Submission link note:", subErr);
+      if (!activeUser) {
+        throw new Error("User session could not be established. Please try again.");
       }
 
-      setCreatedAppId(appId);
+      // Get authenticated token
+      const idToken = await activeUser.getIdToken();
+
+      // If they just registered, initialize and save their profile details securely
+      if (authMode === "REGISTER" || !candidateProfile) {
+        const profilePayload = {
+          name: fullName.trim(),
+          email: activeUser.email || email.trim().toLowerCase(),
+          phone: phone,
+          skills: extractedSkills,
+          experienceYears: extractedExpYears || 0,
+          resumeFileName: resumeFile?.name || "Resume.pdf",
+          resumeText: resumeText || "",
+          sourceType: "DIRECT_CANDIDATE",
+          ownershipType: "DIRECT"
+        };
+
+        // Initialize user & profile document via backend API
+        const updateProfileRes = await fetch("/api/candidate-portal?action=update-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ profile: profilePayload })
+        });
+
+        if (!updateProfileRes.ok) {
+          const errData = await updateProfileRes.json();
+          throw new Error(errData.error || "Failed to save registration profile details.");
+        }
+      }
+
+      // If user uploaded a fresh resume, update their master resume details on server first
+      if (!useExistingProfile && resumeFile) {
+        const updateResumeRes = await fetch("/api/candidate-portal?action=update-resume", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            fileName: resumeFile.name,
+            resumeText: resumeText || "",
+            skills: extractedSkills,
+            experienceYears: extractedExpYears || 0
+          })
+        });
+
+        if (!updateResumeRes.ok) {
+          const errData = await updateResumeRes.json();
+          throw new Error(errData.error || "Failed to upload and secure candidate resume.");
+        }
+      }
+
+      // Submit the final application securely via candidate-portal apply API
+      const applyRes = await fetch("/api/candidate-portal?action=apply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          requirementId: job.id,
+          screenAvailability: availability,
+          screenOnsiteReady: onsiteReady,
+          screenCurrentCTC: currentCTC,
+          screenExpectedCTC: expectedCTC,
+          screenExperienceYears: extractedExpYears || candidateProfile?.experienceYears || 0,
+          screenNotes: candidateNotes,
+          resumeOption: useExistingProfile ? "current" : "different",
+          differentResume: useExistingProfile ? undefined : {
+            fileName: resumeFile?.name || "Updated_Resume.pdf",
+            resumeText: resumeText || "",
+            skills: extractedSkills,
+            experienceYears: extractedExpYears || 0
+          }
+        })
+      });
+
+      if (!applyRes.ok) {
+        const errData = await applyRes.json();
+        throw new Error(errData.error || "Failed to submit candidate application.");
+      }
+
+      const applyData = await applyRes.json();
+      setCreatedAppId(applyData.appId);
       setSubmitSuccess(true);
     } catch (err: any) {
       console.error("Application submission failed:", err);

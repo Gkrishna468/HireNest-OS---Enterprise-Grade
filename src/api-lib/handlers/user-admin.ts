@@ -127,7 +127,24 @@ export default async function userAdminHandler(req: any, res: any) {
         });
       });
 
-      return res.status(200).json({ ok: true, users });
+      let organizations: any[] = [];
+      let requirements: any[] = [];
+      if (isActorAdmin) {
+        try {
+          const orgsSnap = await adminDb.collection("organizations").limit(100).get();
+          orgsSnap.forEach((doc: any) => {
+            organizations.push({ id: doc.id, ...doc.data() });
+          });
+          const reqsSnap = await adminDb.collection("requirements_public").limit(50).get();
+          reqsSnap.forEach((doc: any) => {
+            requirements.push({ id: doc.id, ...doc.data() });
+          });
+        } catch (dbErr: any) {
+          console.warn("[user-admin] Failed to fetch ancillary admin data:", dbErr.message);
+        }
+      }
+
+      return res.status(200).json({ ok: true, users, organizations, requirements });
     }
 
     // 3. Create User with Attribution & Hierarchy Enforcement

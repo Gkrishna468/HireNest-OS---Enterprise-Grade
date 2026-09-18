@@ -14,6 +14,7 @@ import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { collection, query, getDocs, where, doc, setDoc, limit } from "firebase/firestore";
 import { GmailRecentMessages } from "../components/GmailRecentMessages";
+import { isRoleAdminEquivalent } from "../lib/rbac";
 
 export default function Vendor360Tab({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
@@ -25,9 +26,15 @@ export default function Vendor360Tab({ userRole }: { userRole: string }) {
   const [syncSuccess, setSyncSuccess] = useState<string | null>(null);
   const [mapping, setMapping] = useState<any>(null);
 
-  const isAdmin = ["admin", "super_admin", "hq_admin", "ops_admin"].includes(
-    userRole,
-  );
+  const isAdmin = isRoleAdminEquivalent(userRole);
+
+  if (!isAdmin) {
+    return (
+      <div className="p-8 text-center text-slate-500 font-semibold bg-white rounded-2xl border border-slate-100">
+        Access Denied: HQ Platform Authority required to view Vendor 360.
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!selectedVendorId) return;

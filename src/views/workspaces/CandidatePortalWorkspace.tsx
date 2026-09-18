@@ -135,6 +135,9 @@ export default function CandidatePortalWorkspace({
     resumeText: "",
     resumeFileName: ""
   });
+  const [resumeVersions, setResumeVersions] = useState<any[]>([]);
+  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
+  const [resumeOption, setResumeOption] = useState<string>("current"); // "current" | "different" | "update"
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [newSkill, setNewSkill] = useState<string>("");
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
@@ -175,8 +178,53 @@ export default function CandidatePortalWorkspace({
     }
   };
 
+  const fetchProfileAndVersions = async (userId: string) => {
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+
+      setIsLoadingProfile(true);
+      const res = await fetch(`/api/candidate-portal?action=get-profile`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          setProfile(data.profile);
+          runCandidateMatching(data.profile, userId);
+        }
+        if (data.resumeVersions) {
+          setResumeVersions(data.resumeVersions);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load candidate profile via API:", err);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
   // 1. Initialize Auth & Sync DB Profile
   useEffect(() => {
+    const unsubAuth = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        setProfile(prev => ({
+          ...prev,
+          name: user.displayName || userName,
+          email: user.email || ""
+        }));
+        await fetchProfileAndVersions(user.uid);
+
+        // Listen to In-App Candidate Notifications
+        // (Notifications listener continues as non-blocking)
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
     const user = auth.currentUser;
     if (user) {
       setCurrentUser(user);
@@ -185,39 +233,6 @@ export default function CandidatePortalWorkspace({
         name: user.displayName || userName,
         email: user.email || ""
       }));
-
-      // Fetch or initialize Candidate Profile
-      const profileRef = doc(db, "candidate_profiles", user.uid);
-      getDoc(profileRef).then(snap => {
-        if (snap.exists()) {
-          const profileData = snap.data() as any;
-          setProfile(profileData);
-          runCandidateMatching(profileData, user.uid);
-        } else {
-          const initData = {
-            id: user.uid,
-            userId: user.uid,
-            name: user.displayName || userName,
-            email: user.email || "",
-            location: "Remote / Flexible",
-            headline: "Candidate Profile",
-            skills: [] as string[],
-            targetRoles: [] as string[],
-            experienceYears: 0,
-            preferredWorkMode: "Hybrid",
-            noticePeriodDays: 30,
-            sourceType: "DIRECT_CANDIDATE",
-            ownershipType: "DIRECT",
-            vendorId: null,
-            ownerType: "HIRENEST",
-            ownerId: "GLOBAL_HQ",
-            createdVia: "CANDIDATE_PORTAL",
-            createdAt: new Date().toISOString()
-          };
-          setDoc(profileRef, initData, { merge: true });
-          runCandidateMatching(initData, user.uid);
-        }
-      });
 
       // Listen to In-App Candidate Notifications
       const qNotif = query(
@@ -373,204 +388,76 @@ export default function CandidatePortalWorkspace({
     setIsSubmittingApplication(true);
 
     try {
-      const candEmail = currentUser.email || profile.email;
-      const candPhone = profile.phone || "Not provided";
-      const candName = currentUser.displayName || profile.name || "Candidate";
-      const appId = `HN-APP-${Date.now().toString(36).toUpperCase()}`;
+      const idToken = await currentUser.getIdToken();
 
-      // 1. DUPLICATE & VENDOR OWNERSHIP PROTECTION
-      // Check if this candidate already exists under a vendor
-      let ownershipConflictDetected = false;
-      let existingVendorOwnerId = "";
-      let realCandidateId = currentUser.uid;
-
-      try {
-        const poolCheckQ = query(
-          collection(db, "candidatePool"),
-          where("email", "==", candEmail),
-          limit(5)
-        );
-        const poolSnap = await getDocs(poolCheckQ);
-        if (!poolSnap.empty) {
-          const existingCand = poolSnap.docs[0].data();
-          if (existingCand.ownerType === "VENDOR" || existingCand.vendorId) {
-            ownershipConflictDetected = true;
-            existingVendorOwnerId = existingCand.vendorId || existingCand.ownerId || "VENDOR_NETWORK";
-          }
-        }
-      } catch (checkErr) {
-        console.warn("Ownership check query note:", checkErr);
-      }
-
-      // 2. COMPUTE FITMENT SCORE VIA UNIFIED FITMENT ENGINE
-      const candSkills = extractedResumeData?.detectedSkills || profile.skills || [];
-      const evaluated = CandidateMatchingService.evaluateFitment(
-        {
-          skills: candSkills,
-          experienceYears: screenExperienceYears,
-          location: profile.location,
-          preferredWorkMode: screenOnsiteReady.includes("Yes") ? "ONSITE" : profile.preferredWorkMode
-        },
-        applyingJob
-      );
-
-      const calculatedFitment = evaluated.score;
-      const fitmentEvaluationSnapshot = {
-        score: evaluated.score,
-        tier: evaluated.tier,
-        evaluatedAt: new Date().toISOString(),
-        skillsOverlap: evaluated.skillsOverlap,
-        missingSkills: evaluated.missingSkills,
-        requiredSkills: applyingJob.skills || [],
-        onsiteFitment: screenOnsiteReady.includes("Yes") ? "PASS" : "REQUIRES_REVIEW",
-        experienceFitment: evaluated.hardGateVerdict === "PASS" ? "PASS" : "MARGINAL",
-        recommendation: evaluated.tier === "STRONG" ? "STRONG_CANDIDATE" : "POTENTIAL_MATCH"
-      };
-
-      // 3. CREATE / UPDATE IMMUTABLE CANDIDATE MASTER RECORD
-      const candidateMasterDocRef = doc(db, "candidatePool", realCandidateId);
-      await setDoc(candidateMasterDocRef, {
-        id: realCandidateId,
-        uid: currentUser.uid,
-        name: candName,
-        email: candEmail,
-        phone: candPhone,
-        skills: extractedResumeData?.detectedSkills || profile.skills,
-        experience: `${screenExperienceYears} Years`,
-        location: profile.location,
-        headline: profile.headline,
-        sourceType: "DIRECT_CANDIDATE", ownershipType: "DIRECT", vendorId: null,
-        ownerType: "HIRENEST",
-        ownerId: "GLOBAL_HQ",
-        createdVia: "CANDIDATE_PORTAL",
-        isDirectCandidate: true,
-        ownershipConflict: ownershipConflictDetected,
-        conflictingVendorId: existingVendorOwnerId || null,
-        conflictEscalationStatus: ownershipConflictDetected ? "PENDING_ADMIN_RESOLUTION" : "CLEAN",
-        status: "ACTIVE",
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-
-      // 4. CREATE SEPARATE DIRECT APPLICATION ENTITY (HN-APP-...)
-      const applicationDoc = {
-        id: appId,
-        applicationId: appId,
-        candidateId: realCandidateId,
-        candidateUid: currentUser.uid,
-        candidateName: candName,
-        candidateEmail: candEmail,
-        candidatePhone: candPhone,
-        requirementId: applyingJob.id,
-        jobTitle: applyingJob.title || applyingJob.role || "Software Role",
-        jobLocation: applyingJob.location || applyingJob.workMode || "Onsite",
-        workMode: applyingJob.workMode || "Onsite",
-        
-        // Consumer-facing status
-        status: "UNDER_REVIEW",
-        applicationStatus: "UNDER_REVIEW", // Pipeline stage for Candidate UI
-        
-        // Ownership & Governance
-        sourceType: "DIRECT_CANDIDATE", ownershipType: "DIRECT", vendorId: null,
-        ownerType: "HIRENEST",
-        ownerId: "GLOBAL_HQ",
-        createdVia: "CANDIDATE_PORTAL",
-        ownershipConflict: ownershipConflictDetected,
-        conflictingVendorId: existingVendorOwnerId || null,
-
-        // Immutable Snapshots
-        requirementSnapshot: {
-          id: applyingJob.id,
-          title: applyingJob.title || applyingJob.role,
-          workMode: applyingJob.workMode,
-          location: applyingJob.location,
-          skills: applyingJob.skills || [],
-          experience: applyingJob.experience || "3-6 Years",
-          budget: formatBudget(applyingJob.budget || applyingJob.rate, "Industry Standard"),
-          description: (applyingJob.description || "").slice(0, 500)
-        },
-        candidateSnapshot: {
-          name: candName,
-          email: candEmail,
-          phone: candPhone,
-          location: profile.location,
-          experienceYears: screenExperienceYears,
-          skills: extractedResumeData?.detectedSkills || profile.skills,
-          headline: profile.headline
-        },
-        fitmentScore: calculatedFitment,
-        fitmentEvaluation: fitmentEvaluationSnapshot,
-        screeningAnswers: {
-          availability: screenAvailability,
-          onsiteReadiness: screenOnsiteReady,
-          currentCTC: screenCurrentCTC || "Disclosed in discussion",
-          expectedCTC: screenExpectedCTC || "Competitive",
-          experienceYears: screenExperienceYears,
-          notes: screenNotes || "Direct Portal Submission"
-        },
-        resumeVersion: {
-          fileName: extractedResumeData?.fileName || profile.resumeFileName || "Direct_Resume.pdf",
-          submittedAt: new Date().toISOString()
-        },
-        submittedAt: new Date().toISOString(),
-        createdAt: serverTimestamp()
-      };
-
-      await setDoc(doc(db, "applications", appId), applicationDoc);
-
-      // 5. MIRROR RECORD IN SUBMISSIONS FOR GLOBAL HQ RECRUITER & MATCH QUEUES
-      const submissionDoc = {
-        id: appId,
-        submissionId: appId,
-        candidateId: realCandidateId,
-        candidateUid: currentUser.uid,
-        candidateName: candName,
-        candidateEmail: candEmail,
-        candidateSkills: extractedResumeData?.detectedSkills || profile.skills,
-        requirementId: applyingJob.id,
-        requirementTitle: applyingJob.title || applyingJob.role,
-        status: "UNDER_REVIEW",
-        pipelineStage: "Application Received",
-        sourceType: "DIRECT_CANDIDATE", ownershipType: "DIRECT", vendorId: null,
-        ownerType: "HIRENEST",
-        ownerId: "GLOBAL_HQ",
-        createdVia: "CANDIDATE_PORTAL",
-        fitmentScore: calculatedFitment,
-        matchScore: calculatedFitment,
-        aiMatchScore: calculatedFitment,
-        ownershipConflict: ownershipConflictDetected,
-        conflictingVendorId: existingVendorOwnerId || null,
-        submittedAt: new Date().toISOString()
-      };
-      await setDoc(doc(db, "submissions", appId), submissionDoc);
-
-      // Log notification for Global HQ Ops
-      try {
-        await addDoc(collection(db, "notifications"), {
-          type: "DIRECT_CANDIDATE_APPLICATION",
-          title: `New Direct Application: ${candName}`,
-          message: `${candName} applied directly for ${applyingJob.title || applyingJob.role} (${applyingJob.workMode}) with ${calculatedFitment}% fitment.`,
-          applicationId: appId,
-          candidateId: realCandidateId,
-          requirementId: applyingJob.id,
-          sourceType: "DIRECT_CANDIDATE", ownershipType: "DIRECT", vendorId: null,
-          ownershipConflict: ownershipConflictDetected,
-          createdAt: serverTimestamp()
+      // If user chose to update default resume globally, do it first!
+      if (resumeOption === "update" && extractedResumeData) {
+        const updateResumeRes = await fetch("/api/candidate-portal?action=update-resume", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            fileName: extractedResumeData.fileName,
+            resumeText: extractedResumeData.rawText || "",
+            skills: extractedResumeData.detectedSkills || [],
+            experienceYears: screenExperienceYears
+          })
         });
-      } catch (notifErr) {
-        console.warn("Notification logging non-blocking error:", notifErr);
+
+        if (!updateResumeRes.ok) {
+          const errData = await updateResumeRes.json();
+          throw new Error(errData.error || "Failed to update your default resume on server.");
+        }
       }
+
+      // Submit application
+      const applyRes = await fetch("/api/candidate-portal?action=apply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          requirementId: applyingJob.id,
+          screenAvailability,
+          screenOnsiteReady,
+          screenCurrentCTC,
+          screenExpectedCTC,
+          screenExperienceYears,
+          screenNotes,
+          resumeOption: resumeOption === "different" ? "different" : "current",
+          differentResume: resumeOption === "different" && extractedResumeData ? {
+            fileName: extractedResumeData.fileName,
+            resumeText: extractedResumeData.rawText || "",
+            skills: extractedResumeData.detectedSkills || [],
+            experienceYears: screenExperienceYears
+          } : undefined
+        })
+      });
+
+      if (!applyRes.ok) {
+        const errData = await applyRes.json();
+        throw new Error(errData.error || "Failed to submit candidate application.");
+      }
+
+      const applyData = await applyRes.json();
 
       setApplicationSuccessData({
-        appId,
+        appId: applyData.appId,
         jobTitle: applyingJob.title || applyingJob.role,
-        fitmentScore: calculatedFitment,
-        conflict: ownershipConflictDetected
+        fitmentScore: applyData.fitmentScore,
+        conflict: applyData.conflict
       });
       setApplyStep(3);
 
+      // Reload profile to reflect new resume/history
+      await fetchProfileAndVersions(currentUser.uid);
+
     } catch (err: any) {
       console.error("Direct application submission failed:", err);
-      alert("Application could not be saved. Please try again.");
+      alert(err.message || "Application could not be saved. Please try again.");
     } finally {
       setIsSubmittingApplication(false);
     }
@@ -1470,11 +1357,23 @@ export default function CandidatePortalWorkspace({
                         if (!currentUser) return;
                         setIsSavingProfile(true);
                         try {
-                          await setDoc(doc(db, "candidate_profiles", currentUser.uid), {
-                            ...profile,
-                            updatedAt: new Date().toISOString()
-                          }, { merge: true });
+                          const idToken = await currentUser.getIdToken();
+                          const res = await fetch("/api/candidate-portal?action=update-profile", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${idToken}`
+                            },
+                            body: JSON.stringify({ profile })
+                          });
+                          if (!res.ok) {
+                            const errData = await res.json();
+                            throw new Error(errData.error || "Failed to save profile.");
+                          }
                           setIsEditingProfile(false);
+                        } catch (err: any) {
+                          console.error("Save profile error:", err);
+                          alert(err.message || "Failed to update profile.");
                         } finally {
                           setIsSavingProfile(false);
                         }
@@ -1643,7 +1542,7 @@ export default function CandidatePortalWorkspace({
                 )}
 
                 {extractedResumeData && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-left text-xs text-emerald-900 space-y-1">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-left text-xs text-emerald-900 space-y-2">
                     <div className="font-bold flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       <span>{extractedResumeData.fileName} Successfully Parsed</span>
@@ -1651,9 +1550,91 @@ export default function CandidatePortalWorkspace({
                     <p className="text-[11px] text-emerald-700">
                       Detected Skills: {extractedResumeData.detectedSkills.join(", ")}
                     </p>
+                    <div className="pt-2">
+                      <Button
+                        size="xs"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-[10px] text-white font-black h-7 px-3.5 rounded-lg"
+                        disabled={isSavingProfile}
+                        onClick={async () => {
+                          if (!currentUser || !extractedResumeData) return;
+                          setIsSavingProfile(true);
+                          try {
+                            const idToken = await currentUser.getIdToken();
+                            const res = await fetch("/api/candidate-portal?action=update-resume", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${idToken}`
+                              },
+                              body: JSON.stringify({
+                                fileName: extractedResumeData.fileName,
+                                resumeText: extractedResumeData.rawText || "",
+                                skills: extractedResumeData.detectedSkills || [],
+                                experienceYears: profile.experienceYears || 0
+                              })
+                            });
+                            if (!res.ok) {
+                              const errData = await res.json();
+                              throw new Error(errData.error || "Failed to update default resume.");
+                            }
+                            alert("Default resume successfully updated!");
+                            setExtractedResumeData(null);
+                            await fetchProfileAndVersions(currentUser.uid);
+                          } catch (err: any) {
+                            console.error("Save default resume error:", err);
+                            alert(err.message || "Failed to update default resume.");
+                          } finally {
+                            setIsSavingProfile(false);
+                          }
+                        }}
+                      >
+                        {isSavingProfile ? "Saving..." : "Apply as Default Profile Resume ✓"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
+
+              {/* Resume Versioning History */}
+              {resumeVersions && resumeVersions.length > 0 && (
+                <div className="pt-4 border-t border-slate-100 mt-4">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Resume Parsing History & Version Control</span>
+                  </h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {resumeVersions.map((v, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50/50 rounded-lg border border-slate-100 text-xs hover:bg-slate-50 transition-colors">
+                        <div className="space-y-0.5">
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                            {v.fileName}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Parsed on {new Date(v.uploadedAt || v.parsedAt || Date.now()).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {v.skills && v.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 max-w-[200px] justify-end">
+                              {v.skills.slice(0, 3).map((s: string, sIdx: number) => (
+                                <span key={sIdx} className="text-[9px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                  {s}
+                                </span>
+                              ))}
+                              {v.skills.length > 3 && (
+                                <span className="text-[9px] text-slate-400 font-bold">
+                                  +{v.skills.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1908,47 +1889,108 @@ export default function CandidatePortalWorkspace({
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">Select or Upload Resume</label>
-                  <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-6 text-center space-y-3 bg-slate-50/50">
-                    <UploadCloud className="w-8 h-8 text-indigo-500 mx-auto" />
-                    <div>
-                      <label className="cursor-pointer text-xs font-bold text-indigo-600 hover:text-indigo-700">
-                        <span>Upload New Resume</span>
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">Resume Options</label>
+                  
+                  {profile.resumeFileName ? (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-indigo-300 transition-colors">
                         <input
-                          type="file"
-                          accept=".pdf,.docx,.doc,.txt"
-                          className="hidden"
-                          onChange={e => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleProcessResume(e.target.files[0]);
-                            }
-                          }}
+                          type="radio"
+                          name="resumeChoice"
+                          checked={resumeOption === "current"}
+                          onChange={() => setResumeOption("current")}
+                          className="text-indigo-600 focus:ring-indigo-500"
                         />
+                        <div className="flex-1 text-xs">
+                          <span className="font-semibold text-slate-800 block">Use Profile Default Resume</span>
+                          <span className="text-indigo-500 font-medium">{profile.resumeFileName}</span>
+                        </div>
                       </label>
-                      <p className="text-[11px] text-slate-400 mt-1">PDF or DOCX</p>
+
+                      <label className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-indigo-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="resumeChoice"
+                          checked={resumeOption === "different"}
+                          onChange={() => {
+                            setResumeOption("different");
+                            setExtractedResumeData(null);
+                          }}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1 text-xs">
+                          <span className="font-semibold text-slate-800 block">Upload Different Resume for this job</span>
+                          <span className="text-slate-500">Only attached to this application without changing main profile</span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-indigo-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="resumeChoice"
+                          checked={resumeOption === "update"}
+                          onChange={() => {
+                            setResumeOption("update");
+                            setExtractedResumeData(null);
+                          }}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1 text-xs">
+                          <span className="font-semibold text-slate-800 block">Upload & Replace Profile Default Resume</span>
+                          <span className="text-slate-500">Updates profile default resume globally for all matches</span>
+                        </div>
+                      </label>
                     </div>
+                  ) : (
+                    <div className="bg-slate-50 p-3 rounded-lg text-xs text-slate-600">
+                      You do not have a default resume uploaded yet. Please upload one below to create your profile and apply.
+                    </div>
+                  )}
 
-                    {isExtractingResume && (
-                      <div className="flex items-center justify-center gap-2 text-xs text-indigo-600 font-bold">
-                        <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                        <span>AI Parsing Resume & Skills...</span>
+                  {(resumeOption !== "current" || !profile.resumeFileName) && (
+                    <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-6 text-center space-y-3 bg-slate-50/50">
+                      <UploadCloud className="w-8 h-8 text-indigo-500 mx-auto" />
+                      <div>
+                        <label className="cursor-pointer text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                          <span>Click to Upload Resume file</span>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.doc,.txt"
+                            className="hidden"
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleProcessResume(e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </label>
+                        <p className="text-[11px] text-slate-400 mt-1">PDF or DOCX</p>
                       </div>
-                    )}
 
-                    {extractedResumeData ? (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-left text-xs text-emerald-900">
-                        <span className="font-bold">✓ Attached: {extractedResumeData.fileName}</span>
-                        <p className="text-[11px] text-emerald-700 mt-1">
-                          Skills detected: {extractedResumeData.detectedSkills.join(", ")}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-100 p-2.5 rounded-lg text-xs text-slate-600 text-left">
-                        <span className="font-bold">Using Profile Default:</span> {profile.name}'s verified profile ({profile.skills.join(", ")})
-                      </div>
-                    )}
-                  </div>
+                      {isExtractingResume && (
+                        <div className="flex items-center justify-center gap-2 text-xs text-indigo-600 font-bold">
+                          <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                          <span>AI Parsing Resume & Skills...</span>
+                        </div>
+                      )}
+
+                      {extractedResumeData && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-left text-xs text-emerald-900">
+                          <span className="font-bold">✓ Attached: {extractedResumeData.fileName}</span>
+                          <p className="text-[11px] text-emerald-700 mt-1">
+                            Skills detected: {extractedResumeData.detectedSkills.join(", ")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {resumeOption === "current" && profile.resumeFileName && (
+                    <div className="bg-slate-100 p-2.5 rounded-lg text-xs text-slate-600">
+                      <span className="font-bold">Active default resume:</span> {profile.resumeFileName} ({profile.skills.join(", ")})
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -1958,6 +2000,7 @@ export default function CandidatePortalWorkspace({
                   <Button
                     size="sm"
                     className="bg-indigo-600 hover:bg-indigo-700 font-bold text-xs"
+                    disabled={isExtractingResume || (resumeOption !== "current" && !extractedResumeData)}
                     onClick={() => setApplyStep(2)}
                   >
                     Next: Screening Questions <ArrowRight className="w-3.5 h-3.5 ml-1" />

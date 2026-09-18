@@ -217,6 +217,7 @@ import candidateScreenHandler from './src/api-lib/handlers/candidate-screen';
 import communicationHandler from './src/api-lib/handlers/communication';
 import killSwitchHandler from './src/api-lib/handlers/kill-switch';
 import syncRequirementsHandler from './src/api-lib/handlers/sync-requirements.js';
+import candidatePortalHandler from './src/api-lib/handlers/candidate-portal';
 
 import analyticsHandler from './src/api-lib/handlers/analytics';
 import opsHandler from './src/api-lib/handlers/ops';
@@ -861,6 +862,9 @@ hirenest_active_requests 0
         case 'integrations/sync/resolve':
         case 'integrations/status':
           return await integrationsHandler(req, res);
+
+        case 'candidate-portal':
+          return await candidatePortalHandler(req, res);
       }
       
       console.warn(`[API_404] No static handler explicitly configured for: ${apiPath}.`);

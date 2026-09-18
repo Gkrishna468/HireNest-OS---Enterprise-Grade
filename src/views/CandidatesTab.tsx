@@ -573,8 +573,8 @@ export default function CandidatesTab() {
 
       try {
         const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-        let orgId = "ORG-GLOBAL-HQ";
-        let role = "admin";
+        let orgId = "";
+        let role = "candidate";
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
@@ -685,9 +685,13 @@ export default function CandidatesTab() {
                      ) {
                        return false;
                      }
-                     const isDirect = c.sourceType === "DIRECT_CANDIDATE" || c.source === "direct registration" || c.isDirect === true;
-                     if (isDirect && !isAdminUser) {
-                       return false;
+                     const isDirect = c.sourceType === "DIRECT_CANDIDATE" || c.ownershipType === "DIRECT" || c.source === "direct registration" || c.isDirect === true;
+                     if (isDirect) {
+                       if (!isAdminUser) return false;
+                     } else {
+                       if (!isAdminUser && c.vendorId !== orgId) {
+                         return false;
+                       }
                      }
                      return true;
                   });

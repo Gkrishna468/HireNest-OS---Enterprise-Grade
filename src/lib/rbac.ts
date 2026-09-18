@@ -8,7 +8,8 @@ export type SystemRole =
   | "CLIENT_FINANCE"
   | "VENDOR_ADMIN"
   | "RECRUITER"
-  | "VENDOR_RECRUITER"; // Backward compatibility alias
+  | "VENDOR_RECRUITER" // Backward compatibility alias
+  | "CANDIDATE";
 
 export type RecruiterSubtype = "INTERNAL" | "VENDOR" | "FREELANCE";
 
@@ -309,6 +310,22 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
     description: "Sources candidates, views Candidate 360 dossiers, runs matching against published client requirements, and submits candidates.",
     permissions: RECRUITER_PERMISSIONS,
   },
+  CANDIDATE: {
+    id: "CANDIDATE",
+    userType: "RECRUITER",
+    aliases: ["candidate", "direct_candidate"],
+    displayName: "Candidate",
+    category: "SUPPLY",
+    isAdminEquivalent: false,
+    scopeDescription: "Direct Candidate profile workspace",
+    description: "System role for Direct Candidates registered on the platform.",
+    permissions: [
+      "dashboard.read",
+      "candidates.read",
+      "candidates.create",
+      "candidates.update"
+    ],
+  },
 };
 
 export const AUTHORITATIVE_ROLES: RoleDefinition[] = [
@@ -319,6 +336,7 @@ export const AUTHORITATIVE_ROLES: RoleDefinition[] = [
   ROLE_CATALOG.CLIENT_FINANCE,
   ROLE_CATALOG.VENDOR_ADMIN,
   ROLE_CATALOG.RECRUITER,
+  ROLE_CATALOG.CANDIDATE,
 ];
 
 /**
@@ -363,6 +381,8 @@ export function normalizeRole(rawRole?: string | null): SystemRole {
   }
 
   const lower = rawRole.trim().toLowerCase();
+  if (lower === "candidate" || lower === "direct_candidate") return "CANDIDATE";
+
   for (const roleDef of Object.values(ROLE_CATALOG)) {
     if (roleDef.aliases.includes(lower)) {
       return roleDef.id === "VENDOR_RECRUITER" ? "RECRUITER" : roleDef.id;
@@ -375,6 +395,7 @@ export function normalizeRole(rawRole?: string | null): SystemRole {
   if (lower.includes("finance")) return "CLIENT_FINANCE";
   if (lower.includes("client")) return "CLIENT_ADMIN";
   if (lower.includes("vendor_admin")) return "VENDOR_ADMIN";
+  if (lower.includes("candidate")) return "CANDIDATE";
   if (lower.includes("recruiter") || lower.includes("vendor") || lower.includes("independent") || lower.includes("freelance")) {
     return "RECRUITER";
   }

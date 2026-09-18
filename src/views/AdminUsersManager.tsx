@@ -49,8 +49,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "GOVERNANCE" | "DEMAND" | "SUPPLY" | "RECRUITERS" | "PERMISSIONS">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "GOVERNANCE" | "DEMAND" | "SUPPLY" | "RECRUITERS" | "PERMISSIONS" | "CANDIDATES">("ALL");
   const [recruiterFilter, setRecruiterFilter] = useState<"ALL" | "INTERNAL" | "VENDOR" | "FREELANCE">("ALL");
+  const [candidatePoolList, setCandidatePoolList] = useState<any[]>([]);
 
   // Form state for creating user
   const [displayName, setDisplayName] = useState("");
@@ -139,6 +140,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         if (data.users) {
           setUsers(data.users);
         }
+        if (data.organizations) {
+          setOrganizations(data.organizations);
+        }
+        if (data.requirements) {
+          setRequirementsList(data.requirements);
+        }
       } else {
         // Fallback to direct Firestore query
         const [userSnap, orgSnap] = await Promise.all([
@@ -194,13 +201,25 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
         setUsers(loadedUsers);
       }
 
-      // Also ensure organizations are populated
-      const [orgSnap, reqSnap] = await Promise.all([
-        getDocs(query(collection(db, "organizations"), limit(100))),
-        getDocs(query(collection(db, "requirements_public"), limit(50))),
-      ]);
-      setOrganizations(orgSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
-      setRequirementsList(reqSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
+      // Also ensure organizations are populated via local fallback try/catch
+      try {
+        const [orgSnap, reqSnap, candSnap] = await Promise.all([
+          getDocs(query(collection(db, "organizations"), limit(100))),
+          getDocs(query(collection(db, "requirements_public"), limit(50))),
+          getDocs(query(collection(db, "candidatePool"), limit(100))),
+        ]);
+        if (orgSnap && !orgSnap.empty) {
+          setOrganizations(orgSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
+        }
+        if (reqSnap && !reqSnap.empty) {
+          setRequirementsList(reqSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
+        }
+        if (candSnap && !candSnap.empty) {
+          setCandidatePoolList(candSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as any));
+        }
+      } catch (directErr: any) {
+        console.warn("[AdminUsersManager] Direct Firestore fallback for orgs/reqs/candidates failed (handled gracefully):", directErr.message);
+      }
     } catch (err: any) {
       console.error("[AdminUsersManager] Fetch failed:", err);
       setError(`Failed to load identity matrix: ${err.message}`);
@@ -412,14 +431,17 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
   const filteredUsers = users.filter((u) => {
     if (activeTab === "ALL") return true;
+    if (activeTab === "CANDIDATES") {
+      return u.role === "CANDIDATE" || u.role?.toLowerCase() === "candidate";
+    }
     if (activeTab === "RECRUITERS") {
-      const isRecruiter = u.userType === "RECRUITER" || u.role === "RECRUITER" || u.role === "VENDOR_RECRUITER";
+      const isRecruiter = (u.userType === "RECRUITER" || u.role === "RECRUITER" || u.role === "VENDOR_RECRUITER") && u.role !== "CANDIDATE" && u.role?.toLowerCase() !== "candidate";
       if (!isRecruiter) return false;
       if (recruiterFilter === "ALL") return true;
       return u.recruiterSubtype === recruiterFilter || u.subtype === recruiterFilter;
     }
     if (activeTab === "GOVERNANCE") return u.userType === "HQ" || u.category === "GOVERNANCE";
-    if (activeTab === "DEMAND") return u.userType === "CLIENT" || u.category === "DEMAND";
+    if (activeTab === "DEMAND") return (u.userType === "CLIENT" || u.category === "DEMAND") && u.role !== "CANDIDATE" && u.role?.toLowerCase() !== "candidate";
     if (activeTab === "SUPPLY") return u.userType === "VENDOR" || u.role === "VENDOR_ADMIN";
     return true;
   });
@@ -749,8 +771,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
           {/* Tabs */}
           <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit flex-wrap">
             {(activeActorRole === "PLATFORM_AUTHORITY"
-              ? ["ALL", "RECRUITERS", "GOVERNANCE", "DEMAND", "SUPPLY", "PERMISSIONS"] as const
-              : ["ALL", "RECRUITERS", "GOVERNANCE", "DEMAND", "SUPPLY"] as const
+              ? ["ALL", "RECRUITERS", "CANDIDATES", "GOVERNANCE", "DEMAND", "SUPPLY", "PERMISSIONS"] as const
+              : ["ALL", "RECRUITERS", "CANDIDATES", "GOVERNANCE", "DEMAND", "SUPPLY"] as const
             ).map((tab) => (
               <button
                 key={tab}
@@ -764,6 +786,8 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                   ? "All Users"
                   : tab === "RECRUITERS"
                   ? "Recruiter Family"
+                  : tab === "CANDIDATES"
+                  ? "Direct Candidates"
                   : tab === "GOVERNANCE"
                   ? "HQ Governance"
                   : tab === "DEMAND"
@@ -886,8 +910,10 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                   {filteredUsers.map((u) => {
                     const roleDef = ROLE_CATALOG[u.role as SystemRole];
                     const isInactive = u.status === "INACTIVE" || u.disabled;
-                    const uType: UserType = u.userType || getUserTypeForRole(u.role);
-                    const subType: RecruiterSubtype | undefined = u.recruiterSubtype || u.subtype;
+                    const isCandidate = u.role === "CANDIDATE" || u.role?.toLowerCase() === "candidate";
+                    const uType: UserType = isCandidate ? "RECRUITER" : (u.userType || getUserTypeForRole(u.role));
+                    const subType: RecruiterSubtype | undefined = isCandidate ? undefined : (u.recruiterSubtype || u.subtype);
+                    const candidatePoolItem = isCandidate ? candidatePoolList.find((c) => c.id === u.uid || c.id === u.id) : null;
 
                     return (
                       <div
@@ -903,7 +929,9 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                           <div
                             className={cn(
                               "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 mt-0.5",
-                              uType === "HQ"
+                              isCandidate
+                                ? "bg-purple-600 text-white"
+                                : uType === "HQ"
                                 ? "bg-slate-900 text-white"
                                 : uType === "CLIENT"
                                 ? "bg-indigo-600 text-white"
@@ -930,11 +958,18 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
 
                               {/* User Type Badge */}
                               <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">
-                                {uType}
+                                {isCandidate ? "CANDIDATE" : uType}
                               </span>
 
+                              {/* Candidate Type Badge */}
+                              {isCandidate && (
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-bold rounded">
+                                  DIRECT CANDIDATE
+                                </span>
+                              )}
+
                               {/* Recruiter Subtype Badge */}
-                              {subType && (
+                              {!isCandidate && subType && (
                                 <span
                                   className={cn(
                                     "px-2 py-0.5 text-[10px] font-bold rounded",
@@ -946,6 +981,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                                   )}
                                 >
                                   {subType === "INTERNAL" ? "Internal Recruiter" : subType === "FREELANCE" ? "Freelance Recruiter" : "Vendor Recruiter"}
+                                </span>
+                              )}
+
+                              {isCandidate && (
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-mono rounded">
+                                  Resume v{candidatePoolItem?.currentResumeVersion || candidatePoolItem?.resumeVersion || 3}
                                 </span>
                               )}
 
@@ -966,8 +1007,12 @@ export default function AdminUsersManager({ orgData }: { orgData: any }) {
                               <span className="font-semibold text-slate-700">{u.email}</span>
                               {u.phone && <span>• Tel: {u.phone}</span>}
                               <span>•</span>
-                              <span>{u.org?.companyName || u.organizationId || (subType === "INTERNAL" ? "HireNest Workforce HQ" : subType === "FREELANCE" ? "Freelance Network" : "Organization")}</span>
-                              {u.vendorId && (
+                              <span>
+                                {isCandidate 
+                                  ? `Last Resume Update: ${candidatePoolItem?.resumeLastParsedAt ? new Date(candidatePoolItem.resumeLastParsedAt).toLocaleDateString() : candidatePoolItem?.updatedAt ? new Date(candidatePoolItem.updatedAt).toLocaleDateString() : "Active"}` 
+                                  : (u.org?.companyName || u.organizationId || (subType === "INTERNAL" ? "HireNest Workforce HQ" : subType === "FREELANCE" ? "Freelance Network" : "Organization"))}
+                              </span>
+                              {!isCandidate && u.vendorId && (
                                 <>
                                   <span>•</span>
                                   <span className="text-amber-700 font-medium">Vendor: {u.vendorId}</span>

@@ -168,6 +168,7 @@ import automationEventsHandler from '../src/api-lib/handlers/automation-events.j
 import billingHandler from '../src/api-lib/handlers/billing.js';
 import bulkParseResumesHandler from '../src/api-lib/handlers/bulk-parse-resumes.js';
 import candidateScreenHandler from '../src/api-lib/handlers/candidate-screen.js';
+import candidatePortalHandler from '../src/api-lib/handlers/candidate-portal.js';
 import candidatesHandler from '../src/api-lib/handlers/candidates.js';
 import cleanupMatchesHandler from '../src/api-lib/handlers/cleanup-matches.js';
 import clientAiMatchesHandler from '../src/api-lib/handlers/client-ai-matches.js';
@@ -263,6 +264,7 @@ const EXACT_HANDLER_REGISTRY: Record<string, any> = {
   'ai-health': aiHealthHandler,
   'automation-events': automationEventsHandler,
   'candidate-screen': candidateScreenHandler,
+  'candidate-portal': candidatePortalHandler,
   'cleanup-matches': cleanupMatchesHandler,
   integrations: integrationsHandler,
   copilot: copilotHandler,
