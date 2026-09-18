@@ -188,7 +188,8 @@ import killSwitchHandler from '../src/api-lib/handlers/kill-switch.js';
 import matchDetailedHandler from '../src/api-lib/handlers/match-candidates-detailed.js';
 import matchHealthHandler from '../src/api-lib/handlers/match-health.js';
 import matchingGlobalHandler from '../src/api-lib/handlers/matching-global.js';
-import networkMappingHandler from '../src/api-lib/handlers/network-mapping.js';
+// Lazy loaded to isolate other endpoints from potential mapping domain initialization failures:
+// import networkMappingHandler from '../src/api-lib/handlers/network-mapping.js';
 import oauthHandler from '../src/api-lib/handlers/oauth.js';
 import opsHandler from '../src/api-lib/handlers/ops.js';
 import parseJdHandler from '../src/api-lib/handlers/parse-jd.js';
@@ -266,7 +267,25 @@ const EXACT_HANDLER_REGISTRY: Record<string, any> = {
   integrations: integrationsHandler,
   copilot: copilotHandler,
   'match-health': matchHealthHandler,
-  'network-mapping': networkMappingHandler,
+  'network-mapping': (async (req: any, res: any, next?: any) => {
+    try {
+      const mod = await import('../src/api-lib/handlers/network-mapping.js');
+      const handler = (mod.default || mod) as any;
+      return await handler(req, res, next);
+    } catch (err) {
+      console.error('[network-mapping] handler initialization failed:', err);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'NETWORK_MAPPING_INITIALIZATION_FAILED',
+            message: 'Network mapping service is temporarily unavailable.'
+          }
+        });
+      }
+      return;
+    }
+  }) as any,
   ops: opsHandler,
   reactivation: reactivationHandler,
   'rebuild-matrix': rebuildMatrixHandler,
@@ -350,6 +369,8 @@ export default async function handler(req: any, res: any) {
 
     if (path && EXACT_HANDLER_REGISTRY[path]) {
       targetHandler = EXACT_HANDLER_REGISTRY[path];
+    } else if (path?.startsWith('network-mapping/')) {
+      targetHandler = EXACT_HANDLER_REGISTRY['network-mapping'];
     } else if (path?.startsWith('user-admin/')) {
       targetHandler = userAdminHandler;
     } else if (path?.startsWith('submissions/')) {
@@ -456,7 +477,8 @@ export default async function handler(req: any, res: any) {
         'recruiter-os',
         'executive-metrics',
         'daily-briefing',
-        'sync-requirements'
+        'sync-requirements',
+        'network-mapping'
       ];
       const matchedRouter = expressRouters.find(r => path?.startsWith(r));
       if (matchedRouter) {

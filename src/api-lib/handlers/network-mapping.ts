@@ -1,5 +1,5 @@
 import express from "express";
-import { RecruiterVendorMappingBackendService } from "../services/RecruiterVendorMappingService";
+import { RecruiterVendorMappingBackendService } from "../services/RecruiterVendorMappingService.js";
 
 const router = express.Router();
 
