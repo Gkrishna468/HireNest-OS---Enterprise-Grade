@@ -56,14 +56,13 @@ export default async function handler(req: any, res: any) {
         const versionsSnap = await adminDb
           .collection("candidate_resume_versions")
           .where("candidateUid", "==", userId)
-          .orderBy("uploadedAt", "desc")
-          .limit(20)
+          .limit(50)
           .get();
 
         const dbVersions = versionsSnap.docs.map((doc: any) => ({
           id: doc.id,
           ...doc.data()
-        }));
+        })).sort((a: any, b: any) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
 
         // Merge array-based versions on candidatePool document and collection versions
         const poolVersions = poolData.resumeVersions || [];
@@ -225,8 +224,12 @@ export default async function handler(req: any, res: any) {
         }
 
         // 1. Retrieve the Requirement details securely
-        const reqRef = adminDb.collection("requirements").doc(requirementId);
-        const reqSnap = await reqRef.get();
+        let reqRef = adminDb.collection("requirements_public").doc(requirementId);
+        let reqSnap = await reqRef.get();
+        if (!reqSnap.exists) {
+          reqRef = adminDb.collection("requirements").doc(requirementId);
+          reqSnap = await reqRef.get();
+        }
         if (!reqSnap.exists) {
           return res.status(404).json({ error: "Requirement not found." });
         }
