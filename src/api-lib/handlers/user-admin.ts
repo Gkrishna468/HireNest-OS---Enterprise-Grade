@@ -21,8 +21,31 @@ export default async function userAdminHandler(req: any, res: any) {
   try {
     const actorUid = req.user?.uid;
     const actorEmail = req.user?.email || "Unknown";
-    const actorRole = normalizeRole(req.user?.role);
-    const actorOrgId = req.user?.organizationId || req.user?.orgId;
+
+    let rawActorRole = req.user?.role;
+    let rawActorOrgId = req.user?.organizationId || req.user?.orgId;
+
+    if (actorUid && (!rawActorRole || !rawActorOrgId) && adminDb) {
+      try {
+        const actorDoc = await adminDb.collection("users").doc(actorUid).get();
+        if (actorDoc.exists) {
+          const actorData = actorDoc.data();
+          if (actorData) {
+            if (!rawActorRole && actorData.role) {
+              rawActorRole = actorData.role;
+            }
+            if (!rawActorOrgId && (actorData.organizationId || actorData.orgId)) {
+              rawActorOrgId = actorData.organizationId || actorData.orgId;
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn("[userAdminHandler] Local Firestore fallback lookup failed:", err.message);
+      }
+    }
+
+    const actorRole = normalizeRole(rawActorRole);
+    const actorOrgId = rawActorOrgId;
     const isActorAdmin = isRoleAdminEquivalent(actorRole);
 
     const path = req.path || req.url || "";

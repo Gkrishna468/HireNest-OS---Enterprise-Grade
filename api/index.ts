@@ -159,7 +159,7 @@ if (typeof (Math as any).sumPrecise !== 'function') {
   };
 }
 
-import { adminAuth } from '../src/lib/firebase-admin.js';
+import { adminAuth, adminDb } from '../src/lib/firebase-admin.js';
 import adminHandler from '../src/api-lib/handlers/admin.js';
 import aiGatewayHandler from '../src/api-lib/handlers/ai-gateway.js';
 import aiHealthHandler from '../src/api-lib/handlers/ai-health.js';
@@ -346,6 +346,26 @@ export default async function handler(req: any, res: any) {
          try {
             const decoded = await adminAuth.verifyIdToken(token);
             req.user = decoded;
+
+            // Fallback enrichment: if custom claims are missing from the token, fetch from Firestore SSOT
+            if (adminDb && req.user && (!req.user.role || !req.user.organizationId)) {
+              try {
+                const userDoc = await adminDb.collection("users").doc(req.user.uid).get();
+                if (userDoc.exists) {
+                  const data = userDoc.data();
+                  if (data) {
+                    if (!req.user.role && data.role) {
+                      req.user.role = data.role;
+                    }
+                    if (!req.user.organizationId && (data.organizationId || data.orgId)) {
+                      req.user.organizationId = data.organizationId || data.orgId;
+                    }
+                  }
+                }
+              } catch (enrichErr: any) {
+                console.warn("[Auth Middleware] Firestore enrichment skipped:", enrichErr.message);
+              }
+            }
          } catch (err: any) {
             console.error('Auth Error:', err); return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
          }
