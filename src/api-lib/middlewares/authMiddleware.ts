@@ -1,59 +1,97 @@
 import { adminAuth, db } from "../../lib/firebase-admin.js";
 import { ErrorMonitor } from "../telemetry/errorMonitor.js";
+import crypto from "crypto";
 
 export const verifyAuth = async (req: any, res: any, next: any) => {
-    const cleanUrl = (req.originalUrl || '').split('?')[0];
-    if (
-      req.method === 'OPTIONS' ||
-      req.path === '/audit' || 
-      req.originalUrl === '/api/audit' || 
-      cleanUrl === '/health' ||
-      cleanUrl === '/api/health' ||
-      cleanUrl === '/ruflo/health' ||
-      cleanUrl === '/api/ruflo/health' ||
-      req.originalUrl.includes('/ruflo/health') ||
-      cleanUrl === '/healthz' ||
-      cleanUrl === '/ready' ||
-      cleanUrl === '/readyz' ||
-      cleanUrl === '/live' ||
-      cleanUrl === '/api/public-candidate-resume' ||
-      cleanUrl === '/api/public/candidate-resume' ||
-      req.originalUrl.includes('/oauth/callback') || 
-      req.originalUrl.includes('/api/oauth/url') ||
-      req.originalUrl.startsWith('/api/public') || 
-      req.originalUrl.includes('/api/workspace/gmail/webhook') ||
-      req.originalUrl.includes('/api/workspace/whatsapp/webhook') ||
-      req.originalUrl.includes('/api/automation/events') ||
-      req.originalUrl.includes('/api/automation-events') ||
-      req.originalUrl.includes('/api/communication') ||
-      req.originalUrl.includes('/api/kill-switch') ||
-      req.originalUrl.includes('/api/sync-requirements') ||
-      req.originalUrl.includes('/api/executive-metrics') ||
-      req.originalUrl.includes('/api/daily-briefing') ||
-      Boolean(req.headers['x-hirenest-signature'])
-    ) {
+    if (req.method === 'OPTIONS') {
       return next();
     }
+
+    const currentPath = req.path || '';
+
+    // 1. Health checks (exact matches on path)
+    const isHealthCheck = [
+      '/health',
+      '/api/health',
+      '/healthz',
+      '/ready',
+      '/readyz',
+      '/live',
+      '/ruflo/health',
+      '/api/ruflo/health'
+    ].includes(currentPath);
+
+    // 2. Public API endpoints (starts with /api/public/)
+    const isPublicApi = currentPath.startsWith('/api/public/') || currentPath === '/api/public-candidate-resume';
+
+    // 3. OAuth callbacks
+    const isOAuthCallback = currentPath === '/oauth/callback' || currentPath === '/api/oauth/callback' || currentPath === '/api/oauth/url';
+
+    // 4. Named authenticated webhooks
+    const isWebhook = [
+      '/api/workspace/gmail/webhook',
+      '/api/workspace/whatsapp/webhook',
+      '/api/automation/events',
+      '/api/automation-events'
+    ].includes(currentPath);
+
+    if (isHealthCheck || isPublicApi || isOAuthCallback) {
+      return next();
+    }
+
+    if (isWebhook) {
+      const signature = req.headers['x-hirenest-signature'] || req.headers['X-HireNest-Signature'];
+      if (!signature) {
+        console.error(`[AuthMiddleware] Missing webhook signature header for path ${currentPath}`);
+        return res.status(401).json({ error: 'Unauthorized: Missing required signature header: X-HireNest-Signature' });
+      }
+
+      const webhookSecret = process.env.N8N_WEBHOOK_SECRET || "IsxD4vM3BTAAphK3xlv/PWHikuARJwoc/vnTUtKpj90/iP4+tIvG229Ky4lwJtO4";
+      const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      const expectedSignature = crypto
+        .createHmac("sha256", webhookSecret)
+        .update(rawPayload)
+        .digest("hex");
+
+      if (signature !== expectedSignature) {
+        console.error(`[AuthMiddleware] Invalid webhook signature for path ${currentPath}`);
+        return res.status(401).json({ error: 'Unauthorized: Invalid signature checksum.' });
+      }
+
+      return next();
+    }
+
     try {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
-        console.error(`[AuthMiddleware] No token provided for path ${req.path}`);
+        console.error(`[AuthMiddleware] No token provided for path ${currentPath}`);
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
       }
 
-      // Support for OpenAI-compatible clients using custom HireNest API keys
-      const customApiKey = process.env.HIRENEST_API_KEY;
-      if (token && customApiKey && token === customApiKey) {
-        req.user = { uid: 'gHW8dOBiUBQELF2jff4mAgy267x2', role: 'admin', orgId: 'ORG-GLOBAL-HQ' };
-        return next();
-      }
-
-      if (token && token.startsWith('HN_')) {
-        if (db) {
-          try {
-            const keySnap = await db.collection('api_keys').doc(token).get();
-            if (keySnap.exists) {
-              const keyData = keySnap.data();
+      // Secure API Keys: hash the token (SHA-256) and query api_keys collection
+      if (token.startsWith('HN_')) {
+        if (!db) {
+          return res.status(503).json({ error: 'Service Unavailable: Database authority offline' });
+        }
+        try {
+          const hashedKey = crypto.createHash('sha256').update(token).digest('hex');
+          const keySnap = await db.collection('api_keys').doc(hashedKey).get();
+          if (keySnap.exists) {
+            const keyData = keySnap.data();
+            if (keyData && keyData.status === 'active') {
+              req.user = {
+                uid: keyData.userId || 'api-key-user',
+                role: keyData.role || 'recruiter',
+                orgId: keyData.orgId || 'hq',
+                email: keyData.email || 'api@hirenest.com'
+              };
+              return next();
+            }
+          } else {
+            // Support legacy plaintext document IDs but enforce active status check
+            const plainSnap = await db.collection('api_keys').doc(token).get();
+            if (plainSnap.exists) {
+              const keyData = plainSnap.data();
               if (keyData && keyData.status === 'active') {
                 req.user = {
                   uid: keyData.userId || 'api-key-user',
@@ -64,108 +102,66 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
                 return next();
               }
             }
-          } catch (e) {
-            console.warn("Failed to retrieve API key details from database");
           }
+        } catch (e: any) {
+          console.warn("Failed to retrieve API key details from database:", e.message);
         }
-        
-        // Development-only fallback: only allow in non-production environments if explicitly enabled
-        if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_API_KEY === 'true') {
-          console.warn('[AuthMiddleware] Allowing dev API key in local dev mode');
-          req.user = { uid: 'dev-api-key-user', role: 'admin', orgId: 'hq' };
-          return next();
-        }
+        return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
+      }
+
+      // Fail closed if adminAuth (Firebase Admin/Auth) is unavailable
+      if (!adminAuth) {
+        console.error('[AuthMiddleware] adminAuth is offline / unavailable');
+        return res.status(503).json({ error: 'Service Unavailable: Authentication service is offline' });
       }
 
       let decoded: any = null;
-      if (adminAuth) {
-        try {
-          decoded = await adminAuth.verifyIdToken(token);
-        } catch (authErr: any) {
-          console.warn('[AuthMiddleware] adminAuth.verifyIdToken error (falling back to safe token payload decode):', authErr.message);
-          if (token && token.includes('.')) {
-            try {
-              const parts = token.split('.');
-              if (parts.length === 3) {
-                const payloadJson = Buffer.from(parts[1], 'base64').toString('utf-8');
-                const parsed = JSON.parse(payloadJson);
-                if (parsed && (!parsed.exp || parsed.exp * 1000 > Date.now() - 3600000)) {
-                  decoded = {
-                    uid: parsed.user_id || parsed.sub || parsed.uid || 'auth-user',
-                    email: parsed.email || '',
-                    role: parsed.role || 'guest',
-                    ...parsed
-                  };
-                }
-              }
-            } catch (jwtErr: any) {
-              console.warn('[AuthMiddleware] Fallback token decode failed:', jwtErr.message);
-            }
-          }
-        }
-      } else if (token && token.includes('.')) {
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payloadJson = Buffer.from(parts[1], 'base64').toString('utf-8');
-            const parsed = JSON.parse(payloadJson);
-            decoded = {
-              uid: parsed.user_id || parsed.sub || parsed.uid || 'auth-user',
-              email: parsed.email || '',
-              role: parsed.role || 'guest',
-              ...parsed
-            };
-          }
-        } catch (jwtErr) {}
+      try {
+        // Enforce verifyIdToken(token, true) to check if token is revoked
+        decoded = await adminAuth.verifyIdToken(token, true);
+      } catch (authErr: any) {
+        console.error('[AuthMiddleware] verifyIdToken failed, rejecting access:', authErr.message);
+        return res.status(401).json({ error: 'Unauthorized: Invalid token', details: authErr.message });
       }
 
       if (!decoded) {
-        console.error(`[AuthMiddleware] Could not verify or decode token`);
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
       }
-      
+
+      // Enforce email_verified == true
+      if (decoded.email_verified !== true) {
+        return res.status(401).json({ error: 'Unauthorized: Email is not verified' });
+      }
+
       // Inject Workspace and Role for Multi-Tenant Isolation
-      // We look up user profile from Firestore SSOT to attach accurate RBAC info.
       if (db) {
-         try {
-            const userDoc = await db.collection('users').doc(decoded.uid).get();
-            if (decoded.email === 'praveen@hirenestworkforce.com') {
-              decoded.role = 'BUSINESS_OPERATIONS';
-              decoded.orgId = 'ORG-GLOBAL-HQ';
-              await db.collection('users').doc(decoded.uid).set({
-                uid: decoded.uid,
-                email: decoded.email,
-                role: 'BUSINESS_OPERATIONS',
-                organizationId: 'ORG-GLOBAL-HQ',
-                status: 'ACTIVE',
-                disabled: false,
-                createdAt: new Date().toISOString()
-              }, { merge: true }).catch(() => {});
-            } else if (userDoc.exists) {
-                const uData = userDoc.data();
-                if (uData?.status === 'INACTIVE' || uData?.disabled === true) {
-                  return res.status(403).json({ error: 'Forbidden: User account has been deactivated.' });
-                }
-                decoded.role = uData?.role || decoded.role || 'guest';
-                decoded.orgId = uData?.organizationId || uData?.orgId || decoded.orgId;
-                decoded.email = uData?.email || decoded.email;
-            } else {
-                decoded.role = decoded.role || 'guest';
+        try {
+          const userDoc = await db.collection('users').doc(decoded.uid).get();
+          if (userDoc.exists) {
+            const uData = userDoc.data();
+            if (uData?.status === 'INACTIVE' || uData?.disabled === true) {
+              return res.status(403).json({ error: 'Forbidden: User account has been deactivated.' });
             }
-         } catch(e) {
-             console.warn("Failed to retrieve user RBAC profile", e);
-         }
+            decoded.role = uData?.role || decoded.role || 'guest';
+            decoded.orgId = uData?.organizationId || uData?.orgId || decoded.orgId;
+            decoded.email = uData?.email || decoded.email;
+          } else {
+            decoded.role = decoded.role || 'guest';
+          }
+        } catch(e: any) {
+          console.warn("Failed to retrieve user RBAC profile", e.message);
+        }
       }
 
       req.user = decoded;
-      next();
+      return next();
     } catch (err: any) {
       console.error('[AuthMiddleware] Token verification failed:', err.message);
       await ErrorMonitor.captureError({
           context: 'verifyAuth',
           errorType: 'BACKEND_EXCEPTION',
           errorMessage: err.message,
-          metadata: { path: req.path }
+          metadata: { path: currentPath }
       });
       return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
     }
@@ -180,7 +176,6 @@ export const requireRole = (allowedRoles: string[]) => {
             return res.status(403).json({ error: 'Forbidden: No role assigned' });
         }
         
-        // super_admin always has access
         if (req.user.role === 'super_admin') {
             return next();
         }

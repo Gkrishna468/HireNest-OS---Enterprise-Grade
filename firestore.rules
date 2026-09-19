@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn();
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
     function authEmail() {
@@ -32,13 +32,11 @@ service cloud.firestore {
     function authRole() {
       return request.auth.token.get('role', '') != ''
         ? request.auth.token.get('role', '').lower()
-        : (getUserData() != null && getUserData().get('role', '') != ''
-            ? getUserData().get('role', '').lower()
-            : (authEmail() == 'praveen@hirenestworkforce.com' ? 'business_operations' : (authEmail().matches('.*@hirenestworkforce[.]com') ? 'business_operations' : 'guest')));
+        : 'guest';
     }
 
     function authOrgId() {
-      return request.auth.token.get('organizationId', '') != '' ? request.auth.token.get('organizationId', '') : (getUserData() != null ? getUserData().get('organizationId', '') : '');
+      return request.auth.token.get('organizationId', '') != '' ? request.auth.token.get('organizationId', '') : '';
     }
 
     function incoming() {
@@ -56,10 +54,6 @@ service cloud.firestore {
     function isHQ() {
       return isVerified() &&
       (
-        authEmail() == 'gopal@hirenestworkforce.com' ||
-        authEmail() == 'gopalkrishna0046@gmail.com' ||
-        authEmail() == 'praveen@hirenestworkforce.com' ||
-        authEmail().matches('.*@hirenestworkforce[.]com') ||
         authRole() == 'global_hq' ||
         authRole() == 'super_admin' ||
         authRole() == 'business_operations'
@@ -96,37 +90,37 @@ service cloud.firestore {
       );
     }
 
-    function isAdmin() {
+    function isPlatformAdmin() {
       return isVerified() &&
       (
-        isHQ() ||
         authRole() in [
-
-          // AUTHORITY
           'admin',
           'super_admin',
           'platform_authority',
           'hq_admin',
           'ceo',
           'ops_admin',
+          'business_operations'
+        ]
+      );
+    }
 
-          // CLIENT
+    function isTenantUser() {
+      return isVerified() &&
+      (
+        authRole() in [
           'client',
           'client_admin',
           'client_hm',
           'client_finance',
           'client_recruiter',
           'client_ops',
-
-          // VENDOR
           'vendor',
           'vendor_admin',
           'vendor_agency',
           'vendor_manager',
           'vendor_recruiter',
           'vendor_sourcer',
-
-          // RECRUITER & INDEPENDENT
           'recruiter',
           'recruiter_admin',
           'recruiter_conductor',
@@ -134,18 +128,17 @@ service cloud.firestore {
           'freelancer_recruiter',
           'independent_recruiter',
           'freelancer_vendor',
-          'independent_vendor',
-
-          // AI
-          'ai_agent',
-          'observer',
-          'system_node'
+          'independent_vendor'
         ]
       );
     }
 
+    function isAdmin() {
+      return isPlatformAdmin();
+    }
+
     function isPlatformAuthority() {
-      return isAdmin() || isSuperAdmin();
+      return isPlatformAdmin() || isSuperAdmin();
     }
 
     // =====================================================

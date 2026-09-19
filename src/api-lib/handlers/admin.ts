@@ -475,31 +475,51 @@ export default async function handler(req: any, res: any) {
           status: "degraded",
         });
       }
-      const { orgId, orgType, companyName, userProfile } = req.body;
+      const { orgType, companyName, onboardingRole } = req.body;
 
-      if (orgId) {
-        await adminDb.collection("organizations").doc(orgId).set(
-          {
-            id: orgId,
-            organizationId: orgId,
-            companyName: companyName,
-            type: orgType,
-            status: "active",
-            onboardingCompleted: true,
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
+      const permittedRoles = ['client', 'vendor', 'recruiter', 'client_admin', 'vendor_admin', 'recruiter_admin'];
+      let chosenRole = onboardingRole || 'recruiter';
+      if (!permittedRoles.includes(chosenRole.toLowerCase())) {
+        chosenRole = 'recruiter';
       }
 
-      if (userProfile && userProfile.uid) {
-        await adminDb
-          .collection("users")
-          .doc(userProfile.uid)
-          .set(userProfile, { merge: true });
+      const generatedOrgId = `ORG-${orgType ? orgType.toUpperCase() : 'UNKNOWN'}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      const authUserId = req.user?.uid;
+
+      if (!authUserId) {
+        return res.status(401).json({ error: "Unauthorized: Missing user context" });
       }
 
-      return res.status(200).json({ ok: true });
+      await adminDb.collection("organizations").doc(generatedOrgId).set(
+        {
+          id: generatedOrgId,
+          organizationId: generatedOrgId,
+          companyName: companyName,
+          type: orgType,
+          status: "active",
+          onboardingCompleted: false,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+
+      const secureProfile = {
+        uid: authUserId,
+        email: req.user?.email || "",
+        organizationId: generatedOrgId,
+        orgId: generatedOrgId,
+        role: chosenRole,
+        status: "PENDING_APPROVAL",
+        onboardingCompleted: false,
+        createdAt: new Date().toISOString()
+      };
+
+      await adminDb
+        .collection("users")
+        .doc(authUserId)
+        .set(secureProfile, { merge: true });
+
+      return res.status(200).json({ ok: true, orgId: generatedOrgId });
     }
 
     if (action === "onboard") {
@@ -509,13 +529,41 @@ export default async function handler(req: any, res: any) {
           status: "degraded",
         });
       }
-      const payload = req.body;
-      const docRef = await adminDb.collection("onboarding_requests").add({
-        ...payload,
-        verificationStatus: "PENDING",
+      const { orgType, companyName, onboardingRole } = req.body;
+
+      const permittedRoles = ['client', 'vendor', 'recruiter', 'client_admin', 'vendor_admin', 'recruiter_admin'];
+      let chosenRole = onboardingRole || 'recruiter';
+      if (!permittedRoles.includes(chosenRole.toLowerCase())) {
+        chosenRole = 'recruiter';
+      }
+
+      const generatedOrgId = `ORG-${orgType ? orgType.toUpperCase() : 'UNKNOWN'}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      const authUserId = req.user?.uid;
+
+      if (!authUserId) {
+        return res.status(401).json({ error: "Unauthorized: Missing user context" });
+      }
+
+      const onboardingPayload = {
+        uid: authUserId,
+        userId: authUserId,
+        email: req.user?.email || "",
+        organizationId: generatedOrgId,
+        orgId: generatedOrgId,
+        orgType: orgType,
+        companyName: companyName,
+        role: chosenRole,
+        status: "PENDING_APPROVAL",
+        onboardingCompleted: false,
+        verificationStatus: "PENDING_APPROVAL",
         createdAt: new Date().toISOString(),
-      });
-      return res.status(200).json({ ok: true, requestId: docRef.id });
+      };
+
+      const docRef = await adminDb.collection("onboarding_requests").add(onboardingPayload);
+
+      await adminDb.collection("user_onboarding").doc(authUserId).set(onboardingPayload, { merge: true });
+
+      return res.status(200).json({ ok: true, requestId: docRef.id, orgId: generatedOrgId });
     }
 
     // 4. Governance Data (Detailed)

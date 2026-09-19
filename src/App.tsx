@@ -430,6 +430,42 @@ const AppContent = () => {
     );
   }
 
+  const isUserInactive = userData?.status === "INACTIVE" || userData?.disabled === true;
+
+  if (isUserInactive) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900 text-white relative overflow-hidden">
+        <div className="absolute w-[500px] h-[500px] bg-red-600/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
+        <div className="relative z-10 flex flex-col items-center gap-6 p-8 max-w-md text-center bg-slate-800/80 backdrop-blur-md rounded-2xl border border-red-500/30 shadow-2xl">
+          <div className="p-4 bg-red-500/10 rounded-full text-red-500 border border-red-500/20">
+            <ShieldAlert size={48} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-white">Account Inactive</h1>
+            <p className="text-sm text-slate-300">
+              Your HireNest OS account has been deactivated by an administrator. Historical records and audit logs have been preserved for compliance, but active access is revoked.
+            </p>
+            {userData?.deactivatedAt && (
+              <p className="text-xs text-slate-400 mt-2">
+                Deactivated on: {new Date(userData.deactivatedAt).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={async () => {
+              await signOut(auth);
+              window.location.reload();
+            }}
+            className="mt-4 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all duration-200 shadow-lg shadow-red-600/20 flex items-center gap-2 cursor-pointer"
+          >
+            <LogOut size={16} />
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const role = userData?.role || "guest";
   const isAdmin = checkIsAdmin(role);
   const isClient = checkIsClient(role);

@@ -40,23 +40,27 @@ export default async function handler(req: any, res: any) {
     if (action === "finalize-onboarding") {
       if (req.method !== "POST")
         return res.status(405).json({ error: "Method not allowed" });
-      const { orgId, orgType, companyName, userProfile } = req.body;
+      const { orgType, companyName, onboardingRole } = req.body;
       if (!adminDb)
         return res
           .status(400)
           .json({ error: "Database authority not initialized" });
 
-      if (userProfile?.uid !== authUserId && !isAdmin) {
-        return res.status(403).json({ error: "Access Denied" });
+      const permittedRoles = ['client', 'vendor', 'recruiter', 'client_admin', 'vendor_admin', 'recruiter_admin'];
+      let chosenRole = onboardingRole || 'recruiter';
+      if (!permittedRoles.includes(chosenRole.toLowerCase())) {
+        chosenRole = 'recruiter';
       }
 
+      const generatedOrgId = `ORG-${orgType ? orgType.toUpperCase() : 'UNKNOWN'}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
       console.log(
-        `[USER_API] Finalize Onboarding for UI: ${userProfile?.uid} in Org: ${orgId}`,
+        `[USER_API] Finalize Onboarding for authUser: ${authUserId} in Org: ${generatedOrgId}`,
       );
-      await adminDb.collection("organizations").doc(orgId).set(
+      await adminDb.collection("organizations").doc(generatedOrgId).set(
         {
-          id: orgId,
-          organizationId: orgId,
+          id: generatedOrgId,
+          organizationId: generatedOrgId,
           type: orgType,
           companyName,
           status: "ACTIVE",
@@ -65,30 +69,35 @@ export default async function handler(req: any, res: any) {
         { merge: true },
       );
 
-      const safeRole = isAdmin
-        ? userProfile.role
-        : userProfile.role === "admin"
-          ? "client_admin"
-          : userProfile.role;
+      const secureProfile = {
+        uid: authUserId,
+        email: req.user?.email || "",
+        organizationId: generatedOrgId,
+        orgId: generatedOrgId,
+        role: chosenRole,
+        status: "PENDING_APPROVAL",
+        onboardingCompleted: false,
+        createdAt: new Date().toISOString()
+      };
 
       await adminDb
         .collection("users")
-        .doc(userProfile.uid)
-        .set({ ...userProfile, role: safeRole }, { merge: true });
+        .doc(authUserId)
+        .set(secureProfile, { merge: true });
         
       if (adminAuth) {
         try {
-          await adminAuth.setCustomUserClaims(userProfile.uid, {
-            role: safeRole,
-            orgId: orgId,
-            organizationId: orgId,
+          await adminAuth.setCustomUserClaims(authUserId, {
+            role: chosenRole,
+            orgId: generatedOrgId,
+            organizationId: generatedOrgId,
           });
         } catch (authErr: any) {
           console.warn("[USER_API] adminAuth.setCustomUserClaims fallback (persisted in Firestore SSOT):", authErr.message);
         }
       }
 
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, orgId: generatedOrgId });
     }
 
     if (action === "create") {
@@ -213,35 +222,45 @@ export default async function handler(req: any, res: any) {
         // Revoke active sessions and disable user in Firebase Auth if available
         if (adminAuth) {
           try {
-            await adminAuth.revokeRefreshTokens(uid).catch(() => {});
-            await adminAuth.updateUser(uid, { disabled: true }).catch(() => {});
+            await adminAuth.revokeRefreshTokens(uid);
+            await adminAuth.updateUser(uid, { disabled: true });
+            await adminAuth.setCustomUserClaims(uid, { role: 'inactive', disabled: true });
           } catch (e: any) {
-            console.warn("[USER_API] adminAuth deactivation notice:", e.message);
+            console.error("[USER_API] Auth deactivation failed:", e.message);
+            return res.status(500).json({ error: "Failed to revoke tokens or disable account in authentication service: " + e.message });
           }
         }
         
         // Mark user as INACTIVE in Firestore SSOT to preserve historical ownership & ledger trails
-        await adminDb
-          .collection("users")
-          .doc(uid)
-          .set({
-            status: "INACTIVE",
-            disabled: true,
-            deactivatedAt: new Date().toISOString(),
-            deactivatedBy: req.user?.email || authUserId || "Admin"
-          }, { merge: true })
-          .catch(() => {});
+        try {
+          await adminDb
+            .collection("users")
+            .doc(uid)
+            .set({
+              status: "INACTIVE",
+              disabled: true,
+              deactivatedAt: new Date().toISOString(),
+              deactivatedBy: req.user?.email || authUserId || "Admin"
+            }, { merge: true });
+        } catch (dbErr: any) {
+          console.error("[USER_API] Database user deactivation failed:", dbErr.message);
+          return res.status(500).json({ error: "Failed to update user profile to INACTIVE: " + dbErr.message });
+        }
       }
       if (organizationId && organizationId !== "ORG-GLOBAL-HQ") {
-        await adminDb
-          .collection("organizations")
-          .doc(organizationId)
-          .set({
-            status: "INACTIVE",
-            deactivatedAt: new Date().toISOString(),
-            deactivatedBy: req.user?.email || authUserId || "Admin"
-          }, { merge: true })
-          .catch(() => {});
+        try {
+          await adminDb
+            .collection("organizations")
+            .doc(organizationId)
+            .set({
+              status: "INACTIVE",
+              deactivatedAt: new Date().toISOString(),
+              deactivatedBy: req.user?.email || authUserId || "Admin"
+            }, { merge: true });
+        } catch (orgErr: any) {
+          console.error("[USER_API] Database organization deactivation failed:", orgErr.message);
+          return res.status(500).json({ error: "Failed to update organization to INACTIVE: " + orgErr.message });
+        }
       }
 
       await adminDb.collection("audit_logs").add({

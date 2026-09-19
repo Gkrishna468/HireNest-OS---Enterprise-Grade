@@ -533,21 +533,29 @@ export default async function userAdminHandler(req: any, res: any) {
       // Revoke tokens & disable Firebase Auth identity
       if (adminAuth && uid) {
         try {
-          await adminAuth.revokeRefreshTokens(uid).catch(() => {});
-          await adminAuth.updateUser(uid, { disabled: true }).catch(() => {});
+          await adminAuth.revokeRefreshTokens(uid);
+          await adminAuth.updateUser(uid, { disabled: true });
+          // Also set custom claims indicating deactivated status
+          await adminAuth.setCustomUserClaims(uid, { role: 'inactive', disabled: true });
         } catch (authErr: any) {
-          console.warn("[UserAdmin] Auth disable notice:", authErr.message);
+          console.error("[UserAdmin] Auth deactivation failed:", authErr.message);
+          return res.status(500).json({ error: "Failed to revoke tokens or disable account in authentication service: " + authErr.message });
         }
       }
 
       // Update Firestore SSOT status to INACTIVE - PRESERVING all historical documents
-      await adminDb.collection("users").doc(uid).set({
-        status: "INACTIVE",
-        disabled: true,
-        deactivatedAt: nowIso,
-        deactivatedBy: actorEmail,
-        updatedAt: nowIso,
-      }, { merge: true });
+      try {
+        await adminDb.collection("users").doc(uid).set({
+          status: "INACTIVE",
+          disabled: true,
+          deactivatedAt: nowIso,
+          deactivatedBy: actorEmail,
+          updatedAt: nowIso,
+        }, { merge: true });
+      } catch (dbErr: any) {
+        console.error("[UserAdmin] Database deactivation failed:", dbErr.message);
+        return res.status(500).json({ error: "Failed to update user profile to INACTIVE in database: " + dbErr.message });
+      }
 
       // Immutable Audit Log
       await adminDb.collection("audit_logs").add({
