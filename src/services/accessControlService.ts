@@ -514,11 +514,12 @@ export class AccessControlService {
       normRole === 'BUSINESS_OPERATIONS' ||
       normRole === 'BUSINESS_MANAGER' ||
       actorId === 'ORG-GLOBAL-HQ' ||
-      actorId === 'HQ'
+      actorId === 'HQ' ||
+      actorId === 'ORG-HQ'
     ) {
       return true;
     }
-    if (normRole === 'VENDOR') {
+    if (normRole === 'VENDOR' || normRole === 'VENDOR_ADMIN' || normRole === 'VENDOR_RECRUITER' || normRole.indexOf('VENDOR') !== -1) {
       const distributed = requirement.distributedVendorIds || [];
       return distributed.includes(actorId) || requirement.vendorId === actorId;
     }

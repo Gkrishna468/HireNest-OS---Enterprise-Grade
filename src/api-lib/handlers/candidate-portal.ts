@@ -96,9 +96,20 @@ export default async function handler(req: any, res: any) {
           (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         );
 
+        // Fetch direct applications securely from adminDb bypassing client-side rule restrictions
+        const appsSnap = await adminDb
+          .collection("applications")
+          .where("candidateUid", "==", userId)
+          .get();
+        const applicationsList = appsSnap.docs.map((doc: any) => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
         return res.status(200).json({
           profile: poolData,
-          resumeVersions: sortedCombinedVersions
+          resumeVersions: sortedCombinedVersions,
+          applications: applicationsList
         });
       }
 

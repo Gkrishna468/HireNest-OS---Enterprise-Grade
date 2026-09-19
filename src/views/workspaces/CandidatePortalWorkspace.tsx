@@ -198,6 +198,9 @@ export default function CandidatePortalWorkspace({
         if (data.resumeVersions) {
           setResumeVersions(data.resumeVersions);
         }
+        if (data.applications) {
+          setApplications(data.applications);
+        }
       }
     } catch (err) {
       console.error("Failed to load candidate profile via API:", err);

@@ -185,6 +185,29 @@ export function runProductionSmokeE2ETests(): { passed: number; failed: number; 
     "Assertion 7.9: Admin Candidate 360 receives all ACTIVE + PUBLISHED requirements regardless of vendor routing"
   );
 
+  // Regression assertions: Vendor Admin and Vendor Recruiter roles are authorized for distributed requirements
+  const isVendorAdminAuthorizedReq1 = AccessControlService.canAccessRequirement("vendor-apex", "VENDOR_ADMIN", req1_ActivePublished);
+  const isVendorRecruiterAuthorizedReq1 = AccessControlService.canAccessRequirement("vendor-apex", "VENDOR_RECRUITER", req1_ActivePublished);
+  const isVendorAdminAuthorizedReq4 = AccessControlService.canAccessRequirement("vendor-apex", "VENDOR_ADMIN", req4_UnauthorizedForApex);
+  const isVendorRecruiterAuthorizedReq4 = AccessControlService.canAccessRequirement("vendor-apex", "VENDOR_RECRUITER", req4_UnauthorizedForApex);
+
+  assert(isVendorAdminAuthorizedReq1 === true, "Assertion 7.10: Vendor Admin is authorized for distributed requirement");
+  assert(isVendorRecruiterAuthorizedReq1 === true, "Assertion 7.11: Vendor Recruiter is authorized for distributed requirement");
+  assert(isVendorAdminAuthorizedReq4 === false, "Assertion 7.12: Vendor Admin is NOT authorized for unauthorized requirement");
+  assert(isVendorRecruiterAuthorizedReq4 === false, "Assertion 7.13: Vendor Recruiter is NOT authorized for unauthorized requirement");
+
+  const vendorAdminAvailableJobs = UnifiedRequirementsService.filterOperationalRequirements(testReqPool, "vendor-apex", "VENDOR_ADMIN");
+  const vendorRecruiterAvailableJobs = UnifiedRequirementsService.filterOperationalRequirements(testReqPool, "vendor-apex", "VENDOR_RECRUITER");
+
+  assert(
+    vendorAdminAvailableJobs.length === 1 && vendorAdminAvailableJobs[0].id === "req-cloud-001",
+    "Assertion 7.14: Vendor Admin filterOperationalRequirements returns exactly 1 authorized operational requirement"
+  );
+  assert(
+    vendorRecruiterAvailableJobs.length === 1 && vendorRecruiterAvailableJobs[0].id === "req-cloud-001",
+    "Assertion 7.15: Vendor Recruiter filterOperationalRequirements returns exactly 1 authorized operational requirement"
+  );
+
   // -------------------------------------------------------------
   // PHASE 2: Resume Ingestion & Candidate 360 Ingestion
   // -------------------------------------------------------------
