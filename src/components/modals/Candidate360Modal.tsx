@@ -155,6 +155,139 @@ export default function Candidate360Modal({
     requirementTitle?: string;
   } | null>(null);
 
+  const [verificationSubTab, setVerificationSubTab] = useState<'VERIFICATION' | 'INTERVIEW'>('VERIFICATION');
+  const [selectedOutreachTab, setSelectedOutreachTab] = useState<'founder' | 'professional' | 'executive' | 'warm'>('founder');
+  const [isVerifyingEvidence, setIsVerifyingEvidence] = useState(false);
+  const [isStartingInterview, setIsStartingInterview] = useState(false);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+  const [candidateAnswerText, setCandidateAnswerText] = useState("");
+  const [activeInterviewSession, setActiveInterviewSession] = useState<any | null>(null);
+  const [expandedSkillKey, setExpandedSkillKey] = useState<string | null>(null);
+  const [showDeveloperSandbox, setShowDeveloperSandbox] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  useEffect(() => {
+    const candidateId = candidate.candidateId || candidate.id;
+    if (!candidateId) return;
+
+    // Realtime Sync for Candidate pool
+    const unsubCand = onSnapshot(doc(db, "candidatePool", candidateId), (snapshot) => {
+      if (snapshot.exists()) {
+        setFullCandidateData(snapshot.data());
+      }
+    });
+
+    // Realtime Sync for active interview session
+    const q = query(collection(db, "ai_interview_sessions"), limit(20));
+    const unsubSess = onSnapshot(q, (snapshot) => {
+      const sessions = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((s: any) => s.candidateId === candidateId);
+      
+      if (sessions.length > 0) {
+        sessions.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        setActiveInterviewSession(sessions[0]);
+      } else {
+        setActiveInterviewSession(null);
+      }
+    });
+
+    return () => {
+      unsubCand();
+      unsubSess();
+    };
+  }, [candidate.candidateId, candidate.id]);
+
+  const handleRunVerification = async () => {
+    const candId = candidate.candidateId || candidate.id;
+    setIsVerifyingEvidence(true);
+    try {
+      const res = await fetch('/api/candidates/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify-evidence',
+          candidateId: candId,
+          requirementId: selectedJobId || "",
+          forceRefresh: true
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Deep AI Evidence & Capability Verification Checks completed successfully!");
+      } else {
+        alert("Verification completed: " + (data.error || "Done"));
+      }
+    } catch (e: any) {
+      console.error("Verification error:", e);
+      alert("Verification Failed: " + e.message);
+    } finally {
+      setIsVerifyingEvidence(false);
+    }
+  };
+
+  const handleStartInterview = async () => {
+    const candId = candidate.candidateId || candidate.id;
+    if (!selectedJobId) {
+      alert("Please select a target Job Description to launch the adaptive interview.");
+      return;
+    }
+    setIsStartingInterview(true);
+    try {
+      const res = await fetch('/api/candidates/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start-interview',
+          candidateId: candId,
+          requirementId: selectedJobId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Adaptive AI Interview Session initialized successfully!");
+        setVerificationSubTab('INTERVIEW');
+      } else {
+        alert("Failed to start session: " + (data.error || "Unknown"));
+      }
+    } catch (e: any) {
+      console.error("Start interview error:", e);
+      alert("Launch Failed: " + e.message);
+    } finally {
+      setIsStartingInterview(false);
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!activeInterviewSession || !candidateAnswerText.trim()) return;
+    setIsSubmittingAnswer(true);
+    try {
+      const res = await fetch('/api/candidates/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit-answer',
+          sessionId: activeInterviewSession.id,
+          answer: candidateAnswerText
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCandidateAnswerText("");
+        if (data.session?.status === "COMPLETED") {
+          alert("Adaptive AI Technical Interview finished! Evaluation report is compiled.");
+        }
+      } else {
+        alert("Submission Failed: " + (data.error || "Unknown"));
+      }
+    } catch (e: any) {
+      console.error("Submit answer error:", e);
+      alert("Submission Failed: " + e.message);
+    } finally {
+      setIsSubmittingAnswer(false);
+    }
+  };
+
   const handleRefreshAIAnalysis = async () => {
     const candId = candidate.candidateId || candidate.id;
     const resumeTxt = displayCandidate.parsedResumeText || displayCandidate.resumeText || displayCandidate.extractedText || "No resume text available";
@@ -998,192 +1131,674 @@ export default function Candidate360Modal({
              {/* AI ANALYSIS TAB (Candidate Intelligence) */}
              {activeTab === 'AI_ANALYSIS' && (
                 <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-                    {/* Action Controls Bar */}
-                    <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="flex items-center gap-2">
-                          <Sparkles size={16} className="text-indigo-600 animate-pulse" />
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">AI Recruitment Intelligence Status</span>
-                          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
-                             {displayCandidate.aiIntelligence ? 'SCREENED & ENRICHED' : 'STANDARD PARSED'}
-                          </Badge>
-                       </div>
-                       <Button
-                         onClick={handleRefreshAIAnalysis}
-                         disabled={isScreening}
-                         size="sm"
-                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-2"
-                       >
-                         {isScreening ? (
-                           <>
-                             <Activity size={14} className="animate-spin" />
-                             Screening Resume...
-                           </>
-                         ) : (
-                           <>
-                             <RotateCcw size={14} />
-                             Refresh AI Analysis
-                           </>
-                         )}
-                       </Button>
-                    </div>
-
-                    {/* AI Summary Card */}
-                    <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white p-6 rounded-xl border border-indigo-800 shadow-md relative overflow-hidden">
-                       <div className="absolute top-0 right-0 p-6 opacity-10">
-                          <Bot size={120} />
-                       </div>
-                       <h3 className="font-bold uppercase tracking-widest text-xs mb-3 text-indigo-300 flex items-center gap-2">
-                         <Bot size={16} /> AI Executive Summary
-                       </h3>
-                       <p className="text-sm text-slate-200 leading-relaxed font-normal relative z-10">
-                         {displayCandidate.aiIntelligence?.aiSummary || displayCandidate.distillationSummary || displayCandidate.aiSummary || displayCandidate.summary || "No AI profile summary generated yet. Click 'Refresh AI Analysis' above to screen this candidate's resume with Gemini AI."}
-                       </p>
-                    </div>
-
-                    <div className="bg-indigo-50/50 p-8 rounded-xl border border-indigo-100/50 shadow-sm">
-                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-6 text-indigo-500 border-b border-indigo-100 pb-2 flex items-center gap-2"><Activity size={14} /> HireNest Intelligence Engine</h3>
-                       
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                           <div className="space-y-6">
-                               <div>
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Extracted Skills & Competencies</p>
-                                   <div className="flex flex-wrap gap-2">
-                                       {skillsArr.length > 0 ? skillsArr.map((s: string, idx: number) => (
-                                            <span key={idx}>
-                                               <Badge variant="outline" className="bg-white border-slate-200 text-slate-700 shadow-sm">{s}</Badge>
-                                            </span>
-                                        )) : <span className="text-sm text-slate-400 italic">No skills extracted yet.</span>}
-                                        {false && null}
-                                   </div>
-                               </div>
-                               
-                               <div className="pt-4 border-t border-indigo-100/50">
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Detected Experience</p>
-                                   <div className="text-2xl font-black text-slate-800">
-                                       {formatExperienceDisplay(displayCandidate)}
-                                   </div>
-                               </div>
-                           </div>
-
-                           <div className="space-y-6">
-                               {(() => {
-                                   const eduItems = parseEducationRecords(displayCandidate.education);
-                                   if (eduItems.length === 0) return null;
-                                   return (
-                                       <div>
-                                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Education Background</p>
-                                           <div className="space-y-1.5">
-                                               {eduItems.map((item, idx) => {
-                                                   if (item.raw && !item.degree && !item.institution) {
-                                                       return (
-                                                           <div key={idx} className="text-sm font-semibold text-slate-700">
-                                                               {item.raw}
-                                                           </div>
-                                                       );
-                                                   }
-                                                   const degreeAndField = [item.degree, item.field].filter(Boolean).join(' in ') || item.degree || 'Degree';
-                                                   const institutionAndYear = [item.institution, item.graduationYear].filter(Boolean).join(' • ');
-                                                   return (
-                                                       <div key={idx} className="text-sm font-semibold text-slate-700">
-                                                           <span className="text-slate-800">{degreeAndField}</span>
-                                                           {institutionAndYear && (
-                                                               <span className="text-xs font-normal text-slate-500 block">{institutionAndYear}</span>
-                                                           )}
-                                                       </div>
-                                                   );
-                                               })}
-                                           </div>
-                                       </div>
-                                   );
-                               })()}
-                               
-                               <div className={parseEducationRecords(displayCandidate.education).length > 0 ? "pt-4 border-t border-indigo-100/50" : ""}>
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Core Profile Domain</p>
-                                   <div className="text-sm font-semibold text-slate-700">{displayCandidate.domain || displayCandidate.inferredDomain || displayCandidate.role || 'Unspecified Domain'}</div>
-                               </div>
-                               
-                               <div className="pt-4 border-t border-indigo-100/50">
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Location Details</p>
-                                   <div className="text-sm font-semibold text-slate-700">{formatLocationDisplay(displayCandidate.location)}</div>
-                               </div>
-                           </div>
-                       </div>
-                    </div>
                     
-                    {displayCandidate.distillationSummary && (
-                       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
-                           <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-4 text-emerald-500 border-b border-slate-100 pb-2 flex items-center gap-2"><Bot size={14}/> Optional LLM Enhancement (Summary)</h3>
-                           <p className="text-sm text-slate-600 leading-relaxed font-medium">{displayCandidate.distillationSummary}</p>
+                    {/* Primary AI Control Deck Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                             <Sparkles size={18} className="text-indigo-600 animate-pulse" />
+                             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">HireNest AI Interview & Screening OS</h2>
+                          </div>
+                          <p className="text-xs text-slate-500">Autonomous multi-vector candidate verification, adaptive technical interviewing, and risk auditing.</p>
                        </div>
-                    )}
-
-                    {/* Strengths and Concerns */}
-                    {displayCandidate.aiIntelligence && (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           <div className="bg-emerald-50/60 p-5 rounded-xl border border-emerald-100 shadow-sm">
-                               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 mb-3 flex items-center gap-2">
-                                 <CheckCircle size={16} /> Key Candidate Strengths
-                               </h4>
-                               <ul className="space-y-1.5 text-xs text-slate-700">
-                                   {(displayCandidate.aiIntelligence.strengths || []).map((st: string, idx: number) => (
-                                       <li key={idx} className="flex items-start gap-2">
-                                           <span className="text-emerald-500 font-bold">•</span>
-                                           <span>{st}</span>
-                                       </li>
-                                   ))}
-                               </ul>
-                           </div>
-
-                           <div className="bg-amber-50/60 p-5 rounded-xl border border-amber-100 shadow-sm">
-                               <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 mb-3 flex items-center gap-2">
-                                 <AlertTriangle size={16} /> Potential Risk / Screening Notes
-                               </h4>
-                               <ul className="space-y-1.5 text-xs text-slate-700">
-                                   {(displayCandidate.aiIntelligence.potentialConcerns || []).map((pc: string, idx: number) => (
-                                       <li key={idx} className="flex items-start gap-2">
-                                           <span className="text-amber-500 font-bold">•</span>
-                                           <span>{pc}</span>
-                                       </li>
-                                   ))}
-                               </ul>
-                           </div>
-                       </div>
-                    )}
-
-                    {/* Interactive Ask Gemini 360 Box */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                       <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-2">
-                          <Bot size={14} /> Ask Gemini AI 360
-                       </h3>
-                       <p className="text-xs text-slate-500">Query Gemini AI directly regarding this candidate's career trajectory, fit for technical roles, or interview questions.</p>
-                       <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={geminiQuery}
-                            onChange={(e) => setGeminiQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAskGemini360()}
-                            placeholder="e.g. Is this candidate suitable for a Principal Systems Architect role?"
-                            className="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                          />
+                       <div className="flex items-center gap-2.5">
+                          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] py-1">
+                             STATUS: {(displayCandidate.screeningStatus || 'PENDING').replace('_', ' ')}
+                          </Badge>
                           <Button
-                            onClick={handleAskGemini360}
-                            disabled={isAskingGemini || !geminiQuery.trim()}
+                            onClick={handleRefreshAIAnalysis}
+                            disabled={isScreening}
                             size="sm"
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs gap-2"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-2"
                           >
-                            {isAskingGemini ? <Activity size={14} className="animate-spin" /> : <Send size={14} />}
-                            Ask Gemini
+                            {isScreening ? (
+                              <>
+                                <Activity size={14} className="animate-spin" />
+                                Analyzing...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw size={14} />
+                                Sync Profile
+                              </>
+                            )}
                           </Button>
                        </div>
-                       {geminiAnswer && (
-                          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed font-medium">
-                             <span className="font-bold text-indigo-600 block mb-1">Gemini AI Copilot:</span>
-                             {geminiAnswer}
-                          </div>
-                       )}
                     </div>
+
+                    {/* Inner Sub-Tab Switcher */}
+                    <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                       <button
+                         onClick={() => setVerificationSubTab('VERIFICATION')}
+                         className={cn(
+                           "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold transition-all",
+                           verificationSubTab === 'VERIFICATION' 
+                             ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50" 
+                             : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
+                         )}
+                       >
+                         <Bot size={15} /> AI Evidence & Verification Checks
+                       </button>
+                       <button
+                         onClick={() => setVerificationSubTab('INTERVIEW')}
+                         className={cn(
+                           "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold transition-all",
+                           verificationSubTab === 'INTERVIEW' 
+                             ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50" 
+                             : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
+                         )}
+                       >
+                         <Sparkles size={15} /> Interactive AI Interview OS
+                       </button>
+                    </div>
+
+                    {/* 1. VERIFICATION ENGINE WORKSPACE */}
+                    {verificationSubTab === 'VERIFICATION' && (
+                      <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* If screening running */}
+                        {displayCandidate.screeningStatus === "AI_SCREENING_RUNNING" ? (
+                          <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+                            <div className="relative">
+                              <div className="w-16 h-16 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin flex items-center justify-center">
+                                <Bot size={28} className="text-indigo-600" />
+                              </div>
+                              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full animate-bounce">
+                                <Sparkles size={10} />
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Multi-Vector Verification In Progress</h4>
+                              <p className="text-xs text-slate-500 max-w-md">Gemini AI is cross-referencing candidate credentials, evaluating self-consistent experiences, and generating high-relevance cold outreach messaging drafts.</p>
+                            </div>
+                            <div className="w-full max-w-xs bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-indigo-600 h-full w-2/3 rounded-full animate-pulse" />
+                            </div>
+                          </div>
+                        ) : (displayCandidate.screeningStatus === "AI_SCREENING_COMPLETED" || displayCandidate.evidenceReport) ? (
+                          <>
+                            {/* Score & Verdict Deck */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Evidence Match Score</span>
+                                <div className="flex items-baseline gap-1 mt-2">
+                                  <span className="text-4xl font-black text-slate-800">{displayCandidate.evidenceReport?.evidenceScore ?? 0}%</span>
+                                  <span className="text-xs text-slate-400 font-bold">/100</span>
+                                </div>
+                                <div className="mt-2.5 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                  <div 
+                                    className="bg-indigo-600 h-full rounded-full" 
+                                    style={{ width: `${displayCandidate.evidenceReport?.evidenceScore ?? 0}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Confidence Rating</span>
+                                <div className="mt-2.5">
+                                  {(() => {
+                                    const rating = displayCandidate.evidenceReport?.confidenceRating || "MEDIUM";
+                                    const colors = rating === "HIGH" 
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                      : rating === "MEDIUM" 
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      : "bg-rose-50 text-rose-700 border-rose-200";
+                                    return (
+                                      <span className={cn("px-3.5 py-1.5 rounded-lg border text-xs font-black uppercase tracking-wider", colors)}>
+                                        {rating}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-3 block">Self-consistency analysis based on chronological history.</span>
+                              </div>
+
+                              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Screening Verdict</span>
+                                <div className="mt-2 flex items-center gap-1.5">
+                                  <CheckCircle size={16} className="text-indigo-600" />
+                                  <span className="text-xs font-bold text-slate-700">Audit-Ready & Verified</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-3.5 block">Matches target requirements parsed with zero hallucination guarantee.</span>
+                              </div>
+                            </div>
+
+                            {/* Discrepancies Alerts if any */}
+                            {Array.isArray(displayCandidate.evidenceReport?.discrepancies) && displayCandidate.evidenceReport.discrepancies.length > 0 && (
+                              <div className="bg-amber-50/60 p-5 rounded-xl border border-amber-100 shadow-sm space-y-2.5">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                                  <AlertTriangle size={15} className="text-amber-600" /> 
+                                  Flagged Discrepancies & Calibration Risks ({displayCandidate.evidenceReport.discrepancies.length})
+                                </h4>
+                                <ul className="space-y-1.5 text-xs text-slate-700">
+                                  {displayCandidate.evidenceReport.discrepancies.map((desc: string, idx: number) => (
+                                    <li key={idx} className="flex items-start gap-2 bg-white/70 border border-amber-100/50 rounded-lg p-2.5">
+                                      <span className="text-amber-500 font-bold">•</span>
+                                      <span className="font-medium leading-relaxed">{desc}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Capability Evidence Catalog */}
+                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                              <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                                <Bot size={14} /> Verified Professional Capabilities ({displayCandidate.evidenceReport?.verifiedCapabilities?.length || 0})
+                              </h3>
+                              
+                              <div className="space-y-3">
+                                {Array.isArray(displayCandidate.evidenceReport?.verifiedCapabilities) && displayCandidate.evidenceReport.verifiedCapabilities.map((vc: any, idx: number) => {
+                                  const isExpanded = expandedSkillKey === vc.capability;
+                                  let gradeColor = "bg-slate-50 text-slate-700 border-slate-200";
+                                  if (vc.grade === "VERIFIED") gradeColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
+                                  if (vc.grade === "PARTIAL") gradeColor = "bg-amber-50 text-amber-800 border-amber-200";
+                                  if (vc.grade === "MISSING") gradeColor = "bg-rose-50 text-rose-800 border-rose-200";
+                                  if (vc.grade === "CONTRADICTED") gradeColor = "bg-red-500 text-white border-red-600";
+
+                                  return (
+                                    <div key={idx} className="border border-slate-100 rounded-lg overflow-hidden transition-all bg-slate-50/20 hover:bg-slate-50/50">
+                                      <div 
+                                        className="flex items-center justify-between p-3 cursor-pointer"
+                                        onClick={() => setExpandedSkillKey(isExpanded ? null : vc.capability)}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-extrabold text-slate-800">{vc.capability}</span>
+                                          <span className="text-[10px] text-slate-400 font-medium">({vc.experienceDetectedYears || 0} yrs)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className={cn("text-[9px] font-bold uppercase tracking-wider px-2 py-0.5", gradeColor)}>
+                                            {vc.grade}
+                                          </Badge>
+                                          <span className="text-slate-400 text-xs">
+                                            {isExpanded ? "▲" : "▼"}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {isExpanded && (
+                                        <div className="p-3.5 bg-white border-t border-slate-100 space-y-2 text-xs text-slate-600 leading-relaxed font-normal">
+                                          <p><strong className="text-slate-700">AI Assessment:</strong> {vc.explanation}</p>
+                                          {vc.evidenceSource && (
+                                            <p className="bg-slate-50 p-2 rounded border border-slate-100 text-[10px] text-slate-500 font-mono">
+                                              <strong className="text-slate-700">Resume Proof Anchor:</strong> "{vc.evidenceSource}"
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Tailored AI Outreach Deck */}
+                            {displayCandidate.evidenceReport?.outreachDrafts && (
+                              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                  <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-1.5">
+                                    <Send size={14} /> Tailored AI Candidate Outreach Desk
+                                  </h3>
+                                  <div className="flex gap-1">
+                                    {(['founder', 'professional', 'executive', 'warm'] as const).map((tab) => (
+                                      <button
+                                        key={tab}
+                                        onClick={() => setSelectedOutreachTab(tab)}
+                                        className={cn(
+                                          "px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all",
+                                          selectedOutreachTab === tab 
+                                            ? "bg-indigo-50 text-indigo-700 border border-indigo-100" 
+                                            : "text-slate-400 hover:text-slate-700"
+                                        )}
+                                      >
+                                        {tab}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="relative">
+                                  <textarea
+                                    readOnly
+                                    value={
+                                      selectedOutreachTab === "founder" 
+                                        ? displayCandidate.evidenceReport.outreachDrafts.founderEmail 
+                                        : selectedOutreachTab === "professional"
+                                        ? displayCandidate.evidenceReport.outreachDrafts.professionalEmail
+                                        : selectedOutreachTab === "executive"
+                                        ? displayCandidate.evidenceReport.outreachDrafts.executiveEmail
+                                        : displayCandidate.evidenceReport.outreachDrafts.warmIntroduction
+                                    }
+                                    className="w-full h-32 p-3 text-xs border border-slate-200 rounded-lg font-mono text-slate-600 focus:outline-none"
+                                  />
+                                  <Button
+                                    onClick={() => {
+                                      const text = selectedOutreachTab === "founder" 
+                                        ? displayCandidate.evidenceReport.outreachDrafts.founderEmail 
+                                        : selectedOutreachTab === "professional"
+                                        ? displayCandidate.evidenceReport.outreachDrafts.professionalEmail
+                                        : selectedOutreachTab === "executive"
+                                        ? displayCandidate.evidenceReport.outreachDrafts.executiveEmail
+                                        : displayCandidate.evidenceReport.outreachDrafts.warmIntroduction;
+                                      navigator.clipboard.writeText(text);
+                                      alert("Outreach Draft copied to clipboard!");
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="absolute bottom-3 right-3 text-[10px] font-bold h-7 gap-1"
+                                  >
+                                    Copy Draft
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Trigger re-verification */}
+                            <div className="flex justify-end pt-2">
+                              <Button
+                                onClick={handleRunVerification}
+                                disabled={isVerifyingEvidence}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs font-bold gap-1.5"
+                              >
+                                {isVerifyingEvidence ? <Activity size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                                Re-verify Capability Anchors
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          /* Verification Empty state */
+                          <div className="bg-indigo-50/50 p-8 rounded-xl border border-indigo-100/50 shadow-sm flex flex-col items-center justify-center text-center space-y-5">
+                            <Bot size={44} className="text-indigo-400 animate-pulse" />
+                            <div className="space-y-1">
+                              <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Multi-Vector AI Verification Pending</h4>
+                              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                                Cross-reference the candidate's core skills directly against a target requirement to extract absolute verification proof, flag calibration anomalies, and draft executive outreach messages.
+                              </p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+                              <select
+                                value={selectedJobId}
+                                onChange={(e) => setSelectedJobId(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                              >
+                                <option value="">-- Select Target Job Profile --</option>
+                                {availableJobs.map((job: any) => (
+                                  <option key={job.id || job.requirementId} value={job.id || job.requirementId}>
+                                    {job.title} ({job.clientName || 'Global Enterprise'})
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                onClick={handleRunVerification}
+                                disabled={isVerifyingEvidence || !selectedJobId}
+                                size="sm"
+                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shrink-0 whitespace-nowrap"
+                              >
+                                {isVerifyingEvidence ? (
+                                  <>
+                                    <Activity size={14} className="animate-spin mr-1.5" />
+                                    Verifying...
+                                  </>
+                                ) : (
+                                  "Run Verification Checks"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 2. ADAPTIVE AI INTERVIEW OS WORKSPACE */}
+                    {verificationSubTab === 'INTERVIEW' && (
+                      <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* If session in progress */}
+                        {activeInterviewSession && activeInterviewSession.status === "IN_PROGRESS" ? (
+                          <div className="space-y-6">
+                            
+                            {/* NEW: Premium Candidate Share & Progress Card */}
+                            <div className="bg-gradient-to-br from-indigo-50/50 to-white p-5 rounded-xl border border-indigo-100 shadow-xs space-y-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Sparkles size={16} className="text-indigo-600 animate-pulse" />
+                                    <span>Secure Candidate Invitation</span>
+                                  </h4>
+                                  <p className="text-xs text-slate-500 leading-relaxed">
+                                    Send this secure URL to the candidate. They will verify their identity and start the adaptive interview session.
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="bg-indigo-100 text-indigo-800 border-indigo-200 text-[9px] font-black tracking-wider uppercase py-1">
+                                  Node Session v1.0
+                                </Badge>
+                              </div>
+
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={`${window.location.origin}/interview/${activeInterviewSession.id}`}
+                                  className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-600 select-all outline-hidden"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}/interview/${activeInterviewSession.id}`);
+                                    setCopiedLink(true);
+                                    setTimeout(() => setCopiedLink(false), 2000);
+                                  }}
+                                  className={cn(
+                                    "px-4 py-2.5 text-xs font-black transition-all",
+                                    copiedLink ? "bg-emerald-600 text-white" : "bg-slate-900 hover:bg-slate-800 text-white"
+                                  )}
+                                >
+                                  {copiedLink ? "Copied!" : "Copy Link"}
+                                </Button>
+                              </div>
+
+                              {/* Progress status indicators */}
+                              <div className="border-t border-slate-100 pt-4 space-y-3">
+                                <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                  Real-Time Candidate Pipeline Tracker
+                                </h5>
+                                <div className="grid grid-cols-4 gap-2">
+                                  <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-2xs space-y-1 text-center">
+                                    <span className="text-[8px] font-extrabold text-slate-400 block uppercase tracking-wider">Invitation</span>
+                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] font-extrabold mx-auto">Sent</Badge>
+                                  </div>
+                                  <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-2xs space-y-1 text-center">
+                                    <span className="text-[8px] font-extrabold text-slate-400 block uppercase tracking-wider">Verification</span>
+                                    <Badge className={cn(
+                                      "text-[8px] font-extrabold mx-auto",
+                                      (activeInterviewSession.currentRound || 1) > 1 
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                                        : "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
+                                    )}>
+                                      {(activeInterviewSession.currentRound || 1) > 1 ? "Verified" : "Awaiting"}
+                                    </Badge>
+                                  </div>
+                                  <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-2xs space-y-1 text-center">
+                                    <span className="text-[8px] font-extrabold text-slate-400 block uppercase tracking-wider">Adaptive Rounds</span>
+                                    <span className="text-xs font-black text-slate-800 block">
+                                      Round {activeInterviewSession.currentRound || 1} / 5
+                                    </span>
+                                  </div>
+                                  <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-2xs space-y-1 text-center">
+                                    <span className="text-[8px] font-extrabold text-slate-400 block uppercase tracking-wider">Evaluation</span>
+                                    <Badge className="bg-slate-50 text-slate-500 border-slate-100 text-[8px] font-extrabold mx-auto">Queued</Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Developer Testing Flag Toggle */}
+                            <div className="flex items-center justify-between px-1 bg-slate-50 rounded-lg p-2 border border-slate-200">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                <Bot size={13} className="text-indigo-500" />
+                                <span>Developer Simulator Sandbox Control</span>
+                              </span>
+                              <button
+                                onClick={() => setShowDeveloperSandbox(!showDeveloperSandbox)}
+                                className={cn(
+                                  "text-[9px] font-black px-3 py-1.5 rounded-md uppercase tracking-wider transition-all",
+                                  showDeveloperSandbox 
+                                    ? "bg-indigo-600 text-white" 
+                                    : "bg-slate-200 hover:bg-slate-300 text-slate-600"
+                                )}
+                              >
+                                {showDeveloperSandbox ? "Hide Simulator" : "Show Simulator"}
+                              </button>
+                            </div>
+
+                            {/* Conditional Simulator Sandbox Block (Strictly behind flag) */}
+                            {showDeveloperSandbox && (
+                              <div className="space-y-6 border border-dashed border-slate-300 rounded-xl p-4 bg-slate-50/50 animate-in slide-in-from-top-2 duration-200">
+                                <div className="bg-slate-100 p-2 rounded-lg border border-slate-200 text-[9px] text-slate-500 flex items-center gap-1.5 font-bold">
+                                  <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></span>
+                                  <span>SIMULATOR BOX (SANDBOX TESTING MODE ON)</span>
+                                </div>
+
+                                {/* Adaptive Progress Header */}
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <div className="space-y-0.5">
+                                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Active Adaptive Interview Session</h4>
+                                      <p className="text-[10px] text-slate-400">Voice Selected: {activeInterviewSession.voiceChoice || "Neural Standard Male"}</p>
+                                    </div>
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 text-[9px] font-bold py-1">
+                                      DIFFICULTY: {activeInterviewSession.difficultyLevel || "EASY"}
+                                    </Badge>
+                                  </div>
+
+                                  {/* Multi-round Timeline indicators */}
+                                  <div className="grid grid-cols-5 gap-2 pt-2">
+                                    {[1, 2, 3, 4, 5].map((roundNum) => {
+                                      const currentRound = activeInterviewSession.currentRound || 1;
+                                      const isActive = currentRound === roundNum;
+                                      const isPast = currentRound > roundNum;
+                                      return (
+                                        <div key={roundNum} className="space-y-1.5">
+                                          <div className={cn(
+                                            "h-1.5 rounded-full transition-all",
+                                            isPast ? "bg-emerald-500" : isActive ? "bg-indigo-600" : "bg-slate-200"
+                                          )} />
+                                          <span className={cn(
+                                            "text-[9px] font-bold block text-center uppercase tracking-wider",
+                                            isActive ? "text-indigo-600 font-extrabold" : "text-slate-400"
+                                          )}>
+                                            R{roundNum}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Speech bubble: Active AI Question */}
+                                <div className="bg-slate-900 text-white p-5 rounded-xl border border-indigo-950 shadow-md relative overflow-hidden space-y-2">
+                                  <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                                    <Bot size={15} className="text-indigo-300 animate-pulse" />
+                                    <span className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-widest">
+                                      Round {activeInterviewSession.currentRound || 1} FOCUS: {activeInterviewSession.currentRoundFocus || "Intro/Background"}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-semibold text-slate-100 leading-relaxed font-sans pt-1">
+                                    {activeInterviewSession.currentQuestion || "Evaluating profile... Please write candidate's first answer below."}
+                                  </p>
+                                </div>
+
+                                {/* Live Simulator Sandbox input */}
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                  <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-1.5">
+                                    <Sparkles size={14} /> Simulate Candidate Live Response
+                                  </h3>
+                                  <p className="text-xs text-slate-500 leading-relaxed">
+                                    Experience the real-time adaptive questioning pipeline. Submit the candidate's answer below to let Gemini analyze correctness, update difficulty, and compile communication metrics.
+                                  </p>
+
+                                  <div className="space-y-3">
+                                    <textarea
+                                      value={candidateAnswerText}
+                                      onChange={(e) => setCandidateAnswerText(e.target.value)}
+                                      placeholder="Type or paste candidate response text..."
+                                      rows={4}
+                                      className="w-full text-xs border border-slate-300 rounded-lg p-3.5 focus:ring-2 focus:ring-indigo-500 outline-hidden leading-relaxed text-slate-700"
+                                    />
+                                    <div className="flex justify-end">
+                                      <Button
+                                        onClick={handleSubmitAnswer}
+                                        disabled={isSubmittingAnswer || !candidateAnswerText.trim()}
+                                        size="sm"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs gap-1.5 px-5 py-2.5 shadow-sm"
+                                      >
+                                        {isSubmittingAnswer ? (
+                                          <>
+                                            <Activity size={14} className="animate-spin" />
+                                            Processing Adaptive Response...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Send size={13} />
+                                            Submit Answer & Progress
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                          </div>
+                        ) : activeInterviewSession && activeInterviewSession.status === "COMPLETED" ? (
+                          <div className="space-y-6">
+                            
+                            {/* Scoring Deck */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Technical Competence</span>
+                                <span className="text-3xl font-black text-slate-800">{activeInterviewSession.report?.scores?.technicalCompetence ?? 0}%</span>
+                              </div>
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Integrity & Verification</span>
+                                <span className="text-3xl font-black text-slate-800">{activeInterviewSession.report?.scores?.integrityVerification ?? 0}%</span>
+                              </div>
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Communication Skill</span>
+                                <span className="text-3xl font-black text-slate-800">{activeInterviewSession.report?.scores?.communicationScore ?? 0}%</span>
+                              </div>
+                              <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm bg-indigo-50/20 text-center flex flex-col justify-center items-center">
+                                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wider block mb-1">Final Verdict</span>
+                                <Badge className={cn(
+                                  "font-black text-[9px] tracking-wider uppercase px-2.5 py-1",
+                                  activeInterviewSession.report?.recommendation === "STRONG_PASS" 
+                                    ? "bg-emerald-600 text-white" 
+                                    : "bg-amber-600 text-white"
+                                )}>
+                                  {(activeInterviewSession.report?.recommendation || "PASS").replace('_', ' ')}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* Communication Dimension Assessment Charts */}
+                            {activeInterviewSession.report?.communicationAssessment && (
+                              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                                  <Activity size={14} /> Multi-Dimensional Communication Competency Matrix
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {Object.entries(activeInterviewSession.report.communicationAssessment).map(([key, val]: [string, any]) => (
+                                    <div key={key} className="space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                        <span>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                        <span>{val}/10</span>
+                                      </div>
+                                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                        <div 
+                                          className="bg-indigo-600 h-full rounded-full" 
+                                          style={{ width: `${(val ?? 0) * 10}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Complete scrollable transcripts */}
+                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                              <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] text-indigo-600 flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                                <Bot size={14} /> Full Auditable Interview Transcript
+                              </h3>
+
+                              <div className="space-y-4 max-h-96 overflow-y-auto pr-2 space-y-4">
+                                {Array.isArray(activeInterviewSession.rounds) && activeInterviewSession.rounds.map((round: any, idx: number) => (
+                                  <div key={idx} className="border-l-2 border-indigo-100 pl-4 py-1 space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                      <Badge variant="outline" className="text-[8px] font-extrabold uppercase tracking-widest bg-indigo-50 border-indigo-100 text-indigo-700">
+                                        Round {round.round} Focus: {round.focus}
+                                      </Badge>
+                                      <span className="text-[10px] font-bold text-slate-500">Score: {round.accuracyScore}/100</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Question:</span>
+                                      <p className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50 p-2.5 rounded border border-slate-100">{round.question}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Candidate Answer:</span>
+                                      <p className="text-xs text-slate-600 font-normal leading-relaxed italic">"{round.answer || "No response recorded"}"</p>
+                                    </div>
+                                    <div className="space-y-1 bg-slate-50/50 p-2.5 rounded border border-slate-100 text-[10px] text-slate-500 leading-relaxed font-normal">
+                                      <strong className="text-slate-700">AI Evaluation:</strong> {round.evaluation}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Restart Control */}
+                            <div className="flex justify-end">
+                              <Button
+                                onClick={handleStartInterview}
+                                disabled={isStartingInterview}
+                                size="sm"
+                                variant="outline"
+                                className="text-xs font-bold gap-1.5"
+                              >
+                                {isStartingInterview ? <Activity size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                                Initialize New Interview Session
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Interview Empty State */
+                          <div className="bg-indigo-50/50 p-8 rounded-xl border border-indigo-100/50 shadow-sm flex flex-col items-center justify-center text-center space-y-5">
+                            <Sparkles size={44} className="text-indigo-400 animate-pulse" />
+                            <div className="space-y-1">
+                              <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Launch Adaptive technical Interview</h4>
+                              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                                Experience an automated, 5-round adaptive technical interview. Gemini will dynamically structure the technical difficulty, analyze communication styles, and compose comprehensive audit reports.
+                              </p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+                              <select
+                                value={selectedJobId}
+                                onChange={(e) => setSelectedJobId(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                              >
+                                <option value="">-- Select Target Job Profile --</option>
+                                {availableJobs.map((job: any) => (
+                                  <option key={job.id || job.requirementId} value={job.id || job.requirementId}>
+                                    {job.title} ({job.clientName || 'Global Enterprise'})
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                onClick={handleStartInterview}
+                                disabled={isStartingInterview || !selectedJobId}
+                                size="sm"
+                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shrink-0 whitespace-nowrap"
+                              >
+                                {isStartingInterview ? (
+                                  <>
+                                    <Activity size={14} className="animate-spin mr-1.5" />
+                                    Launching...
+                                  </>
+                                ) : (
+                                  "Launch AI Interview"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                 </div>
              )}
+
 
              {/* REQUIREMENTS TAB (JD Match Analysis) */}
              {activeTab === 'REQUIREMENTS' && (

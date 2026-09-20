@@ -70,14 +70,27 @@ export class CalendarService {
   /**
    * Create a new interview/event
    */
-  static async createEvent(uid: string, event: CalendarEvent) {
+  static async createEvent(uid: string, event: CalendarEvent, createMeet: boolean = false) {
     const client = await this.getClientForUser(uid);
     const calendar = google.calendar({ version: 'v3', auth: client });
 
+    const requestBody: any = { ...event };
+    if (createMeet) {
+      requestBody.conferenceData = {
+        createRequest: {
+          requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          conferenceSolutionKey: {
+            type: "hangoutsMeet"
+          }
+        }
+      };
+    }
+
     const response = await calendar.events.insert({
       calendarId: 'primary',
-      requestBody: event,
+      requestBody,
       sendUpdates: 'all', // Send invites to attendees
+      conferenceDataVersion: createMeet ? 1 : undefined,
     });
 
     return response.data;

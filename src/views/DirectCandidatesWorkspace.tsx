@@ -57,6 +57,7 @@ import {
 
 import { AddDirectCandidateModal } from "../components/modals/AddDirectCandidateModal";
 import { UnifiedRequirementsService } from "../services/unifiedRequirementsService";
+import { CandidateJobFeedService } from "../services/candidateJobFeedService";
 
 interface DirectCandidatesWorkspaceProps {
   isAdmin: boolean;
@@ -180,11 +181,49 @@ export default function DirectCandidatesWorkspace({
         updatedAt: serverTimestamp(),
       });
 
-      if (applicationId) {
-        await updateDoc(doc(db, "applications", applicationId), {
+      let resolvedAppId = applicationId;
+      if (!resolvedAppId) {
+        // Find in local state applications array
+        const matchedApp = applications.find(
+          (a) => a.candidateId === candidateId || a.candidateEmail === selectedCandidate?.email
+        );
+        if (matchedApp) {
+          resolvedAppId = matchedApp.id || matchedApp.applicationId;
+        }
+      }
+
+      // If still not resolved, check Firestore directly
+      if (!resolvedAppId) {
+        const qAppsQuery = query(
+          collection(db, "applications"),
+          where("candidateId", "==", candidateId),
+          limit(1)
+        );
+        const qAppsSnap = await getDocs(qAppsQuery);
+        if (!qAppsSnap.empty) {
+          resolvedAppId = qAppsSnap.docs[0].id;
+        }
+      }
+
+      if (resolvedAppId) {
+        // 1. Update applications collection
+        await updateDoc(doc(db, "applications", resolvedAppId), {
           status: newStatus,
+          applicationStatus: newStatus,
           updatedAt: serverTimestamp(),
         });
+
+        // 2. Mirror and update submissions collection if present
+        const subRef = doc(db, "submissions", resolvedAppId);
+        const subSnap = await getDoc(subRef);
+        if (subSnap.exists()) {
+          const mapped = CandidateJobFeedService.mapInternalStatusToCandidateStatus(newStatus);
+          await updateDoc(subRef, {
+            status: newStatus,
+            pipelineStage: mapped.candidateStatus,
+            updatedAt: serverTimestamp(),
+          });
+        }
       }
 
       // Also update selectedCandidate local state if open
@@ -801,7 +840,7 @@ export default function DirectCandidatesWorkspace({
                     <select
                       value={cand.status || "PROFILE_UNDER_REVIEW"}
                       onChange={(e) =>
-                        handleUpdateStatus(cand.id, e.target.value, cand.applicationId)
+                        handleUpdateStatus(cand.id, e.target.value, candApps[0]?.id)
                       }
                       className={cn(
                         "text-xs font-bold py-1.5 px-2.5 rounded-xl border outline-none cursor-pointer transition-colors",

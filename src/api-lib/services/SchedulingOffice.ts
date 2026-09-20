@@ -32,14 +32,30 @@ export class SchedulingOffice {
     }
 
     private static async handleInterviewRequested(payload: any, orgId?: string) {
-        const { candidateId, requirementId, startTime, durationMinutes, interviewerId, uid } = payload;
+        const candidateId = payload.candidateId || payload.interviewDetails?.candidateId;
+        const requirementId = payload.requirementId || payload.interviewDetails?.requirementId;
+        const uid = payload.uid;
         
-        if (!uid || !startTime) {
-            console.error("[SchedulingOffice] Missing required fields for interview scheduling");
+        const interviewDetails = payload.interviewDetails || {};
+        const mode = interviewDetails.mode || payload.mode || "";
+        const isGoogleMeet = mode === "Google Meet";
+
+        let finalStartTime = payload.startTime;
+        if (!finalStartTime && (payload.date || interviewDetails.date)) {
+            const d = payload.date || interviewDetails.date;
+            const t = payload.time || interviewDetails.time || "09:00";
+            finalStartTime = `${d}T${t}`;
+        }
+
+        const durationMinutes = payload.durationMinutes || interviewDetails.durationMinutes || 30;
+        const interviewerId = payload.interviewerId || interviewDetails.interviewer || "system";
+        
+        if (!uid || !finalStartTime || !candidateId || !requirementId) {
+            console.error("[SchedulingOffice] Missing required fields for interview scheduling:", { uid, finalStartTime, candidateId, requirementId });
             return;
         }
 
-        console.log(`[SchedulingOffice] Scheduling interview for candidate ${candidateId} and requirement ${requirementId}`);
+        console.log(`[SchedulingOffice] Scheduling interview for candidate ${candidateId} and requirement ${requirementId} via mode: ${mode}`);
 
         try {
             // 1. Fetch Candidate and Requirement data for the event description
@@ -49,7 +65,7 @@ export class SchedulingOffice {
             const candData = candDoc.data() || {};
             const reqData = reqDoc.data() || {};
 
-            const start = new Date(startTime);
+            const start = new Date(finalStartTime);
             const end = new Date(start.getTime() + (durationMinutes || 30) * 60000);
 
             // 2. Create Google Calendar Event
@@ -65,8 +81,9 @@ export class SchedulingOffice {
                 attendees: candData.email ? [{ email: candData.email }] : [],
             };
 
-            const calendarEvent = await CalendarService.createEvent(uid, eventDetails);
-            console.log(`[SchedulingOffice] Calendar event created: ${calendarEvent.id}`);
+            const calendarEvent = await CalendarService.createEvent(uid, eventDetails, isGoogleMeet);
+            const hangoutLink = calendarEvent.hangoutLink || "";
+            console.log(`[SchedulingOffice] Calendar event created: ${calendarEvent.id}, Google Meet URL: ${hangoutLink}`);
 
             // 3. Update Business Graph
             await BusinessGraphService.addRelationship(
@@ -76,18 +93,29 @@ export class SchedulingOffice {
                 { 
                     eventId: calendarEvent.id, 
                     startTime: start.toISOString(),
-                    interviewerId 
+                    interviewerId,
+                    meetingLink: hangoutLink || interviewDetails.meetingLink || ""
                 }
             );
 
-            // 4. Update Submission Status if applicable
+            // 4. Update Submission Status and Meeting details if applicable
             const subId = `${candidateId}_${requirementId}`;
-            await db.collection("submissions").doc(subId).set({
+            const subUpdates: any = {
                 status: 'INTERVIEWING',
                 interviewScheduled: true,
                 lastInterviewId: calendarEvent.id,
                 updatedAt: new Date().toISOString()
-            }, { merge: true });
+            };
+
+            if (hangoutLink) {
+                subUpdates.meetingLink = hangoutLink;
+                subUpdates.interviewDetails = {
+                    ...interviewDetails,
+                    meetingLink: hangoutLink
+                };
+            }
+
+            await db.collection("submissions").doc(subId).set(subUpdates, { merge: true });
 
             // 5. Publish Event
             await EventBus.publish('INTERVIEW_SCHEDULED', {
@@ -95,7 +123,8 @@ export class SchedulingOffice {
                 requirementId,
                 eventId: calendarEvent.id,
                 startTime: start.toISOString(),
-                endTime: end.toISOString()
+                endTime: end.toISOString(),
+                meetingLink: hangoutLink
             }, 'SCHEDULING_OFFICE', orgId);
 
         } catch (err: any) {

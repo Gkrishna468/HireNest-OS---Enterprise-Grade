@@ -133,6 +133,7 @@ import AILearningLoopTab from "./views/AILearningLoopTab";
 import EvidenceDashboard from "./views/EvidenceDashboard";
 import FounderControlTower from "./views/FounderControlTower";
 import CandidatePortalWorkspace from "./views/workspaces/CandidatePortalWorkspace";
+import AIInterviewSessionView from "./views/AIInterviewSessionView";
 import CRMWorkspace from "./views/CRMWorkspace";
 
 const SidebarItem = ({
@@ -425,6 +426,7 @@ const AppContent = () => {
             />
           }
         />
+        <Route path="/interview/:sessionId" element={<AIInterviewSessionView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -966,6 +968,7 @@ const AppContent = () => {
               />
             )}
             <Route path="/candidates" element={<CandidatesTab />} />
+            <Route path="/interview/:sessionId" element={<AIInterviewSessionView />} />
             <Route path="/matches" element={<MatchIntelligenceTab />} />
             <Route path="/jobs" element={<JobsTab />} />
             <Route path="/pipeline" element={<CandidatesTab />} />

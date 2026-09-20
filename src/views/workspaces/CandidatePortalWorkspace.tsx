@@ -220,9 +220,6 @@ export default function CandidatePortalWorkspace({
           email: user.email || ""
         }));
         await fetchProfileAndVersions(user.uid);
-
-        // Listen to In-App Candidate Notifications
-        // (Notifications listener continues as non-blocking)
       } else {
         setCurrentUser(null);
       }
@@ -236,62 +233,68 @@ export default function CandidatePortalWorkspace({
         name: user.displayName || userName,
         email: user.email || ""
       }));
-
-      // Listen to In-App Candidate Notifications
-      const qNotif = query(
-        collection(db, "candidate_notifications"),
-        where("candidateId", "==", user.uid)
-      );
-      const unsubNotif = onSnapshot(qNotif, snap => {
-        const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setCandidateNotifications(notifs);
-      }, err => {
-        console.warn("Candidate notifications listener note:", err);
-      });
-
-      // Listen to Applications for this candidate (Listening directly to `applications` & `submissions`)
-      const qApps = query(
-        collection(db, "applications"),
-        where("candidateUid", "==", user.uid)
-      );
-      const unsubApps = onSnapshot(qApps, snap => {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (list.length > 0) {
-          setApplications(list);
-        } else {
-          // Fallback check in submissions collection if applications collection was empty
-          const qSubFallback = query(
-            collection(db, "submissions"),
-            where("candidateUid", "==", user.uid)
-          );
-          getDocs(qSubFallback).then(subSnap => {
-            const subList = subSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (subList.length > 0) setApplications(subList);
-          });
-        }
-      }, err => {
-        console.warn("Application query restricted or offline:", err);
-      });
-
-      // Listen to Interviews
-      const qInt = query(
-        collection(db, "interviews"),
-        where("candidateId", "==", user.uid)
-      );
-      const unsubInt = onSnapshot(qInt, snap => {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setInterviews(list);
-      }, err => {
-        console.warn("Interviews query restricted or offline:", err);
-      });
-
-      return () => {
-        unsubApps();
-        unsubInt();
-        unsubNotif();
-      };
     }
+    return () => unsubAuth();
   }, [userName]);
+
+  // 1b. Realtime Sync Subscriptions when currentUser changes
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Listen to In-App Candidate Notifications
+    const qNotif = query(
+      collection(db, "candidate_notifications"),
+      where("candidateId", "==", currentUser.uid)
+    );
+    const unsubNotif = onSnapshot(qNotif, snap => {
+      const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCandidateNotifications(notifs);
+    }, err => {
+      console.warn("Candidate notifications listener note:", err);
+    });
+
+    // Listen to Applications for this candidate (Listening directly to `applications` & `submissions`)
+    const qApps = query(
+      collection(db, "applications"),
+      where("candidateUid", "==", currentUser.uid)
+    );
+    const unsubApps = onSnapshot(qApps, snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (list.length > 0) {
+        setApplications(list);
+      } else {
+        // Fallback check in submissions collection if applications collection was empty
+        const qSubFallback = query(
+          collection(db, "submissions"),
+          where("candidateUid", "==", currentUser.uid)
+        );
+        getDocs(qSubFallback).then(subSnap => {
+          const subList = subSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (subList.length > 0) setApplications(subList);
+        });
+      }
+    }, err => {
+      console.warn("Application query restricted or offline:", err);
+    });
+
+    // Listen to Interviews
+    const qInt = query(
+      collection(db, "interviews"),
+      where("candidateId", "==", currentUser.uid)
+    );
+    const unsubInt = onSnapshot(qInt, snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setInterviews(list);
+    }, err => {
+      console.warn("Interviews query restricted or offline:", err);
+    });
+
+    return () => {
+      unsubApps();
+      unsubInt();
+      unsubNotif();
+    };
+  }, [currentUser]);
 
   // 2. Fetch Controlled Candidate-Facing Jobs (Active + FTE + Onsite + candidate_publish)
   useEffect(() => {

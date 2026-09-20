@@ -560,6 +560,17 @@ export class ResumeProcessingPipeline {
       requiresManualReview: false,
     }, adminDb);
 
+    // 9. Automatically trigger AI Screening via CandidateEvidenceEngine in background
+    try {
+      const { CandidateEvidenceEngine } = await import("../../api-lib/services/CandidateEvidenceEngine.js");
+      // Run asynchronously in background without blocking the pipeline response
+      CandidateEvidenceEngine.triggerScreening(resolvedCandidateId, undefined, false).catch(err => {
+        console.log(`[PIPELINE] Background AI Screening skipped/pending: ${err.message}`);
+      });
+    } catch (aiErr) {
+      console.warn("[PIPELINE] Could not trigger background AI Screening:", aiErr);
+    }
+
     console.log(`[PIPELINE] Completed processing "${filename}" for candidate "${candidateProfile.candidateName}" (Skills: ${candidateProfile.normalizedSkills.length}, Exp: ${candidateProfile.totalExperience}y).`);
 
     return {

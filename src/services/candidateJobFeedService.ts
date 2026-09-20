@@ -446,7 +446,7 @@ export class CandidateJobFeedService {
     }
 
     // Terminal: Rejected
-    if (s.includes("REJECT") || s.includes("DECLINED") || s.includes("DISQUALIF")) {
+    if (s.includes("REJECT") || s.includes("DECLINED") || s.includes("DISQUALIF") || s.includes("NOT_SELECTED")) {
       return {
         candidateStatus: "Rejected",
         badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
