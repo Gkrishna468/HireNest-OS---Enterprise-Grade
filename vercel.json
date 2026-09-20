@@ -163,6 +163,10 @@
       "destination": "/api/index?path=ruflo&action=:path*"
     },
     {
+      "source": "/api/candidates/screen",
+      "destination": "/api/index?path=candidate-screen"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index?path=:path*"
     },

@@ -17,6 +17,7 @@ export default async function handler(req: any, res: any) {
 
     // 1. Action: verify-evidence
     if (action === "verify-evidence") {
+      console.log(`[AI_SCREENING_API] action=verify-evidence candidateId=${candidateId}`);
       if (!candidateId) {
         return res.status(400).json({ error: "candidateId is required for evidence verification." });
       }
@@ -27,8 +28,9 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 2. Action: start-interview
+    // 2. Action: start-interview (called by recruiter to generate link)
     if (action === "start-interview") {
+      console.log(`[AI_INTERVIEW_API] action=start-interview candidateId=${candidateId} requirementId=${requirementId}`);
       if (!candidateId || !requirementId) {
         return res.status(400).json({ error: "candidateId and requirementId are required to start an AI Interview." });
       }
@@ -39,8 +41,49 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // 2a. Action: get-session (secure stub lookup by raw token, does not leak candidate details)
+    if (action === "get-session") {
+      const { rawToken } = req.body || {};
+      if (!rawToken) {
+        return res.status(400).json({ error: "rawToken is required to lookup session." });
+      }
+      const sessionStub = await AIInterviewService.getSessionByToken(rawToken);
+      return res.status(200).json({
+        success: true,
+        session: sessionStub
+      });
+    }
+
+    // 2b. Action: verify-email (verifies email against linked candidate, transitions status to VERIFIED, returns full session details securely)
+    if (action === "verify-email") {
+      const { rawToken, email } = req.body || {};
+      if (!rawToken || !email) {
+        return res.status(400).json({ error: "rawToken and email are required for verification." });
+      }
+      const session = await AIInterviewService.verifyCandidateEmail(rawToken, email);
+      return res.status(200).json({
+        success: true,
+        session
+      });
+    }
+
+    // 2c. Action: join-interview (called by candidate to transition status to IN_PROGRESS and start interview rounds)
+    if (action === "join-interview") {
+      console.log(`[AI_INTERVIEW_API] action=join-interview sessionId=${sessionId}`);
+      const { sessionId, voiceChoice } = req.body || {};
+      if (!sessionId) {
+        return res.status(400).json({ error: "sessionId is required." });
+      }
+      const session = await AIInterviewService.joinSession(sessionId, voiceChoice || "Standard Male");
+      return res.status(200).json({
+        success: true,
+        session
+      });
+    }
+
     // 3. Action: submit-answer
     if (action === "submit-answer") {
+      console.log(`[AI_INTERVIEW_API] action=submit-answer sessionId=${sessionId}`);
       if (!sessionId || typeof answer !== "string") {
         return res.status(400).json({ error: "sessionId and answer are required." });
       }
@@ -51,6 +94,10 @@ export default async function handler(req: any, res: any) {
         nextQuestion: outcome.nextQuestion,
         report: outcome.report
       });
+    }
+    
+    if (action) {
+        return res.status(400).json({ error: `Unsupported action: ${action}` });
     }
 
     // Default: Fallback to standard parsed resume screening

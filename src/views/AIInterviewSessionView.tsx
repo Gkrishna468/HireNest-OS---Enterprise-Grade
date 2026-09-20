@@ -32,11 +32,20 @@ interface IWindow extends Window {
   SpeechRecognition: any;
 }
 
+async function hashTokenClient(token: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(token);
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  return hashHex;
+}
+
 export default function AIInterviewSessionView() {
-  const { sessionId } = useParams<{ sessionId: string }>();
+  const { sessionId } = useParams<{ sessionId: string }>(); // URL parameter containing the rawToken
   const navigate = useNavigate();
 
   // Route & Verification States
+  const [hashedId, setHashedId] = useState<string>("");
   const [session, setSession] = useState<any>(null);
   const [candidate, setCandidate] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -56,26 +65,57 @@ export default function AIInterviewSessionView() {
   // Speech Recognition Ref
   const recognitionRef = useRef<any>(null);
 
-  // Auto-saved Verification check
+  // Compute hashedId asynchronously on mount/change
   useEffect(() => {
-    if (sessionId) {
-      const saved = localStorage.getItem(`verified_interview_${sessionId}`);
-      if (saved === "true") {
-        setIsVerified(true);
-      }
-    }
+    if (!sessionId) return;
+    hashTokenClient(sessionId).then((hId) => {
+      setHashedId(hId);
+    });
   }, [sessionId]);
 
-  // Real-time listener for the Interview Session
+  // Initial secure load of the session stub (zero-trust, no candidate info leaked)
   useEffect(() => {
     if (!sessionId) return;
 
-    const unsub = onSnapshot(doc(db, "ai_interview_sessions", sessionId), async (sessionDoc) => {
+    const initSession = async () => {
+      try {
+        const res = await fetch("/api/candidates/screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "get-session",
+            rawToken: sessionId
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setSession(data.session);
+          
+          const saved = localStorage.getItem(`verified_interview_${sessionId}`);
+          if (saved === "true" || data.session.status === "VERIFIED" || data.session.status === "IN_PROGRESS") {
+            setIsVerified(true);
+          }
+        } else {
+          setVerificationError(data.error || "Failed to load session details.");
+        }
+      } catch (err: any) {
+        setVerificationError("Network error loading session: " + err.message);
+      }
+    };
+
+    initSession();
+  }, [sessionId]);
+
+  // Real-time listener for the Interview Session (only active when verified)
+  useEffect(() => {
+    if (!hashedId || !isVerified) return;
+
+    const unsub = onSnapshot(doc(db, "ai_interview_sessions", hashedId), async (sessionDoc) => {
       if (sessionDoc.exists()) {
         const sData = sessionDoc.data();
         setSession({ id: sessionDoc.id, ...sData });
 
-        // Fetch candidate detail once for email matching
+        // Secure candidate details lookup once verified
         if (sData.candidateId) {
           const candDoc = await getDoc(doc(db, "candidatePool", sData.candidateId));
           if (candDoc.exists()) {
@@ -90,7 +130,7 @@ export default function AIInterviewSessionView() {
     });
 
     return () => unsub();
-  }, [sessionId]);
+  }, [hashedId, isVerified]);
 
   // Speak the question aloud if the browser supports speech synthesis
   const speakQuestion = (text: string) => {
@@ -117,13 +157,13 @@ export default function AIInterviewSessionView() {
 
   // Trigger speak when current question changes
   useEffect(() => {
-    if (isVerified && session && session.status === "ACTIVE" && session.currentQuestion) {
+    if (isVerified && session && (session.status === "IN_PROGRESS" || session.status === "VERIFIED") && session.currentQuestion) {
       // Speak automatically to welcome the candidate
       speakQuestion(session.currentQuestion);
     }
   }, [isVerified, session?.currentQuestion, voiceChoice]);
 
-  // Handle Candidate Verification
+  // Handle Candidate Verification via Secure API (zero-trust, verified strictly on server)
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verificationEmail.trim()) {
@@ -135,23 +175,28 @@ export default function AIInterviewSessionView() {
     setVerificationError("");
 
     try {
-      if (!candidate) {
-        setVerificationError("Session records are still loading. Please try again in a moment.");
-        setIsVerifying(false);
-        return;
+      const response = await fetch("/api/candidates/screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify-email",
+          rawToken: sessionId,
+          email: verificationEmail.trim()
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Verification failed");
       }
 
-      const match = candidate.email?.toLowerCase().trim() === verificationEmail.toLowerCase().trim();
-      if (match) {
-        setIsVerified(true);
-        if (sessionId) {
-          localStorage.setItem(`verified_interview_${sessionId}`, "true");
-        }
-      } else {
-        setVerificationError("Verification failed. The email provided does not match our application records.");
+      setIsVerified(true);
+      setSession(data.session);
+      if (sessionId) {
+        localStorage.setItem(`verified_interview_${sessionId}`, "true");
       }
     } catch (err: any) {
-      setVerificationError("Error verifying candidate: " + err.message);
+      setVerificationError(err.message || "Error verifying candidate: the email provided does not match our application records.");
     } finally {
       setIsVerifying(false);
     }
@@ -244,7 +289,7 @@ export default function AIInterviewSessionView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "submit-answer",
-          sessionId,
+          sessionId: session.id, // session.id is the hashedId
           answer: candidateAnswer,
         }),
       });
@@ -263,7 +308,7 @@ export default function AIInterviewSessionView() {
     }
   };
 
-  // Skip / Start first question
+  // Join / Start active interview rounds on the server side securely
   const startInterview = async () => {
     if (!session) return;
     setIsSubmitting(true);
@@ -272,19 +317,19 @@ export default function AIInterviewSessionView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "start-interview",
-          candidateId: session.candidateId,
-          requirementId: session.requirementId,
+          action: "join-interview",
+          sessionId: session.id, // session.id is the hashedId
           voiceChoice,
         }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start interview");
+        throw new Error(data.error || "Failed to join interview");
       }
+      setSession(data.session);
     } catch (err: any) {
-      setSystemMessage("Start failed: " + err.message);
+      setSystemMessage("Join failed: " + err.message);
     } finally {
       setIsSubmitting(false);
     }

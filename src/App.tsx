@@ -85,6 +85,8 @@ import RagIntelligenceTab from "./views/RagIntelligenceTab";
 import PredictiveIntelligenceTab from "./views/PredictiveIntelligenceTab";
 import DealRoomsTab from "./views/DealRoomsTab";
 import InterviewsTab from "./views/InterviewsTab";
+import AIInterviewsDashboardTab from "./views/AIInterviewsDashboardTab";
+import DirectCandidatesDashboardTab from "./views/DirectCandidatesDashboardTab";
 import { PlacementsTab } from "./views/PlacementsTab";
 import InboxTab from "./views/InboxTab";
 
@@ -134,6 +136,8 @@ import EvidenceDashboard from "./views/EvidenceDashboard";
 import FounderControlTower from "./views/FounderControlTower";
 import CandidatePortalWorkspace from "./views/workspaces/CandidatePortalWorkspace";
 import AIInterviewSessionView from "./views/AIInterviewSessionView";
+import AIInterviewsView from "./views/AIInterviewsView";
+import DirectCandidatesView from "./views/DirectCandidatesView";
 import CRMWorkspace from "./views/CRMWorkspace";
 
 const SidebarItem = ({
@@ -790,6 +794,20 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/ai-interviews"
+                icon={BrainCircuit}
+                label="AI Interviews"
+                active={location.pathname === "/ai-interviews"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
+                to="/direct-candidates"
+                icon={UserRound}
+                label="Direct Candidates"
+                active={location.pathname === "/direct-candidates"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <SidebarItem
                 to="/talent-acquisition"
                 icon={Cpu}
                 label="Talent Acquisition"
@@ -951,6 +969,8 @@ const AppContent = () => {
           <Routes>
             <Route path="/" element={<DashboardTab />} />
             <Route path="/talent-acquisition" element={<TalentAcquisitionTab />} />
+            <Route path="/ai-interviews" element={<AIInterviewsView />} />
+            <Route path="/direct-candidates" element={<DirectCandidatesView />} />
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/signals" element={<SignalsTab />} />}
             {isAdmin && (
@@ -1152,6 +1172,8 @@ const AppContent = () => {
             <Route path="/marketplace" element={<MarketplaceTab />} />
             <Route path="/placements" element={<PlacementsTab />} />
             <Route path="/interviews" element={<InterviewsTab />} />
+            <Route path="/ai-interviews" element={<AIInterviewsDashboardTab userRole={role || ""} orgId={userData?.organizationId || ""} />} />
+            <Route path="/direct-candidates" element={<DirectCandidatesDashboardTab userRole={role || ""} orgId={userData?.organizationId || ""} />} />
             {isAdmin && <Route path="/emails" element={<InboxTab />} />}
             {isAdmin && (
               <Route
