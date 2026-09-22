@@ -25,7 +25,7 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
     const isPublicApi = currentPath.startsWith('/api/public/') || currentPath === '/api/public-candidate-resume';
 
     // 3. OAuth callbacks
-    const isOAuthCallback = currentPath === '/oauth/callback' || currentPath === '/api/oauth/callback' || currentPath === '/api/oauth/url';
+    const isOAuthCallback = currentPath === '/oauth/callback' || currentPath === '/api/oauth/callback';
 
     // 4. Named authenticated webhooks
     const isWebhook = [

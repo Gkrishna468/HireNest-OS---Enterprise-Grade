@@ -1,42 +1,132 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, Video, Users, AlignLeft, Globe, Link } from 'lucide-react';
+import { X, Calendar, Clock, Video, Users, AlignLeft, Globe, Link, Sparkles, Mail } from 'lucide-react';
 import { Button } from '../../lib/Button';
 import { useSubmissionStore } from '../../stores/SubmissionStore';
+import { auth } from '../../lib/firebase';
 
 export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  
   const { updateInterviewEvent, requestInterview } = useSubmissionStore();
-   const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState({
     round: 'Technical Round 1',
-    date: '', // used as preferred date or exact date
+    date: '', 
     time: '',
     endTime: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     interviewer: '',
-    mode: 'Teams',
+    interviewerEmail: '',
+    mode: 'Google Meet',
     meetingLink: '',
     notes: ''
   });
 
   const handleChange = (e: any) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    // Clear availability status if time changes
+    if (e.target.name === 'time' || e.target.name === 'date' || e.target.name === 'endTime') {
+      setAvailabilityStatus(null);
+    }
+  };
+
+  const checkAvailability = async () => {
+    if (!formData.date || !formData.time) {
+      alert("Please select a date and start time first.");
+      return;
+    }
+    setCheckingAvailability(true);
+    setAvailabilityStatus(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error("You must be logged in to check calendar availability.");
+      }
+      
+      const startDateTime = `${formData.date}T${formData.time}:00`;
+      const endDateTime = formData.endTime 
+        ? `${formData.date}T${formData.endTime}:00` 
+        : `${formData.date}T${formData.time}:00`;
+      
+      // Call our freebusy proxy endpoint
+      const res = await fetch(`/api/google/calendar/freebusy?timeMin=${encodeURIComponent(startDateTime)}Z&timeMax=${encodeURIComponent(endDateTime)}Z`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error?.message || result.error || "Calendar connection check failed.");
+      }
+
+      const primaryCal = result.calendars?.primary || {};
+      const busyTimes = primaryCal.busy || [];
+      if (busyTimes.length > 0) {
+        setAvailabilityStatus("⚠️ CONFLICT: Recruiter calendar is busy at this time.");
+      } else {
+        setAvailabilityStatus("✅ AVAILABLE: Time slot is open on Google Calendar.");
+      }
+    } catch (e: any) {
+      console.warn("Availability check error:", e.message);
+      if (e.message?.includes("connection") || e.message?.includes("OAuth") || e.message?.includes("connect")) {
+        setAvailabilityStatus("❌ Google Calendar is not connected. Connect in Settings -> Integrations.");
+      } else {
+        setAvailabilityStatus("❌ Calendar credentials expired. Please reconnect in Settings.");
+      }
+    } finally {
+      setCheckingAvailability(false);
+    }
   };
 
   const handleSave = async () => {
     if (!formData.date || !formData.interviewer) {
-      alert("Please fill date and interviewer.");
+      alert("Please fill in the date and interviewer name.");
       return;
     }
     
     setIsProcessing(true);
     const actualSubId = submission.submissionId || submission.id;
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error("You must be logged in to schedule an interview.");
+      }
+
+      console.log("[InterviewSchedulerModal] Submitting interview proposal to backend...");
+      
+      // 1. Submit through backend REST API
+      const res = await fetch('/api/interviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          submission,
+          requirement,
+          isClientAction,
+          formData
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || "Failed to schedule interview.");
+      }
+
+      console.log("[InterviewSchedulerModal] Backend scheduled successfully:", data);
+
+      // 2. Fallback to store to synchronize local state
       if (submission && actualSubId) {
          if (isClientAction) {
             await requestInterview(actualSubId, {
                interviewStatus: "INTERVIEW_REQUESTED",
                isNewRound: true,
-               interviewDetails: formData,
+               interviewDetails: {
+                 ...formData,
+                 meetingLink: data.meetingLink || formData.meetingLink
+               },
                submissionId: actualSubId,
                candidateId: submission.candidateId,
                requirementId: submission.requirementId,
@@ -52,11 +142,15 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
                interviewStatus: "INTERVIEW_SCHEDULED",
                interviewFeedback: "",
                isNewRound: true,
-               interviewDetails: formData
+               interviewDetails: {
+                 ...formData,
+                 meetingLink: data.meetingLink || formData.meetingLink
+               }
             });
          }
       }
-      alert(isClientAction ? "Interview Requested successfully!" : "Interview Scheduled successfully!");
+
+      alert(isClientAction ? "Interview requested successfully!" : "Interview scheduled successfully and Google Calendar updated!");
       onClose();
     } catch (e: any) {
       console.error(e);
@@ -98,8 +192,8 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
 
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={12}/> {isClientAction ? 'Preferred Date' : 'Date'}</label>
-                 <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={12}/> {isClientAction ? 'Preferred Date' : 'Date'}</label>
+                  <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {!isClientAction ? (
                  <div className="grid grid-cols-2 gap-2">
@@ -120,6 +214,30 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
               )}
            </div>
 
+           {/* Google Calendar Availability Trigger */}
+           {!isClientAction && formData.mode === "Google Meet" && (
+             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-2">
+               <div className="flex justify-between items-center">
+                 <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                   <Sparkles size={14} className="text-amber-500" /> Google Calendar Integration
+                 </span>
+                 <button 
+                   type="button"
+                   onClick={checkAvailability}
+                   disabled={checkingAvailability}
+                   className="text-xs text-indigo-600 hover:text-indigo-800 font-bold transition-colors disabled:opacity-50"
+                 >
+                   {checkingAvailability ? 'Checking...' : 'Check Availability'}
+                 </button>
+               </div>
+               {availabilityStatus && (
+                 <div className="text-xs font-medium mt-1 p-2 bg-white rounded-lg border border-slate-100">
+                   {availabilityStatus}
+                 </div>
+               )}
+             </div>
+           )}
+
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12}/> Timezone</label>
@@ -131,18 +249,35 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
               </div>
            </div>
 
+           {/* Interviewer Email input */}
+           {!isClientAction && (
+             <div>
+               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                 <Mail size={12}/> Interviewer Email (for Calendar Invitation)
+               </label>
+               <input 
+                 type="email" 
+                 name="interviewerEmail" 
+                 placeholder="e.g. interviewer@company.com" 
+                 value={formData.interviewerEmail} 
+                 onChange={handleChange} 
+                 className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" 
+               />
+             </div>
+           )}
+
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Video size={12}/> Mode / Provider</label>
                  <select name="mode" value={formData.mode} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option>Teams</option>
-                    <option>Google Meet</option>
-                    <option>Zoom</option>
-                    <option>Webex</option>
-                    <option>In-Person</option>
+                    <option value="Google Meet">Google Meet</option>
+                    <option value="Teams">Teams</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Webex">Webex</option>
+                    <option value="In-Person">In-Person</option>
                  </select>
               </div>
-              {!isClientAction && (
+              {!isClientAction && formData.mode !== "Google Meet" && (
                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Link size={12}/> Meeting Link</label>
                     <input type="url" name="meetingLink" placeholder="https://..." value={formData.meetingLink} onChange={handleChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" />

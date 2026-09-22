@@ -117,7 +117,7 @@ async function runTests() {
       createdBy: "admin-tester",
       createdByRole: "ADMIN"
     });
-    const cancelled = await InterviewOrchestrationService.cancelInterview(interview2.interviewId, "Candidate withdrew application");
+    const cancelled = await InterviewOrchestrationService.cancelInterview("admin-tester", interview2.interviewId, "Candidate withdrew application");
     console.log("✓ Interview Cancelled:", cancelled.status);
     if (cancelled.status !== "CANCELLED") throw new Error(`Expected status CANCELLED, got ${cancelled.status}`);
 

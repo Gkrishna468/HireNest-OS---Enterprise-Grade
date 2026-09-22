@@ -3,6 +3,7 @@ import { db } from "../../lib/firebase-admin.js";
 import { google } from "googleapis";
 import { encryptText, decryptText } from "../../lib/encryption.js";
 import { WorkspaceResolver } from "../services/WorkspaceResolver.js";
+import { CalendarService } from "../services/CalendarService.js";
 
 const googleProxyHandler = express.Router();
 
@@ -157,6 +158,32 @@ googleProxyHandler.post("/calendar/events", async (req, res) => {
     res
       .status(e.response?.status || 500)
       .json({ error: e.message || "Failed to create Calendar Event" });
+  }
+});
+
+googleProxyHandler.get("/calendar/freebusy", async (req, res) => {
+  const uid = (req as any).user?.uid;
+  if (!uid) return res.status(401).json({ error: "Unauthorized" });
+
+  const { timeMin, timeMax, user } = req.query;
+  if (!timeMin || !timeMax) {
+    return res.status(400).json({ error: "Missing timeMin or timeMax query parameters." });
+  }
+
+  try {
+    const targetUid = (user as string) || uid;
+    const calendars = await CalendarService.getFreeBusy(targetUid, timeMin as string, timeMax as string);
+    res.json({ ok: true, calendars });
+  } catch (e: any) {
+    console.error("[googleProxyHandler] freebusy error:", e.message);
+    const code = e.code || "GOOGLE_CALENDAR_ERROR";
+    const status = e.code === "GOOGLE_CALENDAR_NOT_CONNECTED" ? 400 : (e.code === "GOOGLE_OAUTH_EXPIRED" ? 401 : 500);
+    res.status(status).json({
+      error: {
+        code,
+        message: e.message || "Failed to query free/busy calendar information."
+      }
+    });
   }
 });
 

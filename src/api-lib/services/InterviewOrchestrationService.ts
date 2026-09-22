@@ -106,9 +106,14 @@ export class InterviewOrchestrationService {
       try {
         const eventResult = await CalendarService.createEvent(uid, event, createMeet);
         calendarEventId = eventResult.id;
-        meetingLink = eventResult.hangoutLink || undefined;
+        
+        // Extract the actual Google-generated Meet conference entry point (video link)
+        const videoEntryPoint = eventResult.conferenceData?.entryPoints?.find(
+          (ep: any) => ep.entryPointType === "video"
+        );
+        meetingLink = videoEntryPoint?.uri || eventResult.hangoutLink || undefined;
       } catch (err: any) {
-        if (err.message?.includes("OAuth") || err.message?.includes("token")) {
+        if (err.message?.includes("OAuth") || err.message?.includes("token") || err.message?.includes("connected")) {
           const customErr: any = new Error("CALENDAR_CONNECTION_REQUIRED: Google Calendar OAuth connection is required to create a Google Meet event.");
           customErr.code = "CALENDAR_CONNECTION_REQUIRED";
           throw customErr;
@@ -123,7 +128,7 @@ export class InterviewOrchestrationService {
       scheduledEnd: event.end.dateTime,
       timezone: event.start.timeZone || "UTC",
       calendarEventId,
-      meetingProvider: meetingLink ? "GOOGLE_MEET" : "NONE",
+      meetingProvider: createMeet ? "GOOGLE_MEET" : (meetingLink ? "MANUAL" : "NONE"),
       meetingLink,
       updatedAt: new Date().toISOString()
     };
@@ -144,16 +149,39 @@ export class InterviewOrchestrationService {
   ): Promise<Interview> {
     if (!adminDb) throw new Error("Firestore Admin DB is not initialized");
 
-    await this.validateTransition(interviewId, "SCHEDULED");
-
     const interviewRef = adminDb.collection("interviews").doc(interviewId);
+    const currentDoc = await interviewRef.get();
+    if (!currentDoc.exists) throw new Error(`Interview not found: ${interviewId}`);
+    const currentData = currentDoc.data() as Interview;
+
+    // 1. Delete previous Google Calendar event to prevent duplication
+    if (currentData.calendarEventId) {
+      try {
+        console.log(`[InterviewOrchestration] Deleting prior calendar event: ${currentData.calendarEventId}`);
+        await CalendarService.deleteEvent(uid, currentData.calendarEventId);
+      } catch (delErr: any) {
+        console.warn("[InterviewOrchestration] Failed to delete previous calendar event:", delErr.message);
+      }
+    }
+
+    let calendarEventId: string | undefined = undefined;
     let meetingLink: string | undefined = undefined;
 
     try {
       const eventResult = await CalendarService.createEvent(uid, event, createMeet);
-      meetingLink = eventResult.hangoutLink || undefined;
+      calendarEventId = eventResult.id;
+      
+      const videoEntryPoint = eventResult.conferenceData?.entryPoints?.find(
+        (ep: any) => ep.entryPointType === "video"
+      );
+      meetingLink = videoEntryPoint?.uri || eventResult.hangoutLink || undefined;
     } catch (err: any) {
-      console.warn("[InterviewOrchestration] Calendar update failed during reschedule:", err.message);
+      if (err.message?.includes("OAuth") || err.message?.includes("token") || err.message?.includes("connected")) {
+        const customErr: any = new Error("CALENDAR_CONNECTION_REQUIRED: Google Calendar OAuth connection is required to create a Google Meet event.");
+        customErr.code = "CALENDAR_CONNECTION_REQUIRED";
+        throw customErr;
+      }
+      console.warn("[InterviewOrchestration] Calendar update failed during reschedule, fallback to previous values:", err.message);
     }
 
     const updateData: Partial<Interview> = {
@@ -161,7 +189,8 @@ export class InterviewOrchestrationService {
       scheduledStart: event.start.dateTime,
       scheduledEnd: event.end.dateTime,
       timezone: event.start.timeZone || "UTC",
-      meetingLink: meetingLink || (await interviewRef.get()).data()?.meetingLink,
+      calendarEventId: calendarEventId || currentData.calendarEventId,
+      meetingLink: meetingLink || currentData.meetingLink,
       updatedAt: new Date().toISOString()
     };
 
@@ -208,13 +237,31 @@ export class InterviewOrchestrationService {
     return { ...(await interviewRef.get()).data() } as Interview;
   }
 
-  public static async cancelInterview(interviewId: string, reason: string): Promise<Interview> {
+  public static async cancelInterview(uid: string, interviewId: string, reason: string): Promise<Interview> {
     if (!adminDb) throw new Error("Firestore Admin DB is not initialized");
 
     await this.validateTransition(interviewId, "CANCELLED");
 
     const interviewRef = adminDb.collection("interviews").doc(interviewId);
-    await interviewRef.update({ status: "CANCELLED", updatedAt: new Date().toISOString() });
+    const currentDoc = await interviewRef.get();
+    const currentData = currentDoc.exists ? currentDoc.data() as Interview : null;
+
+    // Delete Google Calendar event if it exists
+    if (currentData?.calendarEventId) {
+      try {
+        console.log(`[InterviewOrchestration] Deleting calendar event on cancellation: ${currentData.calendarEventId}`);
+        await CalendarService.deleteEvent(uid, currentData.calendarEventId);
+      } catch (delErr: any) {
+        console.warn("[InterviewOrchestration] Failed to delete calendar event during cancellation:", delErr.message);
+      }
+    }
+
+    await interviewRef.update({ 
+      status: "CANCELLED", 
+      calendarEventId: null,
+      meetingLink: null,
+      updatedAt: new Date().toISOString() 
+    });
     
     const cancelledInterview = { ...(await interviewRef.get()).data() } as Interview;
     await EventBus.publish("INTERVIEW_CANCELLED", { ...cancelledInterview, reason }, "InterviewOrchestrationService", cancelledInterview.organizationId);

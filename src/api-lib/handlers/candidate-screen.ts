@@ -44,7 +44,7 @@ export default async function handler(req: any, res: any) {
       });
 
       const session = await AIInterviewService.startSession(candidateId, requirementId, voiceChoice);
-      await InterviewOrchestrationService.startInterview(interview.interviewId, session.sessionId);
+      await InterviewOrchestrationService.startInterview(interview.interviewId, session.id);
       
       return res.status(200).json({ success: true, interview, session });
     }

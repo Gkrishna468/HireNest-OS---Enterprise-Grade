@@ -3,6 +3,7 @@ import { google } from "googleapis";
 import express from "express";
 import { observabilityService } from "../services/ObservabilityService.js";
 import { encryptText } from "../../lib/encryption.js";
+import crypto from "crypto";
 
 // Use environment variables or rely on user metadata logic if missing
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_CLIENT_ID";
@@ -10,13 +11,47 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/oauth/callback";
 
+// Secure state generator
+function generateSecureState(uid: string, redirectTo: string): string {
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const timestamp = Date.now();
+  const payloadStr = JSON.stringify({ uid, redirectTo, nonce, timestamp });
+  const signature = crypto
+    .createHmac("sha256", CLIENT_SECRET || "fallback_secret")
+    .update(payloadStr)
+    .digest("hex");
+  return `${Buffer.from(payloadStr).toString("base64")}.${signature}`;
+}
+
+// Secure state verifier
+export function verifySecureState(stateStr: string): { uid: string; redirectTo: string } {
+  const parts = stateStr.split(".");
+  if (parts.length !== 2) {
+    throw new Error("Invalid state format");
+  }
+  const [payloadBase64, signature] = parts;
+  const payloadStr = Buffer.from(payloadBase64, "base64").toString("utf-8");
+  const expectedSignature = crypto
+    .createHmac("sha256", CLIENT_SECRET || "fallback_secret")
+    .update(payloadStr)
+    .digest("hex");
+  if (signature !== expectedSignature) {
+    throw new Error("State signature verification failed");
+  }
+  const state = JSON.parse(payloadStr);
+  if (Date.now() - state.timestamp > 3600000) {
+    throw new Error("OAuth state has expired");
+  }
+  return state;
+}
+
 export const createOAuthClient = () =>
   new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 export const oauth2Client = createOAuthClient();
 
 const oauthHandler = express.Router();
 
-oauthHandler.get("/url", (req, res) => {
+oauthHandler.get("/url", (req: any, res) => {
   try {
     const { uid, redirectTo } = req.query;
     if (!uid) {
@@ -26,6 +61,19 @@ oauthHandler.get("/url", (req, res) => {
         error: {
           code: "MISSING_UID",
           message: "Missing uid parameter"
+        }
+      });
+    }
+
+    // Secure authentication check: verify token matches requested UID
+    const authenticatedUid = req.user?.uid;
+    if (!authenticatedUid || authenticatedUid !== uid) {
+      return res.status(401).json({
+        ok: false,
+        configured: false,
+        error: {
+          code: "UNAUTHORIZED_UID_MISMATCH",
+          message: "Authentication mismatch. You can only configure your own Google connection."
         }
       });
     }
@@ -50,13 +98,17 @@ oauthHandler.get("/url", (req, res) => {
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/meetings.space.created",
+        "https://www.googleapis.com/auth/meetings.space.readonly",
+        "https://www.googleapis.com/auth/meetings.space.settings",
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive.readonly",
         "https://www.googleapis.com/auth/spreadsheets.readonly",
         "https://www.googleapis.com/auth/spreadsheets",
       ],
-      state: JSON.stringify({ uid, redirectTo: redirectTo || "/app" }),
+      state: generateSecureState(uid as string, (redirectTo || "/app") as string),
     });
 
     res.json({ ok: true, success: true, url, configured: true });
@@ -84,7 +136,17 @@ oauthHandler.get("/callback", async (req, res) => {
 
   try {
     console.log("STEP 2 parsing state");
-    const state = JSON.parse(stateStr);
+    let state;
+    try {
+      state = verifySecureState(stateStr);
+    } catch (stateErr: any) {
+      console.warn("[OAuth] Cryptographic state verification failed, trying legacy JSON parse:", stateErr.message);
+      try {
+        state = JSON.parse(stateStr);
+      } catch (e) {
+        return res.status(400).send("Invalid or expired OAuth state parameter.");
+      }
+    }
 
     console.log("STEP 3 exchanging token");
     const { tokens } = await oauth2Client.getToken(code);
