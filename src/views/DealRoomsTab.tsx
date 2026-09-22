@@ -130,13 +130,14 @@ export default function DealRoomsTab() {
 
         // Fallback to Firestore
         let q;
-        if (userRole && userRole.startsWith("client")) {
+        const normRole = (userRole || "").toLowerCase();
+        if (normRole.startsWith("client")) {
           q = query(
             collection(db, "dealRooms"),
             where("clientId", "==", orgId),
             limit(50),
           );
-        } else if (userRole && userRole.includes("vendor")) {
+        } else if (normRole.includes("vendor")) {
           q = query(
             collection(db, "dealRooms"),
             where("vendorId", "==", orgId),

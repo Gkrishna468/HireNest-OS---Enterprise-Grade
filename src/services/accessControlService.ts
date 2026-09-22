@@ -111,6 +111,21 @@ export class AccessControlService {
   }
 
   /**
+   * Helper to retrieve a requirement from the canonical collection or legacy fallback
+   */
+  static async getRequirementDocument(requirementId: string): Promise<any | null> {
+    try {
+      const reqSnap = await getDoc(doc(db, 'requirements', requirementId));
+      if (reqSnap.exists()) return reqSnap.data();
+    } catch (_) {}
+    try {
+      const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
+      if (reqSnap.exists()) return reqSnap.data();
+    } catch (_) {}
+    return null;
+  }
+
+  /**
    * Authoritatively determines if a user can view a given requirement.
    */
   static async canViewRequirement(context: HireNestAccessContext, requirementId: string): Promise<boolean> {
@@ -121,9 +136,9 @@ export class AccessControlService {
 
     if (role === 'CANDIDATE') {
       try {
-        const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
-        if (!reqSnap.exists()) return false;
-        return CandidateRequirementEligibilityPolicy.isCandidateEligible(reqSnap.data());
+        const reqData = await this.getRequirementDocument(requirementId);
+        if (!reqData) return false;
+        return CandidateRequirementEligibilityPolicy.isCandidateEligible(reqData);
       } catch (err) {
         return false;
       }
@@ -141,9 +156,8 @@ export class AccessControlService {
       const scope = context.abacScope || (rType === 'FREELANCE' ? 'EXPLICIT_ONLY' : 'ASSIGNED_ONLY');
 
       try {
-        const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
-        if (!reqSnap.exists()) return false;
-        const req = reqSnap.data();
+        const req = await this.getRequirementDocument(requirementId);
+        if (!req) return false;
 
         // 1. Vendor Recruiter Check (Must belong to their mapped vendor AND assigned to req)
         if (rType === 'VENDOR') {
@@ -176,9 +190,8 @@ export class AccessControlService {
       const cId = context.clientId || context.organizationId;
       if (!cId) return false;
       try {
-        const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
-        if (!reqSnap.exists()) return false;
-        const req = reqSnap.data();
+        const req = await this.getRequirementDocument(requirementId);
+        if (!req) return false;
         return req.clientId === cId || req.client_id === cId;
       } catch (err) {
         return false;

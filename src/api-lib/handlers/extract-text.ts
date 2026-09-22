@@ -3,6 +3,7 @@ import { ErrorMonitor } from "../telemetry/errorMonitor.js";
 import { AuditLogger } from "../telemetry/auditLogger.js";
 import { ResumeProcessingPipeline } from "../../resume-engine/pipeline/ResumeProcessingPipeline.js";
 import { adminDb } from "../../lib/firebase-admin.js";
+import { EventBus } from "../services/EventBus.js";
 
 // Configure multer storage in memory with size limits to prevent Denial of Service (DoS)
 const multerFunc =
@@ -172,6 +173,15 @@ export default async function handler(req: any, res: any) {
       console.log(
         `[EXTRACTION] [${requestId}] Success! Candidate: "${pipelineResult.candidateName}", Method: ${pipelineResult.extractionMethod}, Skills: ${pipelineResult.skillsFound}, Status: ${pipelineResult.status}`,
       );
+
+      if (pipelineResult.candidateId) {
+        EventBus.publish("RESUME_UPLOADED", {
+          candidateId: pipelineResult.candidateId,
+          resumeText: pipelineResult.candidateProfile?.resumeText || "",
+          fileName: originalname,
+          requirementId: req.body?.requirementId || req.query?.requirementId
+        }, "extract-text-handler", orgId).catch(err => console.warn("[EXTRACTION] EventBus emission warning:", err.message));
+      }
 
       return res.status(200).json({
         success: true,

@@ -387,12 +387,47 @@ export default function Candidate360Modal({
       setInternalJobs(jobs);
       return;
     }
-    // SSOT Fallback: subscribe to requirements_public if parent did not provide jobs (bounded to limit 50 to conserve reads)
-    const unsub = onSnapshot(query(collection(db, "requirements_public"), limit(50)), (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setInternalJobs(docs);
-    }, (err) => console.warn("[Candidate360Modal] fallback reqs load warning:", err?.message));
-    return () => unsub();
+    // SSOT Fallback: subscribe to both requirements_public and requirements (canonical) to prevent CRM/OS mismatches
+    let publicDocs: any[] = [];
+    let canonicalDocs: any[] = [];
+
+    const mergeDocs = () => {
+      const mergedMap = new Map();
+      
+      publicDocs.forEach(d => {
+        const reqId = d.id || d.requirementId || d.id;
+        if (reqId) {
+          const docCopy = { ...d, id: reqId, requirementId: reqId };
+          mergedMap.set(reqId, docCopy);
+        }
+      });
+      
+      canonicalDocs.forEach(d => {
+        const reqId = d.id || d.requirementId || d.id;
+        if (reqId) {
+          const docCopy = { ...d, id: reqId, requirementId: reqId };
+          // Canonical overrides public
+          mergedMap.set(reqId, docCopy);
+        }
+      });
+      
+      setInternalJobs(Array.from(mergedMap.values()));
+    };
+
+    const unsubPublic = onSnapshot(query(collection(db, "requirements_public"), limit(50)), (snap) => {
+      publicDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      mergeDocs();
+    }, (err) => console.warn("[Candidate360Modal] fallback public reqs load warning:", err?.message));
+
+    const unsubCanonical = onSnapshot(query(collection(db, "requirements"), limit(50)), (snap) => {
+      canonicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      mergeDocs();
+    }, (err) => console.warn("[Candidate360Modal] fallback canonical reqs load warning:", err?.message));
+
+    return () => {
+      unsubPublic();
+      unsubCanonical();
+    };
   }, [jobs]);
 
   const effectiveJobs = (jobs && jobs.length > 0) ? jobs : internalJobs;

@@ -89,144 +89,16 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
       if (opps.length > 0) {
         setOpportunities(opps);
       } else {
-        // Fallback initial dataset if collection is empty
-        const initialOpps: CRMOpportunityEntity[] = [
-          {
-            id: "OPP-101",
-            clientId: "CLIENT-ACME",
-            clientName: "Acme Cloud Technologies",
-            title: "10x Senior Full-Stack Engineering Pod",
-            stage: "NEGOTIATION",
-            dealValue: 180000,
-            probability: 80,
-            expectedRevenue: 144000,
-            targetRoles: ["React", "TypeScript", "Node.js", "Kubernetes"],
-            positionsCount: 10,
-            ownerId: accessContext.uid,
-            createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "OPP-102",
-            clientId: "CLIENT-NEXUS",
-            clientName: "Nexus BioHealth",
-            title: "GenAI & ML Infrastructure Contract",
-            stage: "PROPOSAL_SENT",
-            dealValue: 120000,
-            probability: 60,
-            expectedRevenue: 72000,
-            targetRoles: ["Python", "PyTorch", "GCP Vertex AI"],
-            positionsCount: 4,
-            ownerId: accessContext.uid,
-            createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "OPP-103",
-            clientId: "CLIENT-FINCORP",
-            clientName: "FinCorp Global",
-            title: "Core Banking Modernization Team",
-            stage: "DELIVERY_HANDOFF",
-            dealValue: 240000,
-            probability: 100,
-            expectedRevenue: 240000,
-            targetRoles: ["Java", "Spring Boot", "Kafka", "Microservices"],
-            positionsCount: 6,
-            linkedRequirementId: "HN-REQ-88210",
-            ownerId: accessContext.uid,
-            createdAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ];
-        setOpportunities(initialOpps);
+        setOpportunities([]);
       }
 
       // 2. Fetch Clients
       const clientList = await ClientService.listClients(accessContext);
-      if (clientList.length > 0) {
-        setClients(clientList);
-      } else {
-        setClients([
-          {
-            id: "CLIENT-ACME",
-            name: "Acme Cloud Technologies",
-            industry: "Enterprise SaaS",
-            status: "ACTIVE",
-            activeRequirementsCount: 3,
-            totalPlacementsCount: 8,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "CLIENT-NEXUS",
-            name: "Nexus BioHealth",
-            industry: "Healthcare AI",
-            status: "ACTIVE",
-            activeRequirementsCount: 2,
-            totalPlacementsCount: 4,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "CLIENT-FINCORP",
-            name: "FinCorp Global",
-            industry: "Financial Services",
-            status: "ACTIVE",
-            activeRequirementsCount: 5,
-            totalPlacementsCount: 14,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      setClients(clientList);
 
       // 3. Fetch Contacts
       const contactList = await CRMService.listContacts(accessContext);
-      if (contactList.length > 0) {
-        setContacts(contactList);
-      } else {
-        setContacts([
-          {
-            id: "CTC-01",
-            clientId: "CLIENT-ACME",
-            clientName: "Acme Cloud Technologies",
-            name: "Sarah Jenkins",
-            title: "VP of Engineering",
-            email: "s.jenkins@acmecloud.io",
-            phone: "+1-555-0182",
-            decisionAuthority: "PRIMARY_DECISION_MAKER",
-            sentiment: "CHAMPION",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "CTC-02",
-            clientId: "CLIENT-ACME",
-            clientName: "Acme Cloud Technologies",
-            name: "Marcus Vance",
-            title: "Head of Talent Acquisition",
-            email: "m.vance@acmecloud.io",
-            phone: "+1-555-0193",
-            decisionAuthority: "ECONOMIC_BUYER",
-            sentiment: "POSITIVE",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: "CTC-03",
-            clientId: "CLIENT-NEXUS",
-            clientName: "Nexus BioHealth",
-            name: "Dr. Elena Rostova",
-            title: "Chief AI Officer",
-            email: "elena@nexusbio.health",
-            phone: "+1-555-0149",
-            decisionAuthority: "PRIMARY_DECISION_MAKER",
-            sentiment: "CHAMPION",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      setContacts(contactList);
 
       // 4. Fetch Hiring Signals
       const signalsRes = await HiringSignalService.detectHiringSignals(accessContext, "Acme Cloud Technologies");
@@ -251,8 +123,14 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
   }, [userRole, orgId]);
 
   // Total metrics
-  const totalPipeline = opportunities.reduce((acc, o) => acc + o.dealValue, 0);
-  const expectedRevenue = opportunities.reduce((acc, o) => acc + o.expectedRevenue, 0);
+  const totalPipeline = opportunities.reduce((acc, o) => {
+    const val = Number(o.dealValue);
+    return acc + (Number.isFinite(val) ? val : 0);
+  }, 0);
+  const expectedRevenue = opportunities.reduce((acc, o) => {
+    const val = Number(o.expectedRevenue);
+    return acc + (Number.isFinite(val) ? val : 0);
+  }, 0);
   const activeDealsCount = opportunities.filter((o) => !["CLOSED_LOST"].includes(o.stage)).length;
 
   const handleHandoffToCore = async (oppId: string) => {
@@ -542,7 +420,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                         <div className="grid grid-cols-2 gap-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 mb-3">
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Deal Value</span>
-                            <div className="text-sm font-black text-emerald-400">{formatINR(opp.dealValue)}</div>
+                            <div className="text-sm font-black text-emerald-400">{Number.isFinite(Number(opp.dealValue)) ? formatINR(Number(opp.dealValue)) : "Not available"}</div>
                           </div>
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Expected Yield</span>
@@ -850,7 +728,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Commercial Value: {formatINR(opp.dealValue)}</span>
+                      <span>Commercial Value: {Number.isFinite(Number(opp.dealValue)) ? formatINR(Number(opp.dealValue)) : "Not available"}</span>
                       <span className="text-emerald-400 font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Operational in Core OS
                       </span>

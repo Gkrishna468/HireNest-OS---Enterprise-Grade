@@ -1194,6 +1194,81 @@ export default function CandidatePortalWorkspace({
               </Button>
             </div>
 
+            {/* Scheduled Interviews & Screenings Section */}
+            {interviews && interviews.length > 0 && (
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 space-y-4 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <Calendar className="text-indigo-600 animate-pulse" size={20} />
+                  <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">
+                    My Scheduled Interviews &amp; Screenings
+                  </h3>
+                  <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                    {interviews.length} Scheduled
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {interviews.map((interview) => {
+                    const isAI = interview.type === "AI_SCREENING";
+                    const isScheduled = interview.status === "SCHEDULED" || interview.status === "INVITED";
+                    const dateStr = interview.scheduledStart
+                      ? new Date(interview.scheduledStart).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+                      : "TBD";
+                    const timeStr = interview.scheduledStart
+                      ? new Date(interview.scheduledStart).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                      : "TBD";
+
+                    return (
+                      <div key={interview.id || interview.interviewId} className="bg-white p-5 border border-slate-200 rounded-xl flex flex-col justify-between hover:border-indigo-300 transition-all">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider border ${
+                              isAI ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}>
+                              {isAI ? "🤖 AI pre-screening" : "👥 Human Panel"}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">
+                              {interview.status}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-slate-950 text-sm truncate">
+                            {interview.round || (isAI ? "Autonomous AI Assessment" : "Technical Panel Interview")}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-semibold flex items-center gap-1">
+                            <Clock size={13} className="text-slate-400" />
+                            <span>{dateStr} at {timeStr} ({interview.timezone || "Local Time"})</span>
+                          </p>
+                          {interview.interviewer && (
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              Interviewer: {interview.interviewer}
+                            </p>
+                          )}
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-indigo-600">
+                            {interview.meetingProvider || "Online"} Session
+                          </span>
+                          {interview.meetingLink ? (
+                            <a
+                              href={interview.meetingLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black px-3.5 py-1.5 rounded-lg transition-all"
+                            >
+                              Join Meeting
+                            </a>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400">
+                              Meeting link pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {applications.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-4">
                 <FileText className="w-12 h-12 text-slate-300 mx-auto" />

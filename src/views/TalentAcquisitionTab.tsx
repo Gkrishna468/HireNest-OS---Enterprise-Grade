@@ -130,11 +130,12 @@ export default function TalentAcquisitionTab() {
     setIsLoading(true);
     const orgId = userData?.organizationId;
     const role = userData?.role || "guest";
-    const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ" || role === "business_operations" || role === "global_hq";
+    const normRole = (role || "").toLowerCase();
+    const isAdmin = normRole === "admin" || normRole === "super_admin" || normRole === "ops_admin" || normRole === "hq_admin" || orgId === "ORG-GLOBAL-HQ" || normRole === "business_operations" || normRole === "global_hq";
 
-    // Real-time listener for requirements_public
+    // Real-time listener for requirements_public (supports global access scope for admin/ops roles)
     const reqRef = collection(db, "requirements_public");
-    const reqQuery = orgId ? query(reqRef, where("clientId", "==", orgId)) : query(reqRef, limit(50));
+    const reqQuery = isAdmin ? query(reqRef, limit(100)) : (orgId ? query(reqRef, where("clientId", "==", orgId)) : query(reqRef, limit(50)));
     const unsubReq = onSnapshot(reqQuery, (snap) => {
       const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRequirements(items);
@@ -147,9 +148,9 @@ export default function TalentAcquisitionTab() {
       setCandidates(items);
     }, (err) => console.warn("Error listening to candidates:", err));
 
-    // Real-time listener for candidate_matches
+    // Real-time listener for candidate_matches (supports global access scope for admin/ops roles)
     const matchRef = collection(db, "candidate_matches");
-    const matchQuery = orgId ? query(matchRef, where("clientId", "==", orgId)) : query(matchRef, limit(50));
+    const matchQuery = isAdmin ? query(matchRef, limit(100)) : (orgId ? query(matchRef, where("clientId", "==", orgId)) : query(matchRef, limit(50)));
     const unsubMatch = onSnapshot(matchQuery, (snap) => {
       const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMatches(items);

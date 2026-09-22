@@ -652,45 +652,71 @@ export default function JobsTab() {
         console.warn("Requirements Proxy failed");
       }
 
-      // Real-time snapshot with resilient client-side filtering
-      const q = collection(db, "requirements_public");
-      unsubscribe = onSnapshot(
-        q,
+      // Real-time snapshot with resilient client-side filtering over both collections
+      let publicDocs: any[] = [];
+      let canonicalDocs: any[] = [];
+
+      const processAndSetJobs = () => {
+        const mergedMap = new Map();
+        publicDocs.forEach((d) => mergedMap.set(d.id, d));
+        canonicalDocs.forEach((d) => mergedMap.set(d.id, d));
+        let data = Array.from(mergedMap.values());
+
+        if (isSupplyLayer) {
+          // Vendors and recruiters see all public non-deleted requirements
+          data = data.filter((r: any) => {
+            const s = (r.status || "").toUpperCase();
+            return s !== "DELETED" && s !== "ARCHIVED";
+          });
+        } else if (isClient) {
+          // Clients see their own requirements and public active opportunities
+          data = data.filter((r: any) => {
+            const s = (r.status || "").toUpperCase();
+            return r.clientId === orgId || s === "ACTIVE" || s === "PUBLISHED" || s === "OPEN";
+          });
+        }
+
+        setJobs(
+          data.sort((a: any, b: any) => {
+            const timeA =
+              a.createdAt?.seconds ||
+              new Date(a.createdAt || a.updatedAt || 0).getTime() / 1000 ||
+              0;
+            const timeB =
+              b.createdAt?.seconds ||
+              new Date(b.createdAt || b.updatedAt || 0).getTime() / 1000 ||
+              0;
+            return timeB - timeA;
+          }),
+        );
+      };
+
+      const unsubPublic = onSnapshot(
+        collection(db, "requirements_public"),
         (snap) => {
-          let data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-          if (isSupplyLayer) {
-            // Vendors and recruiters see all public non-deleted requirements
-            data = data.filter((r: any) => {
-              const s = (r.status || "").toUpperCase();
-              return s !== "DELETED" && s !== "ARCHIVED";
-            });
-          } else if (isClient) {
-            // Clients see their own requirements and public active opportunities
-            data = data.filter((r: any) => {
-              const s = (r.status || "").toUpperCase();
-              return r.clientId === orgId || s === "ACTIVE" || s === "PUBLISHED" || s === "OPEN";
-            });
-          }
-
-          setJobs(
-            data.sort((a: any, b: any) => {
-              const timeA =
-                a.createdAt?.seconds ||
-                new Date(a.createdAt || a.updatedAt || 0).getTime() / 1000 ||
-                0;
-              const timeB =
-                b.createdAt?.seconds ||
-                new Date(b.createdAt || b.updatedAt || 0).getTime() / 1000 ||
-                0;
-              return timeB - timeA;
-            }),
-          );
+          publicDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          processAndSetJobs();
         },
         (error) => {
           handleFirestoreError(error, OperationType.GET, "requirements_public");
         },
       );
+
+      const unsubCanonical = onSnapshot(
+        collection(db, "requirements"),
+        (snap) => {
+          canonicalDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          processAndSetJobs();
+        },
+        (error) => {
+          console.warn("[JobsTab] failed to subscribe to canonical requirements, relying on public:", error);
+        },
+      );
+
+      unsubscribe = () => {
+        unsubPublic();
+        unsubCanonical();
+      };
     };
 
     loadRequirements();

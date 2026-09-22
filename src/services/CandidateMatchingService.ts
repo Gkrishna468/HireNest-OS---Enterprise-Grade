@@ -523,7 +523,10 @@ export class CandidateMatchingService {
 
     // 2. Resolve & Authorize requirement
     onProgress?.("Requirement authorization...");
-    const reqDocSnap = await getDoc(doc(db, "requirements_public", requirementId));
+    let reqDocSnap = await getDoc(doc(db, "requirements", requirementId));
+    if (!reqDocSnap.exists()) {
+      reqDocSnap = await getDoc(doc(db, "requirements_public", requirementId));
+    }
     if (!reqDocSnap.exists()) {
       throw new Error(`Requirement not found: ${requirementId}`);
     }

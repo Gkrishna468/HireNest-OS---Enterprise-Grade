@@ -206,7 +206,10 @@ export default function RevenueIntelligenceTab({
     );
   }
 
-  const formatCurrency = (val: number) => "₹" + val.toLocaleString("en-IN");
+  const formatCurrency = (val: any) => {
+    const num = Number(val);
+    return "₹" + (isNaN(num) ? 0 : num).toLocaleString("en-IN");
+  };
 
   if (loading) {
     return (

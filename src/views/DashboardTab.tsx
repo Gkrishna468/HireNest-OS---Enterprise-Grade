@@ -477,12 +477,14 @@ export default function DashboardTab() {
   }, []);
 
   const org = session?.org;
-  const isAdmin = org?.type === 'admin' || org?.type === 'super_admin' || org?.type === 'ops_admin' || session?.user?.role === 'super_admin';
-  const isClient = org?.type === 'client' || org?.type === 'client_admin' || org?.type?.startsWith('client_') || org?.type === 'client';
-  const isVendor = org?.type === 'vendor' || org?.type === 'vendor_admin' || org?.type?.startsWith('vendor_') || org?.type === 'vendor';
-  const isRecruiter = org?.type === 'recruiter' || org?.type?.includes('recruiter');
-  const isIndependent = org?.type === 'independent' || org?.type === 'independent_vendor' || org?.type === 'independent_consultant';
-  const isCandidate = org?.type === 'candidate' || session?.user?.role === 'candidate';
+  const normUserRole = (session?.user?.role || "").toLowerCase();
+  const normOrgType = (org?.type || "").toLowerCase();
+  const isAdmin = normOrgType === 'admin' || normOrgType === 'super_admin' || normOrgType === 'ops_admin' || normUserRole === 'super_admin' || normUserRole === 'admin' || normUserRole === 'ops_admin' || normUserRole === 'hq_admin';
+  const isClient = normOrgType === 'client' || normOrgType === 'client_admin' || normOrgType.startsWith('client_') || normUserRole === 'client' || normUserRole === 'hiring_manager';
+  const isVendor = normOrgType === 'vendor' || normOrgType === 'vendor_admin' || normOrgType.startsWith('vendor_') || normUserRole === 'vendor';
+  const isRecruiter = normOrgType === 'recruiter' || normOrgType.includes('recruiter') || normUserRole === 'recruiter';
+  const isIndependent = normOrgType === 'independent' || normOrgType === 'independent_vendor' || normOrgType === 'independent_consultant';
+  const isCandidate = normOrgType === 'candidate' || normUserRole === 'candidate';
 
   useEffect(() => {
     if (session?.org) {

@@ -333,6 +333,16 @@ export default function MatchIntelligenceTab() {
     roleIsClient ||
     roleIsIndependent;
 
+  const highMatchAlerts = useMemo(() => {
+    return matches.filter((m) => {
+      const score = m.score || m.matchScore || 0;
+      const reqId = m.requirementId;
+      const req = requirements[reqId];
+      const isReqActive = req && req.status !== "DELETED" && req.status !== "ARCHIVED";
+      return score >= 80 && isReqActive;
+    });
+  }, [matches, requirements]);
+
   // Auto-dismiss notification after 4 seconds
   useEffect(() => {
     if (notification) {
@@ -1138,6 +1148,87 @@ export default function MatchIntelligenceTab() {
           </div>
         </div>
       </div>
+
+      {/* High-Fit Match Alerts Queue */}
+      {roleIsAdmin && highMatchAlerts.length > 0 && (
+        <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="text-amber-600 animate-pulse" size={18} />
+            <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+              High-Fit Match Alerts Queue (Score &ge; 80%)
+            </h2>
+            <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+              {highMatchAlerts.length} Attention Required
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {highMatchAlerts.slice(0, 6).map((match) => {
+              const req = requirements[match.requirementId];
+              const cand = candidates[match.candidateId] || match;
+              const score = match.score || match.matchScore || 0;
+              let sourceLabel = "INTERNAL";
+              if (cand?.vendorId && cand.vendorId !== "ORG-GLOBAL-HQ" && cand.vendorId !== "HQ" && cand.vendorId !== "ADMIN") {
+                sourceLabel = "VENDOR";
+              } else if (cand?.candidateSource === "DIRECT" || cand?.isDirect || match.candidateSource === "DIRECT") {
+                sourceLabel = "DIRECT";
+              } else if (match.candidateSource) {
+                sourceLabel = match.candidateSource;
+              }
+              return (
+                <div key={match.id} className="bg-white p-4 border border-slate-200/80 rounded-xl flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
+                        {score}% Match
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">
+                        {match.status || "DISCOVERED"}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-xs truncate" title={cand?.name || match.candidateName}>
+                      {cand?.name || match.candidateName || match.candidateId}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate" title={req?.title || match.requirementTitle}>
+                      For: {req?.title || match.requirementTitle || match.requirementId}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[9px] text-slate-500 font-bold">
+                      <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
+                        Source: {sourceLabel}
+                      </span>
+                      {cand?.vendorName && (
+                        <span className="truncate max-w-[100px] text-slate-400">
+                          Vndr: {cand.vendorName}
+                        </span>
+                      )}
+                      {req?.clientName && (
+                        <span className="truncate max-w-[100px] text-slate-400">
+                          Clnt: {req.clientName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      onClick={() => setExpandedMatch(expandedMatch === match.id ? null : match.id)}
+                      className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
+                    >
+                      Analyze &amp; Gaps
+                    </button>
+                    {match.status !== "SUBMITTED" && (
+                      <button
+                        onClick={() => handleCreateDealRoom(match, req, cand)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black px-2.5 py-1 rounded transition-all"
+                      >
+                        Submit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 4 Financial & Operational Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1980,6 +2071,16 @@ function MatchRow({
   const matchSource = match.matchSource || "AUTO";
   const placementProb = match.placementProbability || Math.min(95, Math.round(matchScore * 0.5));
 
+  // Determine Candidate Source
+  let sourceLabel = "INTERNAL";
+  if (cand?.vendorId && cand.vendorId !== "ORG-GLOBAL-HQ" && cand.vendorId !== "HQ" && cand.vendorId !== "ADMIN") {
+    sourceLabel = "VENDOR";
+  } else if (cand?.candidateSource === "DIRECT" || cand?.isDirect || match.candidateSource === "DIRECT") {
+    sourceLabel = "DIRECT";
+  } else if (match.candidateSource) {
+    sourceLabel = match.candidateSource;
+  }
+
   return (
     <React.Fragment key={matchId}>
       <tr
@@ -2019,7 +2120,7 @@ function MatchRow({
               <ChevronDown size={14} className="text-slate-400" />
             )}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             <span className="font-black text-indigo-600 text-[10px] uppercase">
               {matchScore}% MATCH
             </span>
@@ -2033,9 +2134,24 @@ function MatchRow({
             >
               {matchTier}
             </span>
-            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-500 uppercase">
-              {matchSource}
+            <span className={cn(
+              "px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider",
+              sourceLabel === "VENDOR" && "bg-blue-100 text-blue-800",
+              sourceLabel === "DIRECT" && "bg-purple-100 text-purple-800",
+              sourceLabel === "INTERNAL" && "bg-teal-100 text-teal-800",
+            )}>
+              {sourceLabel}
             </span>
+            {cand?.vendorName && (
+              <span className="text-[9px] text-slate-400 font-medium">
+                ({cand.vendorName})
+              </span>
+            )}
+            {req?.clientName && (
+              <span className="text-[9px] text-slate-400 font-medium">
+                for {req.clientName}
+              </span>
+            )}
           </div>
         </td>
 

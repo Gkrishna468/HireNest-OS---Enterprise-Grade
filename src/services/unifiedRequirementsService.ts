@@ -9,16 +9,17 @@ import { AccessControlService, HireNestAccessContext } from "./accessControlServ
 export class UnifiedRequirementsService {
   /**
    * Canonical Operational Gate Test
-   * Strict Invariant: status === 'ACTIVE' AND distributionStatus === 'PUBLISHED'
-   * No legacy fallbacks: unstated, missing, or alternate flags are rejected.
+   * Consistent Invariant: status is ACTIVE, PUBLISHED, or OPEN.
    */
   static isRequirementOperational(req: any): boolean {
     if (!req) return false;
     const status = (req.status || "").toUpperCase();
     const distStatus = (req.distributionStatus || "").toUpperCase();
 
-    // Strict canonical gate: ACTIVE AND PUBLISHED
-    return status === "ACTIVE" && distStatus === "PUBLISHED";
+    const isStatusOk = status === "ACTIVE" || status === "PUBLISHED" || status === "OPEN";
+    const isDistOk = distStatus === "PUBLISHED" || distStatus === "ACTIVE" || distStatus === "OPEN";
+
+    return isStatusOk && isDistOk;
   }
 
   /**
@@ -53,28 +54,44 @@ export class UnifiedRequirementsService {
     context: HireNestAccessContext
   ): Promise<any[]> {
     try {
-      // 1. Fetch requirements using scoped server-side query with graceful fallback
       let allReqs: any[] = [];
+      
+      // 1. Fetch from canonical 'requirements' first
       try {
-        const qScoped = query(
-          collection(db, "requirements_public"),
-          where("status", "==", "ACTIVE"),
-          where("distributionStatus", "==", "PUBLISHED")
-        );
-        const snap = await getDocs(qScoped);
-        allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      } catch (scopedErr) {
-        console.warn("[UnifiedRequirementsService] Scoped query fallback:", scopedErr);
-        const snap = await getDocs(collection(db, "requirements_public"));
-        allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const snap = await getDocs(collection(db, "requirements"));
+        allReqs = snap.docs.map((d) => {
+          const data = d.data();
+          const reqId = d.id || data.requirementId || data.id;
+          return { id: reqId, requirementId: reqId, ...data };
+        });
+      } catch (err) {
+        console.warn("[UnifiedRequirementsService] Failed to load canonical requirements:", err);
       }
 
-      // 2. Strict canonical in-memory gate: ACTIVE AND PUBLISHED
+      // 2. Fetch from legacy 'requirements_public' and merge (deduplicate)
+      try {
+        const snapPub = await getDocs(collection(db, "requirements_public"));
+        const publicReqs = snapPub.docs.map((d) => {
+          const data = d.data();
+          const reqId = d.id || data.requirementId || data.id;
+          return { id: reqId, requirementId: reqId, ...data };
+        });
+        const existingIds = new Set(allReqs.map(r => r.id));
+        for (const req of publicReqs) {
+          if (req.id && !existingIds.has(req.id)) {
+            allReqs.push(req);
+          }
+        }
+      } catch (err) {
+        console.warn("[UnifiedRequirementsService] Failed to load legacy requirements_public:", err);
+      }
+
+      // 3. Strict canonical in-memory gate: relaxed operational check
       const operationalReqs = allReqs.filter((req) =>
         this.isRequirementOperational(req)
       );
 
-      // 3. Filter using authoritative AccessControlService permissions
+      // 4. Filter using authoritative AccessControlService permissions
       const authorized: any[] = [];
       const role = (context.role || "").toUpperCase();
 

@@ -76,7 +76,7 @@ export class SubmissionOrchestrator {
         clientId,
         vendorId,
         submitterId,
-        initialStatus = "SUBMITTED",
+        initialStatus = "SUBMITTED_TO_CLIENT",
         matchScore = 0,
         aiAnalysis,
       } = request;
@@ -267,9 +267,9 @@ export class SubmissionOrchestrator {
       if (requirementId) {
          try {
              const { getDoc, doc } = await import("firebase/firestore");
-             let reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+             let reqSnap = await getDoc(doc(db, "requirements", requirementId));
              if (!reqSnap.exists()) {
-                 reqSnap = await getDoc(doc(db, "requirements", requirementId));
+                 reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
              }
              if (reqSnap.exists()) {
                  const reqData = reqSnap.data();
@@ -424,26 +424,27 @@ export class SubmissionOrchestrator {
         // don't throw, let submission continue even if ownership recording fails
       }
 
-      // 7. Event Ledger
+      // 7. Event Ledger (Async and non-blocking to prevent downstream timeouts)
       try {
-        console.log("STEP 7: emitEvents");
-        await emitEvent(
+        console.log("STEP 7: emitEvents (Asynchronous)");
+        emitEvent(
           "SubmissionCreated",
           "SUBMISSION",
           submissionId,
           request.submitterId || "SYSTEM",
           "vendor",
           { candidateId, requirementId, vendorId, vendorName, matchScore, candidateName, reqTitle },
-        );
-        await emitEvent(
+        ).catch(err => console.error("[SubmissionOrchestrator] SubmissionCreated async emit failed:", err));
+
+        emitEvent(
           "CandidateMatched",
           "CANDIDATE",
           candidateId,
           request.submitterId || "SYSTEM",
           "vendor",
           { candidateId, requirementId, vendorId, vendorName, matchScore, candidateName, reqTitle },
-        );
-        console.log("STEP 7 SUCCESS");
+        ).catch(err => console.error("[SubmissionOrchestrator] CandidateMatched async emit failed:", err));
+        console.log("STEP 7 SUCCESS (Queued Async)");
       } catch (e) {
         console.error("STEP 7 FAILED", e);
       }

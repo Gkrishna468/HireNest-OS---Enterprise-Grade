@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ServiceProvider } from '../lib/providers/ServiceProvider.js';
 import { Candidate, CandidateInput, CandidateUpdate } from '../types/Candidate.js';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase.js';
 
 interface CandidateState {
@@ -214,15 +214,43 @@ export const useCandidateStore = create<CandidateState>((set, get) => ({
   },
 
   subscribeToEvents: (id: string, callback: (events: any[]) => void) => {
-    console.log(`Subscribed to events for ${id}`);
-    callback([]);
-    return () => console.log(`Unsubscribed from events ${id}`);
+    if (!id || !db) {
+      callback([]);
+      return () => {};
+    }
+    try {
+      const q = query(collection(db, "interview_events"), where("candidateId", "==", id));
+      return onSnapshot(q, (snapshot) => {
+        const evs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(evs);
+      }, (err) => {
+        console.warn(`[CandidateStore] subscribeToEvents error for ${id}:`, err);
+        callback([]);
+      });
+    } catch {
+      callback([]);
+      return () => {};
+    }
   },
 
   subscribeToInterviews: (id: string, callback: (interviews: any[]) => void) => {
-    console.log(`Subscribed to interviews for ${id}`);
-    callback([]);
-    return () => console.log(`Unsubscribed from interviews ${id}`);
+    if (!id || !db) {
+      callback([]);
+      return () => {};
+    }
+    try {
+      const qInterviews = query(collection(db, "interviews"), where("candidateId", "==", id));
+      return onSnapshot(qInterviews, (snapshot) => {
+        const ints = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(ints);
+      }, (err) => {
+        console.warn(`[CandidateStore] subscribeToInterviews error for ${id}:`, err);
+        callback([]);
+      });
+    } catch {
+      callback([]);
+      return () => {};
+    }
   },
 
   subscribeToMatches: (id: string, reqId: string | undefined, callback: (match: any) => void) => {

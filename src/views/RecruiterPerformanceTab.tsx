@@ -135,7 +135,10 @@ export default function RecruiterPerformanceTab({
     );
   }
 
-  const formatCurrency = (val: number) => "₹" + val.toLocaleString("en-IN");
+  const formatCurrency = (val: any) => {
+    const num = Number(val);
+    return "₹" + (isNaN(num) ? 0 : num).toLocaleString("en-IN");
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto w-full">

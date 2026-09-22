@@ -2,6 +2,8 @@ import { adminDb } from "../../lib/firebase-admin.js";
 import { ResumeScreeningService } from "../services/ResumeScreeningService.js";
 import { CandidateEvidenceEngine } from "../services/CandidateEvidenceEngine.js";
 import { AIInterviewService } from "../services/AIInterviewService.js";
+import { InterviewOrchestrationService } from "../services/InterviewOrchestrationService.js";
+import { EventBus } from "../services/EventBus.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -13,77 +15,72 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { action, candidateId, requirementId, forceRefresh, sessionId, answer, voiceChoice, resumeText } = req.body || {};
+    const { action, candidateId, requirementId, forceRefresh, sessionId, answer, voiceChoice, resumeText, orgId } = req.body || {};
 
     // 1. Action: verify-evidence
     if (action === "verify-evidence") {
-      console.log(`[AI_SCREENING_API] action=verify-evidence candidateId=${candidateId}`);
       if (!candidateId) {
-        return res.status(400).json({ error: "candidateId is required for evidence verification." });
+        return res.status(400).json({ error: "candidateId is required." });
       }
       const record = await CandidateEvidenceEngine.triggerScreening(candidateId, requirementId, forceRefresh === true);
-      return res.status(200).json({
-        success: true,
-        record
-      });
+      return res.status(200).json({ success: true, record });
     }
 
-    // 2. Action: start-interview (called by recruiter to generate link)
+    // 2. Action: start-interview
     if (action === "start-interview") {
-      console.log(`[AI_INTERVIEW_API] action=start-interview candidateId=${candidateId} requirementId=${requirementId}`);
       if (!candidateId || !requirementId) {
-        return res.status(400).json({ error: "candidateId and requirementId are required to start an AI Interview." });
+        return res.status(400).json({ error: "candidateId and requirementId are required." });
       }
-      const session = await AIInterviewService.startSession(candidateId, requirementId, voiceChoice);
-      return res.status(200).json({
-        success: true,
-        session
+      
+      // Create Interview via Orchestration
+      const interview = await InterviewOrchestrationService.createAIInterview({
+          type: "AI_SCREENING",
+          candidateId,
+          submissionId: req.body.submissionId || "manual",
+          requirementId,
+          organizationId: orgId || "GLOBAL",
+          createdBy: "SYSTEM",
+          createdByRole: "ADMIN"
       });
+
+      const session = await AIInterviewService.startSession(candidateId, requirementId, voiceChoice);
+      await InterviewOrchestrationService.startInterview(interview.interviewId, session.sessionId);
+      
+      return res.status(200).json({ success: true, interview, session });
     }
 
-    // 2a. Action: get-session (secure stub lookup by raw token, does not leak candidate details)
+    // 2a. Action: get-session
     if (action === "get-session") {
       const { rawToken } = req.body || {};
       if (!rawToken) {
         return res.status(400).json({ error: "rawToken is required to lookup session." });
       }
       const sessionStub = await AIInterviewService.getSessionByToken(rawToken);
-      return res.status(200).json({
-        success: true,
-        session: sessionStub
-      });
+      return res.status(200).json({ success: true, session: sessionStub });
     }
 
-    // 2b. Action: verify-email (verifies email against linked candidate, transitions status to VERIFIED, returns full session details securely)
+    // 2b. Action: verify-email
     if (action === "verify-email") {
       const { rawToken, email } = req.body || {};
       if (!rawToken || !email) {
         return res.status(400).json({ error: "rawToken and email are required for verification." });
       }
       const session = await AIInterviewService.verifyCandidateEmail(rawToken, email);
-      return res.status(200).json({
-        success: true,
-        session
-      });
+      return res.status(200).json({ success: true, session });
     }
 
-    // 2c. Action: join-interview (called by candidate to transition status to IN_PROGRESS and start interview rounds)
+    // 2c. Action: join-interview
     if (action === "join-interview") {
-      console.log(`[AI_INTERVIEW_API] action=join-interview sessionId=${sessionId}`);
       const { sessionId, voiceChoice } = req.body || {};
       if (!sessionId) {
         return res.status(400).json({ error: "sessionId is required." });
       }
       const session = await AIInterviewService.joinSession(sessionId, voiceChoice || "Standard Male");
-      return res.status(200).json({
-        success: true,
-        session
-      });
+      return res.status(200).json({ success: true, session });
     }
 
     // 3. Action: submit-answer
     if (action === "submit-answer") {
-      console.log(`[AI_INTERVIEW_API] action=submit-answer sessionId=${sessionId}`);
       if (!sessionId || typeof answer !== "string") {
         return res.status(400).json({ error: "sessionId and answer are required." });
       }
@@ -95,20 +92,24 @@ export default async function handler(req: any, res: any) {
         report: outcome.report
       });
     }
-    
-    if (action) {
-        return res.status(400).json({ error: `Unsupported action: ${action}` });
-    }
 
-    // Default: Fallback to standard parsed resume screening
+    if (action) {
+      return res.status(400).json({ error: `Unsupported action: ${action}` });
+    }
+    
+    // Default: Screening Flow
     if (!candidateId || !resumeText) {
       return res.status(400).json({ error: "candidateId and resumeText are required." });
     }
 
+    await EventBus.publish("AI_SCREENING_STARTED", { candidateId, requirementId }, "candidate-screen-handler", orgId);
+    
     const screeningResult = await ResumeScreeningService.screenAndEnrichCandidate(
       candidateId,
       resumeText
     );
+    
+    await EventBus.publish("AI_SCREENING_COMPLETED", { candidateId, requirementId, screeningResult }, "candidate-screen-handler", orgId);
 
     return res.status(200).json({
       success: true,
@@ -116,7 +117,9 @@ export default async function handler(req: any, res: any) {
       aiIntelligence: screeningResult
     });
   } catch (err: any) {
-    console.error("[CandidateScreenAPI] Error handling candidate screen/verify action:", err);
+    console.error("[CandidateScreenAPI] Error:", err);
+    await EventBus.publish("AI_SCREENING_FAILED", { error: err.message }, "candidate-screen-handler");
     return res.status(500).json({ error: err.message || "Failed to process request" });
   }
 }
+

@@ -196,6 +196,14 @@ export class EventBus {
                     } else if (sub.subscriber === 'scheduling-office') {
                         const { SchedulingOffice } = await import('./SchedulingOffice.js');
                         await SchedulingOffice.handleEvent(event.eventType, event.payload, event.tenantId);
+                    } else if (sub.subscriber === 'ResumeScreeningService') {
+                        if (event.payload?.candidateId) {
+                            const { CandidateEvidenceEngine } = await import('./CandidateEvidenceEngine.js');
+                            CandidateEvidenceEngine.triggerScreening(
+                                event.payload.candidateId,
+                                event.payload.requirementId
+                            ).catch(e => console.error('[EventBus] Automated resume screening error:', e));
+                        }
                     } else {
                         console.log(`[EventBus] Dynamically routing event ${event.eventId} to AgentOrchestrator queue for: ${sub.subscriber}`);
                         await AgentOrchestrator.enqueueJob(sub.subscriber, { eventType: event.eventType, payload: event.payload, orgId: event.tenantId });

@@ -137,7 +137,8 @@ export default function InterviewsTab() {
                 setUserOrgId(orgId);
 
                 let q;
-                const isAdmin = role === "admin" || role === "super_admin" || role === "ops_admin" || role === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
+                const normRole = (role || "").toLowerCase();
+                const isAdmin = normRole === "admin" || normRole === "super_admin" || normRole === "ops_admin" || normRole === "hq_admin" || orgId === "ORG-GLOBAL-HQ";
 
                 if (isAdmin) {
                   q = query(collection(db, "submissions"));

@@ -396,7 +396,11 @@ class RequirementVendorService {
    */
   async canVendorViewRequirement(vendorId: string, requirementId: string): Promise<boolean> {
     try {
-      const reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+      // Canonical SSOT: Load canonical first, then fallback to public
+      let reqSnap = await getDoc(doc(db, "requirements", requirementId));
+      if (!reqSnap.exists()) {
+        reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+      }
       if (!reqSnap.exists()) return false;
       const req = reqSnap.data();
 

@@ -585,21 +585,28 @@ export default function CandidatesTab() {
         setUserOrgId(orgId);
         setUserRole(role);
 
-        // Load active operational requirements for mapping using canonical SSOT
-        const jobsQuery = query(
-          collection(db, "requirements_public"),
-          limit(100),
-        );
+        // Load active operational requirements for mapping using canonical SSOT (both collections)
+        let publicDocs: any[] = [];
+        let canonicalDocs: any[] = [];
+
+        const processJobsMapping = () => {
+          const mergedMap = new Map();
+          publicDocs.forEach((d) => mergedMap.set(d.id, d));
+          canonicalDocs.forEach((d) => mergedMap.set(d.id, d));
+          const allReqs = Array.from(mergedMap.values());
+          const operational = allReqs.filter(
+            (r) =>
+              UnifiedRequirementsService.isRequirementOperational(r) &&
+              AccessControlService.isRequirementAuthorized(orgId, role, r)
+          );
+          setJobs(operational);
+        };
+
         onSnapshot(
-          jobsQuery,
+          query(collection(db, "requirements_public"), limit(100)),
           (snap) => {
-            const allReqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            const operational = allReqs.filter(
-              (r) =>
-                UnifiedRequirementsService.isRequirementOperational(r) &&
-                AccessControlService.isRequirementAuthorized(orgId, role, r)
-            );
-            setJobs(operational);
+            publicDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            processJobsMapping();
           },
           (error) => {
             handleFirestoreError(
@@ -607,6 +614,17 @@ export default function CandidatesTab() {
               OperationType.GET,
               "requirements_public_mapping",
             );
+          },
+        );
+
+        onSnapshot(
+          query(collection(db, "requirements"), limit(100)),
+          (snap) => {
+            canonicalDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            processJobsMapping();
+          },
+          (error) => {
+            console.warn("[CandidatesTab] failed to subscribe to canonical requirements, relying on public:", error);
           },
         );
 
