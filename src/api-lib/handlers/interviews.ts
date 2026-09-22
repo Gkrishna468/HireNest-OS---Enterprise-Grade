@@ -260,7 +260,8 @@ export default async function handler(req: any, res: any) {
           await adminDb.collection("interviews").doc(interviewId).delete();
           return res.status(400).json({
             success: false,
-            error: err.message || "Google Calendar connection is required to schedule Google Meet. Please connect Google Workspace in Settings -> Integrations."
+            error: err.message || "Google Calendar connection is required to schedule Google Meet. Please connect Google Workspace in Settings -> Integrations.",
+            code: err.code || "GOOGLE_MEET_CREATION_FAILED"
           });
         }
       } else {
@@ -411,9 +412,14 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, interviewId });
     } catch (err: any) {
       console.error("[InterviewsHandler] PUT error:", err);
-      return res.status(err.code === "CALENDAR_CONNECTION_REQUIRED" ? 400 : 500).json({
+      return res.status(
+        err.code === "CALENDAR_CONNECTION_REQUIRED" || err.code === "GOOGLE_MEET_CREATION_FAILED"
+          ? 400 
+          : 500
+      ).json({
         success: false,
-        error: err.message || "Failed to reschedule interview."
+        error: err.message || "Failed to reschedule interview.",
+        code: err.code || "UNKNOWN_ERROR"
       });
     }
   }

@@ -167,6 +167,55 @@ export class CalendarService {
   }
 
   /**
+   * Update an existing interview/event
+   */
+  static async updateEvent(uid: string, eventId: string, event: CalendarEvent, createMeet: boolean = false) {
+    const isConnected = await this.hasOAuthConnection(uid);
+    if (!isConnected) {
+      const err: any = new Error("Google Calendar is not connected. Connect Google Workspace in Settings -> Integrations before scheduling.");
+      err.code = "GOOGLE_CALENDAR_NOT_CONNECTED";
+      throw err;
+    }
+
+    try {
+      const client = await this.getClientForUser(uid);
+      const calendar = google.calendar({ version: 'v3', auth: client });
+
+      const requestBody: any = { ...event };
+      if (createMeet) {
+        requestBody.conferenceData = {
+          createRequest: {
+            requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            conferenceSolutionKey: {
+              type: "hangoutsMeet"
+            }
+          }
+        };
+      }
+
+      const response = await calendar.events.update({
+        calendarId: 'primary',
+        eventId,
+        requestBody,
+        sendUpdates: 'all', // Send invites to attendees
+        conferenceDataVersion: createMeet ? 1 : undefined,
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error("[CalendarService] updateEvent error:", error.message);
+      if (error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
+        const err: any = new Error("Google OAuth connection has expired. Please reconnect in Settings -> Integrations.");
+        err.code = "GOOGLE_OAUTH_EXPIRED";
+        throw err;
+      }
+      const err: any = new Error(error.message || "Failed to update Google Calendar event.");
+      err.code = "GOOGLE_CALENDAR_ERROR";
+      throw err;
+    }
+  }
+
+  /**
    * Delete an event
    */
   static async deleteEvent(uid: string, eventId: string) {

@@ -118,7 +118,11 @@ export class InterviewOrchestrationService {
           customErr.code = "CALENDAR_CONNECTION_REQUIRED";
           throw customErr;
         }
-        console.warn("[InterviewOrchestration] Calendar event creation failed, proceeding with manual link:", err.message);
+        
+        // Return structured failure code and do NOT mark as SCHEDULED
+        const customErr: any = new Error(`GOOGLE_MEET_CREATION_FAILED: Failed to create Google Calendar/Meet event: ${err.message}`);
+        customErr.code = "GOOGLE_MEET_CREATION_FAILED";
+        throw customErr;
       }
     }
 
@@ -154,34 +158,49 @@ export class InterviewOrchestrationService {
     if (!currentDoc.exists) throw new Error(`Interview not found: ${interviewId}`);
     const currentData = currentDoc.data() as Interview;
 
-    // 1. Delete previous Google Calendar event to prevent duplication
-    if (currentData.calendarEventId) {
-      try {
-        console.log(`[InterviewOrchestration] Deleting prior calendar event: ${currentData.calendarEventId}`);
-        await CalendarService.deleteEvent(uid, currentData.calendarEventId);
-      } catch (delErr: any) {
-        console.warn("[InterviewOrchestration] Failed to delete previous calendar event:", delErr.message);
-      }
-    }
-
     let calendarEventId: string | undefined = undefined;
     let meetingLink: string | undefined = undefined;
 
-    try {
-      const eventResult = await CalendarService.createEvent(uid, event, createMeet);
-      calendarEventId = eventResult.id;
-      
-      const videoEntryPoint = eventResult.conferenceData?.entryPoints?.find(
-        (ep: any) => ep.entryPointType === "video"
-      );
-      meetingLink = videoEntryPoint?.uri || eventResult.hangoutLink || undefined;
-    } catch (err: any) {
-      if (err.message?.includes("OAuth") || err.message?.includes("token") || err.message?.includes("connected")) {
-        const customErr: any = new Error("CALENDAR_CONNECTION_REQUIRED: Google Calendar OAuth connection is required to create a Google Meet event.");
-        customErr.code = "CALENDAR_CONNECTION_REQUIRED";
+    if (currentData.calendarEventId) {
+      try {
+        console.log(`[InterviewOrchestration] Updating existing calendar event in place: ${currentData.calendarEventId}`);
+        const eventResult = await CalendarService.updateEvent(uid, currentData.calendarEventId, event, createMeet);
+        calendarEventId = eventResult.id;
+        
+        const videoEntryPoint = eventResult.conferenceData?.entryPoints?.find(
+          (ep: any) => ep.entryPointType === "video"
+        );
+        meetingLink = videoEntryPoint?.uri || eventResult.hangoutLink || undefined;
+      } catch (err: any) {
+        if (err.message?.includes("OAuth") || err.message?.includes("token") || err.message?.includes("connected")) {
+          const customErr: any = new Error("CALENDAR_CONNECTION_REQUIRED: Google Calendar OAuth connection is required to update a Google Meet event.");
+          customErr.code = "CALENDAR_CONNECTION_REQUIRED";
+          throw customErr;
+        }
+        const customErr: any = new Error(`GOOGLE_MEET_CREATION_FAILED: Failed to update Google Calendar/Meet event: ${err.message}`);
+        customErr.code = "GOOGLE_MEET_CREATION_FAILED";
         throw customErr;
       }
-      console.warn("[InterviewOrchestration] Calendar update failed during reschedule, fallback to previous values:", err.message);
+    } else if (createMeet || event.attendees?.length) {
+      try {
+        console.log("[InterviewOrchestration] No previous event exists, creating new calendar event...");
+        const eventResult = await CalendarService.createEvent(uid, event, createMeet);
+        calendarEventId = eventResult.id;
+        
+        const videoEntryPoint = eventResult.conferenceData?.entryPoints?.find(
+          (ep: any) => ep.entryPointType === "video"
+        );
+        meetingLink = videoEntryPoint?.uri || eventResult.hangoutLink || undefined;
+      } catch (err: any) {
+        if (err.message?.includes("OAuth") || err.message?.includes("token") || err.message?.includes("connected")) {
+          const customErr: any = new Error("CALENDAR_CONNECTION_REQUIRED: Google Calendar OAuth connection is required to create a Google Meet event.");
+          customErr.code = "CALENDAR_CONNECTION_REQUIRED";
+          throw customErr;
+        }
+        const customErr: any = new Error(`GOOGLE_MEET_CREATION_FAILED: Failed to create Google Calendar/Meet event: ${err.message}`);
+        customErr.code = "GOOGLE_MEET_CREATION_FAILED";
+        throw customErr;
+      }
     }
 
     const updateData: Partial<Interview> = {
@@ -190,6 +209,7 @@ export class InterviewOrchestrationService {
       scheduledEnd: event.end.dateTime,
       timezone: event.start.timeZone || "UTC",
       calendarEventId: calendarEventId || currentData.calendarEventId,
+      meetingProvider: createMeet ? "GOOGLE_MEET" : (meetingLink ? "MANUAL" : "NONE"),
       meetingLink: meetingLink || currentData.meetingLink,
       updatedAt: new Date().toISOString()
     };

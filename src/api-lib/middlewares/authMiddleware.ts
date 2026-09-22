@@ -118,41 +118,23 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       let decoded: any = null;
       try {
         // Enforce verifyIdToken(token) to check token validity.
-        // We do not enforce revocation check (verifyIdToken(token, true)) by default since it requires Identity Toolkit API to be active.
         decoded = await adminAuth.verifyIdToken(token);
       } catch (authErr: any) {
-        console.error('[AuthMiddleware] verifyIdToken failed, checking API status:', authErr.message);
+        console.error('[AuthMiddleware] verifyIdToken failed:', authErr.message);
         
-        // Handle case where Identity Toolkit API is disabled in the Google Cloud Project
+        // Handle case where Identity Toolkit API is disabled in the Google Cloud Project or offline
         const isApiDisabled = authErr.message?.includes('identitytoolkit.googleapis.com') || 
                               authErr.message?.includes('IDENTITY_TOOLKIT_DISABLED') ||
-                              authErr.message?.includes('Identity Toolkit API');
+                              authErr.message?.includes('Identity Toolkit API') ||
+                              authErr.code === 'app/network-error' || 
+                              authErr.code === 'app/network-timeout';
                               
-        if (isApiDisabled && token && token.includes('.')) {
-          console.warn('[AuthMiddleware] Identity Toolkit API is disabled on GCP. Falling back to local token decode.');
-          try {
-            const parts = token.split('.');
-            if (parts.length === 3) {
-              const payloadJson = Buffer.from(parts[1], 'base64').toString('utf-8');
-              const parsed = JSON.parse(payloadJson);
-              if (parsed && (!parsed.exp || parsed.exp * 1000 > Date.now() - 3600000)) {
-                decoded = {
-                  uid: parsed.user_id || parsed.sub || parsed.uid || 'auth-user',
-                  email: parsed.email || '',
-                  email_verified: parsed.email_verified !== undefined ? parsed.email_verified : true,
-                  role: parsed.role || 'guest',
-                  ...parsed
-                };
-              }
-            }
-          } catch (decodeErr: any) {
-            console.error('[AuthMiddleware] Local decode fallback failed:', decodeErr.message);
-          }
+        if (isApiDisabled) {
+          console.error('[AuthMiddleware] Identity Toolkit API or Auth service is offline/disabled on GCP.');
+          return res.status(503).json({ error: 'Service Unavailable: Authentication service is offline or unavailable' });
         }
         
-        if (!decoded) {
-          return res.status(401).json({ error: 'Unauthorized: Invalid token', details: authErr.message });
-        }
+        return res.status(401).json({ error: 'Unauthorized: Invalid token', details: authErr.message });
       }
 
       if (!decoded) {

@@ -140,12 +140,8 @@ oauthHandler.get("/callback", async (req, res) => {
     try {
       state = verifySecureState(stateStr);
     } catch (stateErr: any) {
-      console.warn("[OAuth] Cryptographic state verification failed, trying legacy JSON parse:", stateErr.message);
-      try {
-        state = JSON.parse(stateStr);
-      } catch (e) {
-        return res.status(400).send("Invalid or expired OAuth state parameter.");
-      }
+      console.warn("[OAuth] Cryptographic state verification failed:", stateErr.message);
+      return res.status(400).send("Invalid, tampered, or expired OAuth state parameter.");
     }
 
     console.log("STEP 3 exchanging token");
