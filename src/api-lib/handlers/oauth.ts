@@ -12,10 +12,33 @@ const REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/oauth/callback";
 
 // Secure state generator
+function getSafeRedirectPath(path: string | undefined | null): string {
+  if (!path || typeof path !== 'string') return "/app";
+  const trimmed = path.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return "/app";
+  }
+  const safePaths = [
+    "/app",
+    "/settings",
+    "/candidates",
+    "/requirements",
+    "/vendors",
+    "/clients",
+    "/dashboard",
+    "/submissions"
+  ];
+  const isSafe = safePaths.some(p => {
+    return trimmed === p || trimmed.startsWith(p + '/') || trimmed.startsWith(p + '?');
+  });
+  return isSafe ? trimmed : "/app";
+}
+
 function generateSecureState(uid: string, redirectTo: string): string {
   const nonce = crypto.randomBytes(16).toString("hex");
   const timestamp = Date.now();
-  const payloadStr = JSON.stringify({ uid, redirectTo, nonce, timestamp });
+  const safeRedirect = getSafeRedirectPath(redirectTo);
+  const payloadStr = JSON.stringify({ uid, redirectTo: safeRedirect, nonce, timestamp });
   const signature = crypto
     .createHmac("sha256", CLIENT_SECRET || "fallback_secret")
     .update(payloadStr)
@@ -250,8 +273,8 @@ oauthHandler.get("/callback", async (req, res) => {
       .catch(console.error);
 
     console.log("STEP 6 redirect");
-    // Redirect back to application
-    res.redirect(state.redirectTo);
+    // Redirect back to application with safe verified redirect path
+    res.redirect(getSafeRedirectPath(state.redirectTo));
   } catch (err: any) {
     console.error("FULL OAUTH ERROR", err);
     console.error("STACK", err?.stack);
