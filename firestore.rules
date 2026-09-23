@@ -1406,6 +1406,12 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    match /ai_interview_sessions/{sessionId} {
+      allow read: if isVerified();
+      allow create, update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
     match /placements/{placementId} {
       allow read: if isVerified() && (
         isMainAdmin() ||

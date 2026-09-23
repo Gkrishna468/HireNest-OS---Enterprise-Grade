@@ -74,6 +74,7 @@ export interface AIInterviewSession {
   currentQuestion?: string;
   currentQuestionFocus?: string;
   report?: any;
+  blueprint?: any;
 }
 
 export interface AIInterviewReport {
@@ -93,6 +94,109 @@ export interface AIInterviewReport {
 }
 
 export class AIInterviewService {
+
+  /**
+   * Generates a custom, JD-and-resume-specific Interview Blueprint
+   */
+  public static async generateBlueprint(candidateId: string, requirementId: string): Promise<any> {
+    if (!adminDb) throw new Error("Firestore Admin DB is not initialized");
+
+    const resolvedReq = await CandidateEvidenceEngine.resolveTargetRequirement(candidateId, requirementId);
+    if (!resolvedReq) throw new Error("Unable to resolve requirement / job description for blueprint.");
+
+    const candDoc = await adminDb.collection("candidatePool").doc(candidateId).get();
+    if (!candDoc.exists) throw new Error("Candidate not found");
+    const cand = candDoc.data() || {};
+    const resumeText = cand?.parsedData?.rawText || cand?.resumeText || cand?.text || "";
+
+    const sanitizedResumeSummary = AIDataSanitizer.sanitize(resumeText.substring(0, 3000), cand.name || cand.fullName);
+    const sanitizedJdText = AIDataSanitizer.sanitize(resolvedReq.jdText.substring(0, 2000));
+
+    const prompt = `Analyze this candidate's resume summary and the target job description to build a custom, highly specific "Interview Blueprint" for a structured, multi-round technical screening interview.
+Candidate: ${cand.name || cand.fullName || "CANDIDATE"}
+Role Title: ${resolvedReq.title}
+
+Job Description:
+${sanitizedJdText}
+
+Resume Summary:
+${sanitizedResumeSummary}
+
+Analyze these inputs to output a beautiful, structured JSON blueprint with exactly:
+- mandatorySkills: string[] (top 4 core tech skills required by JD)
+- preferredSkills: string[] (nice-to-have skills)
+- verifiedClaims: string[] (specific experience or project claims from the candidate's resume to test)
+- unverifiedClaims: string[] (claims or experience metrics that need direct verification)
+- skillGaps: string[] (skills mentioned in JD but missing/weak on candidate's resume)
+- questionPlan: string[] (a logical technical question sequence tailored to these skills)
+- evaluationRubric: string (guidelines for the AI to score communication/tech relevance)
+
+Strictly return a valid JSON matching this schema:
+{
+  "mandatorySkills": ["Skill 1", "Skill 2"],
+  "preferredSkills": ["Skill 3"],
+  "verifiedClaims": ["Claim A", "Claim B"],
+  "unverifiedClaims": ["Claim C"],
+  "skillGaps": ["Gap 1"],
+  "questionPlan": ["Baseline check", "Scenario test", "System scale design"],
+  "evaluationRubric": "Rubric details..."
+}`;
+
+    const response = await AIGateway.processChat({
+      prompt,
+      feature: "interview_blueprint_generation",
+      intent: "SCREEN_CANDIDATE",
+      level: 1,
+      agent: "AIInterviewService",
+      temperature: 0.2,
+      systemInstruction: "You are the Lead Technical Recruiter & Architect for HireNestOS. Build a highly specific interview blueprint. No generic suggestions.",
+      isAuthorizedUserAction: true,
+      schema: {
+        type: "object",
+        properties: {
+          mandatorySkills: { type: "array", items: { type: "string" } },
+          preferredSkills: { type: "array", items: { type: "string" } },
+          verifiedClaims: { type: "array", items: { type: "string" } },
+          unverifiedClaims: { type: "array", items: { type: "string" } },
+          skillGaps: { type: "array", items: { type: "string" } },
+          questionPlan: { type: "array", items: { type: "string" } },
+          evaluationRubric: { type: "string" }
+        },
+        required: ["mandatorySkills", "preferredSkills", "verifiedClaims", "unverifiedClaims", "skillGaps", "questionPlan", "evaluationRubric"]
+      }
+    });
+
+    const blueprint = JSON.parse(response.response);
+    
+    const blueprintToSave = {
+      ...blueprint,
+      candidateId,
+      requirementId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      engineVersion: "HN-AI-INTERVIEW-v1"
+    };
+
+    await adminDb.collection("interview_blueprints").doc(`${candidateId}_${requirementId}`).set(blueprintToSave);
+    return blueprintToSave;
+  }
+
+  /**
+   * Fetches or generates the Interview Blueprint for a candidate and requirement
+   */
+  public static async getBlueprint(candidateId: string, requirementId: string): Promise<any> {
+    if (!adminDb) return null;
+    try {
+      const doc = await adminDb.collection("interview_blueprints").doc(`${candidateId}_${requirementId}`).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return await this.generateBlueprint(candidateId, requirementId);
+    } catch (e) {
+      console.error("[AIInterviewService] Failed to get/generate interview blueprint:", e);
+      return null;
+    }
+  }
   
   /**
    * Starts a new AI Interview session and generates the first question
@@ -115,6 +219,16 @@ export class AIInterviewService {
     const sanitizedResumeSummary = AIDataSanitizer.sanitize(resumeText.substring(0, 3000), cand.name || cand.fullName);
     const sanitizedJdText = AIDataSanitizer.sanitize(resolvedReq.jdText.substring(0, 2000));
 
+    // Fetch/generate custom interview blueprint
+    const blueprint = await this.getBlueprint(candidateId, requirementId);
+    const blueprintText = blueprint ? JSON.stringify({
+      mandatorySkills: blueprint.mandatorySkills,
+      preferredSkills: blueprint.preferredSkills,
+      verifiedClaims: blueprint.verifiedClaims,
+      unverifiedClaims: blueprint.unverifiedClaims,
+      skillGaps: blueprint.skillGaps
+    }, null, 2) : "None available";
+
     // 2. Generate the first question (Round 1: Fundamentals)
     const prompt = `You are HireNestOS's expert AI technical interviewer.
 You are initiating an automated screening interview for:
@@ -126,8 +240,12 @@ ${sanitizedJdText}
 - Candidate Resume summary:
 ${sanitizedResumeSummary}
 
+- Job-Specific Interview Blueprint:
+${blueprintText}
+
 This is Round 1: "${INTERVIEW_ROUNDS[0].name}" (${INTERVIEW_ROUNDS[0].focus}).
 Draft an engaging, specific, and realistic first technical interview question at "MEDIUM" difficulty level.
+Incorporate elements of the custom interview blueprint's mandatory skills.
 Keep the greeting extremely professional, conversational, and direct. Do not say 'Here is your first question'. Speak as a human interviewer.
 Return a valid JSON object matching this schema:
 {
@@ -168,6 +286,7 @@ Return a valid JSON object matching this schema:
       voiceChoice,
       transcript: [],
       currentQuestion: parsed.question,
+      blueprint: blueprint || null, // Embed blueprint context directly
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48 hour expiration
@@ -185,7 +304,7 @@ Return a valid JSON object matching this schema:
       requirementId,
       "AI_SCREENING_COMPLETED",
       "AI_INTERVIEW_IN_PROGRESS" as ScreeningStatus,
-      "Dynamic AI Screening Interview session created."
+      "Dynamic AI Screening Interview session created with custom blueprint."
     );
 
     return session;
@@ -536,6 +655,16 @@ Return valid JSON matching this schema:
       const sanitizedResumeSummaryForNext = AIDataSanitizer.sanitize(resumeText.substring(0, 1500), cand.name || cand.fullName);
       const sanitizedTranscript = AIDataSanitizer.sanitize(JSON.stringify(session.transcript.map(t => ({ q: t.question, a: t.answer, accuracy: t.accuracyScore }))), cand.name || cand.fullName);
 
+      // Resolve blueprint context
+      const activeBlueprint = session.blueprint || await this.getBlueprint(session.candidateId, session.requirementId);
+      const blueprintText = activeBlueprint ? JSON.stringify({
+        mandatorySkills: activeBlueprint.mandatorySkills,
+        preferredSkills: activeBlueprint.preferredSkills,
+        verifiedClaims: activeBlueprint.verifiedClaims,
+        unverifiedClaims: activeBlueprint.unverifiedClaims,
+        skillGaps: activeBlueprint.skillGaps
+      }, null, 2) : "None";
+
       const questionPrompt = `You are HireNestOS's adaptive technical interviewer.
 The candidate has completed Round ${session.currentRound}: "${currentRound.name}".
 Stated resume projects:
@@ -544,10 +673,18 @@ ${sanitizedResumeSummaryForNext}
 Previous Round Answers Transcript:
 ${sanitizedTranscript}
 
+Interview Blueprint constraints:
+${blueprintText}
+
 You are transitioning to Round ${nextRoundNumber}: "${nextRound.name}" (${nextRound.focus}).
 The target difficulty for this next question is "${nextDifficulty}" based on their previous accuracy score of ${parsedEval.accuracyScore}%.
-Draft a brilliant, direct, and conversational interview question tailored specifically to this round and their stated skill context.
-Do not introduce yourself or use generic phrases. Speak naturally.
+
+ADAPTIVE INSTRUCTIONS:
+- If they performed VERY STRONGLY on the previous tech round, increase difficulty to check depth.
+- If they gave a vague or partial answer, drill deeper into their claims with a focused follow-up question.
+- Tailor this question specifically to the focus of Round ${nextRoundNumber} and align with the skills, claims, or skill gaps in the blueprint.
+
+Do not introduce yourself or use generic phrases. Speak naturally as a human interviewer.
 Return a valid JSON object matching this schema:
 {
   "transitionText": "Brief natural transition bridge closing the prior round and leading to this round",

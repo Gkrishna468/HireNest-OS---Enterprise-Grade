@@ -32,12 +32,28 @@ export class MailOSService {
 
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-        // Retrieve the latest 30 messages to check for new ones.
-        const response = await gmail.users.messages.list({
-            userId: 'me',
-            maxResults: 30,
-            q: '(in:inbox category:primary) OR in:sent'
-        });
+        let response;
+        try {
+            // Retrieve the latest 30 messages to check for new ones.
+            response = await gmail.users.messages.list({
+                userId: 'me',
+                maxResults: 30,
+                q: '(in:inbox category:primary) OR in:sent'
+            });
+        } catch (gmailErr: any) {
+            const errorMsg = gmailErr?.message || String(gmailErr);
+            if (errorMsg.includes("invalid_client") || errorMsg.includes("invalid_grant") || errorMsg.includes("invalid_request") || errorMsg.includes("GaxiosError")) {
+                console.warn(`[MailOS] Google Workspace credentials invalid or expired for user ${uid}. Updating connection status to REAUTHENTICATION_REQUIRED.`, errorMsg);
+                await db.collection("workspace_connections").doc(uid).set({
+                    connected: false,
+                    status: "REAUTHENTICATION_REQUIRED",
+                    error: errorMsg,
+                    updatedAt: new Date()
+                }, { merge: true });
+                throw new Error("REAUTHENTICATION_REQUIRED: Your Google Workspace connection has expired or client config is invalid. Please reconnect Google Workspace.");
+            }
+            throw gmailErr;
+        }
 
         const messages = response.data.messages || [];
         const processed = [];
@@ -730,12 +746,28 @@ export class MailOSService {
                                          expiry_date: vaultData.expiryDate
                                      });
                                      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-                                     const attData = await gmail.users.messages.attachments.get({
-                                         userId: 'me',
-                                         messageId: messageId,
-                                         id: att.attachmentId
-                                     });
-                                     if (attData.data.data) {
+                                     let attData;
+                                     try {
+                                         attData = await gmail.users.messages.attachments.get({
+                                             userId: 'me',
+                                             messageId: messageId,
+                                             id: att.attachmentId
+                                         });
+                                     } catch (attFetchErr: any) {
+                                         const attErrMsg = attFetchErr?.message || String(attFetchErr);
+                                         if (attErrMsg.includes("invalid_client") || attErrMsg.includes("invalid_grant") || attErrMsg.includes("invalid_request") || attErrMsg.includes("GaxiosError")) {
+                                             console.warn(`[MailOS] Failed to fetch attachment due to invalid/expired credentials:`, attErrMsg);
+                                             await db.collection("workspace_connections").doc(uid).set({
+                                                 connected: false,
+                                                 status: "REAUTHENTICATION_REQUIRED",
+                                                 error: attErrMsg,
+                                                 updatedAt: new Date()
+                                             }, { merge: true });
+                                             break; // Skip further attachments for this message as authorization has failed
+                                         }
+                                         throw attFetchErr;
+                                     }
+                                     if (attData && attData.data.data) {
                                          const parsedCandidate = await this.parseResumeAttachment(attData.data.data, att.mimeType, subject, body);
                                          if (parsedCandidate) {
                                              const candId = await this.createCandidate(parsedCandidate, orgId, uid, from);

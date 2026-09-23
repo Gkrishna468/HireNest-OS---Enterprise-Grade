@@ -53,18 +53,34 @@ export class CalendarService {
    * List upcoming events for a user
    */
   static async listEvents(uid: string, timeMin: string = new Date().toISOString()) {
-    const client = await this.getClientForUser(uid);
-    const calendar = google.calendar({ version: 'v3', auth: client });
-    
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      maxResults: 10,
-      singleEvents: true,
-      orderBy: 'startTime',
-    });
+    const isConnected = await this.hasOAuthConnection(uid);
+    if (!isConnected) return [];
 
-    return response.data.items || [];
+    try {
+      const client = await this.getClientForUser(uid);
+      const calendar = google.calendar({ version: 'v3', auth: client });
+      
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin,
+        maxResults: 10,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      return response.data.items || [];
+    } catch (error: any) {
+      console.error("[CalendarService] listEvents error:", error.message);
+      if (error.message?.includes("invalid_client") || error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
+         await db.collection("workspace_connections").doc(uid).set({
+             connected: false,
+             status: "REAUTHENTICATION_REQUIRED",
+             error: error.message,
+             updatedAt: new Date()
+         }, { merge: true }).catch(err => console.error("[CalendarService] failed to update connections collection", err));
+      }
+      return [];
+    }
   }
 
   /**
@@ -107,8 +123,8 @@ export class CalendarService {
       return response.data.calendars || {};
     } catch (error: any) {
       console.error("[CalendarService] getFreeBusy error:", error.message);
-      if (error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
-        const err: any = new Error("Google OAuth connection has expired. Please reconnect in Settings -> Integrations.");
+      if (error.message?.includes("invalid_client") || error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
+        const err: any = new Error("Google OAuth connection has expired or client configuration is invalid. Please reconnect in Settings -> Integrations.");
         err.code = "GOOGLE_OAUTH_EXPIRED";
         throw err;
       }
@@ -167,8 +183,8 @@ export class CalendarService {
       }
     } catch (error: any) {
       console.error("[CalendarService] createEvent error:", error.message);
-      if (error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
-        const err: any = new Error("Google OAuth connection has expired. Please reconnect in Settings -> Integrations.");
+      if (error.message?.includes("invalid_client") || error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
+        const err: any = new Error("Google OAuth connection has expired or client configuration is invalid. Please reconnect in Settings -> Integrations.");
         err.code = "GOOGLE_OAUTH_EXPIRED";
         throw err;
       }
@@ -216,8 +232,8 @@ export class CalendarService {
       return response.data;
     } catch (error: any) {
       console.error("[CalendarService] updateEvent error:", error.message);
-      if (error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
-        const err: any = new Error("Google OAuth connection has expired. Please reconnect in Settings -> Integrations.");
+      if (error.message?.includes("invalid_client") || error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {
+        const err: any = new Error("Google OAuth connection has expired or client configuration is invalid. Please reconnect in Settings -> Integrations.");
         err.code = "GOOGLE_OAUTH_EXPIRED";
         throw err;
       }

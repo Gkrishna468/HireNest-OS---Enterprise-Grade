@@ -6,6 +6,7 @@ const MAX_RETRIES = 5;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 60000;
 const FIRESTORE_TIMEOUT_MS = 5000;
+const EVENT_PUBLISH_TIMEOUT_MS = 60000; // Give downstream LLM/analysis subscribers up to 60s to finish safely
 
 /**
  * Bounded timeout helper for Firestore operations to prevent 200s+ DEADLINE_EXCEEDED hangs
@@ -145,7 +146,7 @@ export class OutboxDispatcher {
         // Publish to event bus bypassing outbox to prevent infinite cycles
         await withTimeout(
           EventBus.publishInternal(data.event as BusinessEvent),
-          FIRESTORE_TIMEOUT_MS,
+          EVENT_PUBLISH_TIMEOUT_MS,
           `publishInternal_${doc.id}`
         );
 

@@ -264,7 +264,7 @@ export class GoogleProvider implements AIProvider {
             "gemini-3.8-flash",
             "gemini-3.1-flash-lite"
         ]));
-        const timeoutMs = options.timeoutMs || 10000;
+        const timeoutMs = options.timeoutMs || 25000;
 
         let lastError: any = null;
         for (const targetModel of candidateModels) {
@@ -929,7 +929,7 @@ export class AIGateway {
 
         if (circuitStatus !== "OPEN") {
             try {
-                const timeoutMs = request.timeoutMs || 8000;
+                const timeoutMs = request.timeoutMs || 25000;
                 console.log(`[AIGateway] Executing Level ${level} task '${feature}' on ${providerId} (${model}) [Circuit: ${circuitStatus}]`);
 
                 const result = await providerInstance.execute(finalPrompt, model, {

@@ -19,7 +19,7 @@ import { AccessControlService } from "../../services/accessControlService";
 import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
 import { ResumeIngestionService } from "../../services/resumeIngestionService";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot, doc, getDoc, setDoc, query, limit } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc, query, limit, where } from "firebase/firestore";
 import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
@@ -165,6 +165,16 @@ export default function Candidate360Modal({
   const [expandedSkillKey, setExpandedSkillKey] = useState<string | null>(null);
   const [showDeveloperSandbox, setShowDeveloperSandbox] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    date: '',
+    time: '',
+    timezone: 'UTC',
+    interviewer: '',
+    meetingLink: '',
+    status: 'SCHEDULED',
+    notes: ''
+  });
 
   useEffect(() => {
     const candidateId = candidate.candidateId || candidate.id;
@@ -178,7 +188,7 @@ export default function Candidate360Modal({
     });
 
     // Realtime Sync for active interview session
-    const q = query(collection(db, "ai_interview_sessions"), limit(20));
+    const q = query(collection(db, "ai_interview_sessions"), where("candidateId", "==", candidateId), limit(20));
     const unsubSess = onSnapshot(q, (snapshot) => {
       const sessions = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -285,6 +295,39 @@ export default function Candidate360Modal({
       alert("Submission Failed: " + e.message);
     } finally {
       setIsSubmittingAnswer(false);
+    }
+  };
+
+  const handleStartEditInterview = (interview: any) => {
+    setEditingInterviewId(interview.id);
+    setEditForm({
+      date: interview.date || '',
+      time: interview.time || '',
+      timezone: interview.timezone || 'UTC',
+      interviewer: interview.interviewer || 'System',
+      meetingLink: interview.meetingLink || '',
+      status: interview.status || 'SCHEDULED',
+      notes: interview.notes || ''
+    });
+  };
+
+  const handleSaveInterviewDetails = async (interviewId: string) => {
+    try {
+      await setDoc(doc(db, "interviews", interviewId), {
+        date: editForm.date,
+        time: editForm.time,
+        timezone: editForm.timezone,
+        interviewer: editForm.interviewer,
+        meetingLink: editForm.meetingLink,
+        status: editForm.status,
+        notes: editForm.notes
+      }, { merge: true });
+      
+      setEditingInterviewId(null);
+      alert("Interview details saved successfully!");
+    } catch (err: any) {
+      console.error("Save interview details error:", err);
+      alert("Failed to save details: " + err.message);
     }
   };
 
@@ -2365,41 +2408,154 @@ export default function Candidate360Modal({
                          <div className="space-y-4">
                             {interviews.map(interview => (
                                <div key={interview.id} className="bg-slate-50 border border-slate-200 rounded-xl p-5 hover:border-indigo-300 transition-colors">
-                                  <div className="flex justify-between items-start mb-3">
-                                     <div>
-                                        <h4 className="font-bold text-slate-900">{interview.round}</h4>
-                                        <div className="text-xs text-slate-500 mt-1 flex flex-col gap-1">
-                                           <span className="flex items-center gap-1"><Calendar size={12}/> Date: {interview.date}</span>
-                                           <span className="flex items-center gap-1"><Clock size={12}/> Time: {interview.time || "Not set"} ({interview.timezone || "UTC"})</span>
-                                           <span className="flex items-center gap-1"><User size={12}/> Panel: {interview.interviewer || "System"}</span>
-                                           {interview.meetingLink && (
-                                              <span className="flex items-center gap-1 text-indigo-600 font-semibold mt-1">
-                                                 <Video size={12}/> Google Meet: <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-800">Join Meeting</a>
-                                              </span>
-                                           )}
+                                  {editingInterviewId === interview.id ? (
+                                     <div className="space-y-4 animate-in fade-in duration-200">
+                                        <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider border-b pb-2 mb-3">Edit Interview - {interview.round}</h4>
+                                        
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                           <div>
+                                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Interview Date</label>
+                                              <input 
+                                                 type="date"
+                                                 value={editForm.date}
+                                                 onChange={e => setEditForm({ ...editForm, date: e.target.value })}
+                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                              />
+                                           </div>
+                                           <div>
+                                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Interview Time</label>
+                                              <input 
+                                                 type="time"
+                                                 value={editForm.time}
+                                                 onChange={e => setEditForm({ ...editForm, time: e.target.value })}
+                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                              />
+                                           </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                           <div>
+                                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Timezone</label>
+                                              <input 
+                                                 type="text"
+                                                 placeholder="e.g. UTC, EST, IST"
+                                                 value={editForm.timezone}
+                                                 onChange={e => setEditForm({ ...editForm, timezone: e.target.value })}
+                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                              />
+                                           </div>
+                                           <div>
+                                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Panelist / Interviewer</label>
+                                              <input 
+                                                 type="text"
+                                                 placeholder="System"
+                                                 value={editForm.interviewer}
+                                                 onChange={e => setEditForm({ ...editForm, interviewer: e.target.value })}
+                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                              />
+                                           </div>
+                                        </div>
+
+                                        <div>
+                                           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Meeting Link (Manually Paste URL)</label>
+                                           <input 
+                                              type="text"
+                                              placeholder="https://meet.google.com/abc-defg-hij or custom Zoom/Teams URL"
+                                              value={editForm.meetingLink}
+                                              onChange={e => setEditForm({ ...editForm, meetingLink: e.target.value })}
+                                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                           />
+                                           <p className="text-[10px] text-slate-400 mt-1">Provide a custom Google Meet, Zoom, or Teams link manually.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                           <div>
+                                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Interview Status</label>
+                                              <select
+                                                 value={editForm.status}
+                                                 onChange={e => setEditForm({ ...editForm, status: e.target.value })}
+                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                              >
+                                                 <option value="DRAFT">DRAFT</option>
+                                                 <option value="SCHEDULED">SCHEDULED</option>
+                                                 <option value="IN_PROGRESS">IN_PROGRESS</option>
+                                                 <option value="PASSED">PASSED</option>
+                                                 <option value="FAILED">FAILED</option>
+                                              </select>
+                                           </div>
+                                        </div>
+
+                                        <div>
+                                           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Internal Notes</label>
+                                           <textarea 
+                                              placeholder="Details, expectations, prep notes..."
+                                              value={editForm.notes}
+                                              onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                                              rows={3}
+                                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                           />
+                                        </div>
+
+                                        <div className="flex gap-2 pt-3 border-t border-slate-200">
+                                           <button 
+                                              onClick={() => handleSaveInterviewDetails(interview.id)}
+                                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors shadow-sm"
+                                           >
+                                              Save Details
+                                           </button>
+                                           <button 
+                                              onClick={() => setEditingInterviewId(null)}
+                                              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-colors"
+                                           >
+                                              Cancel
+                                           </button>
                                         </div>
                                      </div>
-                                     <Badge variant="outline" className={`uppercase text-[10px] tracking-wider ${interview.status === 'SCHEDULED' ? 'bg-amber-50 text-amber-700' : interview.status === 'PASSED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
-                                        {interview.status}
-                                     </Badge>
-                                  </div>
-                                  {interview.notes && (
-                                     <div className="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-100 mt-3 whitespace-pre-wrap">
-                                        {interview.notes}
-                                     </div>
+                                  ) : (
+                                     <>
+                                        <div className="flex justify-between items-start mb-3">
+                                           <div>
+                                              <h4 className="font-bold text-slate-900">{interview.round}</h4>
+                                              <div className="text-xs text-slate-500 mt-1 flex flex-col gap-1">
+                                                 <span className="flex items-center gap-1"><Calendar size={12}/> Date: {interview.date || "Not set"}</span>
+                                                 <span className="flex items-center gap-1"><Clock size={12}/> Time: {interview.time || "Not set"} ({interview.timezone || "UTC"})</span>
+                                                 <span className="flex items-center gap-1"><User size={12}/> Panel: {interview.interviewer || "System"}</span>
+                                                 {interview.meetingLink && (
+                                                    <span className="flex items-center gap-1 text-indigo-600 font-semibold mt-1">
+                                                       <Video size={12}/> Meeting Link: <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-800 break-all">{interview.meetingLink}</a>
+                                                    </span>
+                                                 )}
+                                              </div>
+                                           </div>
+                                           <Badge variant="outline" className={`uppercase text-[10px] tracking-wider ${interview.status === 'SCHEDULED' || interview.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : interview.status === 'PASSED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                                              {interview.status}
+                                           </Badge>
+                                        </div>
+                                        {interview.notes && (
+                                           <div className="text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-100 mt-3 whitespace-pre-wrap">
+                                              {interview.notes}
+                                           </div>
+                                        )}
+                                        <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-200">
+                                           {interview.meetingLink && (
+                                              <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-sm">
+                                                 <Video size={12}/> Join Interview
+                                              </a>
+                                           )}
+                                           <button 
+                                              onClick={() => handleStartEditInterview(interview)} 
+                                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                           >
+                                              Edit Details
+                                           </button>
+                                           {interview.aiInterviewReportId && (
+                                              <button onClick={() => alert(`Report ID: ${interview.aiInterviewReportId}. Please open the Interviews Tab to view the full executive report.`)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">
+                                                 View AI Report
+                                              </button>
+                                           )}
+                                        </div>
+                                     </>
                                   )}
-                                  <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-200">
-                                     {interview.meetingLink && interview.status === 'SCHEDULED' && (
-                                        <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-1">
-                                           <Video size={12}/> Join Interview
-                                        </a>
-                                     )}
-                                     {interview.aiInterviewReportId && (
-                                        <button onClick={() => alert(`Report ID: ${interview.aiInterviewReportId}. Please open the Interviews Tab to view the full executive report.`)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">
-                                           View AI Report
-                                        </button>
-                                     )}
-                                  </div>
                                   {interview.outcomeNotes && (
                                      <div className="text-sm text-indigo-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100 mt-3 whitespace-pre-wrap">
                                         <span className="font-bold uppercase text-[10px] tracking-widest block mb-1">Feedback / Outcome</span>

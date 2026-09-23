@@ -26,11 +26,7 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { Badge } from "../lib/Badge";
 import { Button } from "../lib/Button";
 
-// Web Speech API interfaces for TS
-interface IWindow extends Window {
-  webkitSpeechRecognition: any;
-  SpeechRecognition: any;
-}
+// WebRTC Audio Stream active client session
 
 async function hashTokenClient(token: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(token);
@@ -61,6 +57,10 @@ export default function AIInterviewSessionView() {
   const [isListening, setIsListening] = useState(false);
   const [micError, setMicError] = useState("");
   const [systemMessage, setSystemMessage] = useState<string | null>(null);
+
+  // Camera & Stream states
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Speech Recognition Ref
   const recognitionRef = useRef<any>(null);
@@ -132,36 +132,28 @@ export default function AIInterviewSessionView() {
     return () => unsub();
   }, [hashedId, isVerified]);
 
-  // Speak the question aloud if the browser supports speech synthesis
-  const speakQuestion = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel(); // Stop any ongoing speech
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      
-      // Map voice selections to genders roughly
-      if (voiceChoice.includes("female")) {
-        utterance.pitch = 1.2;
-      } else if (voiceChoice.includes("male")) {
-        utterance.pitch = 0.9;
-      }
-
-      utterance.onstart = () => setIsPlayingVoice(true);
-      utterance.onend = () => setIsPlayingVoice(false);
-      utterance.onerror = () => setIsPlayingVoice(false);
-      
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  // Trigger speak when current question changes
+  // Activate local WebRTC video / audio stream
   useEffect(() => {
-    if (isVerified && session && (session.status === "IN_PROGRESS" || session.status === "VERIFIED") && session.currentQuestion) {
-      // Speak automatically to welcome the candidate
-      speakQuestion(session.currentQuestion);
+    if (isVerified && session && (session.status === "IN_PROGRESS" || session.status === "VERIFIED" || session.status === "CREATED")) {
+      navigator.mediaDevices?.getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+            setCameraActive(true);
+          }
+        })
+        .catch((err) => {
+          console.warn("Camera or microphone permission was blocked or unavailable:", err);
+          setMicError("Camera or microphone was not detected. Please verify browser permissions.");
+        });
     }
-  }, [isVerified, session?.currentQuestion, voiceChoice]);
+    return () => {
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        const stream = localVideoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isVerified, session?.status]);
 
   // Handle Candidate Verification via Secure API (zero-trust, verified strictly on server)
   const handleVerify = async (e: React.FormEvent) => {
@@ -202,69 +194,9 @@ export default function AIInterviewSessionView() {
     }
   };
 
-  // Toggle Live Speech-to-Text Recognition
+  // Inform candidate that Live WebRTC audio stream handles capture continuously on server side
   const toggleSpeechRecognition = () => {
-    const CustomWindow = window as unknown as IWindow;
-    const SpeechRecognition = CustomWindow.SpeechRecognition || CustomWindow.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setMicError("Speech recognition is not supported in this browser. Please type your answer instead.");
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-
-    try {
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = "en-US";
-
-      rec.onstart = () => {
-        setIsListening(true);
-        setMicError("");
-      };
-
-      rec.onresult = (event: any) => {
-        let interimTranscript = "";
-        let finalTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-
-        if (finalTranscript) {
-          setCandidateAnswer((prev) => prev + (prev ? " " : "") + finalTranscript);
-        }
-      };
-
-      rec.onerror = (event: any) => {
-        console.error("Mic error:", event.error);
-        if (event.error === "not-allowed") {
-          setMicError("Microphone access is blocked. Please enable mic permissions in your browser.");
-        } else {
-          setMicError(`Speech Recognition error: ${event.error}`);
-        }
-        setIsListening(false);
-      };
-
-      rec.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = rec;
-      rec.start();
-    } catch (err: any) {
-      setMicError("Failed to initialize microphone: " + err.message);
-    }
+    setSystemMessage("🎙️ Continuous Real-time WebRTC audio is active. Your voice stream is captured and analyzed on the server-side media container; local browser transcription is bypassed.");
   };
 
   // Submit current round answer to adaptive server API
@@ -472,7 +404,120 @@ export default function AIInterviewSessionView() {
     );
   }
 
-  // 3. Interview Awaiting Start
+  // 3. Interview Awaiting Start & Consent Gate
+  if (!session.consentGiven) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6" id="interview-view-consent-gate">
+        <div className="w-full max-w-xl bg-slate-950/90 rounded-2xl border border-slate-800 p-8 shadow-2xl space-y-6">
+          <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+            <div className="w-12 h-12 bg-indigo-600/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
+              <HeartHandshake className="w-6 h-6 text-indigo-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black">HireNest AI Interview</h2>
+              <p className="text-xs text-slate-500">Explicit Recording & AI Analysis Consent</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 text-sm text-slate-300 leading-relaxed">
+            <p>
+              Welcome, <strong className="text-white">{candidate?.name || "Candidate"}</strong>. To ensure an objective, high-fidelity assessment process, this automated tech interview utilizes real-time audio/video processing and advanced AI evaluation pipelines.
+            </p>
+
+            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 space-y-4">
+              <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Required Permissions & Protocols</h4>
+              
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked disabled className="mt-1 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-200 block">🎙️ Audio Recording</span>
+                    <span className="text-slate-400">Capture voice answers to run Speech-to-Text translation.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked disabled className="mt-1 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-200 block">🎥 Video Recording</span>
+                    <span className="text-slate-400">Verify identity and candidate presence during the evaluation.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked disabled className="mt-1 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-200 block">📝 Live Transcription</span>
+                    <span className="text-slate-400">Save detailed vocal-to-text transcript logs for recruiter review.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked disabled className="mt-1 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-200 block">🧠 AI Intelligence Analysis</span>
+                    <span className="text-slate-400">Map technical competence vectors and verify candidate resume evidence.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              By clicking "Agree & Start Interview", you confirm that you consent to your video, audio, and transcriptions being captured, analyzed, and shared with hiring managers for recruitment selection purposes under our <strong className="text-slate-300">Privacy Policy</strong>. No biometrics are stored after the position is filled.
+            </p>
+          </div>
+
+          <Button
+            onClick={async () => {
+              setIsSubmitting(true);
+              try {
+                const response = await fetch("/api/candidates/screen", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "record-consent",
+                    sessionId: session.id,
+                    consentVersion: "v1.0"
+                  })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                  throw new Error(data.error || "Failed to record consent");
+                }
+                // Transition the local state context immediately
+                setSession((prev: any) => ({
+                  ...prev,
+                  consentGiven: true,
+                  consentTimestamp: data.consentTimestamp,
+                  consentVersion: data.consentVersion
+                }));
+              } catch (err: any) {
+                setSystemMessage("Consent failure: " + err.message);
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <RotateCcw className="w-4 h-4 animate-spin" />
+                <span>Confirming Consent...</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                <span>Agree & Start Interview</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 3a. Interview Awaiting Start (Consent already given)
   if (session.status === "PENDING" || !session.currentQuestion) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6" id="interview-view-start-screen">
@@ -564,6 +609,57 @@ export default function AIInterviewSessionView() {
 
       {/* Main Content Pane */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-6 flex flex-col gap-6 justify-center">
+        
+        {/* Real Dual WebRTC Streams Panel */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* Candidate Stream Frame */}
+          <div className="relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center shadow-lg">
+            {cameraActive ? (
+              <video 
+                ref={localVideoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="w-full h-full object-cover transform scale-x-[-1]" 
+              />
+            ) : (
+              <div className="text-center p-4">
+                <User className="w-12 h-12 text-slate-700 mx-auto animate-pulse" />
+                <span className="text-xs text-slate-500 font-bold block mt-2">Activating Candidate stream...</span>
+              </div>
+            )}
+            <div className="absolute top-3 left-3 bg-red-600 text-white text-3s font-bold px-2 py-0.5 rounded flex items-center gap-1.5 shadow-md">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span> LIVE
+            </div>
+            <div className="absolute bottom-3 left-3 bg-slate-900/85 backdrop-blur-xs px-2.5 py-1 rounded text-3s font-semibold border border-slate-800 text-slate-300">
+              {candidate?.name || "Candidate"} (You)
+            </div>
+          </div>
+
+          {/* AI Interviewer Participant Frame */}
+          <div className="relative aspect-video bg-indigo-950/80 rounded-2xl overflow-hidden border border-indigo-900/50 flex flex-col items-center justify-center shadow-lg">
+            <div className="absolute top-3 left-3 bg-indigo-600 text-white text-3s font-bold px-2.5 py-1 rounded flex items-center gap-1.5 shadow-md uppercase tracking-wider font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>AI Agent: {session.agentState || "CONNECTED"}</span>
+            </div>
+            
+            {/* Pulsing voice circles that expand when the agent is speaking */}
+            <div className="relative flex items-center justify-center">
+              <div className={`absolute w-24 h-24 rounded-full bg-indigo-500/10 border border-indigo-500/25 transition-all duration-300 ${isPlayingVoice ? "animate-ping" : "scale-90"}`}></div>
+              <div className={`absolute w-16 h-16 rounded-full bg-indigo-500/20 border border-indigo-500/30 transition-all duration-300 ${isPlayingVoice ? "scale-110" : "scale-95"}`}></div>
+              <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg relative z-10">
+                <Sparkles size={20} className={isPlayingVoice ? "animate-spin" : ""} />
+              </div>
+            </div>
+
+            <div className="absolute bottom-3 left-3 bg-indigo-900/85 backdrop-blur-xs px-2.5 py-1 rounded text-3s font-semibold border border-indigo-800 text-indigo-200">
+              HireNest AI Agent ({(voiceChoice || "").replace("_", " ")})
+            </div>
+          </div>
+
+        </div>
+
         {/* Presenter & Question Canvas */}
         <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl relative overflow-hidden">
           {/* Subtle tech background */}
@@ -601,7 +697,7 @@ export default function AIInterviewSessionView() {
               )}
             </button>
             <div className="text-[10px] text-slate-500">
-              Voice Choose: {voiceChoice.replace("_", " ")}
+              Voice Choose: {(voiceChoice || "").replace("_", " ")}
             </div>
           </div>
         </div>

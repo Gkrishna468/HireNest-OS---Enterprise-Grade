@@ -72,20 +72,45 @@ export function decryptText(encryptedText: string): string {
       return encryptedText;
   }
   
+  const [ivHex, tagHex, encryptedHex] = parts;
+  
   try {
-    const [ivHex, tagHex, encryptedHex] = parts;
-    
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
-    const key = getKey();
     
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(tag);
+    // Gather candidate keys to try decrypting this text
+    const candidateKeys: Buffer[] = [];
     
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
+    // 1. Current key
+    try {
+      candidateKeys.push(getKey());
+    } catch (e) {}
     
-    return decrypted;
+    // 2. Dev fallback key
+    try {
+      candidateKeys.push(crypto.scryptSync('insecure-dev-fallback-key', 'salt', 32));
+    } catch (e) {}
+    
+    // 3. Empty string hash fallback
+    try {
+      candidateKeys.push(crypto.createHash('sha256').update('').digest());
+    } catch (e) {}
+
+    for (const key of candidateKeys) {
+      try {
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        decipher.setAuthTag(tag);
+        
+        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        
+        return decrypted;
+      } catch (err) {
+        // Try next candidate key
+      }
+    }
+    
+    throw new Error("All decryption candidate keys failed");
   } catch (err) {
     console.warn("[Decryption Error] Failed to decrypt text, returning original text as fallback:", err);
     return encryptedText;
