@@ -26,7 +26,7 @@ export class AICOOResolutionEngine implements HireNestAgent {
     requiresHumanApproval: true,
     allowedRoles: ['admin', 'super_admin', 'recruiter', 'bdm'],
     maxExecutionRisk: 'LOW' as const,
-    modelPolicy: { primary: 'gemini-2.5-flash', fallback: 'gemini-2.5-flash' },
+    modelPolicy: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.8-flash' },
     auditRequired: true
   };
 

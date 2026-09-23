@@ -254,16 +254,15 @@ export class GoogleProvider implements AIProvider {
         // Validate model: Pro models are strictly disabled
         const lowerModel = (model || "").toLowerCase();
         if (lowerModel.includes("pro") && !AIGateway.isProModelAllowed()) {
-            throw new Error("AI_PRO_MODEL_DISABLED: Pro models are disabled. HireNest OS uses Level 1 (gemini-3.1-flash-lite) and Level 2 (gemini-3.7-flash).");
+            throw new Error("AI_PRO_MODEL_DISABLED: Pro models are disabled. HireNest OS uses Level 1 (gemini-3.1-flash-lite) and Level 2 (gemini-3.8-flash).");
         }
 
         // Primary and candidate flash fallbacks
-        const requestedModel = model || AIGateway.getLevel1Model();
+        const requestedModel = model || AIGateway.getLevel2Model();
         const candidateModels = Array.from(new Set([
             requestedModel,
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-3.7-flash"
+            "gemini-3.8-flash",
+            "gemini-3.1-flash-lite"
         ]));
         const timeoutMs = options.timeoutMs || 10000;
 
@@ -378,7 +377,7 @@ export class GoogleProvider implements AIProvider {
 // ==========================================
 export class AIGateway {
     public static readonly LEVEL_1_MODEL_DEFAULT = "gemini-3.1-flash-lite";
-    public static readonly LEVEL_2_MODEL_DEFAULT = "gemini-3.7-flash";
+    public static readonly LEVEL_2_MODEL_DEFAULT = "gemini-3.8-flash";
 
     public static readonly LEVEL_1_CAPABILITIES = new Set<string>([
         "jd_extraction",
@@ -487,11 +486,11 @@ export class AIGateway {
     }
 
     static getLevel1Model(): string {
-        return process.env.AI_LOW_COST_MODEL || process.env.AI_LEVEL_1_MODEL || "gemini-3.5-flash-lite";
+        return process.env.AI_LOW_COST_MODEL || process.env.AI_LEVEL_1_MODEL || "gemini-3.1-flash-lite";
     }
 
     static getLevel2Model(): string {
-        return process.env.AI_DEFAULT_MODEL || process.env.AI_LEVEL_2_MODEL || "gemini-3.5-flash";
+        return process.env.AI_DEFAULT_MODEL || process.env.AI_LEVEL_2_MODEL || "gemini-3.8-flash";
     }
 
     static getComplexModel(): string {
@@ -522,7 +521,7 @@ export class AIGateway {
         if (requestedModel) {
             const lower = requestedModel.toLowerCase();
             if (lower.includes("pro") && !this.isProModelAllowed()) {
-                throw new Error("AI_PRO_MODEL_DISABLED: Pro models are disabled. HireNest OS uses Level 1 (gemini-3.1-flash-lite) and Level 2 (gemini-3.7-flash).");
+                throw new Error("AI_PRO_MODEL_DISABLED: Pro models are disabled. HireNest OS uses Level 1 (gemini-3.1-flash-lite) and Level 2 (gemini-3.8-flash).");
             }
             if (lower.includes("gpt") || lower.includes("claude") || lower.includes("llama") || lower.includes("mistral") || lower.includes("grok")) {
                 throw new Error("NON_GOOGLE_PROVIDER_DISABLED: Non-Google models are disabled. HireNest OS exclusively uses Google GenAI SDK.");

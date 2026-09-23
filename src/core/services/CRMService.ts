@@ -320,7 +320,7 @@ export class CRMService {
       approvalStatus: "PENDING_REVIEW",
       meta: {
         kind: "DRAFT",
-        model: "gemini-2.5-pro",
+        model: "gemini-3.1-pro-preview",
         confidenceScore: 0.92,
         reasoning: ["Targeted outreach based on client technology focus"],
         generatedAt: new Date().toISOString(),

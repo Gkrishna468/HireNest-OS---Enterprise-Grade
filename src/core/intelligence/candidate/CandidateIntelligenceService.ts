@@ -66,7 +66,7 @@ export class CandidateIntelligenceService {
     return {
       meta: {
         kind: "DRAFT",
-        model: "gemini-2.5-pro",
+        model: "gemini-3.1-pro-preview",
         confidenceScore: 0.93,
         reasoning: ["Synthesized candidate highlights tailored for HM review."],
         generatedAt: new Date().toISOString(),

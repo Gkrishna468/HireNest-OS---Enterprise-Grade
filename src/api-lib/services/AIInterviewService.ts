@@ -1,6 +1,7 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { AIGateway } from "./AIGateway.js";
 import { CandidateEvidenceEngine, ScreeningStatus } from "./CandidateEvidenceEngine.js";
+import { AIDataSanitizer } from "./AIDataSanitizer.js";
 import crypto from "crypto";
 
 export function generateSecureToken(): string {
@@ -111,16 +112,19 @@ export class AIInterviewService {
     const cand = candDoc.data() || {};
     const resumeText = cand?.parsedData?.rawText || cand?.resumeText || cand?.text || "";
 
+    const sanitizedResumeSummary = AIDataSanitizer.sanitize(resumeText.substring(0, 3000), cand.name || cand.fullName);
+    const sanitizedJdText = AIDataSanitizer.sanitize(resolvedReq.jdText.substring(0, 2000));
+
     // 2. Generate the first question (Round 1: Fundamentals)
     const prompt = `You are HireNestOS's expert AI technical interviewer.
 You are initiating an automated screening interview for:
-- Candidate Name: ${cand.name || "Candidate"}
+- Candidate: CAND_REF_NAME
 - Role Title: ${resolvedReq.title}
 - Target Job Description:
-${resolvedReq.jdText.substring(0, 2000)}
+${sanitizedJdText}
 
 - Candidate Resume summary:
-${resumeText.substring(0, 3000)}
+${sanitizedResumeSummary}
 
 This is Round 1: "${INTERVIEW_ROUNDS[0].name}" (${INTERVIEW_ROUNDS[0].focus}).
 Draft an engaging, specific, and realistic first technical interview question at "MEDIUM" difficulty level.
@@ -358,19 +362,22 @@ Return a valid JSON object matching this schema:
     const cand = candDoc?.data() || {};
     const resumeText = cand?.parsedData?.rawText || cand?.resumeText || cand?.text || "";
 
+    const sanitizedCandidateAnswer = AIDataSanitizer.sanitize(candidateAnswer, cand.name || cand.fullName);
+    const sanitizedResumeText = AIDataSanitizer.sanitize(resumeText.substring(0, 1500), cand.name || cand.fullName);
+
     // 3. Evaluate the candidate's answer with Gemini
     const evaluationPrompt = `You are HireNestOS's AI Interview Evaluation Engine.
 Evaluate the candidate's answer to the question asked in Round ${session.currentRound}: "${currentRound.name}".
 
 CONTEXT:
-- Candidate: ${cand.name || "Candidate"}
+- Candidate: CAND_REF_NAME
 - Target Job: ${resolvedReq?.title}
 - Stated Skills / Projects on Resume:
-${resumeText.substring(0, 1500)}
+${sanitizedResumeText}
 
 EVALUATION DETAILS:
 - Question Asked: "${currentQuestion}"
-- Candidate Answer: "${candidateAnswer}"
+- Candidate Answer: "${sanitizedCandidateAnswer}"
 
 CRITICAL BIAS MITIGATION MANDATE:
 You must EXPLICITLY IGNORE: gender, accent, age, appearance, ethnicity, voice attractiveness, speech style unrelated to communication effectiveness.
@@ -425,18 +432,19 @@ Return valid JSON matching this schema:
       });
       parsedEval = JSON.parse(evalResponse.response);
     } catch (err: any) {
-      console.error("[AIInterviewService] AI evaluation transient error, triggering resilient AI_DEGRADED fallback:", err);
-      parsedEval = {
-        accuracyScore: 75,
-        communicationScore: 75,
-        technicalCorrectness: true,
-        notes: "AI Evaluation engine experienced a transient network event. Assessment gracefully parsed via resilient AI_DEGRADED backup.",
-        indicators: {
-          positive: ["Successfully articulated detailed response structure"],
-          negative: ["AI evaluation degraded (transient connectivity error)"]
-        },
-        suggestedNextDifficulty: "MEDIUM"
+      console.error("[AIInterviewService] AI evaluation failed, explicitly logging AI_EVALUATION_FAILED:", err);
+      
+      const updatedSession = {
+        ...session,
+        evaluationStatus: "AI_EVALUATION_FAILED",
+        errorCode: err.message || "UNKNOWN_ERROR",
+        retryable: true,
+        attemptCount: (session.attemptCount || 0) + 1,
+        lastAttemptAt: new Date().toISOString()
       };
+      
+      await adminDb.collection("ai_interview_sessions").doc(sessionId).set(updatedSession);
+      throw new Error(`AI Interview Evaluation Failed: ${err.message}. Please retry.`);
     }
 
     const answerEval: AnswerEvaluation = {
@@ -525,13 +533,16 @@ Return valid JSON matching this schema:
       const nextRound = INTERVIEW_ROUNDS[nextRoundNumber - 1];
       const nextDifficulty = parsedEval.suggestedNextDifficulty || "MEDIUM";
 
+      const sanitizedResumeSummaryForNext = AIDataSanitizer.sanitize(resumeText.substring(0, 1500), cand.name || cand.fullName);
+      const sanitizedTranscript = AIDataSanitizer.sanitize(JSON.stringify(session.transcript.map(t => ({ q: t.question, a: t.answer, accuracy: t.accuracyScore }))), cand.name || cand.fullName);
+
       const questionPrompt = `You are HireNestOS's adaptive technical interviewer.
 The candidate has completed Round ${session.currentRound}: "${currentRound.name}".
 Stated resume projects:
-${resumeText.substring(0, 1500)}
+${sanitizedResumeSummaryForNext}
 
 Previous Round Answers Transcript:
-${JSON.stringify(session.transcript.map(t => ({ q: t.question, a: t.answer, accuracy: t.accuracyScore })))}
+${sanitizedTranscript}
 
 You are transitioning to Round ${nextRoundNumber}: "${nextRound.name}" (${nextRound.focus}).
 The target difficulty for this next question is "${nextDifficulty}" based on their previous accuracy score of ${parsedEval.accuracyScore}%.
@@ -603,18 +614,22 @@ Return a valid JSON object matching this schema:
    * Compiles final comprehensive analytical report with comm assessments
    */
   private static async compileInterviewReport(session: AIInterviewSession, jdText: string, resumeText: string): Promise<AIInterviewReport> {
+    const sanitizedJdText = AIDataSanitizer.sanitize(jdText.substring(0, 1500));
+    const sanitizedResumeText = AIDataSanitizer.sanitize(resumeText.substring(0, 1500));
+    const sanitizedTranscript = AIDataSanitizer.sanitize(JSON.stringify(session.transcript));
+
     const prompt = `You are HireNestOS's principal Senior AI Recruiter and Human Capital Auditor.
 The candidate has completed their adaptive AI interview.
 Construct a complete evaluation report based on the candidate's full transcript.
 
 JOB DESCRIPTION CONTEXT:
-${jdText.substring(0, 1500)}
+${sanitizedJdText}
 
 RESUME BACKGROUND:
-${resumeText.substring(0, 1500)}
+${sanitizedResumeText}
 
 INTERVIEW TRANSCRIPT:
-${JSON.stringify(session.transcript)}
+${sanitizedTranscript}
 
 CRITICAL BIAS MITIGATION MANDATE:
 Your scoring engine must EXPLICITLY IGNORE: gender, accent, age, appearance, ethnicity, voice attractiveness, speech style unrelated to communication effectiveness.

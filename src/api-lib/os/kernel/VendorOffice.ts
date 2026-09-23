@@ -40,8 +40,14 @@ export class VendorOffice extends BaseAIOffice {
         const reqData = event.payload;
 
         const prompt = `Analyze this requirement match result and generate a vendor broadcasting message.
+CRITICAL GOVERNANCE & PRIVACY RULE:
+- The broadcast message is public to vendors. 
+- You MUST NOT include any Candidate identifiers (Candidate ID like CAND_..., name, email, etc.).
+- You MUST NOT include any candidate-specific Match Scores or numeric ratings (such as "score of 49", "score 49/100", etc.).
+- Never mention why the candidate failed or that a candidate was archived. Just state that we have an active demand for the requirement and request fresh candidate submissions that satisfy the criteria.
+
 JSON with:
-- broadcastMessage: string
+- broadcastMessage: string (a professional, generic message inviting vendors to submit matching profiles for this requirement, without revealing the specific candidate, their status, or their match score)
 - targetVendorTier: 'TIER_1' | 'TIER_2' | 'ALL'
 - priority: 'URGENT' | 'NORMAL'
 

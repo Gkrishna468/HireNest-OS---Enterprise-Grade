@@ -3,14 +3,39 @@ export class AIGuardrails {
      * Checks if the text contains sensitive PII that shouldn't be processed.
      */
     static detectPII(text: string): boolean {
-        // Basic naive PII detection for demonstration (SSN, credit cards)
+        // SSN check
         const ssnRegex = /\b\d{3}-\d{2}-\d{4}\b/;
-        const creditCardRegex = /\b(?:\d[ -]*?){13,16}\b/;
-        
-        if (ssnRegex.test(text) || creditCardRegex.test(text)) {
+        if (ssnRegex.test(text)) {
             return true;
         }
+
+        // Credit Card check with Luhn validation
+        const creditCardRegex = /\b(?:\d[ -]*?){13,16}\b/g;
+        let match;
+        while ((match = creditCardRegex.exec(text)) !== null) {
+            const digits = match[0].replace(/[- ]/g, "");
+            if (digits.length >= 13 && digits.length <= 16) {
+                if (AIGuardrails.isValidLuhn(digits)) {
+                    return true;
+                }
+            }
+        }
         return false;
+    }
+
+    private static isValidLuhn(digits: string): boolean {
+        let sum = 0;
+        let shouldDouble = false;
+        for (let i = digits.length - 1; i >= 0; i--) {
+            let val = parseInt(digits[i], 10);
+            if (shouldDouble) {
+                val *= 2;
+                if (val > 9) val -= 9;
+            }
+            sum += val;
+            shouldDouble = !shouldDouble;
+        }
+        return sum % 10 === 0;
     }
 
     /**

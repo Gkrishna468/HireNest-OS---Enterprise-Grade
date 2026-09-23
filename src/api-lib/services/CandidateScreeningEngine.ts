@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
 import { AIGateway, AILevel } from "./AIGateway.js";
 import { extractStatedExperience } from "../../resume-engine/parser/experience.js";
+import { AIDataSanitizer } from "./AIDataSanitizer.js";
 
 export interface CandidateScreeningResult {
   matchScore: number;
@@ -196,8 +197,8 @@ export class CandidateScreeningEngine {
       deepFitment?: boolean;
     }
   ): Promise<CandidateScreeningResult> {
-    const resumeText = (candidateProfile || "").trim();
-    const jdText = (jd || "").trim();
+    const resumeText = AIDataSanitizer.sanitize((candidateProfile || "").trim());
+    const jdText = AIDataSanitizer.sanitize((jd || "").trim());
 
     if (!resumeText || !jdText) {
       throw new Error("Both candidate resume text and job description are required for screening.");

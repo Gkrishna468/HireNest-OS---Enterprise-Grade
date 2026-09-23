@@ -76,7 +76,7 @@ export class AccountIntelligenceService {
     return {
       meta: {
         kind: "DRAFT",
-        model: "gemini-2.5-pro",
+        model: "gemini-3.1-pro-preview",
         confidenceScore: 0.95,
         reasoning: [
           "Grounded in verified client tech stack and open requisitions.",

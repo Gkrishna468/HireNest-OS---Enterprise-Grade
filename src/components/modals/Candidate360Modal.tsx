@@ -3,7 +3,7 @@ import {
   X, User, FileText, Bot, Briefcase, Activity, 
   MessageSquare, ShieldAlert, CheckCircle, MapPin, 
   UploadCloud, Search, Calendar, Target, Sparkles, RotateCcw, AlertTriangle, Send,
-  Check, Clock, DollarSign, Layers, Award, ChevronRight, Loader2,
+  Check, Clock, Video, DollarSign, Layers, Award, ChevronRight, Loader2,
   FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode, HelpCircle
 } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
@@ -2368,9 +2368,15 @@ export default function Candidate360Modal({
                                   <div className="flex justify-between items-start mb-3">
                                      <div>
                                         <h4 className="font-bold text-slate-900">{interview.round}</h4>
-                                        <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                                           <span className="flex items-center gap-1"><Calendar size={12}/> {interview.date}</span>
-                                           <span className="flex items-center gap-1"><User size={12}/> {interview.interviewer}</span>
+                                        <div className="text-xs text-slate-500 mt-1 flex flex-col gap-1">
+                                           <span className="flex items-center gap-1"><Calendar size={12}/> Date: {interview.date}</span>
+                                           <span className="flex items-center gap-1"><Clock size={12}/> Time: {interview.time || "Not set"} ({interview.timezone || "UTC"})</span>
+                                           <span className="flex items-center gap-1"><User size={12}/> Panel: {interview.interviewer || "System"}</span>
+                                           {interview.meetingLink && (
+                                              <span className="flex items-center gap-1 text-indigo-600 font-semibold mt-1">
+                                                 <Video size={12}/> Google Meet: <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-800">Join Meeting</a>
+                                              </span>
+                                           )}
                                         </div>
                                      </div>
                                      <Badge variant="outline" className={`uppercase text-[10px] tracking-wider ${interview.status === 'SCHEDULED' ? 'bg-amber-50 text-amber-700' : interview.status === 'PASSED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -2382,6 +2388,18 @@ export default function Candidate360Modal({
                                         {interview.notes}
                                      </div>
                                   )}
+                                  <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-200">
+                                     {interview.meetingLink && interview.status === 'SCHEDULED' && (
+                                        <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-1">
+                                           <Video size={12}/> Join Interview
+                                        </a>
+                                     )}
+                                     {interview.aiInterviewReportId && (
+                                        <button onClick={() => alert(`Report ID: ${interview.aiInterviewReportId}. Please open the Interviews Tab to view the full executive report.`)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">
+                                           View AI Report
+                                        </button>
+                                     )}
+                                  </div>
                                   {interview.outcomeNotes && (
                                      <div className="text-sm text-indigo-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100 mt-3 whitespace-pre-wrap">
                                         <span className="font-bold uppercase text-[10px] tracking-widest block mb-1">Feedback / Outcome</span>

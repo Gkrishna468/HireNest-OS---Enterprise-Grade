@@ -4,6 +4,53 @@ import { Button } from '../../lib/Button';
 import { useSubmissionStore } from '../../stores/SubmissionStore';
 import { auth } from '../../lib/firebase';
 
+// Helper to convert local date-time and timezone into an offset-correct ISO string
+function getISOStringWithOffset(dateStr: string, timeStr: string, timezone: string): string {
+  const localDateTime = `${dateStr}T${timeStr}:00`;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const utcDate = new Date(localDateTime + 'Z');
+    const parts = formatter.formatToParts(utcDate);
+    const partObj = parts.reduce((acc: any, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+    
+    const localInTZ = new Date(Date.UTC(
+      parseInt(partObj.year),
+      parseInt(partObj.month) - 1,
+      parseInt(partObj.day),
+      parseInt(partObj.hour === '24' ? '00' : partObj.hour),
+      parseInt(partObj.minute),
+      parseInt(partObj.second)
+    ));
+    
+    const offsetMs = utcDate.getTime() - localInTZ.getTime();
+    const finalDate = new Date(utcDate.getTime() + offsetMs);
+    
+    const offsetMinutes = Math.abs(offsetMs) / (60 * 1000);
+    const offsetHours = Math.floor(offsetMinutes / 60);
+    const remMinutes = offsetMinutes % 60;
+    const sign = offsetMs <= 0 ? '+' : '-';
+    
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const isoWithoutZ = finalDate.toISOString().replace('Z', '');
+    return `${isoWithoutZ.substring(0, 19)}${sign}${pad(offsetHours)}:${pad(remMinutes)}`;
+  } catch (err) {
+    return `${localDateTime}Z`;
+  }
+}
+
 export function InterviewSchedulerModal({ submission, requirement, isClientAction = false, onClose }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
@@ -44,13 +91,11 @@ export function InterviewSchedulerModal({ submission, requirement, isClientActio
         throw new Error("You must be logged in to check calendar availability.");
       }
       
-      const startDateTime = `${formData.date}T${formData.time}:00`;
-      const endDateTime = formData.endTime 
-        ? `${formData.date}T${formData.endTime}:00` 
-        : `${formData.date}T${formData.time}:00`;
+      const startISO = getISOStringWithOffset(formData.date, formData.time, formData.timezone);
+      const endISO = getISOStringWithOffset(formData.date, formData.endTime || formData.time, formData.timezone);
       
       // Call our freebusy proxy endpoint
-      const res = await fetch(`/api/google/calendar/freebusy?timeMin=${encodeURIComponent(startDateTime)}Z&timeMax=${encodeURIComponent(endDateTime)}Z`, {
+      const res = await fetch(`/api/google/calendar/freebusy?timeMin=${encodeURIComponent(startISO)}&timeMax=${encodeURIComponent(endISO)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

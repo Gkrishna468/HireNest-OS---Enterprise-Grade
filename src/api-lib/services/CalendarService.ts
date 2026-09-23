@@ -145,14 +145,26 @@ export class CalendarService {
         };
       }
 
-      const response = await calendar.events.insert({
-        calendarId: 'primary',
-        requestBody,
-        sendUpdates: 'all', // Send invites to attendees
-        conferenceDataVersion: createMeet ? 1 : undefined,
-      });
+      try {
+        const response = await calendar.events.insert({
+          calendarId: 'primary',
+          requestBody,
+          sendUpdates: 'all', // Send invites to attendees
+          conferenceDataVersion: createMeet ? 1 : undefined,
+        });
 
-      return response.data;
+        return response.data;
+      } catch (insertErr: any) {
+        if (insertErr.code === 409 || insertErr.status === 409 || insertErr.message?.includes("already exists")) {
+          console.log(`[CalendarService] Event with ID ${requestBody.id} already exists on Google Calendar. Retrieving existing event to prevent duplication...`);
+          const existing = await calendar.events.get({
+            calendarId: 'primary',
+            eventId: requestBody.id
+          });
+          return existing.data;
+        }
+        throw insertErr;
+      }
     } catch (error: any) {
       console.error("[CalendarService] createEvent error:", error.message);
       if (error.message?.includes("invalid_grant") || error.message?.includes("OAuth") || error.message?.includes("token")) {

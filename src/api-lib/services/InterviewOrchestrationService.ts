@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
 import { CalendarService, CalendarEvent } from "./CalendarService.js";
 import { EventBus } from "./EventBus.js";
@@ -102,9 +103,17 @@ export class InterviewOrchestrationService {
     let calendarEventId: string | undefined = undefined;
     let meetingLink: string | undefined = undefined;
 
+    // Enforce distributed-systems level idempotency using a deterministic event ID
+    const hashId = crypto.createHash("sha256").update(interviewId).digest("hex");
+    const deterministicEventId = "hn" + hashId;
+    const eventWithId: CalendarEvent = {
+      ...event,
+      id: deterministicEventId
+    };
+
     if (createMeet || event.attendees?.length) {
       try {
-        const eventResult = await CalendarService.createEvent(uid, event, createMeet);
+        const eventResult = await CalendarService.createEvent(uid, eventWithId, createMeet);
         calendarEventId = eventResult.id;
         
         // Extract the actual Google-generated Meet conference entry point (video link)

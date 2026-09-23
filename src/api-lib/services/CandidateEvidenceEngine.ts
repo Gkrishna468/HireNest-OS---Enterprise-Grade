@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
 import { AIGateway } from "./AIGateway.js";
 import { CandidateScreeningEngine, CandidateScreeningResult } from "./CandidateScreeningEngine.js";
+import { AIDataSanitizer } from "./AIDataSanitizer.js";
 
 export type EvidenceGrade = 
   | "VERIFIED" 
@@ -235,7 +236,7 @@ export class CandidateEvidenceEngine {
     }
 
     const finalReqId = resolvedReq.requirementId;
-    const jdText = resolvedReq.jdText;
+    const jdText = AIDataSanitizer.sanitize(resolvedReq.jdText || "");
 
     // 2. Resolve Resume text (Transition: PARSING)
     await this.transitionState(screeningId, candidateId, finalReqId, "AI_SCREENING_QUEUED", "AI_SCREENING_PARSING", "Parsing ingested resume text and mapping against resolved job specification.");
@@ -245,12 +246,14 @@ export class CandidateEvidenceEngine {
       throw new Error(`Candidate with ID ${candidateId} not found`);
     }
     const candData = candDoc.data();
-    const resumeText = (candData?.parsedData?.rawText || candData?.resumeText || candData?.text || "").trim();
+    const rawResumeText = (candData?.parsedData?.rawText || candData?.resumeText || candData?.text || "").trim();
 
-    if (!resumeText) {
+    if (!rawResumeText) {
       await this.transitionState(screeningId, candidateId, finalReqId, "AI_SCREENING_PARSING", "AI_SCREENING_FAILED", "Screening aborted: Candidate resume text is completely empty.");
       throw new Error("Candidate resume text is empty.");
     }
+
+    const resumeText = AIDataSanitizer.sanitize(rawResumeText, candData?.name || candData?.fullName);
 
     // Try to find a submissionId for idempotency
     let submissionId = "direct";
