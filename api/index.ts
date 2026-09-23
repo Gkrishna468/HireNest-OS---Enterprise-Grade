@@ -338,7 +338,7 @@ export default async function handler(req: any, res: any) {
       path?.startsWith('cron') &&
       cronAuthHeader === `Bearer ${cronSecret}`;
 
-    if (path !== 'audit' && !path?.startsWith('sync-requirements') && !urlStr.includes('/oauth/callback') && !urlStr.includes('/oauth/url') && !urlStr.includes('/api/oauth/url') && !isPublic && !isAuthorizedCronCall) {
+    if (path !== 'audit' && !path?.startsWith('sync-requirements') && !urlStr.includes('/oauth/callback') && !isPublic && !isAuthorizedCronCall) {
       const token = req.headers.authorization?.split('Bearer ')[1];
       if (!token) {
         console.log("AUTH MIDDLEWARE REJECTING - No token provided", { url: req.url, path });

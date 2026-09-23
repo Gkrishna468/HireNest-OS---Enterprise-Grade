@@ -134,6 +134,7 @@ Return a valid JSON object matching this schema:
     const response = await AIGateway.processChat({
       prompt,
       feature: "interview_question_generation",
+      intent: "SCREEN_CANDIDATE",
       level: 1,
       agent: "AIInterviewService",
       temperature: 0.6,
@@ -548,6 +549,7 @@ Return a valid JSON object matching this schema:
         const questionResponse = await AIGateway.processChat({
           prompt: questionPrompt,
           feature: "interview_question_generation",
+          intent: "SCREEN_CANDIDATE",
           level: 1,
           agent: "AIInterviewService",
           temperature: 0.5,

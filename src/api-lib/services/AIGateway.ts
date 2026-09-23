@@ -645,6 +645,84 @@ export class AIGateway {
         throw new Error("NON_GOOGLE_PROVIDER_DISABLED: OpenAI is disabled. HireNest OS exclusively uses Google GenAI SDK.");
     }
 
+    public static extractAndParseJSON(text: string): any {
+        const trimmed = text.trim();
+        try {
+            return JSON.parse(trimmed);
+        } catch (e) {
+            // Continue to robust parsing
+        }
+
+        const markdownMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (markdownMatch) {
+            try {
+                return JSON.parse(markdownMatch[1].trim());
+            } catch (e) {
+                // Fall through to brace matching on inner content
+            }
+        }
+
+        const firstBrace = trimmed.indexOf('{');
+        const lastBrace = trimmed.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            const potentialJson = trimmed.substring(firstBrace, lastBrace + 1);
+            try {
+                return JSON.parse(potentialJson);
+            } catch (e) {
+                let braceCount = 0;
+                let insideString = false;
+                let escape = false;
+                let matchedEnd = -1;
+
+                for (let i = firstBrace; i < trimmed.length; i++) {
+                    const char = trimmed[i];
+                    if (escape) {
+                        escape = false;
+                        continue;
+                    }
+                    if (char === '\\') {
+                        escape = true;
+                        continue;
+                    }
+                    if (char === '"') {
+                        insideString = !insideString;
+                        continue;
+                    }
+                    if (!insideString) {
+                        if (char === '{') {
+                            braceCount++;
+                        } else if (char === '}') {
+                            braceCount--;
+                            if (braceCount === 0) {
+                                matchedEnd = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (matchedEnd !== -1) {
+                    const matchedJson = trimmed.substring(firstBrace, matchedEnd + 1);
+                    try {
+                        return JSON.parse(matchedJson);
+                    } catch (innerErr) {
+                        try {
+                            const cleanedJson = matchedJson
+                                .replace(/,\s*([\]}])/g, '$1')
+                                .replace(/\\n/g, ' ')
+                                .replace(/\\r/g, ' ');
+                            return JSON.parse(cleanedJson);
+                        } catch (lastErr) {
+                            throw innerErr;
+                        }
+                    }
+                }
+            }
+        }
+
+        throw new Error("Failed to extract valid JSON from response text.");
+    }
+
     /**
      * Process chat request with Two-Tier Gemini routing, hashed caching,
      * and advanced governance telemetry.
@@ -683,6 +761,8 @@ export class AIGateway {
                 intent = "CANDIDATE_NORMALIZATION";
             } else if (feature === "requirement_ai" || feature === "requirement_summary") {
                 intent = "REQUIREMENT_AI";
+            } else if (feature === "interview_question_generation") {
+                intent = "SCREEN_CANDIDATE";
             }
         }
 
@@ -886,20 +966,11 @@ export class AIGateway {
                 // Output Validation Guardrail
                 let parsedData = null;
                 const responseText = resultObj.response;
-                if (request.schema || responseText.trim().startsWith("{")) {
+                if (request.schema || responseText.trim().includes("{") || responseText.trim().startsWith("{")) {
                     try {
-                        parsedData = JSON.parse(responseText);
-                    } catch (e) {
-                        const jsonMatch = responseText.match(/```json([\s\S]*?)```/);
-                        if (jsonMatch) {
-                            try {
-                                parsedData = JSON.parse(jsonMatch[1]);
-                            } catch (innerErr) {
-                                throw e;
-                            }
-                        } else {
-                            throw e;
-                        }
+                        parsedData = AIGateway.extractAndParseJSON(responseText);
+                    } catch (e: any) {
+                        throw new Error(`AIGateway JSON parsing failure: ${e.message}. Raw output: ${responseText.substring(0, 300)}`);
                     }
                 } else {
                     parsedData = { text: responseText };

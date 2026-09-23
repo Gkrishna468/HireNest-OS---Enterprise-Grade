@@ -351,14 +351,9 @@ Evaluate candidate-JD fit rigorously and return a valid JSON object matching thi
       let parsed: any;
       const rawText = aiResponse.response.trim();
       try {
-        parsed = JSON.parse(rawText);
-      } catch {
-        const jsonMatch = rawText.match(/```(?:json)?([\s\S]*?)```/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[1].trim());
-        } else {
-          throw new Error("Unable to parse AI screening response as JSON");
-        }
+        parsed = AIGateway.extractAndParseJSON(rawText);
+      } catch (err: any) {
+        throw new Error(`Unable to parse AI screening response as JSON: ${err.message}. Raw output: ${rawText.substring(0, 300)}`);
       }
 
       const score = Math.min(100, Math.max(0, Math.round(Number(parsed.matchScore) || 75)));

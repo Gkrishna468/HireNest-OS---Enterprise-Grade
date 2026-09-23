@@ -296,6 +296,16 @@ export class InterviewOrchestrationService {
     if (!currentDoc.exists) throw new Error(`Interview not found: ${interviewId}`);
     const currentStatus = currentDoc.data()?.status;
 
+    if (currentStatus === "IN_PROGRESS") {
+      console.log(`[InterviewOrchestrationService] Interview is already IN_PROGRESS. (Idempotent bypass)`);
+      const existingSessionId = currentDoc.data()?.sessionId;
+      if (sessionId && sessionId !== existingSessionId) {
+        await adminDb.collection("interviews").doc(interviewId).update({ sessionId, updatedAt: new Date().toISOString() });
+        return { ...(await adminDb.collection("interviews").doc(interviewId).get()).data() } as Interview;
+      }
+      return { ...currentDoc.data() } as Interview;
+    }
+
     // Allow transition from DRAFT, SCHEDULED, INVITED, or CANDIDATE_VERIFIED to IN_PROGRESS
     if (!["DRAFT", "SCHEDULED", "INVITED", "CANDIDATE_VERIFIED"].includes(currentStatus)) {
       throw new Error(`Cannot start interview in status ${currentStatus}`);
