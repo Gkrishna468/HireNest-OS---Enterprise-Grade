@@ -96,17 +96,14 @@ export async function verifyLiveKitConfiguration(): Promise<LiveKitConfigStatus>
     };
   }
 
-  // Ping LiveKit endpoint /settings/regions
+  // Ping LiveKit validation endpoint /rtc/validate
   try {
-    const res = await fetch(`${httpUrl}/settings/regions`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${jwt}` }
-    });
+    const res = await fetch(`${httpUrl}/rtc/validate?access_token=${jwt}`);
 
     if (res.status === 401) {
       return {
         status: "LIVEKIT_TOKEN_REJECTED",
-        message: "LiveKit Cloud rejected token authorization (401 Unauthorized). Check API Key / Secret alignment with LiveKit Cloud Project.",
+        message: "LiveKit Cloud rejected access token authorization on /rtc/validate (401 Unauthorized). Check API Key / Secret alignment with LiveKit Cloud Project.",
         details: { wsUrl, httpUrl, apiKeyPrefix, apiKeySuffix, secretLength: apiSecret.length, secretSha256Prefix, httpStatusCode: 401 }
       };
     }
@@ -114,7 +111,7 @@ export async function verifyLiveKitConfiguration(): Promise<LiveKitConfigStatus>
     if (!res.ok) {
       return {
         status: "LIVEKIT_ENDPOINT_UNREACHABLE",
-        message: `LiveKit endpoint returned unexpected HTTP status: ${res.status}`,
+        message: `LiveKit validation endpoint returned unexpected HTTP status: ${res.status}`,
         details: { wsUrl, httpUrl, apiKeyPrefix, apiKeySuffix, secretLength: apiSecret.length, secretSha256Prefix, httpStatusCode: res.status }
       };
     }

@@ -459,8 +459,10 @@ export default async function handler(req: any, res: any) {
 
         const token = await at.toJwt();
 
-        // Server-side JWT Claims Verification (Internal Diagnostics)
+        // Server-side JWT Claims Verification & Fingerprinting
+        let tokenFingerprint = "";
         try {
+          tokenFingerprint = crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
           const payloadBase64 = token.split(".")[1];
           const payload = JSON.parse(Buffer.from(payloadBase64, "base64url").toString("utf-8"));
           const nowSeconds = Math.floor(Date.now() / 1000);
@@ -471,6 +473,7 @@ export default async function handler(req: any, res: any) {
             payload.video?.roomJoin === true &&
             payload.video?.room === sessionId
           );
+          console.log(`[CandidateScreenAPI] Generated LiveKit JWT fingerprint=${tokenFingerprint} length=${token.length} claimsValid=${claimsValid}`);
           if (!claimsValid) {
             console.error("[CandidateScreenAPI] Generated LiveKit token failed internal claims check.");
           }
@@ -478,14 +481,11 @@ export default async function handler(req: any, res: any) {
           console.warn("[CandidateScreenAPI] JWT claim parsing warning:", claimsErr.message);
         }
 
-        // Server-side Preflight Ping against LiveKit endpoint /settings/regions
+        // Server-side Preflight Ping against LiveKit validation endpoint /rtc/validate
         try {
-          const lkCheckRes = await fetch(`${httpUrl}/settings/regions`, {
-            method: "GET",
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const lkCheckRes = await fetch(`${httpUrl}/rtc/validate?access_token=${token}`);
           if (lkCheckRes.status === 401) {
-            console.error("[CandidateScreenAPI] LiveKit server rejected token (401 Unauthorized). Check LIVEKIT_API_KEY and LIVEKIT_API_SECRET alignment with LIVEKIT_URL.");
+            console.error(`[CandidateScreenAPI] LiveKit server rejected token (401 Unauthorized) on /rtc/validate. fingerprint=${tokenFingerprint}`);
             return res.status(401).json({
               success: false,
               errorCode: "LIVEKIT_TOKEN_REJECTED",
@@ -498,17 +498,21 @@ export default async function handler(req: any, res: any) {
                 secretLength: apiSecret.length,
                 secretSha256: crypto.createHash("sha256").update(apiSecret).digest("hex").slice(0, 12) + "...",
                 roomName: sessionId,
-                participantIdentity
+                participantIdentity,
+                tokenFingerprint,
+                tokenLength: token.length
               }
             });
           }
         } catch (lkPingErr: any) {
-          console.warn("[CandidateScreenAPI] LiveKit preflight regions ping warning:", lkPingErr.message);
+          console.warn("[CandidateScreenAPI] LiveKit preflight /rtc/validate ping warning:", lkPingErr.message);
         }
 
         return res.status(200).json({
           success: true,
           token,
+          tokenFingerprint,
+          tokenLength: token.length,
           roomName: sessionId,
           url: wsUrl,
           sessionStatus: sessionData.status || "IN_PROGRESS"

@@ -428,6 +428,9 @@ export default function CandidateAIInterviewView() {
         status: tokenRes.status,
         success: tokenData.success,
         hasToken: Boolean(tokenData.token),
+        tokenLength: tokenData.tokenLength || tokenData.token?.length,
+        tokenFingerprint: tokenData.tokenFingerprint,
+        wsUrl: tokenData.url,
         roomName: tokenData.roomName,
         sessionStatus: tokenData.sessionStatus,
         errorCode: tokenData.errorCode,
@@ -602,7 +605,10 @@ export default function CandidateAIInterviewView() {
         </p>
         <div className="flex gap-3 pt-2">
           <button
-            onClick={() => setPageState("LIVE")}
+            onClick={() => {
+              setPageState("CONSENT");
+              handleStartSession();
+            }}
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
           >
             <RotateCcw size={14} /> Reconnect Stream
