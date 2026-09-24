@@ -133,10 +133,50 @@ export default async function handler(req: any, res: any) {
     if (action === "get-session") {
       const { rawToken } = req.body || {};
       if (!rawToken) {
-        return res.status(400).json({ error: "rawToken is required to lookup session." });
+        return res.status(400).json({
+          success: false,
+          errorCode: "MISSING_RAW_TOKEN",
+          error: "rawToken is required to lookup session."
+        });
       }
-      const sessionStub = await AIInterviewService.getSessionByToken(rawToken);
-      return res.status(200).json({ success: true, session: sessionStub });
+      try {
+        const sessionStub = await AIInterviewService.getSessionByToken(rawToken);
+        return res.status(200).json({
+          success: true,
+          session: sessionStub,
+          sessionStatus: sessionStub.status
+        });
+      } catch (err: any) {
+        const errMsg = err.message || "Failed to lookup interview session.";
+        if (errMsg.includes("not found")) {
+          return res.status(404).json({
+            success: false,
+            errorCode: "INTERVIEW_NOT_FOUND",
+            error: errMsg
+          });
+        }
+        if (errMsg.includes("expired")) {
+          return res.status(403).json({
+            success: false,
+            errorCode: "INTERVIEW_EXPIRED",
+            sessionStatus: "EXPIRED",
+            error: errMsg
+          });
+        }
+        if (errMsg.includes("revoked")) {
+          return res.status(403).json({
+            success: false,
+            errorCode: "INTERVIEW_REVOKED",
+            sessionStatus: "REVOKED",
+            error: errMsg
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          errorCode: "GET_SESSION_FAILED",
+          error: errMsg
+        });
+      }
     }
 
     // 2b. Action: verify-email
@@ -163,14 +203,22 @@ export default async function handler(req: any, res: any) {
     if (action === "record-consent") {
       const { rawToken, consentVersion } = req.body || {};
       if (!rawToken) {
-        return res.status(400).json({ error: "rawToken is required to record consent." });
+        return res.status(400).json({
+          success: false,
+          errorCode: "MISSING_RAW_TOKEN",
+          error: "rawToken is required to record consent."
+        });
       }
 
       const sessionId = hashToken(rawToken);
       const docRef = adminDb.collection("ai_interview_sessions").doc(sessionId);
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
-        return res.status(404).json({ error: "Interview invitation is invalid or not found." });
+        return res.status(404).json({
+          success: false,
+          errorCode: "INTERVIEW_NOT_FOUND",
+          error: "Interview invitation is invalid or not found."
+        });
       }
 
       const sessionData = snapshot.data() || {};
@@ -178,25 +226,54 @@ export default async function handler(req: any, res: any) {
       // Validate expiration and terminal states
       if (sessionData.expiresAt && new Date() > new Date(sessionData.expiresAt) && sessionData.status !== "COMPLETED") {
         await docRef.update({ status: "EXPIRED", updatedAt: new Date().toISOString() });
-        return res.status(403).json({ error: "This interview invitation has expired." });
+        return res.status(403).json({
+          success: false,
+          errorCode: "INTERVIEW_EXPIRED",
+          sessionStatus: "EXPIRED",
+          error: "This interview invitation has expired."
+        });
       }
 
       if (sessionData.status === "REVOKED") {
-        return res.status(403).json({ error: "This interview invitation has been revoked." });
+        return res.status(403).json({
+          success: false,
+          errorCode: "INTERVIEW_REVOKED",
+          sessionStatus: "REVOKED",
+          error: "This interview invitation has been revoked."
+        });
       }
 
       if (sessionData.status === "COMPLETED") {
-        return res.status(400).json({ error: "This interview has already been completed." });
+        return res.status(409).json({
+          success: false,
+          errorCode: "INTERVIEW_ALREADY_COMPLETED",
+          sessionStatus: "COMPLETED",
+          error: "This interview has already been completed."
+        });
       }
 
       const timestamp = new Date().toISOString();
       const version = consentVersion || "v1.0";
 
+      // Idempotency check: if session is ALREADY IN_PROGRESS with consentGiven=true, return success
+      if (sessionData.status === "IN_PROGRESS" && sessionData.consentGiven === true) {
+        console.log(`[CandidateScreenAPI] record-consent idempotent hit for session: ${sessionId}`);
+        return res.status(200).json({
+          success: true,
+          alreadyConsented: true,
+          consentGiven: true,
+          sessionStatus: "IN_PROGRESS",
+          consentTimestamp: sessionData.consentTimestamp || timestamp,
+          consentVersion: sessionData.consentVersion || version
+        });
+      }
+
       await docRef.update({
         consentGiven: true,
         consentTimestamp: timestamp,
         consentVersion: version,
-        status: "IN_PROGRESS"
+        status: "IN_PROGRESS",
+        updatedAt: timestamp
       });
 
       // Dispatch LiveKit Agent via Agent Dispatch API
@@ -257,6 +334,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         success: true,
         consentGiven: true,
+        sessionStatus: "IN_PROGRESS",
         consentTimestamp: timestamp,
         consentVersion: version
       });
@@ -280,24 +358,51 @@ export default async function handler(req: any, res: any) {
     if (action === "livekit-token") {
       const { rawToken, participantName, isRecruiter } = req.body || {};
       if (!rawToken) {
-        return res.status(400).json({ error: "rawToken is required to issue LiveKit token." });
+        return res.status(400).json({
+          success: false,
+          errorCode: "MISSING_RAW_TOKEN",
+          error: "rawToken is required to issue LiveKit token."
+        });
       }
 
       const sessionId = hashToken(rawToken);
       const sessDoc = await adminDb.collection("ai_interview_sessions").doc(sessionId).get();
       if (!sessDoc.exists) {
-        return res.status(404).json({ error: "Interview invitation is invalid or not found." });
+        return res.status(404).json({
+          success: false,
+          errorCode: "INTERVIEW_NOT_FOUND",
+          error: "Interview invitation is invalid or not found."
+        });
       }
 
       const sessionData = sessDoc.data() || {};
 
       if (sessionData.expiresAt && new Date() > new Date(sessionData.expiresAt) && sessionData.status !== "COMPLETED") {
         await adminDb.collection("ai_interview_sessions").doc(sessionId).update({ status: "EXPIRED", updatedAt: new Date().toISOString() });
-        return res.status(403).json({ error: "This interview invitation has expired." });
+        return res.status(403).json({
+          success: false,
+          errorCode: "INTERVIEW_EXPIRED",
+          sessionStatus: "EXPIRED",
+          error: "This interview invitation has expired."
+        });
       }
 
       if (sessionData.status === "REVOKED") {
-        return res.status(403).json({ error: "This interview invitation has been revoked." });
+        return res.status(403).json({
+          success: false,
+          errorCode: "INTERVIEW_REVOKED",
+          sessionStatus: "REVOKED",
+          error: "This interview invitation has been revoked."
+        });
+      }
+
+      if (sessionData.status === "COMPLETED") {
+        return res.status(409).json({
+          success: false,
+          errorCode: "INTERVIEW_ALREADY_COMPLETED",
+          sessionStatus: "COMPLETED",
+          error: "This interview has already been completed."
+        });
       }
 
       const apiKey = process.env.LIVEKIT_API_KEY;
@@ -306,8 +411,9 @@ export default async function handler(req: any, res: any) {
 
       if (!apiKey || !apiSecret || !lkUrl) {
         return res.status(503).json({ 
-          error: "LIVEKIT_NOT_CONFIGURED", 
-          details: "Realtime interview service is temporarily unconfigured. Please contact support." 
+          success: false,
+          errorCode: "LIVEKIT_NOT_CONFIGURED", 
+          error: "Realtime interview service is temporarily unconfigured. Please contact support." 
         });
       }
 
@@ -333,11 +439,16 @@ export default async function handler(req: any, res: any) {
           success: true,
           token,
           roomName: sessionId,
-          url: lkUrl
+          url: lkUrl,
+          sessionStatus: sessionData.status || "IN_PROGRESS"
         });
       } catch (err: any) {
         console.error("[CandidateScreenAPI] livekit-server-sdk token generation failed:", err);
-        return res.status(500).json({ error: "Failed to generate LiveKit access token: " + err.message });
+        return res.status(500).json({
+          success: false,
+          errorCode: "TOKEN_GENERATION_FAILED",
+          error: "Failed to generate LiveKit access token: " + err.message
+        });
       }
     }
 

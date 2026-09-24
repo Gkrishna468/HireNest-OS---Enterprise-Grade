@@ -338,8 +338,23 @@ export default function CandidateAIInterviewView() {
         })
       });
       const consentData = await consentRes.json();
+      console.log("[AI Interview] consent response:", {
+        status: consentRes.status,
+        success: consentData.success,
+        alreadyConsented: consentData.alreadyConsented,
+        sessionStatus: consentData.sessionStatus,
+        errorCode: consentData.errorCode,
+        error: consentData.error
+      });
+      console.log("[AI Interview] session status:", consentData.sessionStatus || "UNKNOWN");
+
       if (!consentRes.ok || !consentData.success) {
-        throw new Error(consentData.error || "Failed to record candidate consent.");
+        if (consentData.sessionStatus === "COMPLETED" || consentData.errorCode === "INTERVIEW_ALREADY_COMPLETED") {
+          setPageState("COMPLETED");
+          return;
+        }
+        const msg = consentData.error || (consentData.errorCode ? `Error [${consentData.errorCode}]` : "Failed to record candidate consent.");
+        throw new Error(msg);
       }
 
       // Step B: Request Short-Lived LiveKit JWT using rawToken ONLY
@@ -352,11 +367,26 @@ export default function CandidateAIInterviewView() {
         })
       });
       const tokenData = await tokenRes.json();
+      console.log("[AI Interview] LiveKit token response:", {
+        status: tokenRes.status,
+        success: tokenData.success,
+        hasToken: Boolean(tokenData.token),
+        roomName: tokenData.roomName,
+        sessionStatus: tokenData.sessionStatus,
+        errorCode: tokenData.errorCode,
+        error: tokenData.error
+      });
+
       if (!tokenRes.ok || !tokenData.token) {
-        if (tokenData.error === "LIVEKIT_NOT_CONFIGURED" || tokenRes.status === 503) {
+        if (tokenData.sessionStatus === "COMPLETED" || tokenData.errorCode === "INTERVIEW_ALREADY_COMPLETED") {
+          setPageState("COMPLETED");
+          return;
+        }
+        if (tokenData.errorCode === "LIVEKIT_NOT_CONFIGURED" || tokenRes.status === 503) {
           throw new Error("Realtime interview service is temporarily unavailable. Please contact support.");
         }
-        throw new Error(tokenData.error || "Failed to generate realtime media access token.");
+        const msg = tokenData.error || (tokenData.errorCode ? `Error [${tokenData.errorCode}]` : "Failed to generate realtime media access token.");
+        throw new Error(msg);
       }
 
       if (!tokenData.url) {
