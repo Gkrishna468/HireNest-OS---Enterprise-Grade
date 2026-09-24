@@ -106,12 +106,14 @@ export class RealtimeAIInterviewAgent {
    * Subscribes to and consumes raw AudioFrame streams from the RemoteAudioTrack
    */
   private async subscribeCandidateAudio(track: RemoteTrack, ctx: SessionContext): Promise<void> {
-    const audioStream = new AudioStream(track);
+    // Explicitly request 16000 Hz, 1 channel (mono) 16-bit PCM AudioStream from LiveKit
+    const audioStream = new AudioStream(track, 16000, 1);
     let pcmAccumulator: Int16Array = new Int16Array(0);
+    let vadBufferFloat32: Float32Array = new Float32Array(0);
     let isSpeechActive = false;
     let silenceCounter = 0;
 
-    console.log("[RealtimeAgent] Spawning live WebRTC audio frame consumption stream...");
+    console.log("[RealtimeAgent] Spawning live WebRTC audio frame consumption stream (16kHz mono)...");
 
     try {
       for await (const frame of audioStream) {
@@ -119,25 +121,40 @@ export class RealtimeAIInterviewAgent {
         this.audioBytesReceived += frame.data.byteLength;
         this.lastAudioFrameAt = new Date().toISOString();
 
-        // Feed standard 16kHz float32 or int16 PCM array into Silero model
+        // Convert 16-bit PCM frame data to Float32
         const pcmFloat32 = this.convertToFloat32(frame.data);
         
-        // Calculate genuine model inference
-        let speechProbability = 0;
-        try {
-          speechProbability = await this.vad.calculateSpeechProbability(pcmFloat32);
-        } catch {
-          // Standard VAD energy fallback if ONNX is blocked
-          speechProbability = this.getVADFallbackProbability(pcmFloat32);
+        // Append incoming float32 samples to vadBufferFloat32
+        const combinedVadBuffer = new Float32Array(vadBufferFloat32.length + pcmFloat32.length);
+        combinedVadBuffer.set(vadBufferFloat32, 0);
+        combinedVadBuffer.set(pcmFloat32, vadBufferFloat32.length);
+        vadBufferFloat32 = combinedVadBuffer;
+
+        // Silero VAD requires exact 512-sample windows at 16kHz (32ms of audio)
+        let isSpeakingInFrame = false;
+        while (vadBufferFloat32.length >= 512) {
+          const window512 = vadBufferFloat32.subarray(0, 512);
+          vadBufferFloat32 = vadBufferFloat32.subarray(512);
+
+          let prob = 0;
+          try {
+            prob = await this.vad.calculateSpeechProbability(window512);
+          } catch (vadErr: any) {
+            console.error("[RealtimeAgent] VAD inference failure - marking session DEGRADED:", vadErr.message);
+            await this.sessionService.updateAgentState(this.sessionId, "DEGRADED", vadErr.message);
+            throw vadErr; // Fail fast without fake RMS fallbacks
+          }
+
+          if (prob > 0.45) {
+            isSpeakingInFrame = true;
+          }
         }
 
-        const isSpeaking = speechProbability > 0.45; // Silero speech probability boundary threshold
-
-        if (isSpeaking) {
+        if (isSpeakingInFrame) {
           this.speechFramesDetected++;
           silenceCounter = 0;
           
-          // Accumulate Int16 samples
+          // Accumulate Int16 samples for STT transcription
           const nextAcc = new Int16Array(pcmAccumulator.length + frame.data.length);
           nextAcc.set(pcmAccumulator, 0);
           nextAcc.set(frame.data, pcmAccumulator.length);
@@ -179,18 +196,6 @@ export class RealtimeAIInterviewAgent {
       float32Array[i] = int16Array[i] / 32768.0;
     }
     return float32Array;
-  }
-
-  /**
-   * VAD fallback absolute amplitude threshold energy calculator if ONNX loading is blocked
-   */
-  private getVADFallbackProbability(pcmFloat32: Float32Array): number {
-    let sumSquares = 0;
-    for (let i = 0; i < pcmFloat32.length; i++) {
-      sumSquares += pcmFloat32[i] * pcmFloat32[i];
-    }
-    const rms = Math.sqrt(sumSquares / pcmFloat32.length);
-    return rms > 0.05 ? 1.0 : 0.0;
   }
 
   /**

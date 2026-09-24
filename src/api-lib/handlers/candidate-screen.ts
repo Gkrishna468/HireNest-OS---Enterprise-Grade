@@ -94,12 +94,16 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: "interviewId is required." });
       }
 
-      let candidateEmail = "candidate@example.com";
+      let candidateEmail = "";
       if (candidateId && adminDb) {
         const candDoc = await adminDb.collection("candidatePool").doc(candidateId).get();
         if (candDoc.exists) {
-          candidateEmail = candDoc.data()?.primaryEmail || candDoc.data()?.email || candidateEmail;
+          candidateEmail = candDoc.data()?.primaryEmail || candDoc.data()?.email || "";
         }
+      }
+
+      if (!candidateEmail) {
+        return res.status(400).json({ error: "Candidate email is required to send an AI interview invitation." });
       }
 
       if (adminDb) {

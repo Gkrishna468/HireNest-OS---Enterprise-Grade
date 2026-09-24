@@ -55,15 +55,23 @@ export class LiveKitEgressRecordingService {
     }
 
     try {
-      const bucket = process.env.LIVEKIT_EGRESS_S3_BUCKET || "hirenest-interview-recordings";
+      const bucket = process.env.LIVEKIT_EGRESS_S3_BUCKET;
+      const region = process.env.LIVEKIT_EGRESS_S3_REGION;
+      const accessKey = process.env.LIVEKIT_EGRESS_AWS_ACCESS_KEY_ID;
+      const secretKey = process.env.LIVEKIT_EGRESS_AWS_SECRET_ACCESS_KEY;
+
+      if (!bucket || !region || !accessKey || !secretKey) {
+        throw new Error("BLOCKED_LIVEKIT_EGRESS_REQUIRED: Missing mandatory S3 egress environment variables (LIVEKIT_EGRESS_S3_BUCKET, LIVEKIT_EGRESS_S3_REGION, LIVEKIT_EGRESS_AWS_ACCESS_KEY_ID, LIVEKIT_EGRESS_AWS_SECRET_ACCESS_KEY).");
+      }
+
       const key = `interviews/${interviewId}/${sessionId}/recording.mp4`;
 
       // Structuring output options matching livekit-server-sdk v2 definitions
       const s3Config = new S3Upload({
-        accessKey: process.env.LIVEKIT_EGRESS_AWS_ACCESS_KEY_ID || "",
-        secret: process.env.LIVEKIT_EGRESS_AWS_SECRET_ACCESS_KEY || "",
-        bucket: bucket,
-        region: "us-east-1"
+        accessKey,
+        secret: secretKey,
+        bucket,
+        region
       });
 
       const fileOutput = new EncodedFileOutput({

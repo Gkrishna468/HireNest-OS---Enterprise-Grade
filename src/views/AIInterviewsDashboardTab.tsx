@@ -179,6 +179,14 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
       alert("Please fill in all scheduling fields");
       return;
     }
+
+    const selectedCandidate = candidates[newInterview.candidateId];
+    const candEmail = selectedCandidate?.email || selectedCandidate?.primaryEmail;
+    if (!candEmail) {
+      alert("Candidate email is required to schedule an AI interview session.");
+      return;
+    }
+
     try {
       setLoading(true);
       const idToken = await auth.currentUser?.getIdToken();
@@ -235,7 +243,7 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
       if (newInterview.interviewType === "AI_SCREENING") {
         setScheduledConfirmation({
           candidateName: targetCandidate ? `${targetCandidate.firstName || targetCandidate.name || ''} ${targetCandidate.lastName || ''}`.trim() : "Candidate",
-          candidateEmail: targetCandidate?.email || targetCandidate?.primaryEmail || "candidate@example.com",
+          candidateEmail: targetCandidate?.email || targetCandidate?.primaryEmail || candEmail,
           jobTitle: targetReq?.title || targetReq?.jobTitle || "Job Requirement",
           scheduledStart: newInterview.scheduledStart ? new Date(newInterview.scheduledStart).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Scheduled Time",
           joinUrl: fullJoinUrl,
@@ -520,7 +528,7 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                     <div key={interview.id} className="p-4 hover:bg-slate-50 transition space-y-3">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         <div>
-                          <h3 className="font-bold text-slate-900 text-sm">{cand.name || cand.fullName || cand.firstName ? `${cand.firstName || ''} ${cand.lastName || ''}` : "Candidate"} ({cand.email || "candidate@example.com"})</h3>
+                          <h3 className="font-bold text-slate-900 text-sm">{cand.name || cand.fullName || cand.firstName ? `${cand.firstName || ''} ${cand.lastName || ''}` : "Candidate"} ({cand.email || cand.primaryEmail || "No Email Specified"})</h3>
                           <p className="text-xs text-slate-500">Position: <span className="font-bold text-slate-700">{req.title || req.jobTitle || "Requirement"}</span> • Scheduled for <span className="font-semibold text-slate-700">{new Date(interview.scheduledStart || interview.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span></p>
                         </div>
                         <span className="text-3s font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full uppercase self-start">

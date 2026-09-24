@@ -24,6 +24,7 @@ import {
   RoomAudioRenderer,
   ControlBar,
   useTracks,
+  useParticipants,
   TrackLoop,
   ParticipantTile
 } from "@livekit/components-react";
@@ -46,6 +47,7 @@ function RealtimeSessionRoom({
   sessionInfo: SessionInfo | null;
   onConclude: () => void;
 }) {
+  const participants = useParticipants();
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -54,47 +56,70 @@ function RealtimeSessionRoom({
     { onlySubscribed: false }
   );
 
+  const localParticipant = participants.find((p) => p.isLocal);
+  const aiParticipant = participants.find((p) => !p.isLocal);
+
   return (
     <div className="flex flex-col gap-6 w-full">
       <RoomAudioRenderer />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[280px]">
-        {tracks.length > 0 ? (
-          <TrackLoop tracks={tracks}>
-            <ParticipantTile />
-          </TrackLoop>
-        ) : (
-          <>
-            {/* Candidate Tile Fallback */}
-            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
-              <span className="text-2xs font-bold uppercase tracking-wider text-slate-400 z-10">
-                You ({sessionInfo?.candidateName || "Candidate"})
-              </span>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center space-y-2 text-slate-500">
-                  <Video className="w-8 h-8 mx-auto opacity-60 text-emerald-400 animate-pulse" />
-                  <p className="text-2xs font-mono text-emerald-400 font-bold">Local Candidate Track Active</p>
-                </div>
-              </div>
-            </div>
+        {/* Candidate Tile */}
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between z-10">
+            <span className="text-2xs font-bold uppercase tracking-wider text-slate-400">
+              You ({sessionInfo?.candidateName || "Candidate"})
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
+              localParticipant?.isMicrophoneEnabled
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+            }`}>
+              {localParticipant?.isMicrophoneEnabled ? "Mic Active" : "Mic Muted"}
+            </span>
+          </div>
 
-            {/* AI Agent Tile */}
-            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
-              <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 z-10 flex items-center gap-1">
-                <Sparkles size={12} /> HireNest AI Interviewer
-              </span>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
-                <div className="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 animate-pulse shadow-lg">
-                  <Bot className="w-8 h-8" />
-                </div>
-                <p className="text-xs font-bold text-slate-200">AI Screening Agent Active</p>
-                <p className="text-2xs text-slate-400 mt-1 max-w-xs">
-                  Speak naturally into your microphone when replying. The AI agent listens and responds automatically via WebRTC.
-                </p>
-              </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-2 text-slate-500">
+              <Video className="w-8 h-8 mx-auto opacity-60 text-emerald-400 animate-pulse" />
+              <p className="text-2xs font-mono text-emerald-400 font-bold">
+                {localParticipant ? "Connected to Room" : "Connecting Media..."}
+              </p>
             </div>
-          </>
-        )}
+          </div>
+        </div>
+
+        {/* AI Agent Tile */}
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between z-10">
+            <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+              <Sparkles size={12} /> HireNest AI Interviewer
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
+              aiParticipant
+                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                : "bg-slate-800 text-slate-400 border border-slate-700"
+            }`}>
+              {aiParticipant ? "AI Connected" : "Connecting Agent..."}
+            </span>
+          </div>
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+            <div className={`w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg ${
+              aiParticipant ? "animate-pulse" : "opacity-50"
+            }`}>
+              <Bot className="w-8 h-8" />
+            </div>
+            <p className="text-xs font-bold text-slate-200">
+              {aiParticipant ? "AI Screening Agent Active" : "Waiting for AI Agent to Join..."}
+            </p>
+            <p className="text-2xs text-slate-400 mt-1 max-w-xs">
+              {aiParticipant
+                ? "Speak naturally into your microphone when replying. The AI agent listens and responds automatically via WebRTC."
+                : "Initial WebRTC channel handshake in progress."}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-800 pt-4">
@@ -114,8 +139,8 @@ export default function CandidateAIInterviewView() {
   const params = useParams<{ rawToken?: string; sessionId?: string }>();
   const rawToken = params.rawToken || params.sessionId || "";
 
-  // Page States: "LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "COMPLETED"
-  const [pageState, setPageState] = useState<"LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "COMPLETED">("LOADING");
+  // Page States: "LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "INTERRUPTED" | "COMPLETED"
+  const [pageState, setPageState] = useState<"LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "INTERRUPTED" | "COMPLETED">("LOADING");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
 
@@ -463,13 +488,44 @@ export default function CandidateAIInterviewView() {
             audio={true}
             video={true}
             className="w-full max-w-4xl bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl flex flex-col gap-6"
-            onDisconnected={() => setPageState("COMPLETED")}
+            onDisconnected={() => setPageState("INTERRUPTED")}
           >
             <RealtimeSessionRoom
               sessionInfo={sessionInfo}
               onConclude={() => setPageState("COMPLETED")}
             />
           </LiveKitRoom>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER STATE: INTERRUPTED (RECONNECTION / RECOVERY)
+  // -------------------------------------------------------------
+  if (pageState === "INTERRUPTED") {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="w-16 h-16 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center border border-amber-500/20">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold">Network Connection Interrupted</h2>
+        <p className="text-xs text-slate-400 max-w-md">
+          Your connection to the LiveKit server was dropped. You can attempt to reconnect or conclude the interview session.
+        </p>
+        <div className="flex gap-3 pt-2">
+          <button
+            onClick={() => setPageState("LIVE")}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+          >
+            <RotateCcw size={14} /> Reconnect Stream
+          </button>
+          <button
+            onClick={() => setPageState("COMPLETED")}
+            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+          >
+            Conclude Interview
+          </button>
         </div>
       </div>
     );

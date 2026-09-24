@@ -70,7 +70,7 @@ export class SileroVAD {
       return outputProb[0] || 0.0;
     } catch (err: any) {
       console.error("[SileroVAD] Inference runtime failure:", err.message);
-      return 0.0;
+      throw new Error(`AI_INTERVIEW_VAD_FAILED: Silero VAD inference failed. ${err.message}`);
     }
   }
 

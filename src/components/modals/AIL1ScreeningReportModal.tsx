@@ -222,13 +222,15 @@ export function AIL1ScreeningReportModal({
                       ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                       : reportData?.overallRecommendation === "PROCEED_WITH_CAUTION"
                       ? "bg-amber-100 text-amber-800 border border-amber-300"
+                      : reportData?.overallRecommendation === "NOT_RECOMMENDED"
+                      ? "bg-rose-100 text-rose-800 border border-rose-300"
                       : "bg-slate-100 text-slate-800 border border-slate-300"
                   }`}>
-                    {reportData?.overallRecommendation || "RECOMMENDED"}
+                    {reportData?.overallRecommendation || "PENDING REVIEW"}
                   </span>
                 </div>
                 <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                  {reportData?.recruiterBriefing || "The candidate completed the Level-1 AI Screening. Technical depth and communication clarity meet baseline requirements."}
+                  {reportData?.recruiterBriefing || "Evaluation in progress or AI report pending generation."}
                 </p>
               </div>
 
@@ -237,25 +239,37 @@ export function AIL1ScreeningReportModal({
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-1">
                   <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Technical Score</span>
                   <div className="text-2xl font-black text-slate-900">
-                    {reportData?.technicalCompetenceScore ?? 82}<span className="text-xs text-slate-400">/100</span>
+                    {reportData?.technicalCompetenceScore !== undefined && reportData?.technicalCompetenceScore !== null ? (
+                      <>{reportData.technicalCompetenceScore}<span className="text-xs text-slate-400">/100</span></>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400">Not Available</span>
+                    )}
                   </div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-1">
                   <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Communication Score</span>
                   <div className="text-2xl font-black text-indigo-600">
-                    {reportData?.communicationScore ?? 85}<span className="text-xs text-slate-400">/100</span>
+                    {reportData?.communicationScore !== undefined && reportData?.communicationScore !== null ? (
+                      <>{reportData.communicationScore}<span className="text-xs text-slate-400">/100</span></>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400">Not Available</span>
+                    )}
                   </div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-1">
                   <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Integrity & Verification</span>
                   <div className="text-2xl font-black text-emerald-600">
-                    {reportData?.integrityScore ?? 88}<span className="text-xs text-slate-400">/100</span>
+                    {reportData?.integrityScore !== undefined && reportData?.integrityScore !== null ? (
+                      <>{reportData.integrityScore}<span className="text-xs text-slate-400">/100</span></>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400">Not Available</span>
+                    )}
                   </div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-1">
                   <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Completion</span>
                   <div className="text-2xl font-black text-slate-900">
-                    5<span className="text-xs text-slate-400">/5 Rounds</span>
+                    {reportData?.completedRounds ?? (sessionData?.transcript?.length || 0)}<span className="text-xs text-slate-400">/5 Rounds</span>
                   </div>
                 </div>
               </div>
@@ -285,27 +299,30 @@ export function AIL1ScreeningReportModal({
                   <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
                     <CheckCircle2 size={14} className="text-emerald-600" /> Positive Indicators
                   </span>
-                  <ul className="text-xs text-emerald-950 space-y-1.5 list-disc pl-4">
-                    {(reportData?.positiveIndicators || [
-                      "Demonstrated clear architectural rationale in answers.",
-                      "Communicated technical trade-offs effectively."
-                    ]).map((item: string, idx: number) => (
-                      <li key={idx}>{item}</li>
-                    ))}
-                  </ul>
+                  {reportData?.positiveIndicators && reportData.positiveIndicators.length > 0 ? (
+                    <ul className="text-xs text-emerald-950 space-y-1.5 list-disc pl-4">
+                      {reportData.positiveIndicators.map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-2xs text-emerald-800 italic">No specific positive indicators logged.</p>
+                  )}
                 </div>
 
                 <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 space-y-2">
                   <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                     <AlertTriangle size={14} className="text-amber-600" /> Risk Flags & Gaps
                   </span>
-                  <ul className="text-xs text-amber-950 space-y-1.5 list-disc pl-4">
-                    {(reportData?.negativeIndicators || [
-                      "Could provide deeper practical examples for high-scale deployment."
-                    ]).map((item: string, idx: number) => (
-                      <li key={idx}>{item}</li>
-                    ))}
-                  </ul>
+                  {reportData?.negativeIndicators && reportData.negativeIndicators.length > 0 ? (
+                    <ul className="text-xs text-amber-950 space-y-1.5 list-disc pl-4">
+                      {reportData.negativeIndicators.map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-2xs text-amber-800 italic">No specific risk flags logged.</p>
+                  )}
                 </div>
               </div>
 
