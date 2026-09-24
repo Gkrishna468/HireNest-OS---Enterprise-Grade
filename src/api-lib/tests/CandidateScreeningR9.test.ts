@@ -22,12 +22,13 @@ async function runTests() {
   const testRawToken = "test_raw_token_r9_123456789";
   const expectedSessionId = hashToken(testRawToken);
 
-  // Test 1: Missing rawToken
+  // Test 1A: Missing / Undefined rawToken
   {
     const req = { method: "POST", body: { action: "record-consent" } };
     const res = createMockRes();
+    const cleanRawToken = typeof req.body.rawToken === "string" ? req.body.rawToken.trim() : "";
 
-    if (!req.body.rawToken) {
+    if (!cleanRawToken) {
       res.status(400).json({
         success: false,
         errorCode: "MISSING_RAW_TOKEN",
@@ -38,7 +39,47 @@ async function runTests() {
     assert.strictEqual(res.statusCode, 400);
     assert.strictEqual(res.responseData.success, false);
     assert.strictEqual(res.responseData.errorCode, "MISSING_RAW_TOKEN");
-    console.log("✓ Test 1 Passed: Missing rawToken returns 400 with MISSING_RAW_TOKEN");
+    console.log("✓ Test 1A Passed: Undefined rawToken returns 400 with MISSING_RAW_TOKEN");
+  }
+
+  // Test 1B: Empty String rawToken ("")
+  {
+    const req = { method: "POST", body: { action: "record-consent", rawToken: "" } };
+    const res = createMockRes();
+    const cleanRawToken = typeof req.body.rawToken === "string" ? req.body.rawToken.trim() : "";
+
+    if (!cleanRawToken) {
+      res.status(400).json({
+        success: false,
+        errorCode: "MISSING_RAW_TOKEN",
+        error: "rawToken is required to record consent."
+      });
+    }
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.responseData.success, false);
+    assert.strictEqual(res.responseData.errorCode, "MISSING_RAW_TOKEN");
+    console.log("✓ Test 1B Passed: Empty string rawToken returns 400 with MISSING_RAW_TOKEN");
+  }
+
+  // Test 1C: Whitespace rawToken ("   ")
+  {
+    const req = { method: "POST", body: { action: "record-consent", rawToken: "   " } };
+    const res = createMockRes();
+    const cleanRawToken = typeof req.body.rawToken === "string" ? req.body.rawToken.trim() : "";
+
+    if (!cleanRawToken) {
+      res.status(400).json({
+        success: false,
+        errorCode: "MISSING_RAW_TOKEN",
+        error: "rawToken is required to record consent."
+      });
+    }
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.responseData.success, false);
+    assert.strictEqual(res.responseData.errorCode, "MISSING_RAW_TOKEN");
+    console.log("✓ Test 1C Passed: Whitespace-only rawToken returns 400 with MISSING_RAW_TOKEN");
   }
 
   // Test 2: First consent

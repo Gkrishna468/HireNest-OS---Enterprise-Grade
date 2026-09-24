@@ -132,7 +132,13 @@ export default async function handler(req: any, res: any) {
     // 2a. Action: get-session
     if (action === "get-session") {
       const { rawToken } = req.body || {};
-      if (!rawToken) {
+      const cleanRawToken = typeof rawToken === "string" ? rawToken.trim() : "";
+      console.log("[CandidateScreenAPI] get-session request:", {
+        action: "get-session",
+        hasRawToken: Boolean(cleanRawToken),
+        rawTokenLength: cleanRawToken.length
+      });
+      if (!cleanRawToken) {
         return res.status(400).json({
           success: false,
           errorCode: "MISSING_RAW_TOKEN",
@@ -140,7 +146,7 @@ export default async function handler(req: any, res: any) {
         });
       }
       try {
-        const sessionStub = await AIInterviewService.getSessionByToken(rawToken);
+        const sessionStub = await AIInterviewService.getSessionByToken(cleanRawToken);
         return res.status(200).json({
           success: true,
           session: sessionStub,
@@ -182,10 +188,11 @@ export default async function handler(req: any, res: any) {
     // 2b. Action: verify-email
     if (action === "verify-email") {
       const { rawToken, email } = req.body || {};
-      if (!rawToken || !email) {
+      const cleanRawToken = typeof rawToken === "string" ? rawToken.trim() : "";
+      if (!cleanRawToken || !email) {
         return res.status(400).json({ error: "rawToken and email are required for verification." });
       }
-      const session = await AIInterviewService.verifyCandidateEmail(rawToken, email);
+      const session = await AIInterviewService.verifyCandidateEmail(cleanRawToken, email);
       return res.status(200).json({ success: true, session });
     }
 
@@ -202,7 +209,14 @@ export default async function handler(req: any, res: any) {
     // 2d. Action: record-consent
     if (action === "record-consent") {
       const { rawToken, consentVersion } = req.body || {};
-      if (!rawToken) {
+      const cleanRawToken = typeof rawToken === "string" ? rawToken.trim() : "";
+      console.log("[CandidateScreenAPI] record-consent request:", {
+        action: "record-consent",
+        hasRawToken: Boolean(cleanRawToken),
+        rawTokenLength: cleanRawToken.length,
+        sessionIdHashPresent: Boolean(cleanRawToken)
+      });
+      if (!cleanRawToken) {
         return res.status(400).json({
           success: false,
           errorCode: "MISSING_RAW_TOKEN",
@@ -210,7 +224,7 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const sessionId = hashToken(rawToken);
+      const sessionId = hashToken(cleanRawToken);
       const docRef = adminDb.collection("ai_interview_sessions").doc(sessionId);
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
@@ -357,7 +371,13 @@ export default async function handler(req: any, res: any) {
     // 4. Action: livekit-token
     if (action === "livekit-token") {
       const { rawToken, participantName, isRecruiter } = req.body || {};
-      if (!rawToken) {
+      const cleanRawToken = typeof rawToken === "string" ? rawToken.trim() : "";
+      console.log("[CandidateScreenAPI] livekit-token request:", {
+        action: "livekit-token",
+        hasRawToken: Boolean(cleanRawToken),
+        rawTokenLength: cleanRawToken.length
+      });
+      if (!cleanRawToken) {
         return res.status(400).json({
           success: false,
           errorCode: "MISSING_RAW_TOKEN",
@@ -365,7 +385,7 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const sessionId = hashToken(rawToken);
+      const sessionId = hashToken(cleanRawToken);
       const sessDoc = await adminDb.collection("ai_interview_sessions").doc(sessionId).get();
       if (!sessDoc.exists) {
         return res.status(404).json({

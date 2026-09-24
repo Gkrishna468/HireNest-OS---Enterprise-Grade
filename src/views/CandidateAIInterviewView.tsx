@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useParams, useLocation } from "react-router-dom";
 import {
   Bot,
   ShieldCheck,
@@ -137,7 +137,28 @@ function RealtimeSessionRoom({
 
 export default function CandidateAIInterviewView() {
   const params = useParams<{ rawToken?: string; sessionId?: string }>();
-  const rawToken = params.rawToken || params.sessionId || "";
+  const location = useLocation();
+
+  // Resolve canonical candidate token once from route parameters or URL path
+  const canonicalCandidateToken = useMemo(() => {
+    const rawParam = (params.rawToken || params.sessionId || "").trim();
+    if (rawParam) return rawParam;
+
+    // Fallback: extract last path segment from location if present
+    const pathParts = location.pathname.split("/").filter(Boolean);
+    if (pathParts.length > 0) {
+      const lastPart = pathParts[pathParts.length - 1].trim();
+      if (lastPart && !["ai-interview", "interview", "candidate"].includes(lastPart.toLowerCase())) {
+        return lastPart;
+      }
+    }
+    return "";
+  }, [params.rawToken, params.sessionId, location.pathname]);
+
+  const canonicalCandidateTokenRef = useRef<string>(canonicalCandidateToken);
+  useEffect(() => {
+    canonicalCandidateTokenRef.current = canonicalCandidateToken;
+  }, [canonicalCandidateToken]);
 
   // Page States: "LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "INTERRUPTED" | "COMPLETED"
   const [pageState, setPageState] = useState<"LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "INTERRUPTED" | "COMPLETED">("LOADING");
@@ -167,8 +188,23 @@ export default function CandidateAIInterviewView() {
 
   // 1. Initial Token Resolution (Zero-Trust Session Lookup)
   useEffect(() => {
-    if (!rawToken) {
-      setErrorMessage("No interview invitation token provided in URL.");
+    const activeToken = canonicalCandidateTokenRef.current || canonicalCandidateToken;
+
+    console.log("[AI Interview] token state:", {
+      present: Boolean(activeToken),
+      length: activeToken ? activeToken.length : 0,
+      route: location.pathname,
+      action: "get-session"
+    });
+
+    if (!activeToken) {
+      console.warn("[AI Interview] CANDIDATE_TOKEN_MISSING on initial session load", {
+        present: false,
+        length: 0,
+        route: location.pathname,
+        action: "get-session"
+      });
+      setErrorMessage("No interview invitation token provided in URL. Please use the original invitation link.");
       setPageState("ERROR");
       return;
     }
@@ -181,7 +217,7 @@ export default function CandidateAIInterviewView() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "get-session",
-            rawToken: rawToken
+            rawToken: activeToken
           })
         });
 
@@ -216,7 +252,7 @@ export default function CandidateAIInterviewView() {
     };
 
     loadSession();
-  }, [rawToken]);
+  }, [canonicalCandidateToken, location.pathname]);
 
   // 2. Preflight Camera & Microphone Stream Setup
   useEffect(() => {
@@ -326,14 +362,35 @@ export default function CandidateAIInterviewView() {
     setIsSubmitting(true);
     setErrorMessage("");
 
+    const activeToken = canonicalCandidateTokenRef.current || canonicalCandidateToken;
+
+    console.log("[AI Interview] token state:", {
+      present: Boolean(activeToken),
+      length: activeToken ? activeToken.length : 0,
+      route: location.pathname,
+      action: "record-consent"
+    });
+
+    if (!activeToken || activeToken.length === 0) {
+      console.warn("[AI Interview] CANDIDATE_TOKEN_MISSING before record-consent", {
+        present: false,
+        length: 0,
+        route: location.pathname,
+        action: "record-consent"
+      });
+      setErrorMessage("Interview invitation token is missing. Please reopen the original invitation link. [CANDIDATE_TOKEN_MISSING]");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      // Step A: Record Recording Consent using rawToken ONLY
+      // Step A: Record Recording Consent using canonicalCandidateToken ONLY
       const consentRes = await fetch("/api/candidates/screen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "record-consent",
-          rawToken: rawToken,
+          rawToken: activeToken,
           consentVersion: "v1.0"
         })
       });
@@ -357,13 +414,13 @@ export default function CandidateAIInterviewView() {
         throw new Error(msg);
       }
 
-      // Step B: Request Short-Lived LiveKit JWT using rawToken ONLY
+      // Step B: Request Short-Lived LiveKit JWT using canonicalCandidateToken ONLY
       const tokenRes = await fetch("/api/candidates/screen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "livekit-token",
-          rawToken: rawToken
+          rawToken: activeToken
         })
       });
       const tokenData = await tokenRes.json();
