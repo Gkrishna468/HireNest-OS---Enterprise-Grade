@@ -570,8 +570,8 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, session, report });
     }
 
-    // 6. Action: fail-terminate
-    if (action === "fail-terminate") {
+    // 6. Action: fail-terminate / force-end
+    if (action === "fail-terminate" || action === "force-end") {
       const { sessionId, terminationReason, terminatedBy } = req.body || {};
       if (!sessionId) {
         return res.status(400).json({ error: "sessionId is required." });
@@ -584,14 +584,30 @@ export default async function handler(req: any, res: any) {
       }
 
       const session = snapshot.data();
-      session.status = "FAILED";
-      session.terminationType = "ADMIN_OVERRIDE";
-      session.terminationReason = terminationReason || "Terminated by administrative override.";
+      session.status = "FORCE_ENDED";
+      session.terminationType = "ADMIN_FORCE_ENDED";
+      session.terminationReason = terminationReason || "ADMIN_FORCE_ENDED";
       session.terminatedBy = terminatedBy || "Recruiter";
       session.terminatedAt = new Date().toISOString();
       session.updatedAt = new Date().toISOString();
 
       await docRef.set(session);
+
+      // Disconnect candidate and AI agent by deleting LiveKit room
+      try {
+        const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+        const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+        const rawLkUrl = (process.env.LIVEKIT_URL || "").trim();
+        if (apiKey && apiSecret && rawLkUrl) {
+          const httpUrl = normalizeLiveKitHttpUrl(rawLkUrl);
+          const { RoomServiceClient } = await import("livekit-server-sdk");
+          const roomService = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+          await roomService.deleteRoom(sessionId);
+          console.log(`[CandidateScreenAPI] Successfully deleted LiveKit room ${sessionId} on Force End.`);
+        }
+      } catch (lkDelErr: any) {
+        console.warn(`[CandidateScreenAPI] Notice on deleting LiveKit room ${sessionId}:`, lkDelErr.message);
+      }
 
       await CandidateEvidenceEngine.transitionState(
         sessionId,
@@ -599,8 +615,16 @@ export default async function handler(req: any, res: any) {
         session.requirementId,
         "AI_INTERVIEW_IN_PROGRESS" as any,
         "AI_INTERVIEW_FAILED" as any,
-        `Session terminated by Recruiter (${terminatedBy || "Recruiter"}).`
+        `Session force-ended by Recruiter (${terminatedBy || "Recruiter"}).`
       );
+
+      EventBus.emit("AI_INTERVIEW_FORCE_ENDED" as any, {
+        sessionId,
+        candidateId: session.candidateId,
+        requirementId: session.requirementId,
+        terminatedBy: terminatedBy || "Recruiter",
+        terminatedAt: session.terminatedAt
+      });
 
       return res.status(200).json({ success: true, session });
     }
@@ -617,6 +641,31 @@ export default async function handler(req: any, res: any) {
       }, { merge: true });
 
       return res.status(200).json({ success: true });
+    }
+
+    // 8. Action: delete-report (Soft Delete L1 Report)
+    if (action === "delete-report") {
+      const { sessionId, reportId, deletionReason, deletedBy } = req.body || {};
+      const targetId = reportId || sessionId;
+      if (!targetId) {
+        return res.status(400).json({ error: "reportId or sessionId is required." });
+      }
+
+      const reportRef = adminDb.collection("ai_interview_reports").doc(targetId);
+      const snapshot = await reportRef.get();
+      if (!snapshot.exists) {
+        return res.status(404).json({ error: "L1 report not found." });
+      }
+
+      const nowIso = new Date().toISOString();
+      await reportRef.update({
+        isDeleted: true,
+        deletedAt: nowIso,
+        deletedBy: deletedBy || "Recruiter Admin",
+        deletionReason: deletionReason || "Recruiter requested soft deletion of L1 screening report."
+      });
+
+      return res.status(200).json({ success: true, message: "L1 screening report soft-deleted successfully.", reportId: targetId });
     }
 
     // 8b. Action: get-l1-report
@@ -715,7 +764,10 @@ export default async function handler(req: any, res: any) {
 
       const reportsList: any[] = [];
       reportsSnap.forEach(doc => {
-        reportsList.push({ id: doc.id, ...doc.data() });
+        const data = doc.data() || {};
+        if (!data.isDeleted) {
+          reportsList.push({ id: doc.id, ...data });
+        }
       });
 
       const blueprintsList: any[] = [];

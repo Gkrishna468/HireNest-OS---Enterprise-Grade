@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Video, VideoOff, Calendar, CheckCircle, AlertCircle, PlayCircle, XCircle, 
   Plus, Search, FileText, ExternalLink, Volume2, Award, Activity, Sparkles, 
-  Copy, Save, Clock, ChevronRight, ArrowRight, ShieldCheck, RefreshCw, Send, User
+  Copy, Save, Clock, ChevronRight, ArrowRight, ShieldCheck, RefreshCw, Send, User, Trash2
 } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { AIL1ScreeningReportModal } from "../components/modals/AIL1ScreeningReportModal";
@@ -371,6 +371,35 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
     }
   };
 
+  // Delete L1 Report (Soft Delete)
+  const handleDeleteReport = async (report: any) => {
+    const candName = candidates[report.candidateId]?.name || candidates[report.candidateId]?.fullName || "Candidate";
+    if (!confirm(`Are you sure you want to delete the L1 Screening Report for ${candName}?\n\nThis will soft-delete the report and remove it from operational views.`)) {
+      return;
+    }
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/candidates/screen", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": idToken ? `Bearer ${idToken}` : ""
+        },
+        body: JSON.stringify({
+          action: "delete-report",
+          sessionId: report.sessionId || report.id,
+          reportId: report.sessionId || report.id,
+          deletionReason: "Recruiter requested soft deletion of L1 screening report."
+        })
+      });
+      if (!res.ok) throw new Error("Failed to delete L1 screening report.");
+      alert("✓ L1 Screening Report deleted successfully!");
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete L1 report.");
+    }
+  };
+
   // Metrics computation from real database state
   const liveSessions = sessions.filter(s => s.status === "IN_PROGRESS" || s.status === "CREATED");
   const completedSessions = sessions.filter(s => s.status === "COMPLETED");
@@ -602,6 +631,38 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                             >
                               <Sparkles size={12} className="text-indigo-600"/> View L1 Report
                             </button>
+                            <button
+                              onClick={async () => {
+                                const targetSessionId = interview.sessionId || interview.id;
+                                if (!confirm(`End this interview session?\n\nThis will immediately disconnect candidate and AI interviewer, terminate the active LiveKit room, stop active recording/processing, and mark the session as FORCE_ENDED.`)) {
+                                  return;
+                                }
+                                try {
+                                  const idToken = await auth.currentUser?.getIdToken();
+                                  const res = await fetch("/api/candidates/screen", {
+                                    method: "POST",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      "Authorization": idToken ? `Bearer ${idToken}` : ""
+                                    },
+                                    body: JSON.stringify({
+                                      action: "fail-terminate",
+                                      sessionId: targetSessionId,
+                                      terminationReason: "ADMIN_FORCE_ENDED",
+                                      terminatedBy: "Recruiter Admin"
+                                    })
+                                  });
+                                  if (!res.ok) throw new Error("Failed to force end session.");
+                                  alert("✓ Interview session force-ended and LiveKit room closed!");
+                                  await loadData();
+                                } catch (err: any) {
+                                  alert(err.message || "Failed to force end interview session.");
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            >
+                              <XCircle size={12} className="text-rose-600"/> Force End
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -687,19 +748,28 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                         >
                           View L1 Report <ChevronRight size={14} />
                         </button>
-                        {isSubmitted ? (
-                          <span className="text-2xs text-emerald-600 font-bold flex items-center gap-0.5">
-                            <ShieldCheck size={12} /> Submitted
-                          </span>
-                        ) : (
-                          <button 
-                            onClick={() => handleSubmitToClient(report)}
-                            disabled={submittingToClient === report.sessionId}
-                            className="px-2 py-0.5 bg-slate-900 hover:bg-slate-950 text-white text-3s font-bold rounded transition flex items-center gap-1"
+                        <div className="flex items-center gap-1.5">
+                          {isSubmitted ? (
+                            <span className="text-2xs text-emerald-600 font-bold flex items-center gap-0.5">
+                              <ShieldCheck size={12} /> Submitted
+                            </span>
+                          ) : (
+                            <button 
+                              onClick={() => handleSubmitToClient(report)}
+                              disabled={submittingToClient === report.sessionId}
+                              className="px-2 py-0.5 bg-slate-900 hover:bg-slate-950 text-white text-3s font-bold rounded transition flex items-center gap-1"
+                            >
+                              <Send size={8} /> Submit to Client
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteReport(report)}
+                            title="Delete L1 Screening Report"
+                            className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-3s font-bold rounded transition flex items-center gap-1"
                           >
-                            <Send size={8} /> Submit to Client
+                            <Trash2 size={10} /> Delete
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
