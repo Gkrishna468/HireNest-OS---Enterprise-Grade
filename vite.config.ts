@@ -9,7 +9,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  server: { hmr: false }, 
+  server: {
+    hmr: false,
+    ws: false,
+    port: 3000,
+  }, 
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {

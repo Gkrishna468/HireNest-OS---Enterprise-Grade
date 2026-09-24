@@ -71,5 +71,13 @@
     "vite": "^8.1.5",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "overrides": {
+    "jwks-rsa": {
+      "jose": "4.15.9"
+    }
   }
 }

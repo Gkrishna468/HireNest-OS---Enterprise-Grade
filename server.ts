@@ -824,6 +824,8 @@ hirenest_active_requests 0
         server: {
           middlewareMode: true,
           hmr: false,
+          ws: false,
+          port: 3000,
         },
         appType: 'spa',
       });
