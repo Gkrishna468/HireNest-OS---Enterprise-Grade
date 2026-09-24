@@ -1,7 +1,7 @@
 import { adminDb } from "../../lib/firebase-admin.js";
 import { ResumeScreeningService } from "../services/ResumeScreeningService.js";
 import { CandidateEvidenceEngine } from "../services/CandidateEvidenceEngine.js";
-import { AIInterviewService } from "../services/AIInterviewService.js";
+import { AIInterviewService, hashToken } from "../services/AIInterviewService.js";
 import { InterviewOrchestrationService } from "../services/InterviewOrchestrationService.js";
 import { EventBus } from "../services/EventBus.js";
 
@@ -157,21 +157,34 @@ export default async function handler(req: any, res: any) {
 
     // 2d. Action: record-consent
     if (action === "record-consent") {
-      let { sessionId, rawToken, consentVersion } = req.body || {};
-      if (!sessionId && rawToken) {
-        sessionId = hashToken(rawToken);
-      }
-      if (!sessionId) {
-        return res.status(400).json({ error: "sessionId or rawToken is required." });
+      const { rawToken, consentVersion } = req.body || {};
+      if (!rawToken) {
+        return res.status(400).json({ error: "rawToken is required to record consent." });
       }
 
+      const sessionId = hashToken(rawToken);
       const docRef = adminDb.collection("ai_interview_sessions").doc(sessionId);
       const snapshot = await docRef.get();
       if (!snapshot.exists) {
-        return res.status(404).json({ error: "Interview session not found." });
+        return res.status(404).json({ error: "Interview invitation is invalid or not found." });
       }
 
-      const sessionData = snapshot.data();
+      const sessionData = snapshot.data() || {};
+
+      // Validate expiration and terminal states
+      if (sessionData.expiresAt && new Date() > new Date(sessionData.expiresAt) && sessionData.status !== "COMPLETED") {
+        await docRef.update({ status: "EXPIRED", updatedAt: new Date().toISOString() });
+        return res.status(403).json({ error: "This interview invitation has expired." });
+      }
+
+      if (sessionData.status === "REVOKED") {
+        return res.status(403).json({ error: "This interview invitation has been revoked." });
+      }
+
+      if (sessionData.status === "COMPLETED") {
+        return res.status(400).json({ error: "This interview has already been completed." });
+      }
+
       const timestamp = new Date().toISOString();
       const version = consentVersion || "v1.0";
 
@@ -234,7 +247,7 @@ export default async function handler(req: any, res: any) {
           }
         }
       } else {
-        console.warn("[CandidateScreenAPI] LiveKit credentials not configured; agent dispatch skipped (mock/simulation mode).");
+        console.warn("[CandidateScreenAPI] LiveKit credentials not configured; agent dispatch skipped.");
       }
 
       return res.status(200).json({
@@ -261,26 +274,36 @@ export default async function handler(req: any, res: any) {
 
     // 4. Action: livekit-token
     if (action === "livekit-token") {
-      let { sessionId, rawToken, participantName, isRecruiter } = req.body || {};
-      if (!sessionId && rawToken) {
-        sessionId = hashToken(rawToken);
-      }
-      if (!sessionId) {
-        return res.status(400).json({ error: "sessionId or rawToken is required." });
+      const { rawToken, participantName, isRecruiter } = req.body || {};
+      if (!rawToken) {
+        return res.status(400).json({ error: "rawToken is required to issue LiveKit token." });
       }
 
+      const sessionId = hashToken(rawToken);
       const sessDoc = await adminDb.collection("ai_interview_sessions").doc(sessionId).get();
       if (!sessDoc.exists) {
-        return res.status(404).json({ error: "Interview session not found." });
+        return res.status(404).json({ error: "Interview invitation is invalid or not found." });
+      }
+
+      const sessionData = sessDoc.data() || {};
+
+      if (sessionData.expiresAt && new Date() > new Date(sessionData.expiresAt) && sessionData.status !== "COMPLETED") {
+        await adminDb.collection("ai_interview_sessions").doc(sessionId).update({ status: "EXPIRED", updatedAt: new Date().toISOString() });
+        return res.status(403).json({ error: "This interview invitation has expired." });
+      }
+
+      if (sessionData.status === "REVOKED") {
+        return res.status(403).json({ error: "This interview invitation has been revoked." });
       }
 
       const apiKey = process.env.LIVEKIT_API_KEY;
       const apiSecret = process.env.LIVEKIT_API_SECRET;
+      const lkUrl = process.env.LIVEKIT_URL;
 
-      if (!apiKey || !apiSecret) {
+      if (!apiKey || !apiSecret || !lkUrl) {
         return res.status(503).json({ 
           error: "LIVEKIT_NOT_CONFIGURED", 
-          details: "LiveKit credentials (LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are missing in server environment. Simulated/fallback tokens are prohibited." 
+          details: "Realtime interview service is temporarily unconfigured. Please contact support." 
         });
       }
 
@@ -290,7 +313,7 @@ export default async function handler(req: any, res: any) {
         const { AccessToken } = await import("livekit-server-sdk");
         const at = new AccessToken(apiKey, apiSecret, {
           identity: participantIdentity,
-          ttl: "2h"
+          ttl: "30m"
         });
 
         at.addGrant({
@@ -302,7 +325,12 @@ export default async function handler(req: any, res: any) {
         });
 
         const token = await at.toJwt();
-        return res.status(200).json({ success: true, token, roomName: sessionId });
+        return res.status(200).json({
+          success: true,
+          token,
+          roomName: sessionId,
+          url: lkUrl
+        });
       } catch (err: any) {
         console.error("[CandidateScreenAPI] livekit-server-sdk token generation failed:", err);
         return res.status(500).json({ error: "Failed to generate LiveKit access token: " + err.message });
@@ -401,7 +429,84 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true });
     }
 
-    // 8. Action: get-all-interviews
+    // 8b. Action: get-l1-report
+    if (action === "get-l1-report") {
+      let { sessionId, candidateId, requirementId } = req.body || {};
+
+      let sessionData: any = null;
+      let reportData: any = null;
+
+      if (sessionId) {
+        const sessDoc = await adminDb.collection("ai_interview_sessions").doc(sessionId).get();
+        if (sessDoc.exists) sessionData = { id: sessDoc.id, ...sessDoc.data() };
+
+        const repDoc = await adminDb.collection("ai_interview_reports").doc(sessionId).get();
+        if (repDoc.exists) reportData = { id: repDoc.id, ...repDoc.data() };
+      }
+
+      if (!reportData && candidateId && requirementId) {
+        const sessSnap = await adminDb.collection("ai_interview_sessions")
+          .where("candidateId", "==", candidateId)
+          .where("requirementId", "==", requirementId)
+          .limit(1)
+          .get();
+        if (!sessSnap.empty) {
+          sessionData = { id: sessSnap.docs[0].id, ...sessSnap.docs[0].data() };
+          sessionId = sessSnap.docs[0].id;
+          const repDoc = await adminDb.collection("ai_interview_reports").doc(sessionId).get();
+          if (repDoc.exists) reportData = { id: repDoc.id, ...repDoc.data() };
+        }
+      }
+
+      const effectiveCandidateId = candidateId || sessionData?.candidateId;
+      const effectiveRequirementId = requirementId || sessionData?.requirementId;
+
+      let clientSubmissionStatus = "NOT_SUBMITTED";
+      let submissionData: any = null;
+
+      if (effectiveCandidateId && effectiveRequirementId) {
+        const subId = `sub_${effectiveCandidateId}_${effectiveRequirementId}`;
+        const subDoc = await adminDb.collection("client_submissions").doc(subId).get();
+        if (subDoc.exists) {
+          submissionData = { id: subDoc.id, ...subDoc.data() };
+          if (submissionData?.status === "SUBMITTED") {
+            clientSubmissionStatus = "SUBMITTED";
+          }
+        }
+      }
+
+      let candidateName = "Candidate";
+      let jobTitle = "Requirement";
+
+      if (effectiveCandidateId) {
+        const cDoc = await adminDb.collection("candidatePool").doc(effectiveCandidateId).get();
+        if (cDoc.exists) {
+          const c = cDoc.data() || {};
+          candidateName = c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.name || "Candidate";
+        }
+      }
+
+      if (effectiveRequirementId) {
+        const rDoc = await adminDb.collection("requirements").doc(effectiveRequirementId).get();
+        if (rDoc.exists) {
+          const r = rDoc.data() || {};
+          jobTitle = r.title || r.jobTitle || "Requirement";
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        sessionId,
+        candidateId: effectiveCandidateId,
+        requirementId: effectiveRequirementId,
+        report: reportData,
+        session: sessionData,
+        clientSubmissionStatus,
+        submissionData,
+        candidateName,
+        jobTitle
+      });
+    }
     if (action === "get-all-interviews") {
       const interviewsSnap = await adminDb.collection("interviews").get();
       const sessionsSnap = await adminDb.collection("ai_interview_sessions").get();

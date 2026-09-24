@@ -21,6 +21,7 @@ import { ResumeIngestionService } from "../../services/resumeIngestionService";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot, doc, getDoc, setDoc, query, limit, where } from "firebase/firestore";
 import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
+import { AIL1ScreeningReportModal } from "./AIL1ScreeningReportModal";
 
 type TabType = 'OVERVIEW' | 'RESUME' | 'AI_ANALYSIS' | 'REQUIREMENTS' | 'INTERVIEWS' | 'TIMELINE' | 'COLLABORATION' | 'GOVERNANCE';
 
@@ -142,6 +143,10 @@ export default function Candidate360Modal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [resumeUpdateProgress, setResumeUpdateProgress] = useState<string>("");
   const [resumeUpdateError, setResumeUpdateError] = useState<string | null>(null);
+
+  // L1 Screening Report Modal State
+  const [l1ReportModalOpen, setL1ReportModalOpen] = useState<boolean>(false);
+  const [l1ReportSessionId, setL1ReportSessionId] = useState<string | undefined>(undefined);
   const [autoRerunMatch, setAutoRerunMatch] = useState(true);
   const [selectedMatchReqIdForUpdate, setSelectedMatchReqIdForUpdate] = useState<string>("");
   const [resumeUpdateSuccess, setResumeUpdateSuccess] = useState<{
@@ -2580,7 +2585,7 @@ export default function Candidate360Modal({
                                               Edit Details
                                            </button>
                                            {interview.aiInterviewReportId && (
-                                              <button onClick={() => alert(`Report ID: ${interview.aiInterviewReportId}. Please open the Interviews Tab to view the full executive report.`)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">
+                                              <button onClick={() => { setL1ReportSessionId(interview.sessionId || interview.id); setL1ReportModalOpen(true); }} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">
                                                  View AI Report
                                               </button>
                                            )}

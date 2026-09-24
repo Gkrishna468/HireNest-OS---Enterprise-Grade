@@ -35,7 +35,26 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       '/api/automation-events'
     ].includes(currentPath);
 
-    if (isHealthCheck || isPublicApi || isOAuthCallback) {
+    // 5. Public candidate AI interview actions (invitation rawToken is the authorization mechanism)
+    const candidatePublicActions = new Set([
+      "get-session",
+      "record-consent",
+      "livekit-token"
+    ]);
+
+    const cleanPath = currentPath.replace(/^\/api/, '');
+    const isCandidateScreenRoute =
+      cleanPath === '/candidate-screen' ||
+      cleanPath === '/candidates/screen' ||
+      (req.originalUrl && (req.originalUrl.includes('/candidate-screen') || req.originalUrl.includes('/candidates/screen')));
+
+    const isPublicCandidateInterview =
+      isCandidateScreenRoute &&
+      req.method === 'POST' &&
+      typeof req.body === 'object' &&
+      candidatePublicActions.has(req.body?.action);
+
+    if (isHealthCheck || isPublicApi || isOAuthCallback || isPublicCandidateInterview) {
       return next();
     }
 

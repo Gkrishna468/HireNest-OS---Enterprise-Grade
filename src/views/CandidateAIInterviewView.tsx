@@ -39,6 +39,77 @@ interface SessionInfo {
   consentGiven?: boolean;
 }
 
+function RealtimeSessionRoom({
+  sessionInfo,
+  onConclude
+}: {
+  sessionInfo: SessionInfo | null;
+  onConclude: () => void;
+}) {
+  const tracks = useTracks(
+    [
+      { source: Track.Source.Camera, withPlaceholder: true },
+      { source: Track.Source.Microphone, withPlaceholder: false }
+    ],
+    { onlySubscribed: false }
+  );
+
+  return (
+    <div className="flex flex-col gap-6 w-full">
+      <RoomAudioRenderer />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[280px]">
+        {tracks.length > 0 ? (
+          <TrackLoop tracks={tracks}>
+            <ParticipantTile />
+          </TrackLoop>
+        ) : (
+          <>
+            {/* Candidate Tile Fallback */}
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+              <span className="text-2xs font-bold uppercase tracking-wider text-slate-400 z-10">
+                You ({sessionInfo?.candidateName || "Candidate"})
+              </span>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center space-y-2 text-slate-500">
+                  <Video className="w-8 h-8 mx-auto opacity-60 text-emerald-400 animate-pulse" />
+                  <p className="text-2xs font-mono text-emerald-400 font-bold">Local Candidate Track Active</p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Agent Tile */}
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+              <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 z-10 flex items-center gap-1">
+                <Sparkles size={12} /> HireNest AI Interviewer
+              </span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                <div className="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 animate-pulse shadow-lg">
+                  <Bot className="w-8 h-8" />
+                </div>
+                <p className="text-xs font-bold text-slate-200">AI Screening Agent Active</p>
+                <p className="text-2xs text-slate-400 mt-1 max-w-xs">
+                  Speak naturally into your microphone when replying. The AI agent listens and responds automatically via WebRTC.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+        <ControlBar controls={{ camera: true, microphone: true, screenShare: false, leave: false }} />
+        <button
+          onClick={onConclude}
+          className="px-4 py-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-extrabold transition shadow-sm"
+        >
+          Conclude Interview
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CandidateAIInterviewView() {
   const params = useParams<{ rawToken?: string; sessionId?: string }>();
   const rawToken = params.rawToken || params.sessionId || "";
@@ -91,6 +162,11 @@ export default function CandidateAIInterviewView() {
 
         const data = await res.json();
         if (!res.ok || !data.success) {
+          if (res.status === 401 || res.status === 403) {
+            if (data.error && data.error.includes("No token provided")) {
+              throw new Error("Internal API authentication configuration error.");
+            }
+          }
           throw new Error(data.error || "Interview invitation is invalid or has expired.");
         }
 
@@ -226,35 +302,40 @@ export default function CandidateAIInterviewView() {
     setErrorMessage("");
 
     try {
-      // Step A: Record Recording Consent
+      // Step A: Record Recording Consent using rawToken ONLY
       const consentRes = await fetch("/api/candidates/screen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "record-consent",
-          sessionId: sessionInfo?.id || rawToken,
           rawToken: rawToken,
           consentVersion: "v1.0"
         })
       });
       const consentData = await consentRes.json();
       if (!consentRes.ok || !consentData.success) {
-        throw new Error(consentData.error || "Failed to record consent.");
+        throw new Error(consentData.error || "Failed to record candidate consent.");
       }
 
-      // Step B: Request Short-Lived LiveKit JWT
+      // Step B: Request Short-Lived LiveKit JWT using rawToken ONLY
       const tokenRes = await fetch("/api/candidates/screen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "livekit-token",
-          rawToken: rawToken,
-          sessionId: sessionInfo?.id
+          rawToken: rawToken
         })
       });
       const tokenData = await tokenRes.json();
       if (!tokenRes.ok || !tokenData.token) {
+        if (tokenData.error === "LIVEKIT_NOT_CONFIGURED" || tokenRes.status === 503) {
+          throw new Error("Realtime interview service is temporarily unavailable. Please contact support.");
+        }
         throw new Error(tokenData.error || "Failed to generate realtime media access token.");
+      }
+
+      if (!tokenData.url) {
+        throw new Error("Realtime interview server URL not provided by server.");
       }
 
       // Stop preflight stream before LiveKit takes over tracks
@@ -263,7 +344,7 @@ export default function CandidateAIInterviewView() {
       }
 
       setLivekitToken(tokenData.token);
-      setLivekitUrl(tokenData.url || "wss://hirenest-os-4yez98b9.livekit.cloud");
+      setLivekitUrl(tokenData.url);
       setPageState("LIVE");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to start interview session.");
@@ -384,48 +465,10 @@ export default function CandidateAIInterviewView() {
             className="w-full max-w-4xl bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl flex flex-col gap-6"
             onDisconnected={() => setPageState("COMPLETED")}
           >
-            <RoomAudioRenderer />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Candidate Media Tile */}
-              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
-                <span className="text-2xs font-bold uppercase tracking-wider text-slate-400 z-10">
-                  You ({sessionInfo?.candidateName || "Candidate"})
-                </span>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center space-y-2 text-slate-500">
-                    <Video className="w-8 h-8 mx-auto opacity-40 animate-pulse" />
-                    <p className="text-2xs font-mono">WebRTC Camera Active</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Interviewer Avatar Tile */}
-              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
-                <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 z-10 flex items-center gap-1">
-                  <Sparkles size={12} /> HireNest AI Interviewer
-                </span>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
-                  <div className="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 animate-pulse shadow-lg">
-                    <Bot className="w-8 h-8" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-200">AI Screening Agent Active</p>
-                  <p className="text-2xs text-slate-400 mt-1 max-w-xs">
-                    Listen to the AI's question, then speak your response clearly into your microphone.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-              <ControlBar controls={{ leave: true }} />
-              <button
-                onClick={() => setPageState("COMPLETED")}
-                className="px-4 py-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-extrabold transition shadow-sm"
-              >
-                Conclude Interview
-              </button>
-            </div>
+            <RealtimeSessionRoom
+              sessionInfo={sessionInfo}
+              onConclude={() => setPageState("COMPLETED")}
+            />
           </LiveKitRoom>
         </div>
       </div>

@@ -81,6 +81,20 @@ export class RealtimeAIInterviewAgent {
         await this.sessionService.updateAgentState(this.sessionId, "DISCONNECTED");
       });
 
+      // 6. IMMEDIATELY Speak the Initial Question so candidate hears AI speech without deadlock
+      const initialQuestion = ctx.currentQuestion || "Hello! Welcome to your HireNest AI interview. Let's begin with our first question.";
+      console.log(`[RealtimeAgent] Speaking initial question immediately: "${initialQuestion}"`);
+      await this.sessionService.logTranscriptEvent(ctx, "AI", initialQuestion, 1, "q_initial", 1);
+      
+      try {
+        const ttsProvider = TTSFactory.getProvider();
+        const ttsOutput = await ttsProvider.synthesize(initialQuestion);
+        await this.publishAIAudio(ttsOutput.pcm, ttsOutput.sampleRate);
+      } catch (ttsErr: any) {
+        console.warn("[RealtimeAgent] Initial question TTS synthesis warning:", ttsErr?.message || ttsErr);
+        await this.sessionService.updateAgentState(this.sessionId, "LISTENING");
+      }
+
     } catch (err: any) {
       console.error("[RealtimeAgent] Media pipeline execution failure:", err.message);
       await this.sessionService.updateAgentState(this.sessionId, "ERROR", err.message);

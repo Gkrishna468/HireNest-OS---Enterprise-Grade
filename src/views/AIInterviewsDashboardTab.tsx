@@ -5,6 +5,7 @@ import {
   Copy, Save, Clock, ChevronRight, ArrowRight, ShieldCheck, RefreshCw, Send, User
 } from "lucide-react";
 import { auth } from "../lib/firebase";
+import { AIL1ScreeningReportModal } from "../components/modals/AIL1ScreeningReportModal";
 
 const INTERVIEW_ROUNDS = [
   { number: 1, name: "Fundamentals & Core Tech Skills" },
@@ -30,6 +31,8 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedSessionForMonitor, setSelectedSessionForMonitor] = useState<any | null>(null);
   const [selectedReportForView, setSelectedReportForView] = useState<any | null>(null);
+  const [selectedReportSessionId, setSelectedReportSessionId] = useState<string | null>(null);
+  const [isL1ReportModalOpen, setIsL1ReportModalOpen] = useState<boolean>(false);
   const [scheduledConfirmation, setScheduledConfirmation] = useState<{
     candidateName: string;
     candidateEmail: string;
@@ -582,6 +585,15 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                             >
                               <ExternalLink size={12}/> Open Session
                             </a>
+                            <button
+                              onClick={() => {
+                                setSelectedReportSessionId(interview.sessionId || interview.id);
+                                setIsL1ReportModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            >
+                              <Sparkles size={12} className="text-indigo-600"/> View L1 Report
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -1277,6 +1289,11 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
         </div>
       )}
 
+      <AIL1ScreeningReportModal
+        isOpen={isL1ReportModalOpen}
+        onClose={() => setIsL1ReportModalOpen(false)}
+        sessionId={selectedReportSessionId || undefined}
+      />
     </div>
   );
 }

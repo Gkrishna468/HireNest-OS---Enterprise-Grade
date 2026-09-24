@@ -14,6 +14,48 @@ export interface STTProvider {
   transcribe(audioBuffer: Buffer): Promise<STTResponse>;
 }
 
+export function createWavHeader(dataLength: number, sampleRate = 16000, numChannels = 1, bitsPerSample = 16): Buffer {
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+
+  // RIFF identifier
+  header.write("RIFF", 0);
+  // RIFF chunk size
+  header.writeUInt32LE(36 + dataLength, 4);
+  // RIFF type
+  header.write("WAVE", 8);
+
+  // format chunk identifier
+  header.write("fmt ", 12);
+  // format chunk length
+  header.writeUInt32LE(16, 16);
+  // sample format (1 = PCM)
+  header.writeUInt16LE(1, 20);
+  // channel count
+  header.writeUInt16LE(numChannels, 22);
+  // sample rate
+  header.writeUInt32LE(sampleRate, 24);
+  // byte rate
+  header.writeUInt32LE(byteRate, 28);
+  // block align
+  header.writeUInt16LE(blockAlign, 32);
+  // bits per sample
+  header.writeUInt16LE(bitsPerSample, 34);
+
+  // data chunk identifier
+  header.write("data", 36);
+  // data chunk length
+  header.writeUInt32LE(dataLength, 40);
+
+  return header;
+}
+
+export function pcmToWav(pcmBuffer: Buffer, sampleRate = 16000, numChannels = 1, bitsPerSample = 16): Buffer {
+  const header = createWavHeader(pcmBuffer.length, sampleRate, numChannels, bitsPerSample);
+  return Buffer.concat([header, pcmBuffer]);
+}
+
 export class WhisperSTTProvider implements STTProvider {
   private apiKey: string | undefined;
   private endpoint: string;
@@ -29,8 +71,9 @@ export class WhisperSTTProvider implements STTProvider {
     }
 
     try {
+      const wavBuffer = pcmToWav(audioBuffer, 16000, 1, 16);
       const formData = new FormData();
-      const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/wav" });
+      const blob = new Blob([new Uint8Array(wavBuffer)], { type: "audio/wav" });
       formData.append("file", blob, "chunk.wav");
       formData.append("model", "whisper-1");
       formData.append("language", "en");
@@ -77,13 +120,14 @@ export class DeepgramSTTProvider implements STTProvider {
     }
 
     try {
+      const wavBuffer = pcmToWav(audioBuffer, 16000, 1, 16);
       const response = await fetch("https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true", {
         method: "POST",
         headers: {
           "Authorization": `Token ${this.apiKey}`,
           "Content-Type": "audio/wav"
         },
-        body: audioBuffer
+        body: wavBuffer
       });
 
       if (!response.ok) {
