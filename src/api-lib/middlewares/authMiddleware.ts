@@ -38,8 +38,11 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
     // 5. Public candidate AI interview actions (invitation rawToken is the authorization mechanism)
     const candidatePublicActions = new Set([
       "get-session",
+      "verify-email",
       "record-consent",
-      "livekit-token"
+      "livekit-token",
+      "join-interview",
+      "get-l1-report"
     ]);
 
     const cleanPath = currentPath.replace(/^\/api/, '');

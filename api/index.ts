@@ -309,6 +309,28 @@ export default async function handler(req: any, res: any) {
     // --- Authentication ---
     const urlStr = req.url || '';
     
+    // Public candidate AI interview actions (invitation rawToken is the authorization mechanism)
+    const candidatePublicActions = new Set([
+      "get-session",
+      "verify-email",
+      "record-consent",
+      "livekit-token",
+      "join-interview",
+      "get-l1-report"
+    ]);
+
+    const isCandidateScreenRoute =
+      path === 'candidate-screen' ||
+      path === 'candidates/screen' ||
+      urlStr.includes('/api/candidates/screen') ||
+      urlStr.includes('/api/candidate-screen');
+
+    const isPublicCandidateInterview =
+      isCandidateScreenRoute &&
+      req.method === 'POST' &&
+      typeof req.body === 'object' &&
+      candidatePublicActions.has(req.body?.action);
+
     const isPublic =
       urlStr.includes('/api/public') ||
       urlStr.includes('/api/public-candidate-resume') ||
@@ -317,7 +339,8 @@ export default async function handler(req: any, res: any) {
       urlStr.includes('/ruflo/health') ||
       path === 'ruflo/health' ||
       path === 'public-candidate-resume' ||
-      path?.startsWith('public');
+      path?.startsWith('public') ||
+      isPublicCandidateInterview;
       
     if (isPublic) {
       console.log("PUBLIC ROUTE BYPASS ACTIVATED");
