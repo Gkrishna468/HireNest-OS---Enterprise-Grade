@@ -315,7 +315,7 @@ export default async function handler(req: any, res: any) {
           try {
             const httpHost = lkUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
             const { AccessToken } = await import("livekit-server-sdk");
-            const at = new AccessToken(apiKey, apiSecret, { identity: "admin_dispatcher", ttl: "5m" });
+            const at = new AccessToken(apiKey, apiSecret, { identity: "admin_dispatcher", ttl: 300 });
             at.addGrant({ roomJoin: true, room: sessionId, canPublish: true, canSubscribe: true });
             const jwt = await at.toJwt();
 
@@ -443,7 +443,7 @@ export default async function handler(req: any, res: any) {
         const { AccessToken } = await import("livekit-server-sdk");
         const at = new AccessToken(apiKey, apiSecret, {
           identity: participantIdentity,
-          ttl: "30m"
+          ttl: 1800
         });
 
         at.addGrant({
@@ -466,7 +466,7 @@ export default async function handler(req: any, res: any) {
         console.error("[CandidateScreenAPI] livekit-server-sdk token generation failed:", err);
         return res.status(500).json({
           success: false,
-          errorCode: "TOKEN_GENERATION_FAILED",
+          errorCode: "LIVEKIT_TOKEN_GENERATION_FAILED",
           error: "Failed to generate LiveKit access token: " + err.message
         });
       }
