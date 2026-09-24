@@ -1,9 +1,11 @@
+import crypto from "node:crypto";
 import { adminDb } from "../../lib/firebase-admin.js";
 import { ResumeScreeningService } from "../services/ResumeScreeningService.js";
 import { CandidateEvidenceEngine } from "../services/CandidateEvidenceEngine.js";
 import { AIInterviewService, hashToken } from "../services/AIInterviewService.js";
 import { InterviewOrchestrationService } from "../services/InterviewOrchestrationService.js";
 import { EventBus } from "../services/EventBus.js";
+import { normalizeLiveKitWebSocketUrl, normalizeLiveKitHttpUrl } from "../../services/livekitConfigurationService.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -291,13 +293,13 @@ export default async function handler(req: any, res: any) {
       });
 
       // Dispatch LiveKit Agent via Agent Dispatch API
-      const apiKey = process.env.LIVEKIT_API_KEY;
-      const apiSecret = process.env.LIVEKIT_API_SECRET;
-      const lkUrl = process.env.LIVEKIT_URL || "";
+      const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+      const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+      const rawLkUrl = (process.env.LIVEKIT_URL || "").trim();
 
-      if (apiKey && apiSecret && lkUrl) {
+      if (apiKey && apiSecret && rawLkUrl) {
+        const httpHost = normalizeLiveKitHttpUrl(rawLkUrl);
         try {
-          const httpHost = lkUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
           const { AgentDispatchClient } = await import("livekit-server-sdk");
           const dispatchClient = new AgentDispatchClient(httpHost, apiKey, apiSecret);
           await dispatchClient.createDispatch(sessionId, "hirenest-ai-interviewer", {
@@ -313,7 +315,6 @@ export default async function handler(req: any, res: any) {
           console.warn("[CandidateScreenAPI] LiveKit Agent dispatch API warning:", dispatchErr?.message || dispatchErr);
           // Fallback: Generate token & dispatch via Twirp HTTP post if AgentDispatchClient class failed
           try {
-            const httpHost = lkUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
             const { AccessToken } = await import("livekit-server-sdk");
             const at = new AccessToken(apiKey, apiSecret, { identity: "admin_dispatcher", ttl: 300 });
             at.addGrant({ roomJoin: true, room: sessionId, canPublish: true, canSubscribe: true });
@@ -425,11 +426,11 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const apiKey = process.env.LIVEKIT_API_KEY;
-      const apiSecret = process.env.LIVEKIT_API_SECRET;
-      const lkUrl = process.env.LIVEKIT_URL;
+      const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+      const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+      const rawLkUrl = (process.env.LIVEKIT_URL || "").trim();
 
-      if (!apiKey || !apiSecret || !lkUrl) {
+      if (!apiKey || !apiSecret || !rawLkUrl) {
         return res.status(503).json({ 
           success: false,
           errorCode: "LIVEKIT_NOT_CONFIGURED", 
@@ -437,6 +438,8 @@ export default async function handler(req: any, res: any) {
         });
       }
 
+      const wsUrl = normalizeLiveKitWebSocketUrl(rawLkUrl);
+      const httpUrl = normalizeLiveKitHttpUrl(rawLkUrl);
       const participantIdentity = isRecruiter ? `recruiter_${participantName || "Recruiter"}` : `candidate_${sessionId}`;
 
       try {
@@ -455,11 +458,59 @@ export default async function handler(req: any, res: any) {
         });
 
         const token = await at.toJwt();
+
+        // Server-side JWT Claims Verification (Internal Diagnostics)
+        try {
+          const payloadBase64 = token.split(".")[1];
+          const payload = JSON.parse(Buffer.from(payloadBase64, "base64url").toString("utf-8"));
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          const claimsValid = Boolean(
+            payload.iss === apiKey &&
+            payload.sub === participantIdentity &&
+            payload.exp > nowSeconds &&
+            payload.video?.roomJoin === true &&
+            payload.video?.room === sessionId
+          );
+          if (!claimsValid) {
+            console.error("[CandidateScreenAPI] Generated LiveKit token failed internal claims check.");
+          }
+        } catch (claimsErr: any) {
+          console.warn("[CandidateScreenAPI] JWT claim parsing warning:", claimsErr.message);
+        }
+
+        // Server-side Preflight Ping against LiveKit endpoint /settings/regions
+        try {
+          const lkCheckRes = await fetch(`${httpUrl}/settings/regions`, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (lkCheckRes.status === 401) {
+            console.error("[CandidateScreenAPI] LiveKit server rejected token (401 Unauthorized). Check LIVEKIT_API_KEY and LIVEKIT_API_SECRET alignment with LIVEKIT_URL.");
+            return res.status(401).json({
+              success: false,
+              errorCode: "LIVEKIT_TOKEN_REJECTED",
+              error: "LiveKit Cloud rejected access token authorization (401 Unauthorized). Check credentials alignment.",
+              diagnostics: {
+                status: 401,
+                lkHost: httpUrl,
+                apiKeyPrefix: apiKey.slice(0, 4),
+                apiKeySuffix: apiKey.slice(-4),
+                secretLength: apiSecret.length,
+                secretSha256: crypto.createHash("sha256").update(apiSecret).digest("hex").slice(0, 12) + "...",
+                roomName: sessionId,
+                participantIdentity
+              }
+            });
+          }
+        } catch (lkPingErr: any) {
+          console.warn("[CandidateScreenAPI] LiveKit preflight regions ping warning:", lkPingErr.message);
+        }
+
         return res.status(200).json({
           success: true,
           token,
           roomName: sessionId,
-          url: lkUrl,
+          url: wsUrl,
           sessionStatus: sessionData.status || "IN_PROGRESS"
         });
       } catch (err: any) {
