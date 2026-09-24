@@ -136,6 +136,7 @@ import EvidenceDashboard from "./views/EvidenceDashboard";
 import FounderControlTower from "./views/FounderControlTower";
 import CandidatePortalWorkspace from "./views/workspaces/CandidatePortalWorkspace";
 import AIInterviewSessionView from "./views/AIInterviewSessionView";
+import CandidateAIInterviewView from "./views/CandidateAIInterviewView";
 import AIInterviewsView from "./views/AIInterviewsView";
 import DirectCandidatesView from "./views/DirectCandidatesView";
 import CRMWorkspace from "./views/CRMWorkspace";
@@ -430,7 +431,10 @@ const AppContent = () => {
             />
           }
         />
-        <Route path="/interview/:sessionId" element={<AIInterviewSessionView />} />
+        {/* PUBLIC CANDIDATE AI INTERVIEW ROUTES - NO AUTH REQUIRED */}
+        <Route path="/ai-interview/:rawToken" element={<CandidateAIInterviewView />} />
+        <Route path="/candidate/interview/:rawToken" element={<CandidateAIInterviewView />} />
+        <Route path="/interview/:sessionId" element={<CandidateAIInterviewView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -989,6 +993,8 @@ const AppContent = () => {
             )}
             <Route path="/candidates" element={<CandidatesTab />} />
             <Route path="/interview/:sessionId" element={<AIInterviewSessionView />} />
+            <Route path="/ai-interview/:sessionId" element={<AIInterviewSessionView />} />
+            <Route path="/candidate/interview/:sessionId" element={<AIInterviewSessionView />} />
             <Route path="/matches" element={<MatchIntelligenceTab />} />
             <Route path="/jobs" element={<JobsTab />} />
             <Route path="/pipeline" element={<CandidatesTab />} />
@@ -1247,6 +1253,10 @@ const AppContent = () => {
                 )
               }
             />
+            {/* CANDIDATE AI INTERVIEW ROUTES */}
+            <Route path="/ai-interview/:rawToken" element={<CandidateAIInterviewView />} />
+            <Route path="/candidate/interview/:rawToken" element={<CandidateAIInterviewView />} />
+            <Route path="/interview/:sessionId" element={<CandidateAIInterviewView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

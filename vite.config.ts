@@ -11,8 +11,11 @@ export default defineConfig({
   ],
   server: { hmr: false }, 
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(process.cwd(), './src'),
+      'react': path.resolve(process.cwd(), './node_modules/react'),
+      'react-dom': path.resolve(process.cwd(), './node_modules/react-dom'),
       'node-domexception': path.resolve(process.cwd(), './src/lib/domexception-shim.ts'),
     },
   },

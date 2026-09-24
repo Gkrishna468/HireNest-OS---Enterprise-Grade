@@ -4,7 +4,7 @@ import {
   MessageSquare, ShieldAlert, CheckCircle, MapPin, 
   UploadCloud, Search, Calendar, Target, Sparkles, RotateCcw, AlertTriangle, Send,
   Check, Clock, Video, DollarSign, Layers, Award, ChevronRight, Loader2,
-  FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode, HelpCircle
+  FileUp, CheckCircle2, AlertCircle, ArrowRight, History, FileCode, HelpCircle, Copy, ExternalLink
 } from 'lucide-react';
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
@@ -178,7 +178,7 @@ export default function Candidate360Modal({
 
   useEffect(() => {
     const candidateId = candidate.candidateId || candidate.id;
-    if (!candidateId) return;
+    if (!candidateId || !db) return;
 
     // Realtime Sync for Candidate pool
     const unsubCand = onSnapshot(doc(db, "candidatePool", candidateId), (snapshot) => {
@@ -426,6 +426,7 @@ export default function Candidate360Modal({
   const [internalJobs, setInternalJobs] = useState<any[]>(jobs || []);
 
   useEffect(() => {
+    if (!db) return;
     if (jobs && jobs.length > 0) {
       setInternalJobs(jobs);
       return;
@@ -2517,14 +2518,23 @@ export default function Candidate360Modal({
                                            <div>
                                               <h4 className="font-bold text-slate-900">{interview.round}</h4>
                                               <div className="text-xs text-slate-500 mt-1 flex flex-col gap-1">
-                                                 <span className="flex items-center gap-1"><Calendar size={12}/> Date: {interview.date || "Not set"}</span>
-                                                 <span className="flex items-center gap-1"><Clock size={12}/> Time: {interview.time || "Not set"} ({interview.timezone || "UTC"})</span>
-                                                 <span className="flex items-center gap-1"><User size={12}/> Panel: {interview.interviewer || "System"}</span>
-                                                 {interview.meetingLink && (
+                                                 <span className="flex items-center gap-1"><Calendar size={12}/> Date: {interview.date && interview.date !== "Not set" ? interview.date : (interview.scheduledStart ? new Date(interview.scheduledStart).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }))}</span>
+                                                 <span className="flex items-center gap-1"><Clock size={12}/> Time: {interview.time && interview.time !== "Not set" ? interview.time : (interview.scheduledStart ? new Date(interview.scheduledStart).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "10:00 AM")} ({interview.timezone || "IST"})</span>
+                                                 <span className="flex items-center gap-1"><User size={12}/> Panel: {interview.interviewer || (interview.type === "AI_SCREENING" ? "HireNest AI Interviewer" : "System")}</span>
+                                                 {interview.type === "AI_SCREENING" || interview.transport === "LIVEKIT" ? (
+                                                    <div className="mt-1.5 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100 flex flex-col gap-1">
+                                                       <span className="flex items-center gap-1 text-indigo-700 font-extrabold text-[11px] uppercase tracking-wider">
+                                                          <Sparkles size={12} className="text-indigo-600"/> Transport: LiveKit Realtime AI
+                                                       </span>
+                                                       <span className="text-[11px] text-slate-600 font-mono break-all">
+                                                          Join URL: {window.location.origin.includes("run.app") ? "https://os.hirenestworkforce.com" : window.location.origin}{interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}
+                                                       </span>
+                                                    </div>
+                                                 ) : interview.meetingLink ? (
                                                     <span className="flex items-center gap-1 text-indigo-600 font-semibold mt-1">
                                                        <Video size={12}/> Meeting Link: <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-800 break-all">{interview.meetingLink}</a>
                                                     </span>
-                                                 )}
+                                                 ) : null}
                                               </div>
                                            </div>
                                            <Badge variant="outline" className={`uppercase text-[10px] tracking-wider ${interview.status === 'SCHEDULED' || interview.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : interview.status === 'PASSED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -2537,11 +2547,32 @@ export default function Candidate360Modal({
                                            </div>
                                         )}
                                         <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-200">
-                                           {interview.meetingLink && (
+                                           {interview.type === "AI_SCREENING" || interview.transport === "LIVEKIT" ? (
+                                              <>
+                                                 <button 
+                                                    onClick={() => {
+                                                       const url = `${window.location.origin}${interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}`;
+                                                       navigator.clipboard.writeText(url);
+                                                       alert("✓ Secure Candidate Join Link copied to clipboard!");
+                                                    }}
+                                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs"
+                                                 >
+                                                    <Copy size={12}/> Copy Candidate Link
+                                                 </button>
+                                                 <a 
+                                                    href={interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-950 transition-colors flex items-center gap-1 shadow-xs"
+                                                 >
+                                                    <ExternalLink size={12}/> Open Session
+                                                 </a>
+                                              </>
+                                           ) : interview.meetingLink ? (
                                               <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-sm">
                                                  <Video size={12}/> Join Interview
                                               </a>
-                                           )}
+                                           ) : null}
                                            <button 
                                               onClick={() => handleStartEditInterview(interview)} 
                                               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"

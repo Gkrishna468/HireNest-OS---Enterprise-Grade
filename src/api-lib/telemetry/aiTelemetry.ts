@@ -21,11 +21,8 @@ interface AITelemetryPayload {
 export class AITelemetry {
     static async logExecution(payload: AITelemetryPayload) {
         try {
-            console.log(JSON.stringify({
-                type: 'AI_OBSERVABILITY_LOG',
-                timestamp: new Date().toISOString(),
-                ...payload
-            }));
+            // Log concise summary line to avoid stdout clutter / dev server error alerts
+            console.log(`[AITelemetry] Execution logged: reqId=${payload.requestId} model=${payload.model} latency=${payload.latencyMs}ms tokens=${payload.tokenUsage.totalTokens}`);
 
             if (db) {
                 await db.collection("ai_observability_logs").add({

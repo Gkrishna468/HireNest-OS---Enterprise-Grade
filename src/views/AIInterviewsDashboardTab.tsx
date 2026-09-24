@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Video, VideoOff, Calendar, CheckCircle, AlertCircle, PlayCircle, XCircle, 
   Plus, Search, FileText, ExternalLink, Volume2, Award, Activity, Sparkles, 
-  Copy, Save, Clock, ChevronRight, ArrowRight, ShieldCheck, RefreshCw, Send
+  Copy, Save, Clock, ChevronRight, ArrowRight, ShieldCheck, RefreshCw, Send, User
 } from "lucide-react";
 import { auth } from "../lib/firebase";
 
@@ -30,6 +30,19 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedSessionForMonitor, setSelectedSessionForMonitor] = useState<any | null>(null);
   const [selectedReportForView, setSelectedReportForView] = useState<any | null>(null);
+  const [scheduledConfirmation, setScheduledConfirmation] = useState<{
+    candidateName: string;
+    candidateEmail: string;
+    jobTitle: string;
+    scheduledStart: string;
+    joinUrl: string;
+    joinPath: string;
+    rawToken: string;
+    interviewType: string;
+    meetingLink?: string;
+    interviewId: string;
+    candidateId: string;
+  } | null>(null);
   
   // Forms & Inputs
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,7 +50,10 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
     candidateId: "",
     requirementId: "",
     scheduledStart: "",
-    voiceChoice: "Standard Male"
+    voiceChoice: "Standard Male",
+    interviewType: "AI_SCREENING", // AI_SCREENING or HUMAN_INTERVIEW
+    meetingProvider: "NONE",
+    meetingLink: ""
   });
   
   const [editingMeetingLinks, setEditingMeetingLinks] = useState<Record<string, string>>({});
@@ -153,7 +169,7 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
     }
   };
 
-  // Schedule AI Interview
+  // Schedule Interview (AI or Human)
   const handleScheduleInterview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInterview.candidateId || !newInterview.requirementId || !newInterview.scheduledStart) {
@@ -175,6 +191,8 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
           candidateId: newInterview.candidateId,
           requirementId: newInterview.requirementId,
           voiceChoice: newInterview.voiceChoice,
+          scheduledStart: new Date(newInterview.scheduledStart).toISOString(),
+          interviewType: newInterview.interviewType,
           orgId: orgId || "GLOBAL"
         })
       });
@@ -183,10 +201,10 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
         throw new Error(data.error || "Failed to schedule interview.");
       }
 
-      // Add meeting link if scheduled for future
-      const scheduledStartIso = new Date(newInterview.scheduledStart).toISOString();
       const generatedInterviewId = data.interview?.interviewId;
-      if (generatedInterviewId) {
+
+      // If HUMAN_INTERVIEW and a real meeting link was entered by recruiter, save it
+      if (newInterview.interviewType === "HUMAN_INTERVIEW" && newInterview.meetingLink && generatedInterviewId) {
         await fetch("/api/candidates/screen", {
           method: "POST",
           headers: { 
@@ -196,13 +214,48 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
           body: JSON.stringify({
             action: "save-meeting-link",
             interviewId: generatedInterviewId,
-            meetingLink: `https://meet.google.com/ais-${generatedInterviewId.substring(0, 8)}`
+            meetingLink: newInterview.meetingLink
           })
         });
       }
 
+      const rawToken = data.session?.rawToken || "";
+      const joinPath = data.interview?.candidateJoinUrl || (rawToken ? `/ai-interview/${rawToken}` : "");
+      const brandedOrigin = window.location.origin.includes("run.app") ? "https://os.hirenestworkforce.com" : window.location.origin;
+      const fullJoinUrl = joinPath.startsWith("http") ? joinPath : `${brandedOrigin}${joinPath}`;
+      
+      const targetCandidate = candidates[newInterview.candidateId];
+      const targetReq = requirements[newInterview.requirementId];
+
       setIsScheduleOpen(false);
-      setNewInterview({ candidateId: "", requirementId: "", scheduledStart: "", voiceChoice: "Standard Male" });
+
+      if (newInterview.interviewType === "AI_SCREENING") {
+        setScheduledConfirmation({
+          candidateName: targetCandidate ? `${targetCandidate.firstName || targetCandidate.name || ''} ${targetCandidate.lastName || ''}`.trim() : "Candidate",
+          candidateEmail: targetCandidate?.email || targetCandidate?.primaryEmail || "candidate@example.com",
+          jobTitle: targetReq?.title || targetReq?.jobTitle || "Job Requirement",
+          scheduledStart: newInterview.scheduledStart ? new Date(newInterview.scheduledStart).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Scheduled Time",
+          joinUrl: fullJoinUrl,
+          joinPath: joinPath,
+          rawToken: rawToken,
+          interviewType: newInterview.interviewType,
+          meetingLink: newInterview.meetingLink,
+          interviewId: generatedInterviewId || "",
+          candidateId: newInterview.candidateId
+        });
+      } else {
+        alert("✓ Human Interview scheduled successfully!");
+      }
+
+      setNewInterview({ 
+        candidateId: "", 
+        requirementId: "", 
+        scheduledStart: "", 
+        voiceChoice: "Standard Male",
+        interviewType: "AI_SCREENING",
+        meetingProvider: "NONE",
+        meetingLink: ""
+      });
       await loadData();
     } catch (err: any) {
       alert(err.message || "Failed to create interview session");
@@ -464,34 +517,94 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                     <div key={interview.id} className="p-4 hover:bg-slate-50 transition space-y-3">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         <div>
-                          <h3 className="font-bold text-slate-900 text-sm">{cand.name || cand.fullName || "Candidate"}</h3>
-                          <p className="text-xs text-slate-500">Scheduled for <span className="font-semibold text-slate-700">{new Date(interview.scheduledStart || interview.createdAt).toLocaleString()}</span></p>
+                          <h3 className="font-bold text-slate-900 text-sm">{cand.name || cand.fullName || cand.firstName ? `${cand.firstName || ''} ${cand.lastName || ''}` : "Candidate"} ({cand.email || "candidate@example.com"})</h3>
+                          <p className="text-xs text-slate-500">Position: <span className="font-bold text-slate-700">{req.title || req.jobTitle || "Requirement"}</span> • Scheduled for <span className="font-semibold text-slate-700">{new Date(interview.scheduledStart || interview.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span></p>
                         </div>
-                        <span className="text-3s font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full uppercase self-start">
-                          {interview.status}
+                        <span className="text-3s font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full uppercase self-start">
+                          {interview.status || "SCHEDULED"}
                         </span>
                       </div>
 
-                      {/* Manual Meeting Link Input Control */}
-                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <span className="text-xs text-slate-400 font-semibold md:w-28 flex items-center gap-1 px-1">
-                          <Video size={12} /> Meeting Link:
-                        </span>
-                        <input 
-                          type="url" 
-                          placeholder="Paste Zoom, Teams, Google Meet, or LiveKit Link" 
-                          value={linkVal}
-                          onChange={(e) => setEditingMeetingLinks({...editingMeetingLinks, [interview.id]: e.target.value})}
-                          className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" 
-                        />
-                        <button 
-                          onClick={() => handleSaveMeetingLink(interview.id)}
-                          disabled={savingLink === interview.id || linkVal === interview.meetingLink}
-                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-2s rounded transition flex items-center gap-1 justify-center"
-                        >
-                          {savingLink === interview.id ? "Saving..." : <><Save size={12} /> Save</>}
-                        </button>
-                      </div>
+                      {interview.type === "AI_SCREENING" || interview.transport === "LIVEKIT" ? (
+                        <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 text-xs space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-extrabold text-indigo-700 flex items-center gap-1 text-[11px] uppercase tracking-wider">
+                              <Sparkles size={12}/> Transport: LiveKit Realtime AI
+                            </span>
+                            <span className="text-2xs font-mono text-indigo-600">
+                              {window.location.origin.includes("run.app") ? "https://os.hirenestworkforce.com" : window.location.origin}{interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-indigo-100/60">
+                            <button
+                              onClick={() => {
+                                const url = `${window.location.origin.includes("run.app") ? "https://os.hirenestworkforce.com" : window.location.origin}${interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}`;
+                                navigator.clipboard.writeText(url);
+                                alert("✓ Secure Candidate Join Link copied to clipboard:\n" + url);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            >
+                              <Copy size={12}/> Copy Link
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const idToken = await auth.currentUser?.getIdToken();
+                                  const res = await fetch("/api/candidates/screen", {
+                                    method: "POST",
+                                    headers: { 
+                                      "Content-Type": "application/json",
+                                      "Authorization": idToken ? `Bearer ${idToken}` : ""
+                                    },
+                                    body: JSON.stringify({
+                                      action: "send-invitation",
+                                      interviewId: interview.id || interview.interviewId,
+                                      candidateId: interview.candidateId
+                                    })
+                                  });
+                                  const data = await res.json();
+                                  alert(`✓ Invitation Email dispatched to ${data.recipientEmail || cand.email || "candidate"}!`);
+                                } catch {
+                                  const url = `${window.location.origin.includes("run.app") ? "https://os.hirenestworkforce.com" : window.location.origin}${interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}`;
+                                  alert("✓ Link Copied for Email Dispatch:\n" + url);
+                                  navigator.clipboard.writeText(url);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            >
+                              <Send size={12}/> Send Invitation
+                            </button>
+                            <a
+                              href={interview.candidateJoinUrl || `/ai-interview/${interview.rawToken || interview.sessionId || interview.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-950 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            >
+                              <ExternalLink size={12}/> Open Session
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <span className="text-xs text-slate-400 font-semibold md:w-28 flex items-center gap-1 px-1">
+                            <Video size={12} /> Meeting Link:
+                          </span>
+                          <input 
+                            type="url" 
+                            placeholder="Paste Zoom, Teams, Google Meet, or LiveKit Link" 
+                            value={linkVal}
+                            onChange={(e) => setEditingMeetingLinks({...editingMeetingLinks, [interview.id]: e.target.value})}
+                            className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" 
+                          />
+                          <button 
+                            onClick={() => handleSaveMeetingLink(interview.id)}
+                            disabled={savingLink === interview.id || linkVal === interview.meetingLink}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-2s rounded transition flex items-center gap-1 justify-center"
+                          >
+                            {savingLink === interview.id ? "Saving..." : <><Save size={12} /> Save</>}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -618,15 +731,31 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                   
                   {/* Candidate Frame */}
                   <div className="relative aspect-video bg-slate-900 rounded-xl overflow-hidden shadow-inner border border-slate-800 flex flex-col justify-center items-center">
-                    {/* Simulated visual or WebRTC stream handle */}
-                    <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-0.5 text-3s font-bold rounded flex items-center gap-1 shadow-sm">
-                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span> REC
-                    </div>
-                    <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-white text-lg font-bold shadow-md animate-pulse">
-                      {cand.name ? cand.name.substring(0, 2).toUpperCase() : "C"}
-                    </div>
-                    <span className="text-slate-400 text-xs font-semibold mt-3">Candidate Audio/Video Active</span>
-                    <span className="text-3s text-slate-500 mt-1 font-mono">WebRTC Feed Verified</span>
+                    {session.status === "IN_PROGRESS" ? (
+                      <>
+                        <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-0.5 text-3s font-bold rounded flex items-center gap-1 shadow-sm">
+                          <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span> REC
+                        </div>
+                        <div className="w-16 h-16 rounded-full bg-indigo-900/60 border border-indigo-500/40 flex items-center justify-center text-white text-lg font-bold shadow-md animate-pulse">
+                          {cand.name ? cand.name.substring(0, 2).toUpperCase() : "C"}
+                        </div>
+                        <span className="text-emerald-400 text-xs font-bold mt-3 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Candidate Connected (Live WebRTC)
+                        </span>
+                        <span className="text-3s text-slate-400 mt-0.5 font-mono">Room: {session.id?.substring(0, 12)}...</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="absolute top-3 left-3 bg-amber-500 text-slate-950 px-2 py-0.5 text-3s font-bold rounded flex items-center gap-1 shadow-sm">
+                          <span>AWAITING CANDIDATE</span>
+                        </div>
+                        <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 text-lg font-bold">
+                          {cand.name ? cand.name.substring(0, 2).toUpperCase() : "C"}
+                        </div>
+                        <span className="text-slate-400 text-xs font-medium mt-3">Candidate Not Yet Connected</span>
+                        <span className="text-3s text-slate-500 mt-1 font-mono">Waiting for candidate to open session URL</span>
+                      </>
+                    )}
                   </div>
 
                   {/* AI Interviewer Participant Frame */}
@@ -894,6 +1023,37 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
 
               <form onSubmit={handleScheduleInterview} className="space-y-4">
                 
+                {/* Interview Type Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase block">Interview Mode</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewInterview({...newInterview, interviewType: "AI_SCREENING"})}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                        newInterview.interviewType === "AI_SCREENING" 
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs" 
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Sparkles size={14} className={newInterview.interviewType === "AI_SCREENING" ? "text-indigo-600" : "text-slate-400"} />
+                      <span>AI Level-1 Screening</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewInterview({...newInterview, interviewType: "HUMAN_INTERVIEW"})}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                        newInterview.interviewType === "HUMAN_INTERVIEW" 
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs" 
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <User size={14} className={newInterview.interviewType === "HUMAN_INTERVIEW" ? "text-indigo-600" : "text-slate-400"} />
+                      <span>Human Interview</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Candidate Selection */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase block">Select Candidate</label>
@@ -938,19 +1098,60 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
                   />
                 </div>
 
-                {/* Voice Choice */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase block">AI Agent Voice Option</label>
-                  <select 
-                    value={newInterview.voiceChoice}
-                    onChange={(e) => setNewInterview({...newInterview, voiceChoice: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-700 focus:ring-1 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="Standard Male">Standard Male (Empathetic Technical Architect)</option>
-                    <option value="Standard Female">Standard Female (Encouraging Staff Recruiter)</option>
-                    <option value="Executive Female">Executive Female (Objective Senior Auditor)</option>
-                  </select>
-                </div>
+                {/* Conditional Fields based on Interview Mode */}
+                {newInterview.interviewType === "AI_SCREENING" ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase block">AI Agent Voice Option</label>
+                      <select 
+                        value={newInterview.voiceChoice}
+                        onChange={(e) => setNewInterview({...newInterview, voiceChoice: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-700 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="Standard Male">Standard Male (Empathetic Technical Architect)</option>
+                        <option value="Standard Female">Standard Female (Encouraging Staff Recruiter)</option>
+                        <option value="Executive Female">Executive Female (Objective Senior Auditor)</option>
+                      </select>
+                    </div>
+
+                    <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 text-xs text-indigo-900 space-y-1">
+                      <div className="font-bold flex items-center gap-1">
+                        <Sparkles size={13} className="text-indigo-600" /> LiveKit Transport
+                      </div>
+                      <p className="text-2xs text-indigo-700 leading-normal">
+                        Candidate invitation link will be auto-generated. No Google Meet link required. Candidate connects directly via WebRTC.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-700 uppercase block">Human Interview Meeting Config</span>
+                    
+                    <div className="space-y-1">
+                      <label className="text-2xs font-semibold text-slate-500 uppercase block">Meeting Provider</label>
+                      <select
+                        value={newInterview.meetingProvider}
+                        onChange={(e) => setNewInterview({...newInterview, meetingProvider: e.target.value as any})}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 outline-none"
+                      >
+                        <option value="NONE">Manual / Custom Link</option>
+                        <option value="GOOGLE_MEET">Google Meet</option>
+                        <option value="MANUAL">Microsoft Teams / Zoom / Webex</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-2xs font-semibold text-slate-500 uppercase block">Meeting Link URL</label>
+                      <input 
+                        type="url" 
+                        placeholder="https://meet.google.com/abc-defg-hij or Teams/Zoom link"
+                        value={newInterview.meetingLink}
+                        onChange={(e) => setNewInterview({...newInterview, meetingLink: e.target.value})}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <button 
                   type="submit"
@@ -965,6 +1166,112 @@ export default function AIInterviewsDashboardTab({ userRole, orgId }: { userRole
             
             <div className="border-t border-slate-100 pt-3 text-center">
               <span className="text-3s text-slate-400 font-mono">HireNest LiveKit Room Auto-Provisioning</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-Scheduling Confirmation Modal */}
+      {scheduledConfirmation && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="text-center pb-4 border-b border-slate-100">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">AI LEVEL-1 SCREENING SCHEDULED</h3>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Candidate invitation generated & ready for dispatch</p>
+            </div>
+
+            <div className="py-4 space-y-3">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Candidate</span>
+                  <span className="font-bold text-slate-900">{scheduledConfirmation.candidateName} ({scheduledConfirmation.candidateEmail})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Position</span>
+                  <span className="font-bold text-slate-900">{scheduledConfirmation.jobTitle}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Scheduled Time</span>
+                  <span className="font-semibold text-slate-800">{scheduledConfirmation.scheduledStart}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Transport</span>
+                  <span className="font-extrabold text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                    <Sparkles size={12}/> LiveKit Realtime AI
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Branded Candidate Join Link
+                </label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    readOnly 
+                    value={scheduledConfirmation.joinUrl} 
+                    className="flex-1 bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 select-all focus:outline-none" 
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(scheduledConfirmation.joinUrl);
+                      alert("✓ Secure Candidate Join Link copied to clipboard:\n" + scheduledConfirmation.joinUrl);
+                    }}
+                    className="px-3 py-2 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700 transition flex items-center gap-1 shrink-0"
+                  >
+                    <Copy size={13} /> Copy Link
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const idToken = await auth.currentUser?.getIdToken();
+                    const res = await fetch("/api/candidates/screen", {
+                      method: "POST",
+                      headers: { 
+                        "Content-Type": "application/json",
+                        "Authorization": idToken ? `Bearer ${idToken}` : ""
+                      },
+                      body: JSON.stringify({
+                        action: "send-invitation",
+                        interviewId: scheduledConfirmation.interviewId,
+                        candidateId: scheduledConfirmation.candidateId
+                      })
+                    });
+                    const data = await res.json();
+                    alert(`✓ Invitation Dispatched to ${scheduledConfirmation.candidateEmail}!`);
+                  } catch {
+                    alert("✓ Link Copied for Email Dispatch:\n" + scheduledConfirmation.joinUrl);
+                    navigator.clipboard.writeText(scheduledConfirmation.joinUrl);
+                  }
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs"
+              >
+                <Send size={14} /> Send Invitation
+              </button>
+
+              <a
+                href={scheduledConfirmation.joinPath}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-950 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-xs"
+              >
+                <ExternalLink size={14} /> Open Candidate View
+              </a>
+
+              <button
+                onClick={() => setScheduledConfirmation(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

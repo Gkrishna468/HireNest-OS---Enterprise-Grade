@@ -353,10 +353,32 @@ Return a valid JSON object matching this schema:
       session.status = "OPENED";
     }
 
-    // Return safe session stub (do NOT return candidate ID, questions, or transcript before email verification!)
+    let candidateName = "Candidate";
+    let jobTitle = "Requirement";
+    try {
+      if (session.candidateId) {
+        const cSnap = await adminDb.collection("candidatePool").doc(session.candidateId).get();
+        if (cSnap.exists) {
+          const cData = cSnap.data();
+          candidateName = `${cData?.firstName || cData?.name || ''} ${cData?.lastName || ''}`.trim() || cData?.fullName || "Candidate";
+        }
+      }
+      if (session.requirementId) {
+        const rSnap = await adminDb.collection("requirements").doc(session.requirementId).get();
+        if (rSnap.exists) {
+          jobTitle = rSnap.data()?.title || rSnap.data()?.jobTitle || "Requirement";
+        }
+      }
+    } catch {
+      // Non-blocking metadata enrichment
+    }
+
+    // Return safe session stub
     return {
       id: session.id,
       status: session.status,
+      candidateName,
+      jobTitle,
       currentRound: session.currentRound,
       difficulty: session.difficulty,
       createdAt: session.createdAt,

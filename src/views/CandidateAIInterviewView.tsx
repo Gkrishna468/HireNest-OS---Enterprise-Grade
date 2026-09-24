@@ -1,0 +1,622 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
+import {
+  Bot,
+  ShieldCheck,
+  Video,
+  Mic,
+  Volume2,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  Calendar,
+  XCircle,
+  Play,
+  RotateCcw,
+  Check,
+  VideoOff,
+  MicOff,
+  Radio
+} from "lucide-react";
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  ControlBar,
+  useTracks,
+  TrackLoop,
+  ParticipantTile
+} from "@livekit/components-react";
+import { Track } from "livekit-client";
+
+interface SessionInfo {
+  id: string;
+  status: string;
+  candidateName?: string;
+  jobTitle?: string;
+  createdAt?: string;
+  expiresAt?: string;
+  consentGiven?: boolean;
+}
+
+export default function CandidateAIInterviewView() {
+  const params = useParams<{ rawToken?: string; sessionId?: string }>();
+  const rawToken = params.rawToken || params.sessionId || "";
+
+  // Page States: "LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "COMPLETED"
+  const [pageState, setPageState] = useState<"LOADING" | "ERROR" | "PREJOIN" | "LIVE" | "COMPLETED">("LOADING");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+
+  // Preflight Device States
+  const [cameraActive, setCameraActive] = useState<boolean>(false);
+  const [micActive, setMicActive] = useState<boolean>(false);
+  const [micLevel, setMicLevel] = useState<number>(0);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Consent State
+  const [consentGiven, setConsentGiven] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // LiveKit Connection States
+  const [livekitToken, setLivekitToken] = useState<string>("");
+  const [livekitUrl, setLivekitUrl] = useState<string>("");
+
+  // Sound Test state
+  const [isPlayingTestSound, setIsPlayingTestSound] = useState<boolean>(false);
+
+  // 1. Initial Token Resolution (Zero-Trust Session Lookup)
+  useEffect(() => {
+    if (!rawToken) {
+      setErrorMessage("No interview invitation token provided in URL.");
+      setPageState("ERROR");
+      return;
+    }
+
+    const loadSession = async () => {
+      setPageState("LOADING");
+      try {
+        const res = await fetch("/api/candidates/screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "get-session",
+            rawToken: rawToken
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Interview invitation is invalid or has expired.");
+        }
+
+        const sess = data.session;
+        setSessionInfo(sess);
+
+        if (sess.status === "COMPLETED") {
+          setPageState("COMPLETED");
+        } else if (sess.status === "EXPIRED") {
+          setErrorMessage("This interview invitation has expired. Please contact your recruiter.");
+          setPageState("ERROR");
+        } else if (sess.status === "REVOKED") {
+          setErrorMessage("This interview invitation has been revoked. Please contact your recruiter.");
+          setPageState("ERROR");
+        } else {
+          setPageState("PREJOIN");
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message || "Failed to load interview session. Token is invalid or expired.");
+        setPageState("ERROR");
+      }
+    };
+
+    loadSession();
+  }, [rawToken]);
+
+  // 2. Preflight Camera & Microphone Stream Setup
+  useEffect(() => {
+    if (pageState !== "PREJOIN") return;
+
+    let isMounted = true;
+
+    async function initMedia() {
+      try {
+        setMediaError(null);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true
+        });
+
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        mediaStreamRef.current = stream;
+
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = stream;
+        }
+
+        setCameraActive(stream.getVideoTracks().some((t) => t.enabled));
+        setMicActive(stream.getAudioTracks().some((t) => t.enabled));
+
+        // Audio Level Meter Setup
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            audioContextRef.current = ctx;
+            const source = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 64;
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            const updateLevel = () => {
+              if (!isMounted) return;
+              analyser.getByteFrequencyData(dataArray);
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+              }
+              const avg = sum / dataArray.length;
+              setMicLevel(Math.min(100, Math.round((avg / 128) * 100)));
+              animFrameRef.current = requestAnimationFrame(updateLevel);
+            };
+
+            updateLevel();
+          }
+        } catch {
+          // Non-critical meter fallback
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.warn("Media device error:", err);
+        setMediaError("Camera or Microphone permission was denied or unavailable. Please enable permissions in browser settings.");
+      }
+    }
+
+    initMedia();
+
+    return () => {
+      isMounted = false;
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close().catch(() => null);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [pageState]);
+
+  // Speaker Test Audio Output
+  const handleTestSpeaker = () => {
+    setIsPlayingTestSound(true);
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 chime
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.2);
+      setTimeout(() => {
+        setIsPlayingTestSound(false);
+        ctx.close().catch(() => null);
+      }, 1200);
+    } catch {
+      setIsPlayingTestSound(false);
+    }
+  };
+
+  // 3. Start Interview Action
+  const handleStartInterview = async () => {
+    if (!consentGiven) return;
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      // Step A: Record Recording Consent
+      const consentRes = await fetch("/api/candidates/screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "record-consent",
+          sessionId: sessionInfo?.id || rawToken,
+          rawToken: rawToken,
+          consentVersion: "v1.0"
+        })
+      });
+      const consentData = await consentRes.json();
+      if (!consentRes.ok || !consentData.success) {
+        throw new Error(consentData.error || "Failed to record consent.");
+      }
+
+      // Step B: Request Short-Lived LiveKit JWT
+      const tokenRes = await fetch("/api/candidates/screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "livekit-token",
+          rawToken: rawToken,
+          sessionId: sessionInfo?.id
+        })
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenRes.ok || !tokenData.token) {
+        throw new Error(tokenData.error || "Failed to generate realtime media access token.");
+      }
+
+      // Stop preflight stream before LiveKit takes over tracks
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+
+      setLivekitToken(tokenData.token);
+      setLivekitUrl(tokenData.url || "wss://hirenest-os-4yez98b9.livekit.cloud");
+      setPageState("LIVE");
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to start interview session.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // RENDER STATE: LOADING
+  // -------------------------------------------------------------
+  if (pageState === "LOADING") {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
+        <div className="text-center space-y-4 animate-in fade-in duration-300">
+          <div className="w-16 h-16 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 flex items-center justify-center mx-auto shadow-2xl">
+            <Bot className="w-8 h-8 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-black tracking-tight">HireNest AI Interview</h2>
+          <p className="text-slate-400 text-xs max-w-sm font-medium">
+            Verifying secure invitation token & connecting workforce intelligence...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER STATE: ERROR / INVALID TOKEN (NO REDIRECT TO LANDING!)
+  // -------------------------------------------------------------
+  if (pageState === "ERROR") {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
+        <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 p-8 shadow-2xl space-y-6 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-rose-500/10 text-rose-400 rounded-2xl flex items-center justify-center mx-auto border border-rose-500/20 shadow-inner">
+            <XCircle className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">Invitation Invalid or Expired</h1>
+            <p className="text-slate-400 text-xs mt-2 leading-relaxed">
+              {errorMessage || "This interview link is no longer valid or has expired. Please contact your recruiting team to receive a fresh invitation link."}
+            </p>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-2xs font-mono text-slate-500 text-left space-y-1">
+            <div>Status Code: 403_TOKEN_INVALID</div>
+            <div>Secure Boundary: HireNest Candidate Preflight</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER STATE: COMPLETED
+  // -------------------------------------------------------------
+  if (pageState === "COMPLETED") {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
+        <div className="w-full max-w-lg bg-slate-900 rounded-3xl border border-slate-800 p-8 shadow-2xl space-y-6 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">Interview Completed</h1>
+            <p className="text-slate-300 text-xs mt-2 leading-relaxed">
+              Thank you, <strong className="text-white">{sessionInfo?.candidateName || "Candidate"}</strong>. Your technical evaluation responses have been submitted to the recruitment panel.
+            </p>
+          </div>
+
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left text-xs space-y-2">
+            <div className="flex justify-between text-slate-400">
+              <span>Position</span>
+              <span className="font-bold text-slate-200">{sessionInfo?.jobTitle || "Requirement"}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Status</span>
+              <span className="font-bold text-emerald-400 flex items-center gap-1">
+                <Check size={12} /> COMPLETED
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER STATE: LIVE WEBRTC INTERVIEW
+  // -------------------------------------------------------------
+  if (pageState === "LIVE") {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+        <header className="px-6 py-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30 flex items-center justify-center">
+              <Bot className="w-4 h-4" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black tracking-tight">HIRENEST AI INTERVIEW</h1>
+              <p className="text-2xs text-slate-400">{sessionInfo?.jobTitle || "Technical Screening"}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-2xs font-extrabold flex items-center gap-1">
+              <Radio size={10} className="animate-pulse" /> LIVE WEBRTC STREAM
+            </span>
+          </div>
+        </header>
+
+        <div className="flex-1 p-6 flex flex-col items-center justify-center">
+          <LiveKitRoom
+            serverUrl={livekitUrl}
+            token={livekitToken}
+            connect={true}
+            audio={true}
+            video={true}
+            className="w-full max-w-4xl bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl flex flex-col gap-6"
+            onDisconnected={() => setPageState("COMPLETED")}
+          >
+            <RoomAudioRenderer />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Candidate Media Tile */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+                <span className="text-2xs font-bold uppercase tracking-wider text-slate-400 z-10">
+                  You ({sessionInfo?.candidateName || "Candidate"})
+                </span>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center space-y-2 text-slate-500">
+                    <Video className="w-8 h-8 mx-auto opacity-40 animate-pulse" />
+                    <p className="text-2xs font-mono">WebRTC Camera Active</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Interviewer Avatar Tile */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+                <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 z-10 flex items-center gap-1">
+                  <Sparkles size={12} /> HireNest AI Interviewer
+                </span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                  <div className="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 animate-pulse shadow-lg">
+                    <Bot className="w-8 h-8" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-200">AI Screening Agent Active</p>
+                  <p className="text-2xs text-slate-400 mt-1 max-w-xs">
+                    Listen to the AI's question, then speak your response clearly into your microphone.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+              <ControlBar controls={{ leave: true }} />
+              <button
+                onClick={() => setPageState("COMPLETED")}
+                className="px-4 py-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-extrabold transition shadow-sm"
+              >
+                Conclude Interview
+              </button>
+            </div>
+          </LiveKitRoom>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER STATE: PREJOIN / PREFLIGHT SCREEN (PRIMARY CANDIDATE PAGE)
+  // -------------------------------------------------------------
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-6">
+      <div className="w-full max-w-xl bg-slate-900/90 backdrop-blur-xl rounded-3xl border border-slate-800/80 p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* Header */}
+        <div className="text-center space-y-2 border-b border-slate-800 pb-5">
+          <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20 shadow-inner">
+            <Bot className="w-6 h-6" />
+          </div>
+          <h1 className="text-xs font-extrabold text-indigo-400 tracking-widest uppercase">
+            HIRENEST AI INTERVIEW
+          </h1>
+          <h2 className="text-2xl font-black tracking-tight text-white">
+            Hello {sessionInfo?.candidateName || "Candidate"}
+          </h2>
+          <p className="text-slate-400 text-xs">
+            {sessionInfo?.jobTitle || "Technical Position"} • AI Level-1 Screening
+          </p>
+        </div>
+
+        {/* Schedule & Info Box */}
+        <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 text-xs space-y-2.5">
+          <div className="flex items-center justify-between text-slate-300">
+            <span className="flex items-center gap-1.5 text-slate-400 font-semibold">
+              <Calendar size={13} className="text-indigo-400" /> Scheduled Date
+            </span>
+            <span className="font-bold text-white">
+              {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-slate-300">
+            <span className="flex items-center gap-1.5 text-slate-400 font-semibold">
+              <Clock size={13} className="text-indigo-400" /> Estimated Duration
+            </span>
+            <span className="font-bold text-white">~30 minutes</span>
+          </div>
+          <div className="flex items-center justify-between text-slate-300">
+            <span className="flex items-center gap-1.5 text-slate-400 font-semibold">
+              <Sparkles size={13} className="text-indigo-400" /> Evaluation Mode
+            </span>
+            <span className="font-bold text-indigo-400 uppercase text-2xs bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              LiveKit Realtime Voice AI
+            </span>
+          </div>
+        </div>
+
+        {/* Preflight Device Check Section */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <ShieldCheck size={14} className="text-emerald-400" /> Before You Begin (Device Preflight)
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Camera Preview */}
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 space-y-2 relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between text-2xs">
+                <span className="font-bold text-slate-400 flex items-center gap-1">
+                  <Video size={12} /> Camera
+                </span>
+                {cameraActive ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-0.5">
+                    <Check size={12} /> Ready
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                    <VideoOff size={12} /> Checking...
+                  </span>
+                )}
+              </div>
+
+              <div className="w-full aspect-video bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800">
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover transform -scale-x-100"
+                />
+                {!cameraActive && (
+                  <span className="text-2xs text-slate-500 absolute">Camera Feed Inactive</span>
+                )}
+              </div>
+            </div>
+
+            {/* Microphone Meter & Audio Check */}
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 flex flex-col justify-between space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-2xs">
+                  <span className="font-bold text-slate-400 flex items-center gap-1">
+                    <Mic size={12} /> Microphone
+                  </span>
+                  {micActive ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-0.5">
+                      <Check size={12} /> Ready
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                      <MicOff size={12} /> Checking...
+                    </span>
+                  )}
+                </div>
+
+                {/* Level Meter */}
+                <div className="space-y-1">
+                  <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-75"
+                      style={{ width: `${micLevel}%` }}
+                    />
+                  </div>
+                  <span className="text-3s text-slate-500 font-mono block text-right">
+                    Audio Input Level: {micLevel}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Speaker Test Button */}
+              <button
+                type="button"
+                onClick={handleTestSpeaker}
+                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-2xs font-bold transition flex items-center justify-center gap-1.5 border border-slate-800"
+              >
+                <Volume2 size={12} className={isPlayingTestSound ? "animate-bounce text-indigo-400" : ""} />
+                {isPlayingTestSound ? "Playing Test Chime..." : "Test Speaker Audio"}
+              </button>
+            </div>
+          </div>
+
+          {mediaError && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <span>{mediaError}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Consent Checkbox */}
+        <div className="bg-indigo-950/30 p-4 rounded-2xl border border-indigo-500/20 space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(e) => setConsentGiven(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 shrink-0"
+            />
+            <span className="text-xs text-slate-200 leading-normal">
+              I consent to audio/video recording and AI-assisted technical screening assessment under the HireNest Privacy Terms.
+            </span>
+          </label>
+        </div>
+
+        {errorMessage && (
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Start Button */}
+        <button
+          type="button"
+          onClick={handleStartInterview}
+          disabled={!consentGiven || isSubmitting}
+          className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-extrabold text-sm rounded-2xl transition shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? (
+            <>
+              <RotateCcw className="w-4 h-4 animate-spin" />
+              <span>Connecting to AI Realtime Agent...</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4 fill-current" />
+              <span>Start Interview</span>
+            </>
+          )}
+        </button>
+
+        <p className="text-center text-3s text-slate-500">
+          No account or login required. Powered by HireNest WebRTC Intelligence.
+        </p>
+      </div>
+    </div>
+  );
+}

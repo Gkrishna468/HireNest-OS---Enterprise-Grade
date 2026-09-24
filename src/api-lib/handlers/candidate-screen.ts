@@ -43,6 +43,8 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: "candidateId and requirementId are required." });
       }
       
+      const session = await AIInterviewService.startSession(candidateId, requirementId, voiceChoice);
+
       // Create Interview via Orchestration
       const interview = await InterviewOrchestrationService.createAIInterview({
           type: "AI_SCREENING",
@@ -51,13 +53,76 @@ export default async function handler(req: any, res: any) {
           requirementId,
           organizationId: orgId || "GLOBAL",
           createdBy: "SYSTEM",
-          createdByRole: "ADMIN"
+          createdByRole: "ADMIN",
+          sessionId: session.id,
+          scheduledStart: req.body.scheduledStart || new Date().toISOString(),
+          meetingProvider: "NONE",
+          meetingLink: undefined
       });
 
-      const session = await AIInterviewService.startSession(candidateId, requirementId, voiceChoice);
       await InterviewOrchestrationService.startInterview(interview.interviewId, session.id);
+
+      // Update interview doc with explicit LiveKit metadata & secure candidate join token
+      await adminDb.collection("interviews").doc(interview.interviewId).set({
+        transport: "LIVEKIT",
+        livekitAgentName: "hirenest-ai-interviewer",
+        livekitRoomName: session.id,
+        aiSessionId: session.id,
+        rawToken: session.rawToken,
+        candidateJoinUrl: `/ai-interview/${session.rawToken}`,
+        meetingProvider: null,
+        meetingLink: null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
       
-      return res.status(200).json({ success: true, interview, session });
+      return res.status(200).json({ 
+        success: true, 
+        interview: {
+          ...interview,
+          transport: "LIVEKIT",
+          livekitRoomName: session.id,
+          candidateJoinUrl: `/ai-interview/${session.rawToken}`
+        }, 
+        session 
+      });
+    }
+
+    // Action: send-invitation
+    if (action === "send-invitation") {
+      const { interviewId, candidateId } = req.body || {};
+      if (!interviewId) {
+        return res.status(400).json({ error: "interviewId is required." });
+      }
+
+      let candidateEmail = "candidate@example.com";
+      if (candidateId && adminDb) {
+        const candDoc = await adminDb.collection("candidatePool").doc(candidateId).get();
+        if (candDoc.exists) {
+          candidateEmail = candDoc.data()?.primaryEmail || candDoc.data()?.email || candidateEmail;
+        }
+      }
+
+      if (adminDb) {
+        const interviewRef = adminDb.collection("interviews").doc(interviewId);
+        const interviewDoc = await interviewRef.get();
+        const rawToken = interviewDoc.exists ? interviewDoc.data()?.rawToken : null;
+        const joinUrl = rawToken ? `https://os.hirenestworkforce.com/ai-interview/${rawToken}` : (interviewDoc.data()?.candidateJoinUrl || `/ai-interview/${interviewId}`);
+
+        await interviewRef.set({
+          status: "INVITED",
+          invitationSentAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        return res.status(200).json({
+          success: true,
+          invitationSent: true,
+          recipientEmail: candidateEmail,
+          joinUrl
+        });
+      }
+
+      return res.status(200).json({ success: true, invitationSent: true, recipientEmail: candidateEmail });
     }
 
     // 2a. Action: get-session
@@ -92,9 +157,12 @@ export default async function handler(req: any, res: any) {
 
     // 2d. Action: record-consent
     if (action === "record-consent") {
-      const { sessionId, consentVersion } = req.body || {};
+      let { sessionId, rawToken, consentVersion } = req.body || {};
+      if (!sessionId && rawToken) {
+        sessionId = hashToken(rawToken);
+      }
       if (!sessionId) {
-        return res.status(400).json({ error: "sessionId is required." });
+        return res.status(400).json({ error: "sessionId or rawToken is required." });
       }
 
       const docRef = adminDb.collection("ai_interview_sessions").doc(sessionId);
@@ -103,6 +171,7 @@ export default async function handler(req: any, res: any) {
         return res.status(404).json({ error: "Interview session not found." });
       }
 
+      const sessionData = snapshot.data();
       const timestamp = new Date().toISOString();
       const version = consentVersion || "v1.0";
 
@@ -113,16 +182,59 @@ export default async function handler(req: any, res: any) {
         status: "IN_PROGRESS"
       });
 
-      // Securely trigger the separately hosted long-running Realtime AI Agent on our worker container
-      try {
-        await fetch("http://localhost:3001/agent/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId })
-        });
-        console.log(`[CandidateScreenAPI] Successfully notified worker node to boot LiveKit agent for session: ${sessionId}`);
-      } catch (workerErr: any) {
-        console.warn("[CandidateScreenAPI] Realtime worker container was not running during the request. Falling back gracefully. Error:", workerErr.message);
+      // Dispatch LiveKit Agent via Agent Dispatch API
+      const apiKey = process.env.LIVEKIT_API_KEY;
+      const apiSecret = process.env.LIVEKIT_API_SECRET;
+      const lkUrl = process.env.LIVEKIT_URL || "";
+
+      if (apiKey && apiSecret && lkUrl) {
+        try {
+          const httpHost = lkUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
+          const { AgentDispatchClient } = await import("livekit-server-sdk");
+          const dispatchClient = new AgentDispatchClient(httpHost, apiKey, apiSecret);
+          await dispatchClient.createDispatch(sessionId, "hirenest-ai-interviewer", {
+            metadata: JSON.stringify({ 
+              sessionId, 
+              interviewId: sessionData?.interviewId || "",
+              candidateId: sessionData?.candidateId || "",
+              requirementId: sessionData?.requirementId || ""
+            })
+          });
+          console.log(`[CandidateScreenAPI] Successfully dispatched LiveKit Agent 'hirenest-ai-interviewer' to room: ${sessionId}`);
+        } catch (dispatchErr: any) {
+          console.warn("[CandidateScreenAPI] LiveKit Agent dispatch API warning:", dispatchErr?.message || dispatchErr);
+          // Fallback: Generate token & dispatch via Twirp HTTP post if AgentDispatchClient class failed
+          try {
+            const httpHost = lkUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
+            const { AccessToken } = await import("livekit-server-sdk");
+            const at = new AccessToken(apiKey, apiSecret, { identity: "admin_dispatcher", ttl: "5m" });
+            at.addGrant({ roomJoin: true, room: sessionId, canPublish: true, canSubscribe: true });
+            const jwt = await at.toJwt();
+
+            const resp = await fetch(`${httpHost}/twirp/livekit.AgentDispatch/CreateDispatch`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${jwt}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                room: sessionId,
+                agent_name: "hirenest-ai-interviewer",
+                metadata: JSON.stringify({ sessionId, interviewId: sessionData?.interviewId || "" })
+              })
+            });
+            if (resp.ok) {
+              console.log(`[CandidateScreenAPI] Twirp Agent Dispatch succeeded for room: ${sessionId}`);
+            } else {
+              const errBody = await resp.text();
+              console.warn("[CandidateScreenAPI] Twirp Agent Dispatch response not ok:", resp.status, errBody);
+            }
+          } catch (twirpErr: any) {
+            console.warn("[CandidateScreenAPI] Twirp Agent Dispatch fallback failed:", twirpErr?.message || twirpErr);
+          }
+        }
+      } else {
+        console.warn("[CandidateScreenAPI] LiveKit credentials not configured; agent dispatch skipped (mock/simulation mode).");
       }
 
       return res.status(200).json({
@@ -149,9 +261,12 @@ export default async function handler(req: any, res: any) {
 
     // 4. Action: livekit-token
     if (action === "livekit-token") {
-      const { sessionId, participantName, isRecruiter } = req.body || {};
+      let { sessionId, rawToken, participantName, isRecruiter } = req.body || {};
+      if (!sessionId && rawToken) {
+        sessionId = hashToken(rawToken);
+      }
       if (!sessionId) {
-        return res.status(400).json({ error: "sessionId is required." });
+        return res.status(400).json({ error: "sessionId or rawToken is required." });
       }
 
       const sessDoc = await adminDb.collection("ai_interview_sessions").doc(sessionId).get();
@@ -159,16 +274,23 @@ export default async function handler(req: any, res: any) {
         return res.status(404).json({ error: "Interview session not found." });
       }
 
-      const apiKey = process.env.LIVEKIT_API_KEY || "devkey";
-      const apiSecret = process.env.LIVEKIT_API_SECRET || "secret";
-      const participantIdentity = isRecruiter ? `recruiter_${participantName || "Recruiter"}` : `candidate_${sessionId}`;
+      const apiKey = process.env.LIVEKIT_API_KEY;
+      const apiSecret = process.env.LIVEKIT_API_SECRET;
 
-      let token = "mock_livekit_token_" + Math.random().toString(36).substring(7);
+      if (!apiKey || !apiSecret) {
+        return res.status(503).json({ 
+          error: "LIVEKIT_NOT_CONFIGURED", 
+          details: "LiveKit credentials (LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are missing in server environment. Simulated/fallback tokens are prohibited." 
+        });
+      }
+
+      const participantIdentity = isRecruiter ? `recruiter_${participantName || "Recruiter"}` : `candidate_${sessionId}`;
 
       try {
         const { AccessToken } = await import("livekit-server-sdk");
         const at = new AccessToken(apiKey, apiSecret, {
           identity: participantIdentity,
+          ttl: "2h"
         });
 
         at.addGrant({
@@ -179,12 +301,12 @@ export default async function handler(req: any, res: any) {
           canPublishData: true
         });
 
-        token = await at.toJwt();
-      } catch (err) {
-        console.warn("[CandidateScreenAPI] livekit-server-sdk failed to import or initialize. Falling back to robust cryptographic mockup token. Error:", err);
+        const token = await at.toJwt();
+        return res.status(200).json({ success: true, token, roomName: sessionId });
+      } catch (err: any) {
+        console.error("[CandidateScreenAPI] livekit-server-sdk token generation failed:", err);
+        return res.status(500).json({ error: "Failed to generate LiveKit access token: " + err.message });
       }
-
-      return res.status(200).json({ success: true, token, roomName: sessionId });
     }
 
     // 5. Action: force-conclude
