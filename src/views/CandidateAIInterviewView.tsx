@@ -26,7 +26,8 @@ import {
   useTracks,
   useParticipants,
   TrackLoop,
-  ParticipantTile
+  ParticipantTile,
+  VideoTrack
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 
@@ -59,18 +60,26 @@ function RealtimeSessionRoom({
   const localParticipant = participants.find((p) => p.isLocal);
   const aiParticipant = participants.find((p) => !p.isLocal);
 
+  const localCameraTrack = tracks.find(
+    (t) => t.participant.isLocal && t.source === Track.Source.Camera && t.publication?.track
+  );
+
+  const aiAudioTrack = tracks.find(
+    (t) => !t.participant.isLocal && t.source === Track.Source.Microphone
+  );
+
   return (
     <div className="flex flex-col gap-6 w-full">
       <RoomAudioRenderer />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[280px]">
         {/* Candidate Tile */}
-        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden shadow-xl">
           <div className="flex items-center justify-between z-10">
-            <span className="text-2xs font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-2xs font-bold uppercase tracking-wider text-slate-200 bg-slate-900/80 px-2.5 py-1 rounded-md backdrop-blur-md border border-slate-800">
               You ({sessionInfo?.candidateName || "Candidate"})
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
+            <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase backdrop-blur-md ${
               localParticipant?.isMicrophoneEnabled
                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                 : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
@@ -79,34 +88,48 @@ function RealtimeSessionRoom({
             </span>
           </div>
 
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center space-y-2 text-slate-500">
-              <Video className="w-8 h-8 mx-auto opacity-60 text-emerald-400 animate-pulse" />
-              <p className="text-2xs font-mono text-emerald-400 font-bold">
-                {localParticipant ? "Connected to Room" : "Connecting Media..."}
-              </p>
+          {localCameraTrack && localCameraTrack.publication?.track ? (
+            <VideoTrack
+              trackRef={localCameraTrack}
+              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
+              <div className="text-center space-y-2 text-slate-500 z-0">
+                <Video className="w-8 h-8 mx-auto opacity-60 text-emerald-400 animate-pulse" />
+                <p className="text-2xs font-mono text-emerald-400 font-bold">
+                  {localParticipant ? "Connected to Room" : "Connecting Media..."}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* AI Agent Tile */}
-        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden">
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden shadow-xl">
           <div className="flex items-center justify-between z-10">
-            <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+            <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1 bg-slate-900/80 px-2.5 py-1 rounded-md backdrop-blur-md border border-slate-800">
               <Sparkles size={12} /> HireNest AI Interviewer
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
-              aiParticipant
-                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                : "bg-slate-800 text-slate-400 border border-slate-700"
-            }`}>
-              {aiParticipant ? "AI Connected" : "Connecting Agent..."}
-            </span>
+            <div className="flex items-center gap-1.5 z-10">
+              {aiAudioTrack && (
+                <span className="px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <Volume2 size={10} className="animate-pulse" /> Voice Active
+                </span>
+              )}
+              <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
+                aiParticipant
+                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                  : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}>
+                {aiParticipant ? "AI Connected" : "Connecting Agent..."}
+              </span>
+            </div>
           </div>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 z-0">
             <div className={`w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg ${
-              aiParticipant ? "animate-pulse" : "opacity-50"
+              aiParticipant ? "animate-pulse ring-2 ring-indigo-500/40" : "opacity-50"
             }`}>
               <Bot className="w-8 h-8" />
             </div>
@@ -116,7 +139,7 @@ function RealtimeSessionRoom({
             <p className="text-2xs text-slate-400 mt-1 max-w-xs">
               {aiParticipant
                 ? "Speak naturally into your microphone when replying. The AI agent listens and responds automatically via WebRTC."
-                : "Initial WebRTC channel handshake in progress."}
+                : "Initial WebRTC channel handshake & agent dispatch in progress."}
             </p>
           </div>
         </div>

@@ -76,6 +76,18 @@ export class RealtimeAIInterviewAgent {
         }
       });
 
+      // 5b. Enumerate existing remote participants and audio tracks (handles candidate pre-joining)
+      for (const participant of this.room.remoteParticipants.values()) {
+        console.log(`[RealtimeAgent] Detected pre-existing remote participant in room: ${participant.identity}`);
+        for (const trackPublication of participant.trackPublications.values()) {
+          if (trackPublication.track && trackPublication.track.kind === TrackKind.KIND_AUDIO) {
+            console.log(`[RealtimeAgent] Subscribing to pre-existing candidate RemoteAudioTrack: ${trackPublication.track.sid}`);
+            this.candidateAudioTrackSid = trackPublication.track.sid;
+            this.subscribeCandidateAudio(trackPublication.track as RemoteTrack, ctx);
+          }
+        }
+      }
+
       this.room.on(RoomEvent.Disconnected, async () => {
         console.log("[RealtimeAgent] Participant disconnected from LiveKit.");
         await this.sessionService.updateAgentState(this.sessionId, "DISCONNECTED");
