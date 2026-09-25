@@ -19,12 +19,13 @@ export class RealtimeAIInterviewAgent {
   private recordingService: LiveKitEgressRecordingService;
   private vad: SileroVAD;
 
-  // Diagnostic counters
+  // Diagnostic counters and deduplication
   private audioFramesReceived = 0;
   private audioBytesReceived = 0;
   private speechFramesDetected = 0;
   private lastAudioFrameAt: string | undefined;
   private candidateAudioTrackSid: string | undefined;
+  private processedTrackSids = new Set<string>();
 
   constructor(ctx: JobContext, sessionId: string) {
     this.ctx = ctx;
@@ -32,45 +33,46 @@ export class RealtimeAIInterviewAgent {
     this.sessionService = new SessionService();
     this.recordingService = new LiveKitEgressRecordingService();
     this.vad = new SileroVAD();
+    console.log(`[HN Technical Team] STARTUP_OK sessionId=${sessionId}`);
   }
 
   /**
    * Executes the real-time WebRTC media agent thread loop adapted to LiveKit Managed Agents
    */
   async startAgentLoop(): Promise<void> {
-    console.log(`[RealtimeAgent] Bootstrapping real-time loop from JobContext for session: ${this.sessionId}...`);
+    console.log(`[HN Technical Team] JOB_RECEIVED sessionId=${this.sessionId}`);
     await this.sessionService.updateAgentState(this.sessionId, "CONNECTING");
 
     try {
       // 1. Zero-trust validation and verification
       const ctx = await this.sessionService.loadAndVerifySession(this.sessionId);
-      console.log(`[RealtimeAgent] Session verified. Candidate consent verified at: ${ctx.consent.consentTimestamp}`);
+      console.log(`[HN Technical Team] SESSION_CONTEXT_LOADED candidateId=${ctx.candidateId} requirementId=${ctx.requirementId}`);
 
       // 2. Load genuine Silero VAD ONNX model session
       try {
         await this.vad.loadModel();
       } catch (vadErr: any) {
-        console.warn("[RealtimeAgent] Silero VAD ONNX runtime not pre-compiled or loaded. Pipeline is restricted:", vadErr.message);
+        console.warn("[HN Technical Team] VAD ONNX model warning:", vadErr.message);
       }
 
       // 3. Start LiveKit Egress Recording prior to media connections
       try {
         const roomName = this.sessionId;
         this.egressId = await this.recordingService.startRecording(this.sessionId, roomName, ctx.interviewId, ctx.candidateId);
-        console.log(`[RealtimeAgent] Recording initiated successfully with Egress ID: ${this.egressId}`);
+        console.log(`[HN Technical Team] RECORDING_INITIATED egressId=${this.egressId}`);
       } catch (recErr: any) {
-        console.warn("[RealtimeAgent] Recording initialization failed/blocked:", recErr.message);
+        console.warn("[HN Technical Team] Recording initialization notice:", recErr.message);
       }
 
       // 4. Bind connected room directly from JobContext
       this.room = this.ctx.room;
-      console.log(`[RealtimeAgent] Successfully bound to LiveKit room ${this.sessionId} as a managed WebRTC media peer.`);
+      console.log(`[HN Technical Team] ROOM_CONNECTED room=${this.sessionId}`);
       await this.sessionService.updateAgentState(this.sessionId, "CONNECTED");
 
       // 5. Register Remote Track Subscription events to capture candidate audio
       this.room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
         if (track.kind === TrackKind.KIND_AUDIO) {
-          console.log(`[RealtimeAgent] Genuinely subscribed to candidate's RemoteAudioTrack: ${track.sid}`);
+          console.log(`[HN Technical Team] AUDIO_TRACK_DETECTED trackSid=${track.sid}`);
           this.candidateAudioTrackSid = track.sid;
           this.subscribeCandidateAudio(track, ctx);
         }
@@ -78,10 +80,10 @@ export class RealtimeAIInterviewAgent {
 
       // 5b. Enumerate existing remote participants and audio tracks (handles candidate pre-joining)
       for (const participant of this.room.remoteParticipants.values()) {
-        console.log(`[RealtimeAgent] Detected pre-existing remote participant in room: ${participant.identity}`);
+        console.log(`[HN Technical Team] CANDIDATE_DETECTED participant=${participant.identity}`);
         for (const trackPublication of participant.trackPublications.values()) {
           if (trackPublication.track && trackPublication.track.kind === TrackKind.KIND_AUDIO) {
-            console.log(`[RealtimeAgent] Subscribing to pre-existing candidate RemoteAudioTrack: ${trackPublication.track.sid}`);
+            console.log(`[HN Technical Team] AUDIO_TRACK_DETECTED trackSid=${trackPublication.track.sid}`);
             this.candidateAudioTrackSid = trackPublication.track.sid;
             this.subscribeCandidateAudio(trackPublication.track as RemoteTrack, ctx);
           }
@@ -89,21 +91,25 @@ export class RealtimeAIInterviewAgent {
       }
 
       this.room.on(RoomEvent.Disconnected, async () => {
-        console.log("[RealtimeAgent] Participant disconnected from LiveKit.");
+        console.log("[HN Technical Team] DISCONNECTED");
         await this.sessionService.updateAgentState(this.sessionId, "DISCONNECTED");
       });
 
-      // 6. IMMEDIATELY Speak the Initial Question so candidate hears AI speech without deadlock
-      const initialQuestion = ctx.currentQuestion || "Hello! Welcome to your HireNest AI interview. Let's begin with our first question.";
-      console.log(`[RealtimeAgent] Speaking initial question immediately: "${initialQuestion}"`);
-      await this.sessionService.logTranscriptEvent(ctx, "AI", initialQuestion, 1, "q_initial", 1);
+      // 6. Speak the Initial Technical Greeting
+      const candFirstName = ctx.candidateName ? ctx.candidateName.split(" ")[0] : "there";
+      const initialGreeting = `Hello ${candFirstName}, welcome to HireNest. I'm from the HireNest Technical Team. I'll be conducting your technical screening today. We'll discuss your experience and questions based on your resume and the role. Please answer naturally in your own words. Shall we begin?`;
+      
+      console.log(`[HN Technical Team] GREETING_STARTED text="${initialGreeting}"`);
+      await this.sessionService.logTranscriptEvent(ctx, "AI", initialGreeting, 1, "q_initial", 1);
       
       try {
         const ttsProvider = TTSFactory.getProvider();
-        const ttsOutput = await ttsProvider.synthesize(initialQuestion);
+        const ttsOutput = await ttsProvider.synthesize(initialGreeting);
+        console.log(`[HN Technical Team] TTS_COMPLETED pcmBytes=${ttsOutput.pcm.byteLength}`);
         await this.publishAIAudio(ttsOutput.pcm, ttsOutput.sampleRate);
+        console.log("[HN Technical Team] AI_AUDIO_PUBLISHED");
       } catch (ttsErr: any) {
-        console.warn("[RealtimeAgent] Initial question TTS synthesis warning:", ttsErr?.message || ttsErr);
+        console.warn("[HN Technical Team] Initial greeting TTS warning:", ttsErr?.message || ttsErr);
         await this.sessionService.updateAgentState(this.sessionId, "LISTENING");
       }
 
@@ -118,6 +124,14 @@ export class RealtimeAIInterviewAgent {
    * Subscribes to and consumes raw AudioFrame streams from the RemoteAudioTrack
    */
   private async subscribeCandidateAudio(track: RemoteTrack, ctx: SessionContext): Promise<void> {
+    if (track.sid) {
+      if (this.processedTrackSids.has(track.sid)) {
+        console.log(`[HN Technical Team] AUDIO_TRACK_DUPLICATE_SKIPPED trackSid=${track.sid}`);
+        return;
+      }
+      this.processedTrackSids.add(track.sid);
+    }
+
     // Explicitly request 16000 Hz, 1 channel (mono) 16-bit PCM AudioStream from LiveKit
     const audioStream = new AudioStream(track, 16000, 1);
     let pcmAccumulator: Int16Array = new Int16Array(0);
@@ -125,13 +139,17 @@ export class RealtimeAIInterviewAgent {
     let isSpeechActive = false;
     let silenceCounter = 0;
 
-    console.log("[RealtimeAgent] Spawning live WebRTC audio frame consumption stream (16kHz mono)...");
+    console.log(`[HN Technical Team] AUDIO_STREAM_STARTED trackSid=${track.sid}`);
 
     try {
       for await (const frame of audioStream) {
         this.audioFramesReceived++;
         this.audioBytesReceived += frame.data.byteLength;
         this.lastAudioFrameAt = new Date().toISOString();
+
+        if (this.audioFramesReceived % 200 === 0) {
+          console.log(`[HN Technical Team] AUDIO_FRAMES_RECEIVED frames=${this.audioFramesReceived} bytes=${this.audioBytesReceived}`);
+        }
 
         // Convert 16-bit PCM frame data to Float32
         const pcmFloat32 = this.convertToFloat32(frame.data);
@@ -214,13 +232,15 @@ export class RealtimeAIInterviewAgent {
    * Process candidate answers and fetch questions from AIGateway
    */
   private async processCandidateResponse(audioBuffer: Buffer, ctx: SessionContext): Promise<void> {
+    console.log(`[HN Technical Team] CANDIDATE_SPEECH_DETECTED audioBytes=${audioBuffer.byteLength}`);
     await this.sessionService.updateAgentState(this.sessionId, "THINKING");
 
     try {
       // 1. STT provider validation
+      console.log("[HN Technical Team] STT_STARTED");
       const sttProvider = STTFactory.getProvider();
       const sttResponse = await sttProvider.transcribe(audioBuffer);
-      console.log(`[RealtimeAgent] Decoded candidate speech: "${sttResponse.text}"`);
+      console.log(`[HN Technical Team] STT_COMPLETED transcript="${sttResponse.text}"`);
 
       // 2. Submit transcript back to central HireNest platform for evaluation and next question generation
       const centralUrl = process.env.AI_INTERVIEWER_SERVICE_URL || "https://os.hirenestworkforce.com";
@@ -230,7 +250,6 @@ export class RealtimeAIInterviewAgent {
         throw new Error("BLOCKED_AI_GATEWAY_AUTHENTICATION_REQUIRED: Service authorization keys are missing.");
       }
 
-      console.log(`[RealtimeAgent] Communicating transcript with central platform API: ${centralUrl}...`);
       const response = await fetch(`${centralUrl}/api/candidates/screen`, {
         method: "POST",
         headers: {
@@ -249,7 +268,8 @@ export class RealtimeAIInterviewAgent {
       }
 
       const data: any = await response.json();
-      const nextQuestion = data.nextQuestion || "Thank you. Let's proceed with the evaluation.";
+      const nextQuestion = data.nextQuestion || "Thank you. Let's proceed with our next technical topic.";
+      console.log(`[HN Technical Team] ANSWER_EVALUATED & NEXT_QUESTION_SELECTED: "${nextQuestion}"`);
 
       // 3. Log transcripts into the database
       await this.sessionService.logTranscriptEvent(ctx, "CANDIDATE", sttResponse.text, 1, "q_curr", this.audioFramesReceived);
@@ -258,12 +278,14 @@ export class RealtimeAIInterviewAgent {
       // 4. Synthesize TTS voice bytes for the next question
       const ttsProvider = TTSFactory.getProvider();
       const ttsOutput = await ttsProvider.synthesize(nextQuestion);
+      console.log(`[HN Technical Team] TTS_COMPLETED pcmBytes=${ttsOutput.pcm.byteLength}`);
 
       // 5. Publish real audio track back to the room
       await this.publishAIAudio(ttsOutput.pcm, ttsOutput.sampleRate);
+      console.log("[HN Technical Team] AI_AUDIO_PUBLISHED");
 
     } catch (err: any) {
-      console.error("[RealtimeAgent] Pipeline failed during processing:", err.message);
+      console.error("[HN Technical Team] Pipeline failed during response processing:", err.message);
       await this.sessionService.updateAgentState(this.sessionId, "ERROR", err.message);
       throw err;
     }

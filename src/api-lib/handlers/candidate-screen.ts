@@ -299,18 +299,20 @@ export default async function handler(req: any, res: any) {
 
       if (apiKey && apiSecret && rawLkUrl) {
         const httpHost = normalizeLiveKitHttpUrl(rawLkUrl);
+        const dispatchMetadata = JSON.stringify({ 
+          sessionId, 
+          interviewId: sessionData?.interviewId || "",
+          candidateId: sessionData?.candidateId || "",
+          requirementId: sessionData?.requirementId || "",
+          submissionId: sessionData?.submissionId || ""
+        });
         try {
           const { AgentDispatchClient } = await import("livekit-server-sdk");
           const dispatchClient = new AgentDispatchClient(httpHost, apiKey, apiSecret);
-          await dispatchClient.createDispatch(sessionId, "hirenest-ai-interviewer", {
-            metadata: JSON.stringify({ 
-              sessionId, 
-              interviewId: sessionData?.interviewId || "",
-              candidateId: sessionData?.candidateId || "",
-              requirementId: sessionData?.requirementId || ""
-            })
+          await dispatchClient.createDispatch(sessionId, "hirenest-technical-team", {
+            metadata: dispatchMetadata
           });
-          console.log(`[CandidateScreenAPI] Successfully dispatched LiveKit Agent 'hirenest-ai-interviewer' to room: ${sessionId}`);
+          console.log(`[CandidateScreenAPI] Successfully dispatched LiveKit Agent 'hirenest-technical-team' to room: ${sessionId}`);
         } catch (dispatchErr: any) {
           console.warn("[CandidateScreenAPI] LiveKit Agent dispatch API warning:", dispatchErr?.message || dispatchErr);
           // Fallback: Generate token & dispatch via Twirp HTTP post if AgentDispatchClient class failed
@@ -328,8 +330,8 @@ export default async function handler(req: any, res: any) {
               },
               body: JSON.stringify({
                 room: sessionId,
-                agent_name: "hirenest-ai-interviewer",
-                metadata: JSON.stringify({ sessionId, interviewId: sessionData?.interviewId || "" })
+                agent_name: "hirenest-technical-team",
+                metadata: dispatchMetadata
               })
             });
             if (resp.ok) {

@@ -9,7 +9,7 @@ describe("Candidate Video Track Rendering & Agent Media Pipeline Integration", (
 
     assert.ok(viewContent.includes("VideoTrack"), "VideoTrack component must be imported and rendered");
     assert.ok(viewContent.includes("localCameraTrack"), "localCameraTrack must be queried from tracks");
-    assert.ok(viewContent.includes("aiAudioTrack"), "aiAudioTrack must be queried from tracks");
+    assert.ok(viewContent.includes("technicalTeamAudioTrack"), "technicalTeamAudioTrack must be queried from tracks");
   });
 
   it("should verify agent worker enumerates pre-existing candidate audio tracks", async () => {

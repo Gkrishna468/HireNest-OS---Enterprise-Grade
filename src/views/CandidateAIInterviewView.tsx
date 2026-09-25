@@ -58,15 +58,32 @@ function RealtimeSessionRoom({
   );
 
   const localParticipant = participants.find((p) => p.isLocal);
-  const aiParticipant = participants.find((p) => !p.isLocal);
+  const technicalTeamParticipant = participants.find(
+    (p) => p.identity === "hirenest-technical-team" || p.name === "HireNest Technical Team" || (!p.isLocal && p.identity.includes("technical"))
+  ) || participants.find((p) => !p.isLocal);
 
   const localCameraTrack = tracks.find(
     (t) => t.participant.isLocal && t.source === Track.Source.Camera && t.publication?.track
   );
 
-  const aiAudioTrack = tracks.find(
+  const technicalTeamAudioTrack = tracks.find(
     (t) => !t.participant.isLocal && t.source === Track.Source.Microphone
   );
+
+  const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (technicalTeamParticipant) {
+      setConnectionTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (!technicalTeamParticipant) {
+        setConnectionTimedOut(true);
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [technicalTeamParticipant]);
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -105,42 +122,52 @@ function RealtimeSessionRoom({
           )}
         </div>
 
-        {/* AI Agent Tile */}
+        {/* HireNest Technical Team Tile */}
         <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 aspect-video flex flex-col justify-between relative overflow-hidden shadow-xl">
           <div className="flex items-center justify-between z-10">
             <span className="text-2xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1 bg-slate-900/80 px-2.5 py-1 rounded-md backdrop-blur-md border border-slate-800">
-              <Sparkles size={12} /> HireNest AI Interviewer
+              <Sparkles size={12} /> HireNest Technical Team
             </span>
             <div className="flex items-center gap-1.5 z-10">
-              {aiAudioTrack && (
+              {technicalTeamAudioTrack && (
                 <span className="px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                   <Volume2 size={10} className="animate-pulse" /> Voice Active
                 </span>
               )}
               <span className={`px-2 py-0.5 rounded-full text-3s font-mono font-bold uppercase ${
-                aiParticipant
+                technicalTeamParticipant
                   ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
                   : "bg-slate-800 text-slate-400 border border-slate-700"
               }`}>
-                {aiParticipant ? "AI Connected" : "Connecting Agent..."}
+                {technicalTeamParticipant ? "Technical Team Connected" : "Connecting Technical Team..."}
               </span>
             </div>
           </div>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 z-0">
             <div className={`w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg ${
-              aiParticipant ? "animate-pulse ring-2 ring-indigo-500/40" : "opacity-50"
+              technicalTeamParticipant ? "animate-pulse ring-2 ring-indigo-500/40" : "opacity-50"
             }`}>
               <Bot className="w-8 h-8" />
             </div>
             <p className="text-xs font-bold text-slate-200">
-              {aiParticipant ? "AI Screening Agent Active" : "Waiting for AI Agent to Join..."}
+              {technicalTeamParticipant ? "HireNest Technical Team" : "Waiting for HireNest Technical Team..."}
             </p>
             <p className="text-2xs text-slate-400 mt-1 max-w-xs">
-              {aiParticipant
-                ? "Speak naturally into your microphone when replying. The AI agent listens and responds automatically via WebRTC."
-                : "Initial WebRTC channel handshake & agent dispatch in progress."}
+              {technicalTeamParticipant
+                ? "Speak naturally into your microphone when replying. The HireNest Technical Team listens and responds automatically via WebRTC."
+                : connectionTimedOut
+                  ? "Connection taking longer than expected. Please verify network or click below to retry."
+                  : "WebRTC channel handshake & technical interviewer dispatch in progress."}
             </p>
+            {connectionTimedOut && !technicalTeamParticipant && (
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-3 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-2xs font-bold rounded-lg transition"
+              >
+                Retry Connection
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -147,12 +147,32 @@ const __dirname = path.dirname(__filename);
 // In TS environment, during pre-compiling development, points to compiled agent_entry.js target
 const agentPath = path.resolve(__dirname, "agent_entry.js");
 
+const HIRENEST_TECHNICAL_TEAM = "hirenest-technical-team";
+
 const options = new ServerOptions({
   agent: agentPath,
+  agentName: HIRENEST_TECHNICAL_TEAM,
   wsURL: process.env.LIVEKIT_URL || "ws://localhost:7880",
   apiKey: process.env.LIVEKIT_API_KEY,
   apiSecret: process.env.LIVEKIT_API_SECRET,
-  production: process.env.NODE_ENV === "production"
+  production: process.env.NODE_ENV === "production",
+  requestFunc: async (req: any) => {
+    console.log("[HN Technical Team] JOB_RECEIVED", {
+      jobId: req.id,
+      room: req.room?.name,
+      agentName: HIRENEST_TECHNICAL_TEAM
+    });
+
+    await req.accept(
+      "HireNest Technical Team",
+      HIRENEST_TECHNICAL_TEAM
+    );
+
+    console.log("[HN Technical Team] JOB_ACCEPTED", {
+      jobId: req.id,
+      room: req.room?.name
+    });
+  }
 });
 
 cli.runApp(options);
