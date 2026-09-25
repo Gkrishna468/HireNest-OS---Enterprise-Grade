@@ -4,6 +4,7 @@ export interface SessionContext {
   sessionId: string;
   interviewId: string;
   candidateId: string;
+  candidateName?: string;
   submissionId: string;
   requirementId: string;
   consent: {
@@ -51,7 +52,7 @@ export class SessionService {
   /**
    * Update the live connection/conversational state of the server-side agent
    */
-  async updateAgentState(sessionId: string, state: "CONNECTING" | "CONNECTED" | "LISTENING" | "THINKING" | "SPEAKING" | "DISCONNECTED" | "ERROR", errorReason?: string): Promise<void> {
+  async updateAgentState(sessionId: string, state: "CONNECTING" | "CONNECTED" | "LISTENING" | "THINKING" | "SPEAKING" | "DISCONNECTED" | "ERROR" | "DEGRADED", errorReason?: string): Promise<void> {
     console.log(`[SessionService] Syncing Agent state [${state}] for session: ${sessionId}...`);
     try {
       const docRef = adminDb.collection("ai_interview_sessions").doc(sessionId);
