@@ -269,7 +269,7 @@ export class RealtimeAIInterviewAgent {
 
       const data: any = await response.json();
       const nextQuestion = data.nextQuestion || "Thank you. Let's proceed with our next technical topic.";
-      console.log(`[HN Technical Team] ANSWER_EVALUATED & NEXT_QUESTION_SELECTED: "${nextQuestion}"`);
+      console.log(`[HN Technical Team] ANSWER_EVALUATED & COMMUNICATION_ANALYZED: "${nextQuestion}"`);
 
       // 3. Log transcripts into the database
       await this.sessionService.logTranscriptEvent(ctx, "CANDIDATE", sttResponse.text, 1, "q_curr", this.audioFramesReceived);
