@@ -40,44 +40,68 @@ export default async function handler(req: any, res: any) {
     if (action === "finalize-onboarding") {
       if (req.method !== "POST")
         return res.status(405).json({ error: "Method not allowed" });
-      const { orgType, companyName, onboardingRole } = req.body;
       if (!adminDb)
         return res
           .status(400)
           .json({ error: "Database authority not initialized" });
 
-      const permittedRoles = ['client', 'vendor', 'recruiter', 'client_admin', 'vendor_admin', 'recruiter_admin'];
-      let chosenRole = onboardingRole || 'recruiter';
-      if (!permittedRoles.includes(chosenRole.toLowerCase())) {
-        chosenRole = 'recruiter';
+      const { orgType, companyName, onboardingRole, userProfile } = req.body;
+
+      if (!authUserId) {
+        return res.status(401).json({ error: "Unauthorized: Missing user context" });
       }
 
-      const generatedOrgId = `ORG-${orgType ? orgType.toUpperCase() : 'UNKNOWN'}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      // Preserve requested role or infer from orgType
+      const rawRole = (onboardingRole || userProfile?.role || "").trim();
+      let chosenRole = rawRole;
+      if (!chosenRole) {
+        const normOrgType = (orgType || "").toLowerCase();
+        if (normOrgType === "client") chosenRole = "CLIENT_ADMIN";
+        else if (normOrgType === "vendor") chosenRole = "VENDOR_ADMIN";
+        else if (normOrgType === "candidate") chosenRole = "CANDIDATE";
+        else chosenRole = "RECRUITER";
+      }
+
+      // Idempotency: reuse existing organizationId if already provisioned
+      let targetOrgId = req.body.orgId || req.body.organizationId || userProfile?.organizationId || userProfile?.orgId;
+      const existingUserSnap = await adminDb.collection("users").doc(authUserId).get();
+      if (existingUserSnap.exists) {
+        const data = existingUserSnap.data();
+        if (data && (data.organizationId || data.orgId)) {
+          targetOrgId = data.organizationId || data.orgId;
+        }
+      }
+      if (!targetOrgId) {
+        targetOrgId = `ORG-${orgType ? orgType.toUpperCase() : 'UNKNOWN'}-${authUserId.substring(0, 8).toUpperCase()}`;
+      }
 
       console.log(
-        `[USER_API] Finalize Onboarding for authUser: ${authUserId} in Org: ${generatedOrgId}`,
+        `[USER_API] Finalize Onboarding for authUser: ${authUserId} in Org: ${targetOrgId} with role: ${chosenRole}`,
       );
-      await adminDb.collection("organizations").doc(generatedOrgId).set(
+
+      await adminDb.collection("organizations").doc(targetOrgId).set(
         {
-          id: generatedOrgId,
-          organizationId: generatedOrgId,
-          type: orgType,
-          companyName,
+          id: targetOrgId,
+          organizationId: targetOrgId,
+          companyName: companyName || userProfile?.companyName || "Organization Workspace",
+          type: orgType || "recruiter",
           status: "ACTIVE",
-          createdAt: new Date().toISOString(),
+          onboardingCompleted: true,
+          updatedAt: new Date().toISOString(),
         },
         { merge: true },
       );
 
       const secureProfile = {
         uid: authUserId,
-        email: req.user?.email || "",
-        organizationId: generatedOrgId,
-        orgId: generatedOrgId,
+        email: req.user?.email || userProfile?.email || "",
+        organizationId: targetOrgId,
+        orgId: targetOrgId,
         role: chosenRole,
-        status: "PENDING_APPROVAL",
-        onboardingCompleted: false,
-        createdAt: new Date().toISOString()
+        status: "ACTIVE",
+        onboardingCompleted: true,
+        ...(userProfile || {}),
+        updatedAt: new Date().toISOString()
       };
 
       await adminDb
@@ -89,15 +113,15 @@ export default async function handler(req: any, res: any) {
         try {
           await adminAuth.setCustomUserClaims(authUserId, {
             role: chosenRole,
-            orgId: generatedOrgId,
-            organizationId: generatedOrgId,
+            orgId: targetOrgId,
+            organizationId: targetOrgId,
           });
         } catch (authErr: any) {
           console.warn("[USER_API] adminAuth.setCustomUserClaims fallback (persisted in Firestore SSOT):", authErr.message);
         }
       }
 
-      return res.status(200).json({ ok: true, orgId: generatedOrgId });
+      return res.status(200).json({ ok: true, orgId: targetOrgId, role: chosenRole });
     }
 
     if (action === "create") {

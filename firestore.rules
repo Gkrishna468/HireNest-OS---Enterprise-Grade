@@ -283,12 +283,38 @@ service cloud.firestore {
     // =====================================================
 
     match /users/{userId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        isOwner(userId) ||
+        isAdmin() ||
+        (resource != null && 'organizationId' in resource.data && resource.data.organizationId is string && isSameOrg(resource.data.organizationId)) ||
+        (resource != null && 'orgId' in resource.data && resource.data.orgId is string && isSameOrg(resource.data.orgId))
+      );
 
-      allow create, update:
+      allow create:
       if isVerified() &&
          isValidUser(incoming()) &&
-         (isOwner(userId) || isAdmin());
+         (
+           isAdmin() ||
+           (isOwner(userId) &&
+            (!('role' in incoming()) || incoming().role in ['candidate', 'client', 'vendor', 'recruiter', 'independent', 'guest']) &&
+            (!('status' in incoming()) || incoming().status in ['active', 'pending', 'pending_approval']) &&
+            (!('isSuperAdmin' in incoming()) || incoming().isSuperAdmin == false) &&
+            (!('isHQ' in incoming()) || incoming().isHQ == false))
+         );
+
+      allow update:
+      if isVerified() &&
+         isValidUser(incoming()) &&
+         (
+           isAdmin() ||
+           (isOwner(userId) &&
+            (!('organizationId' in request.resource.data) || !('organizationId' in resource.data) || request.resource.data.organizationId == resource.data.organizationId) &&
+            (!('orgId' in request.resource.data) || !('orgId' in resource.data) || request.resource.data.orgId == resource.data.orgId) &&
+            (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+            (!('status' in request.resource.data) || !('status' in resource.data) || request.resource.data.status == resource.data.status) &&
+            (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin == resource.data.get('isSuperAdmin', false)) &&
+            (!('isHQ' in request.resource.data) || request.resource.data.isHQ == resource.data.get('isHQ', false)))
+         );
 
       allow delete:
       if isSuperAdmin();

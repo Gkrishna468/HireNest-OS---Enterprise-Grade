@@ -395,7 +395,8 @@ export default async function handler(req: any, res: any) {
             console.error('Auth Error:', err); return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
          }
       } else {
-         req.user = { uid: 'dev-mode' };
+         console.error('[Auth Middleware] adminAuth is offline / unavailable');
+         return res.status(503).json({ error: 'Service Unavailable: Authentication service is offline' });
       }
     } else if (isAuthorizedCronCall) {
       req.user = { uid: 'system-cron' };

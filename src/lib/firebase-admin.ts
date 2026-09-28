@@ -205,14 +205,9 @@ export const auth = new Proxy({}, {
   get: (target, prop) => {
     if (!adminAuth) {
       if (prop === 'verifyIdToken' || prop === 'getUser' || prop === 'createUser' || prop === 'deleteUser') {
-        return async () => ({
-          uid: "dummy-user",
-          email: "dummy@example.com",
-          role: "guest",
-          verifyIdToken: async () => ({ uid: "dummy-user", role: "guest" }),
-          getUser: async () => ({ uid: "dummy-user", email: "dummy@example.com" }),
-          createUser: async () => ({ uid: "dummy-user" })
-        });
+        return async () => {
+          throw new Error("FIREBASE_ADMIN_AUTH_UNAVAILABLE: Firebase Admin Auth is offline or not initialized.");
+        };
       }
       return undefined;
     }

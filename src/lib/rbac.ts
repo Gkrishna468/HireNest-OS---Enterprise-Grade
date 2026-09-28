@@ -9,7 +9,8 @@ export type SystemRole =
   | "VENDOR_ADMIN"
   | "RECRUITER"
   | "VENDOR_RECRUITER" // Backward compatibility alias
-  | "CANDIDATE";
+  | "CANDIDATE"
+  | "GUEST";
 
 export type RecruiterSubtype = "INTERNAL" | "VENDOR" | "FREELANCE";
 
@@ -326,6 +327,17 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
       "candidates.update"
     ],
   },
+  GUEST: {
+    id: "GUEST",
+    userType: "RECRUITER",
+    aliases: ["guest", "unauthenticated", "unknown", "invalid"],
+    displayName: "Guest / Unassigned",
+    category: "SUPPLY",
+    isAdminEquivalent: false,
+    scopeDescription: "Zero active system permissions",
+    description: "Unassigned or unauthenticated guest identity with zero operational privileges.",
+    permissions: [],
+  },
 };
 
 export const AUTHORITATIVE_ROLES: RoleDefinition[] = [
@@ -372,11 +384,10 @@ export function getUserTypeForRole(rawRole?: string | null): UserType {
  * Normalizes any role string or legacy alias into the standard SystemRole.
  */
 export function normalizeRole(rawRole?: string | null): SystemRole {
-  if (!rawRole) return "RECRUITER";
+  if (!rawRole) return "GUEST";
   const cleaned = rawRole.trim().toUpperCase().replace(/[\s-]/g, "_");
 
   if (cleaned in ROLE_CATALOG) {
-    if (cleaned === "VENDOR_RECRUITER") return "RECRUITER";
     return cleaned as SystemRole;
   }
 
@@ -385,7 +396,7 @@ export function normalizeRole(rawRole?: string | null): SystemRole {
 
   for (const roleDef of Object.values(ROLE_CATALOG)) {
     if (roleDef.aliases.includes(lower)) {
-      return roleDef.id === "VENDOR_RECRUITER" ? "RECRUITER" : roleDef.id;
+      return roleDef.id;
     }
   }
 
@@ -395,12 +406,14 @@ export function normalizeRole(rawRole?: string | null): SystemRole {
   if (lower.includes("finance")) return "CLIENT_FINANCE";
   if (lower.includes("client")) return "CLIENT_ADMIN";
   if (lower.includes("vendor_admin")) return "VENDOR_ADMIN";
+  if (lower.includes("vendor_recruiter")) return "VENDOR_RECRUITER";
   if (lower.includes("candidate")) return "CANDIDATE";
-  if (lower.includes("recruiter") || lower.includes("vendor") || lower.includes("independent") || lower.includes("freelance")) {
+  if (lower.includes("recruiter") || lower.includes("independent") || lower.includes("freelance")) {
     return "RECRUITER";
   }
 
-  return "RECRUITER";
+  // Fail closed: Unknown or invalid roles resolve to GUEST (0 permissions)
+  return "GUEST";
 }
 
 /**
