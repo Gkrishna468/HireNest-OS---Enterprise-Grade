@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { HireNestBrandLogo } from "../components/brand/HireNestBrandLogo";
 import { auth, db, storage } from "../lib/firebase";
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from "../lib/Button";
@@ -110,6 +110,11 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       if (isSignUp) {
         // Register new user on Firebase first
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          await sendEmailVerification(userCred.user);
+        } catch (verErr: any) {
+          console.warn("[Auth] Email verification send notice:", verErr?.message);
+        }
         // Initialize minimal user document in Firestore to prevent RBAC reading permission blockages
         await setDoc(doc(db, "users", userCred.user.uid), {
           uid: userCred.user.uid,

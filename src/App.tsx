@@ -476,6 +476,47 @@ const AppContent = () => {
     );
   }
 
+  // Handle PENDING_APPROVAL account lifecycle state (BUG-006)
+  if (user && userData?.status === "PENDING_APPROVAL" && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+          <div className="p-4 bg-amber-500/10 rounded-full text-amber-400 border border-amber-500/20">
+            <Clock size={48} className="animate-pulse" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-white">Account Pending Approval</h1>
+            <p className="text-sm text-slate-300">
+              Your HireNest OS organization workspace request has been received and is currently under review by Platform Administration.
+            </p>
+            <div className="mt-2 p-3 bg-slate-950 rounded-xl border border-slate-800/80 text-left text-xs font-mono text-slate-400 space-y-1">
+              <div><span className="text-slate-500">Organization ID:</span> {userData?.organizationId || userData?.orgId || "Pending"}</div>
+              <div><span className="text-slate-500">Account Role:</span> {userData?.role || "Pending"}</div>
+              <div><span className="text-slate-500">Status:</span> PENDING_APPROVAL</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-4 w-full">
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition"
+            >
+              Refresh Status
+            </button>
+            <button
+              onClick={async () => {
+                await signOut(auth);
+                window.location.reload();
+              }}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-semibold transition flex items-center gap-1.5"
+            >
+              <LogOut size={16} /> Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const role = userData?.role || "guest";
   const isAdmin = checkIsAdmin(role);
   const isClient = checkIsClient(role);

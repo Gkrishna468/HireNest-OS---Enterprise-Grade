@@ -22,7 +22,8 @@ import { auth, db } from "../lib/firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { CandidateMatchingService, CandidateMatchResult } from "../services/CandidateMatchingService";
@@ -165,6 +166,11 @@ export function CandidateRegisterModal({
       try {
         const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         user = userCred.user;
+        try {
+          await sendEmailVerification(user);
+        } catch (verErr: any) {
+          console.warn("[Auth] Email verification send notice:", verErr?.message);
+        }
         await updateProfile(user, {
           displayName: name.trim()
         });
@@ -191,89 +197,97 @@ export function CandidateRegisterModal({
         throw new Error("Unable to establish candidate authentication session.");
       }
 
-      // 3. PERSIST USER RECORD IN USERS COLLECTION
+      // 3. PERSIST USER RECORD IN USERS COLLECTION & CANDIDATE POOL
       const candidateUid = user.uid;
-      await setDoc(doc(db, "users", candidateUid), {
-        id: candidateUid,
-        uid: candidateUid,
-        email: email.trim(),
-        name: name.trim() || user.displayName || "Candidate",
-        displayName: name.trim() || user.displayName || "Candidate",
-        phone: candidatePhone,
-        role: "candidate",
-        organizationId: "ORG-CANDIDATE-COMMUNITY",
-        status: "ACTIVE",
-        onboardingCompleted: true,
-        isOnline: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      try {
+        await setDoc(doc(db, "users", candidateUid), {
+          id: candidateUid,
+          uid: candidateUid,
+          email: email.trim(),
+          name: name.trim() || user.displayName || "Candidate",
+          displayName: name.trim() || user.displayName || "Candidate",
+          phone: candidatePhone,
+          role: "candidate",
+          organizationId: "ORG-CANDIDATE-COMMUNITY",
+          status: "ACTIVE",
+          onboardingCompleted: true,
+          isOnline: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
 
-      // 4. CREATE CANDIDATE POOL MASTER RECORD
-      await setDoc(doc(db, "candidatePool", candidateUid), {
-        id: candidateUid,
-        uid: candidateUid,
-        name: name.trim(),
-        email: email.trim(),
-        phone: candidatePhone,
-        location: candidateLocation,
-        headline: candidateHeadline,
-        skills: detectedSkills,
-        experience: `${parsedExpYears} Years`,
-        experienceYears: parsedExpYears,
-        sourceType: "DIRECT_CANDIDATE",
-        ownershipType: "DIRECT",
-        vendorId: null,
-        ownerType: "HIRENEST",
-        ownerId: "GLOBAL_HQ",
-        createdVia: "CANDIDATE_PORTAL",
-        isDirectCandidate: true,
-        pipelineStage: "Application Received",
-        status: "ACTIVE",
-        resumeFileName: resumeFile?.name || "resume.pdf",
-        resumeText: extractedText || "",
-        parsedResumeText: extractedText || "",
-        extractedText: extractedText || "",
-        currentResumeVersion: 3,
-        resumeVersions: [
-          {
-            version: 3,
-            fileName: resumeFile?.name || "resume.pdf",
-            uploadedAt: new Date().toISOString(),
-            extractedText: extractedText || "",
-          }
-        ],
-        resumeLastParsedAt: new Date().toISOString(),
-        resumeProcessingStatus: "COMPLETED",
-        resumeParserVersion: "v1.0.0",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+        // 4. CREATE CANDIDATE POOL MASTER RECORD
+        await setDoc(doc(db, "candidatePool", candidateUid), {
+          id: candidateUid,
+          uid: candidateUid,
+          name: name.trim(),
+          email: email.trim(),
+          phone: candidatePhone,
+          location: candidateLocation,
+          headline: candidateHeadline,
+          skills: detectedSkills,
+          experience: `${parsedExpYears} Years`,
+          experienceYears: parsedExpYears,
+          sourceType: "DIRECT_CANDIDATE",
+          ownershipType: "DIRECT",
+          vendorId: null,
+          ownerType: "HIRENEST",
+          ownerId: "GLOBAL_HQ",
+          createdVia: "CANDIDATE_PORTAL",
+          isDirectCandidate: true,
+          pipelineStage: "Application Received",
+          status: "ACTIVE",
+          resumeFileName: resumeFile?.name || "resume.pdf",
+          resumeText: extractedText || "",
+          parsedResumeText: extractedText || "",
+          extractedText: extractedText || "",
+          currentResumeVersion: 3,
+          resumeVersions: [
+            {
+              version: 3,
+              fileName: resumeFile?.name || "resume.pdf",
+              uploadedAt: new Date().toISOString(),
+              extractedText: extractedText || "",
+            }
+          ],
+          resumeLastParsedAt: new Date().toISOString(),
+          resumeProcessingStatus: "COMPLETED",
+          resumeParserVersion: "v1.0.0",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
 
-      // 5. CREATE CANDIDATE PROFILE RECORD
-      await setDoc(doc(db, "candidate_profiles", candidateUid), {
-        id: candidateUid,
-        userId: candidateUid,
-        name: name.trim(),
-        email: email.trim(),
-        phone: candidatePhone,
-        location: candidateLocation,
-        headline: candidateHeadline,
-        skills: detectedSkills,
-        targetRoles: [preferredRole || candidateHeadline],
-        experienceYears: parsedExpYears,
-        preferredWorkMode: "Hybrid",
-        noticePeriodDays: profile.noticePeriod ? 15 : 30,
-        resumeFileName: resumeFile.name,
-        resumeText: extractedText.slice(0, 3000),
-        sourceType: "DIRECT_CANDIDATE",
-        ownershipType: "DIRECT",
-        vendorId: null,
-        ownerType: "HIRENEST",
-        ownerId: "GLOBAL_HQ",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+        // 5. CREATE CANDIDATE PROFILE RECORD
+        await setDoc(doc(db, "candidate_profiles", candidateUid), {
+          id: candidateUid,
+          userId: candidateUid,
+          name: name.trim(),
+          email: email.trim(),
+          phone: candidatePhone,
+          location: candidateLocation,
+          headline: candidateHeadline,
+          skills: detectedSkills,
+          targetRoles: [preferredRole || candidateHeadline],
+          experienceYears: parsedExpYears,
+          preferredWorkMode: "Hybrid",
+          noticePeriodDays: profile.noticePeriod ? 15 : 30,
+          resumeFileName: resumeFile.name,
+          resumeText: extractedText.slice(0, 3000),
+          sourceType: "DIRECT_CANDIDATE",
+          ownershipType: "DIRECT",
+          vendorId: null,
+          ownerType: "HIRENEST",
+          ownerId: "GLOBAL_HQ",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (dbErr: any) {
+        console.error("[CandidateRegister] Firestore setup failed. Deleting orphan auth account...", dbErr);
+        if (!isExistingAccount && user && typeof user.delete === "function") {
+          await user.delete().catch((delErr: any) => console.warn("[CandidateRegister] Auth rollback warning:", delErr.message));
+        }
+        throw new Error(`Profile setup failed: ${dbErr.message || "Database permission denied"}`);
+      }
 
       // 6. RUN AUTOMATIC FITMENT INTELLIGENCE ENGINE
       setLoadingState("Running Fitment Intelligence Engine across Full-Time & C2H jobs...");

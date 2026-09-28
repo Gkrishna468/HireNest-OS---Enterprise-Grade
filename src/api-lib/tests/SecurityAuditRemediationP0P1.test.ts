@@ -59,6 +59,24 @@ describe("Security Audit Remediation P0 & P1 Automated Test Suite", () => {
     assert.ok(adminHandler.includes("chosenRole"), "admin.ts finalize-onboarding must preserve chosenRole");
   });
 
+  it("BUG-001: should verify sendEmailVerification and user.delete() rollback are invoked during user registration", () => {
+    const onboarding = fs.readFileSync("src/views/Onboarding.tsx", "utf-8");
+    const candidateModal = fs.readFileSync("src/components/CandidateRegisterModal.tsx", "utf-8");
+    const directApply = fs.readFileSync("src/views/DirectCandidateApplyPage.tsx", "utf-8");
+
+    assert.ok(onboarding.includes("sendEmailVerification("), "Onboarding.tsx must call sendEmailVerification");
+    assert.ok(candidateModal.includes("sendEmailVerification("), "CandidateRegisterModal.tsx must call sendEmailVerification");
+    assert.ok(directApply.includes("sendEmailVerification("), "DirectCandidateApplyPage.tsx must call sendEmailVerification");
+
+    assert.ok(candidateModal.includes("user.delete()"), "CandidateRegisterModal.tsx must call user.delete() on profile setup failure");
+    assert.ok(directApply.includes("activeUser.delete()"), "DirectCandidateApplyPage.tsx must call activeUser.delete() on profile setup failure");
+  });
+
+  it("BUG-006: should verify App.tsx handles PENDING_APPROVAL status without onboarding loop", () => {
+    const appContent = fs.readFileSync("src/App.tsx", "utf-8");
+    assert.ok(appContent.includes('userData?.status === "PENDING_APPROVAL"'), "App.tsx must check for PENDING_APPROVAL status");
+    assert.ok(appContent.includes("Account Pending Approval"), "App.tsx must render Pending Approval view");
+  });
   it("BUG-008: should sanitize raw Firebase auth error messages", () => {
     const rawError1 = { code: "auth/invalid-credential", message: "Firebase: Error (auth/invalid-credential)." };
     const rawError2 = { code: "auth/email-already-in-use", message: "Firebase: Error (auth/email-already-in-use)." };

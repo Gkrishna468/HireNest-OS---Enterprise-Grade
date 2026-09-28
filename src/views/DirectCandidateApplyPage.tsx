@@ -29,7 +29,8 @@ import { auth, db } from "../lib/firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from "firebase/auth";
 import {
   doc,
@@ -242,6 +243,11 @@ export default function DirectCandidateApplyPage() {
           try {
             userCred = await createUserWithEmailAndPassword(auth, activeEmail, password);
             activeUser = userCred.user;
+            try {
+              await sendEmailVerification(activeUser);
+            } catch (verErr: any) {
+              console.warn("[Auth] Email verification send notice:", verErr?.message);
+            }
             await updateProfile(activeUser, { displayName: activeName });
           } catch (authErr: any) {
             if (authErr?.code === 'auth/email-already-in-use' || authErr?.message?.includes('auth/email-already-in-use')) {
@@ -299,6 +305,9 @@ export default function DirectCandidateApplyPage() {
 
         if (!updateProfileRes.ok) {
           const errData = await updateProfileRes.json();
+          if (authMode === "REGISTER" && activeUser && typeof activeUser.delete === "function") {
+            await activeUser.delete().catch((delErr: any) => console.warn("[DirectApply] Auth rollback warning:", delErr.message));
+          }
           throw new Error(errData.error || "Failed to save registration profile details.");
         }
       }
