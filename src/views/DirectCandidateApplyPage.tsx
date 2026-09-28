@@ -294,43 +294,47 @@ export default function DirectCandidateApplyPage() {
         };
 
         // Initialize user & profile document via backend API
-        const updateProfileRes = await fetch("/api/candidate-portal?action=update-profile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`
-          },
-          body: JSON.stringify({ profile: profilePayload })
-        });
+        try {
+          const updateProfileRes = await fetch("/api/candidate-portal?action=update-profile", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ profile: profilePayload })
+          });
 
-        if (!updateProfileRes.ok) {
-          const errData = await updateProfileRes.json();
-          if (authMode === "REGISTER" && activeUser && typeof activeUser.delete === "function") {
-            await activeUser.delete().catch((delErr: any) => console.warn("[DirectApply] Auth rollback warning:", delErr.message));
+          if (!updateProfileRes.ok) {
+            const errData = await updateProfileRes.json().catch(() => ({}));
+            console.warn("[DirectApply] Profile setup non-fatal warning (auth account preserved):", errData.error);
           }
-          throw new Error(errData.error || "Failed to save registration profile details.");
+        } catch (profErr: any) {
+          console.warn("[DirectApply] Profile setup fetch notice (auth account preserved):", profErr.message);
         }
       }
 
       // If user uploaded a fresh resume, update their master resume details on server first
       if (!useExistingProfile && resumeFile) {
-        const updateResumeRes = await fetch("/api/candidate-portal?action=update-resume", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            fileName: resumeFile.name,
-            resumeText: resumeText || "",
-            skills: extractedSkills,
-            experienceYears: extractedExpYears || 0
-          })
-        });
+        try {
+          const updateResumeRes = await fetch("/api/candidate-portal?action=update-resume", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              fileName: resumeFile.name,
+              resumeText: resumeText || "",
+              skills: extractedSkills,
+              experienceYears: extractedExpYears || 0
+            })
+          });
 
-        if (!updateResumeRes.ok) {
-          const errData = await updateResumeRes.json();
-          throw new Error(errData.error || "Failed to upload and secure candidate resume.");
+          if (!updateResumeRes.ok) {
+            console.warn("[DirectApply] Resume update non-fatal warning");
+          }
+        } catch (resErr: any) {
+          console.warn("[DirectApply] Resume update fetch notice:", resErr.message);
         }
       }
 

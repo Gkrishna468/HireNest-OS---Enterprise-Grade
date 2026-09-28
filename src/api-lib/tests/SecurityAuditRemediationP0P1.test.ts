@@ -59,7 +59,7 @@ describe("Security Audit Remediation P0 & P1 Automated Test Suite", () => {
     assert.ok(adminHandler.includes("chosenRole"), "admin.ts finalize-onboarding must preserve chosenRole");
   });
 
-  it("BUG-001: should verify sendEmailVerification and user.delete() rollback are invoked during user registration", () => {
+  it("BUG-001: should verify sendEmailVerification is invoked and Auth user is NOT deleted on resume parser failure", () => {
     const onboarding = fs.readFileSync("src/views/Onboarding.tsx", "utf-8");
     const candidateModal = fs.readFileSync("src/components/CandidateRegisterModal.tsx", "utf-8");
     const directApply = fs.readFileSync("src/views/DirectCandidateApplyPage.tsx", "utf-8");
@@ -68,8 +68,8 @@ describe("Security Audit Remediation P0 & P1 Automated Test Suite", () => {
     assert.ok(candidateModal.includes("sendEmailVerification("), "CandidateRegisterModal.tsx must call sendEmailVerification");
     assert.ok(directApply.includes("sendEmailVerification("), "DirectCandidateApplyPage.tsx must call sendEmailVerification");
 
-    assert.ok(candidateModal.includes("user.delete()"), "CandidateRegisterModal.tsx must call user.delete() on profile setup failure");
-    assert.ok(directApply.includes("activeUser.delete()"), "DirectCandidateApplyPage.tsx must call activeUser.delete() on profile setup failure");
+    assert.strictEqual(candidateModal.includes("user.delete()"), false, "CandidateRegisterModal.tsx must NOT call user.delete() on parser/profile setup failure");
+    assert.strictEqual(directApply.includes("activeUser.delete()"), false, "DirectCandidateApplyPage.tsx must NOT call activeUser.delete() on parser/profile setup failure");
   });
 
   it("BUG-006: should verify App.tsx handles PENDING_APPROVAL status without onboarding loop", () => {
