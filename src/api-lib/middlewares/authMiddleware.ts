@@ -163,8 +163,14 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
       }
 
-      // Enforce email_verified == true
-      if (decoded.email_verified !== true) {
+      // Enforce email_verified == true except for candidate portal, onboarding finalization, and user profile endpoints
+      const isExemptFromEmailVerification = 
+        currentPath.includes('candidate-portal') ||
+        currentPath.includes('finalize-onboarding') ||
+        currentPath.includes('onboard-request') ||
+        currentPath.includes('users');
+
+      if (decoded.email_verified !== true && !isExemptFromEmailVerification) {
         return res.status(401).json({ error: 'Unauthorized: Email is not verified' });
       }
 

@@ -33,6 +33,10 @@ export default function AuthPage() {
   const [authMode, setAuthMode] = useState<'ENTERPRISE' | 'CANDIDATE'>('ENTERPRISE');
   const [candidateModalOpen, setCandidateModalOpen] = useState(false);
 
+  useEffect(() => {
+    localStorage.setItem('entryContext', authMode);
+  }, [authMode]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

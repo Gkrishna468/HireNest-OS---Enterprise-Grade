@@ -18,6 +18,53 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
   const [companyName, setCompanyName] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [businessEmail, setBusinessEmail] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+
+  const entryContext = localStorage.getItem('entryContext') || 'ENTERPRISE';
+
+  const getCompletionStats = () => {
+    let total = 0;
+    let completed = 0;
+    const missing: string[] = [];
+
+    if (!orgType) {
+      return { total: 1, completed: 0, percentage: 0, state: "IN_PROGRESS", missing: ["Select Operating Model"] };
+    }
+
+    total += 1; // Archetype selection
+    completed += 1;
+
+    if (selectedRole) {
+      completed += 1;
+    } else {
+      missing.push("Select Sub-Role");
+    }
+    total += 1; // Sub-role selection
+
+    if (orgType === "client" || orgType === "vendor_agency") {
+      total += 5;
+      if (companyName.trim()) completed += 1; else missing.push("Institution/Agency Name");
+      if (businessEmail.trim()) completed += 1; else missing.push("Business Email");
+      if (websiteUrl.trim()) completed += 1; else missing.push("Company Website");
+      if (businessFile) completed += 1; else missing.push("Incorporation/Tax Document");
+      if (ndaFile) completed += 1; else missing.push("Signed MSA & NDA");
+    } else if (orgType === "independent_recruiter" || orgType === "independent_vendor") {
+      total += 4;
+      if (aadhaarNumber.length === 12) completed += 1; else missing.push("Aadhaar Card Number (12 digits)");
+      if (linkedinUrl.trim()) completed += 1; else missing.push("LinkedIn Profile URL");
+      if (aadhaarFile) completed += 1; else missing.push("Aadhaar Card File");
+      if (businessFile) completed += 1; else missing.push("Professional Reference / Portfolio");
+    } else if (orgType === "candidate") {
+      total += 1;
+      if (linkedinUrl.trim()) completed += 1; else missing.push("LinkedIn Profile URL");
+    }
+
+    const percentage = Math.round((completed / total) * 100);
+    const state = completed === total ? "READY_FOR_SUBMISSION" : "IN_PROGRESS";
+
+    return { total, completed, percentage, state, missing };
+  };
 
   // Files
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
@@ -212,17 +259,13 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
     if (!user) return;
     setError("");
 
-    // Field Verifications with intelligent fallback for testing and easy sandbox evaluation
-    if (!orgType) {
-      setError("Please declare a valid workspace role archetype.");
-      return;
-    }
-    if (!selectedRole) {
-      setError("Please select your dedicated operational sub-role authority.");
+    const stats = getCompletionStats();
+    if (stats.completed < stats.total) {
+      setError(`Onboarding workstation validation incomplete. Missing fields/sections: ${stats.missing.join(", ")}`);
       return;
     }
 
-    // Assign friendly defaults to prevent blockages during evaluation
+    // Assign validated variables (friendly defaults only if optional / fallbacks aren't needed due to mandatory validation)
     const finalAadhaarNumber = aadhaarNumber && aadhaarNumber.length === 12 ? aadhaarNumber : "123412341234";
     const finalCompanyName = companyName || user.displayName || user.email?.split("@")[0] || "Solo Node Provider";
 
@@ -258,17 +301,21 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
       if (finalRoleToSave === 'independent') finalRoleToSave = 'independent_vendor';
       if (finalRoleToSave === 'recruiter') finalRoleToSave = 'independent_recruiter';
 
+      const targetStatus = orgType === "candidate" ? "ACTIVE" : "PENDING_APPROVAL";
+
       // 4. Assemble core user document
       const userProfile = {
         uid: user.uid,
         email: user.email,
         role: finalRoleToSave,
         organizationId: orgId,
-        status: "active",
+        status: targetStatus,
         onboardingCompleted: true,
         aadhaarNumber: finalAadhaarNumber,
         linkedin: linkedinUrl || null,
         companyName: finalCompanyName,
+        businessEmail: businessEmail || null,
+        websiteUrl: websiteUrl || null,
         permissions: grantedPermissions,
         onboardingDocuments: {
           aadhaarDoc: aadhaarUrl || "VERIFIED_RECORD",
@@ -286,6 +333,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
           orgId,
           orgType: finalOrgType,
           companyName: finalCompanyName,
+          entryContext: entryContext.toUpperCase(),
           userProfile
         })
       });
@@ -561,7 +609,7 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                     { id: "independent_recruiter", label: "Solo Recruiter", desc: "Independent recruiter agent", icon: UserCheck },
                     { id: "independent_vendor", label: "Freelancer", desc: "Solo contractor / Specialist Node", icon: Fingerprint },
                     { id: "candidate", label: "Candidate", desc: "Talent node seeking opportunities", icon: UserIcon }
-                  ].map((arch) => {
+                  ].filter(arch => entryContext === 'CANDIDATE' ? arch.id === 'candidate' : arch.id !== 'candidate').map((arch) => {
                     const Icon = arch.icon;
                     return (
                       <button
@@ -750,17 +798,41 @@ export default function Onboarding({ onComplete }: { onComplete: (orgData: any) 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Entity Institution Name for corporate roles */}
                   {["client", "vendor_agency"].includes(orgType) && (
-                    <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Institution / Agency Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-bold transition-all outline-none"
-                        placeholder="e.g. Apex Global Systems Pvt Ltd"
-                      />
-                    </div>
+                    <>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Institution / Agency Name</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-bold transition-all outline-none"
+                          placeholder="e.g. Apex Global Systems Pvt Ltd"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Business / Corporate Email</label>
+                        <input 
+                          type="email" 
+                          required
+                          value={businessEmail}
+                          onChange={(e) => setBusinessEmail(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-bold transition-all outline-none"
+                          placeholder="corporate@company.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1.5">Company Website URL</label>
+                        <input 
+                          type="url" 
+                          required
+                          value={websiteUrl}
+                          onChange={(e) => setWebsiteUrl(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-250 focus:border-indigo-600 rounded-xl p-3 text-xs font-bold transition-all outline-none"
+                          placeholder="https://company.com"
+                        />
+                      </div>
+                    </>
                   )}
 
                   {/* Aadhaar input (For Independents only!) */}
