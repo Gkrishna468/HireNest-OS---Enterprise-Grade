@@ -55,7 +55,8 @@ import {
   ChevronDown,
   ChevronUp,
   Mail,
-  UserRound
+  UserRound,
+  User
 } from "lucide-react";
 import { cn } from "./lib/utils";
 
@@ -100,6 +101,8 @@ import NotificationsTab from "./views/NotificationsTab";
 import Onboarding from "./views/Onboarding";
 import MatchIntelligenceTab from "./views/MatchIntelligenceTab";
 import AdminOverview from "./views/AdminOverview";
+import { ROICommandCenter } from "./views/admin/ROICommandCenter";
+import { MatchingWorkspace } from "./views/admin/MatchingWorkspace";
 import NetworkTab from "./views/NetworkTab";
 import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
 import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
@@ -211,6 +214,7 @@ const SubSidebarItem = ({
   </Link>
 );
 
+// ... (previous AdminGlobalHQNav definition) ...
 const AdminGlobalHQNav = ({
   location,
   closeMobileMenu,
@@ -302,6 +306,44 @@ const AdminGlobalHQNav = ({
             active={location.pathname === "/admin/requirement-360"}
             onClick={closeMobileMenu}
           />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminMatchingNav = ({
+  location,
+  closeMobileMenu,
+}: {
+  location: any;
+  closeMobileMenu: () => void;
+}) => {
+  const matchingRoutes = ['/admin/matching/candidates', '/admin/matching/requirements'];
+  const isChildActive = matchingRoutes.some(r => location.pathname === r);
+  const [isExpanded, setIsExpanded] = React.useState(isChildActive);
+  
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-sm font-bold uppercase tracking-wider w-full text-left",
+          isChildActive && !isExpanded
+            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+            : "text-slate-400 hover:bg-slate-50 hover:text-slate-900"
+        )}
+      >
+        <Target size={18} className={cn(isChildActive && !isExpanded ? "text-white" : "text-slate-400 group-hover:text-indigo-600")}/>
+        <span>Matching Workspace</span>
+        <div className="ml-auto">
+          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </button>
+      {isExpanded && (
+        <div className="mt-2 flex flex-col gap-1 pl-4 border-l-2 border-slate-100 ml-6 overflow-hidden">
+          <SubSidebarItem to="/admin/matching/candidates" icon={User} label="Candidates → Req" active={location.pathname === "/admin/matching/candidates"} onClick={closeMobileMenu} />
+          <SubSidebarItem to="/admin/matching/requirements" icon={Briefcase} label="Reqs → Candidates" active={location.pathname === "/admin/matching/requirements"} onClick={closeMobileMenu} />
         </div>
       )}
     </div>
@@ -867,6 +909,17 @@ const AppContent = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <SidebarItem
+                to="/admin/roi"
+                icon={DollarSign}
+                label="ROI Command Center"
+                active={location.pathname === "/admin/roi"}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <AdminMatchingNav 
+                location={location} 
+                closeMobileMenu={() => setIsMobileMenuOpen(false)} 
+              />
+              <SidebarItem
                 to="/crm"
                 icon={DollarSign}
                 label="CRM & Revenue"
@@ -1016,6 +1069,9 @@ const AppContent = () => {
             <Route path="/talent-acquisition" element={<TalentAcquisitionTab />} />
             <Route path="/ai-interviews" element={<AIInterviewsView />} />
             <Route path="/direct-candidates" element={<DirectCandidatesView />} />
+            {isAdmin && <Route path="/admin/roi" element={<ROICommandCenter />} />}
+            {isAdmin && <Route path="/admin/matching/candidates" element={<MatchingWorkspace />} />}
+            {isAdmin && <Route path="/admin/matching/requirements" element={<MatchingWorkspace />} />}
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}
             {isAdmin && <Route path="/signals" element={<SignalsTab />} />}
             {isAdmin && (

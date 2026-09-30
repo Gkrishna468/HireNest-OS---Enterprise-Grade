@@ -4,6 +4,7 @@ import { headroomOptimizer } from "./HeadroomOptimizer.js";
 import { AITelemetry } from "../telemetry/aiTelemetry.js";
 import { ErrorMonitor } from "../telemetry/errorMonitor.js";
 import { AIGuardrails } from "./AIGuardrails.js";
+import { roiEngine } from "../../services/roiEngine.js";
 import { db } from "../../lib/firebase-admin.js";
 import crypto from "crypto";
 import { redisCache } from "./cache/RedisCache.js";
@@ -106,6 +107,11 @@ export interface AIGatewayRequest {
     strategy?: "speed" | "quality" | "cost";
     isAuthorizedUserAction?: boolean;
     isAuthorizedBackgroundJob?: boolean;
+    tenantId?: string;
+    requirementId?: string;
+    candidateId?: string;
+    submissionId?: string;
+    agentTaskId?: string;
 }
 
 export interface AIGatewayResponse {
@@ -1125,6 +1131,22 @@ export class AIGateway {
                     originalTokens
                 };
 
+                // ROI Instrumentation
+                roiEngine.recordAIExecution({
+                    tenantId: request.tenantId || "tenant-default",
+                    requirementId: request.requirementId,
+                    candidateId: request.candidateId,
+                    submissionId: request.submissionId,
+                    agentTaskId: request.agentTaskId,
+                    agentId: agentName,
+                    provider: providerId,
+                    model,
+                    tokens: result.tokens,
+                    aiCost: costs.estimatedCost,
+                    durationMs: latency,
+                    feature: feature
+                }).catch(err => console.warn("[AIGateway] ROI logging failed:", err));
+
                 // Output Validation Guardrail
                 let parsedData = null;
                 const responseText = resultObj.response;
@@ -1212,6 +1234,23 @@ export class AIGateway {
                 executionError = error;
                 console.warn(`[AIGateway] Provider ${providerId} (${model}) failed: ${error.message}`);
                 CircuitBreaker.recordFailure(providerId, error.message);
+
+                // ROI Instrumentation for failure
+                roiEngine.recordAIExecution({
+                    tenantId: request.tenantId || "tenant-default",
+                    requirementId: request.requirementId,
+                    candidateId: request.candidateId,
+                    submissionId: request.submissionId,
+                    agentTaskId: request.agentTaskId,
+                    agentId: agentName,
+                    provider: providerId,
+                    model,
+                    tokens: 0,
+                    aiCost: 0,
+                    durationMs: Date.now() - startTime,
+                    feature: feature,
+                    metadata: { error: error.message }
+                }).catch(err => console.warn("[AIGateway] ROI logging failed:", err));
             }
         } else {
             console.warn(`[AIGateway] Circuit breaker for ${providerId} is OPEN. Triggering fallback.`);

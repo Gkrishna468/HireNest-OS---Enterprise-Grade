@@ -11,6 +11,10 @@ export async function roiHandler(req: Request, res: Response) {
 
     switch (action) {
       case "summary": {
+        const isAdmin = (req as any).user?.role === 'admin' || (req as any).user?.role === 'super_admin';
+        if (!isAdmin) {
+          return res.status(403).json({ success: false, error: "Access denied" });
+        }
         const tenantId = (req.query?.tenantId as string) || (req as any).user?.tenantId || undefined;
         const summary = await roiEngine.getSummary(tenantId);
         return res.json({ success: true, summary });

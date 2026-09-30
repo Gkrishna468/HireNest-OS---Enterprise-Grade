@@ -1848,6 +1848,11 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    match /business_value_ledger/{eventId} {
+      allow read, create, update: if isVerified();
+      allow delete: if isSuperAdmin();
+    }
+
     // =====================================================
     // GLOBAL FALLBACK OVERRIDE (SECURE DENY BY DEFAULT)
     // =====================================================

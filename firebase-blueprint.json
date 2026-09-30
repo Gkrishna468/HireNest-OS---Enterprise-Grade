@@ -144,10 +144,11 @@
         "vendorOrgId": { "type": "string" },
         "clientOrgId": { "type": "string" },
         "status": { "type": "string", "enum": ["submitted", "screening", "interview", "offer", "rejected"] },
+        "version": { "type": "number" },
         "timeline": { "type": "array", "items": { "type": "object" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["submissionId", "candidateId", "requirementId", "submittedBy", "status"]
+      "required": ["submissionId", "candidateId", "requirementId", "submittedBy", "status", "version"]
     },
     "DealRoom": {
       "title": "DealRoom",
@@ -345,6 +346,30 @@
         "metadata": { "type": "object" }
       },
       "required": ["agentType", "action", "impactLevel", "timestamp"]
+    },
+    "ApprovalRequest": {
+      "title": "Approval Request",
+      "description": "An immutable request for submission approval",
+      "type": "object",
+      "properties": {
+        "approvalId": { "type": "string" },
+        "submissionId": { "type": "string" },
+        "agentTaskId": { "type": "string" },
+        "stepId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "requestedAt": { "type": "string", "format": "date-time" },
+        "requestedBy": { "type": "string" },
+        "requestedByType": { "type": "string" },
+        "assignedRecruiterId": { "type": ["string", "null"] },
+        "requiredApproverType": { "type": "string", "enum": ["ADMIN", "RECRUITER"] },
+        "submissionVersion": { "type": "number" },
+        "policyVersion": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "INVALIDATED"] },
+        "approverId": { "type": "string" },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "idempotencyKey": { "type": "string" }
+      },
+      "required": ["approvalId", "submissionId", "tenantId", "requestedAt", "requiredApproverType", "status"]
     },
     "WorkflowInstance": {
       "title": "WorkflowInstance",
@@ -627,6 +652,7 @@
     "risk_assessments/{assessmentId}": { "schema": { "$ref": "RiskAssessment" }, "description": "AI-driven risk scoring" },
     "predictions/{predictionId}": { "schema": { "$ref": "Prediction" }, "description": "High-fidelity operational forecasts" },
     "agent_activities/{activityId}": { "schema": { "$ref": "AgentActivity" }, "description": "Autonomous AI agent activity logs" },
+    "approvals/{approvalId}": { "schema": { "$ref": "ApprovalRequest" }, "description": "Immutable submission approval requests" },
     "workflow_instances/{workflowId}": { "schema": { "$ref": "WorkflowInstance" }, "description": "Unified state machine graph for all orchestrations" },
     "workflow_events/{eventId}": { "schema": { "$ref": "WorkflowEvent" }, "description": "Immutable operational transitions" },
     "runtime_errors/{errorId}": { "schema": { "$ref": "RuntimeError" }, "description": "System runtime errors and exceptions" },

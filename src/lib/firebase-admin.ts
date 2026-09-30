@@ -1,4 +1,4 @@
-import { initializeApp, cert, getApps, App, applicationDefault } from "firebase-admin/app";
+import { initializeApp, cert, getApps, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import fs from 'fs';
@@ -65,56 +65,27 @@ function getCredentials() {
   return null;
 }
 
-let app: App | undefined;
+let app: any = undefined;
 export let adminDb: any = null;
 export let adminAuth: any = null;
 
 try {
   const credentials = getCredentials();
-  
-  // Detection for managed environments vs local
   const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
-  
-  // Priority: 
-  // 1. Explicit FIREBASE_PROJECT_ID (unless it is the placeholder 'hirenest-os' in a managed env)
-  // 2. System GOOGLE_CLOUD_PROJECT
-  // 3. Blueprint config
   let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
   
-
-  console.log("[Firebase Admin] Init attempt. Project:", projectId);
-
   if (getApps().length === 0) {
-    // Strategy: 
-    // If in managed environment without a valid explicit credential, try applicationDefault first.
-    // Otherwise, try credentials, then applicationDefault.
-    
     const tryAppDefault = () => {
-      console.log("[Firebase Admin] Attempting applicationDefault...");
       try {
         return initializeApp({ credential: applicationDefault(), projectId });
-      } catch (e: any) {
-        console.warn("[Firebase Admin] applicationDefault failed:", e.message);
-        return null;
-      }
+      } catch (e: any) { return null; }
     };
-
     const tryManual = () => {
-      if (!credentials) {
-        console.log("[Firebase Admin] No manual credentials available.");
-        return null;
-      }
-      console.log("[Firebase Admin] Attempting manual credentials for project:", projectId);
+      if (!credentials) return null;
       try {
-        const manualApp = initializeApp({ credential: cert(credentials), projectId });
-        console.log("[Firebase Admin] Manual credentials SDK init success.");
-        return manualApp;
-      } catch (e: any) {
-        console.warn("[Firebase Admin] Manual credentials SDK init failed:", e.message);
-        return null;
-      }
+        return initializeApp({ credential: cert(credentials), projectId });
+      } catch (e: any) { return null; }
     };
-
     if (isManagedEnv && !credentials) {
       app = tryAppDefault() || initializeApp({ projectId });
     } else {
@@ -127,75 +98,23 @@ try {
   if (app) {
     try {
       adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
-      try {
-        adminDb.settings({ ignoreUndefinedProperties: true });
-      } catch (settingsErr: any) {
-        console.warn("[Firebase Admin] settings ignoreUndefinedProperties warning:", settingsErr.message);
-      }
-    } catch (e: any) {
-      console.error("[Firebase Admin] Failed to initialize adminDb:", e.message);
-    }
-
+      adminDb.settings({ ignoreUndefinedProperties: true });
+    } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminDb:", e.message); }
     try {
       adminAuth = getAuth(app);
-    } catch (e: any) {
-      console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message);
-    }
+    } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message); }
   }
 } catch (globalInitError: any) {
   console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
 }
 
-export let runtimeMode: "FULL_ADMIN" | "CLIENT_FALLBACK" | "DEGRADED" = "CLIENT_FALLBACK";
-
-if (adminDb) {
-  runtimeMode = "FULL_ADMIN";
-}
-
-if (adminDb) {
-  try {
-    adminDb.collection("system").limit(1).get()
-      .then(() => console.log("[Firebase Admin] Server-side Firestore verification successful."))
-      .catch((err: any) => {
-        console.warn("[Firebase Admin] Auth verification warning:", err.message);
-        if (err.message.includes("UNAUTHENTICATED") || err.message.includes("PERMISSION_DENIED")) {
-           console.warn("[Firebase Admin] Invalid credentials detected. Disabling adminDb.");
-           
-           adminDb = null;
-           
-           runtimeMode = "CLIENT_FALLBACK";
-        }
-      });
-  } catch (syncErr: any) {
-    console.warn("[Firebase Admin] Synchronous check failed.", syncErr.message);
-  }
-}
+export let runtimeMode: "FULL_ADMIN" | "CLIENT_FALLBACK" | "DEGRADED" = adminDb ? "FULL_ADMIN" : "CLIENT_FALLBACK";
 
 export const getAdminApp = () => app;
 
 export const db = new Proxy({}, {
   get: (target, prop) => {
-    if (!adminDb) {
-      if (prop === 'collection' || prop === 'doc' || prop === 'runTransaction' || prop === 'batch') {
-        return () => {
-          const chain: any = {
-            doc: () => chain,
-            collection: () => chain,
-            where: () => chain,
-            orderBy: () => chain,
-            limit: () => chain,
-            get: async () => ({ exists: false, docs: [], size: 0, data: () => ({}) }),
-            set: async () => {},
-            update: async () => {},
-            add: async () => ({ id: "dummy-id" }),
-            delete: async () => {},
-            onSnapshot: () => () => {}
-          };
-          return chain;
-        };
-      }
-      return undefined;
-    }
+    if (!adminDb) return undefined;
     const val = adminDb[prop];
     return typeof val === 'function' ? val.bind(adminDb) : val;
   }
@@ -203,14 +122,7 @@ export const db = new Proxy({}, {
 
 export const auth = new Proxy({}, {
   get: (target, prop) => {
-    if (!adminAuth) {
-      if (prop === 'verifyIdToken' || prop === 'getUser' || prop === 'createUser' || prop === 'deleteUser') {
-        return async () => {
-          throw new Error("FIREBASE_ADMIN_AUTH_UNAVAILABLE: Firebase Admin Auth is offline or not initialized.");
-        };
-      }
-      return undefined;
-    }
+    if (!adminAuth) return undefined;
     const val = adminAuth[prop];
     return typeof val === 'function' ? val.bind(adminAuth) : val;
   }

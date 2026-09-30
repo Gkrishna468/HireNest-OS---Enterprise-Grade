@@ -41,6 +41,43 @@ export class ROIEngine {
   }
 
   /**
+   * Records AI execution (LLM/Agent)
+   */
+  public async recordAIExecution(params: {
+    tenantId: string;
+    requirementId?: string | null;
+    candidateId?: string | null;
+    submissionId?: string | null;
+    agentTaskId?: string | null;
+    agentId?: string | null;
+    provider: string;
+    model: string;
+    tokens: number;
+    aiCost: number;
+    durationMs: number;
+    feature: string;
+    metadata?: Record<string, any>;
+  }): Promise<void> {
+    await this.recordEvent({
+      tenantId: params.tenantId,
+      requirementId: params.requirementId || "SYSTEM",
+      eventType: BusinessEventType.AI_EXECUTION,
+      stage: "PIPELINE",
+      actorType: "SYSTEM",
+      actorId: params.agentId || "AIGateway",
+      cost: { aiCost: params.aiCost, humanReviewCost: 0, infrastructureCost: 0, totalCost: params.aiCost },
+      metadata: {
+        provider: params.provider,
+        model: params.model,
+        tokens: params.tokens,
+        durationMs: params.durationMs,
+        feature: params.feature,
+        ...params.metadata
+      }
+    });
+  }
+
+  /**
    * Records a business milestone event into the immutable economic ledger
    */
   public async recordEvent(params: {
