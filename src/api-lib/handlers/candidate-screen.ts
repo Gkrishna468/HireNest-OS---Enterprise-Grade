@@ -620,13 +620,13 @@ export default async function handler(req: any, res: any) {
         `Session force-ended by Recruiter (${terminatedBy || "Recruiter"}).`
       );
 
-      EventBus.emit("AI_INTERVIEW_FORCE_ENDED" as any, {
+      await EventBus.publish("AI_INTERVIEW_FORCE_ENDED" as any, {
         sessionId,
         candidateId: session.candidateId,
         requirementId: session.requirementId,
         terminatedBy: terminatedBy || "Recruiter",
         terminatedAt: session.terminatedAt
-      });
+      }, "CandidateScreenAPI", session.orgId);
 
       return res.status(200).json({ success: true, session });
     }

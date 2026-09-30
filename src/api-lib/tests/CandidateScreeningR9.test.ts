@@ -24,7 +24,7 @@ async function runTests() {
 
   // Test 1A: Missing / Undefined rawToken
   {
-    const req = { method: "POST", body: { action: "record-consent" } };
+    const req: any = { method: "POST", body: { action: "record-consent" } };
     const res = createMockRes();
     const cleanRawToken = typeof req.body.rawToken === "string" ? req.body.rawToken.trim() : "";
 

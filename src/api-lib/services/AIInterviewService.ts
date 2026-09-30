@@ -59,6 +59,8 @@ export interface AIInterviewSession {
   rawToken?: string; // Only returned on creation
   candidateId: string;
   requirementId: string;
+  candidateName?: string;
+  jobTitle?: string;
   submissionId?: string;
   status: "CREATED" | "INVITED" | "OPENED" | "VERIFIED" | "READY" | "IN_PROGRESS" | "COMPLETED" | "EXPIRED" | "REVOKED" | "ABANDONED" | "FAILED" | "AI_DEGRADED";
   currentRound: number;
@@ -75,6 +77,11 @@ export interface AIInterviewSession {
   currentQuestionFocus?: string;
   report?: any;
   blueprint?: any;
+  evaluationStatus?: string;
+  errorCode?: string;
+  retryable?: boolean;
+  attemptCount?: number;
+  lastAttemptAt?: string;
 }
 
 export interface AIInterviewReport {
@@ -772,7 +779,7 @@ Return a valid JSON object matching this schema:
   /**
    * Compiles final comprehensive analytical report with comm assessments
    */
-  private static async compileInterviewReport(session: AIInterviewSession, jdText: string, resumeText: string): Promise<AIInterviewReport> {
+  public static async compileInterviewReport(session: AIInterviewSession, jdText: string, resumeText: string): Promise<AIInterviewReport> {
     const sanitizedJdText = AIDataSanitizer.sanitize(jdText.substring(0, 1500));
     const sanitizedResumeText = AIDataSanitizer.sanitize(resumeText.substring(0, 1500));
     const sanitizedTranscript = AIDataSanitizer.sanitize(JSON.stringify(session.transcript));

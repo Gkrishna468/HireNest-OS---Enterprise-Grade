@@ -64,6 +64,7 @@ export type AICapability =
   | "relationship.build"
   | "copilot"
   | "openui"
+  | "interview_blueprint_generation"
   | "general";
 
 export type AIIntent =
@@ -373,6 +374,146 @@ export class GoogleProvider implements AIProvider {
 }
 
 // ==========================================
+// FreeLLMAPI Adapter Implementation (P1)
+// ==========================================
+export class FreeLLMProvider implements AIProvider {
+    id = "freellmapi";
+
+    private getBaseUrl(): string {
+        return process.env.FREE_LLM_API_BASE_URL || "https://api.freellmapi.com/v1";
+    }
+
+    private getApiKey(): string {
+        return process.env.FREE_LLM_API_KEY || "dummy";
+    }
+
+    private isEnabled(): boolean {
+        return process.env.ENABLE_FREE_LLM_API === "true";
+    }
+
+    private getModelAllowlist(): Set<string> {
+        // Enforce strict model allowlist for experimental/economical routing
+        return new Set<string>([
+            "llama-3-8b-instruct",
+            "qwen-2.5-7b-instruct",
+            "mistral-7b-instruct",
+            "gemma-2-9b-it"
+        ]);
+    }
+
+    async execute(
+        prompt: string,
+        model: string,
+        options: {
+            temperature?: number;
+            systemInstruction?: string;
+            schema?: any;
+            imageParts?: any[];
+            timeoutMs?: number;
+        }
+    ): Promise<{ text: string; tokens: number }> {
+        if (!this.isEnabled()) {
+            throw new Error("FREE_LLM_API_DISABLED: FreeLLMAPI adapter is currently disabled.");
+        }
+
+        const allowedModels = this.getModelAllowlist();
+        const targetModel = model || "qwen-2.5-7b-instruct";
+        if (!allowedModels.has(targetModel.toLowerCase()) && !process.env.BYPASS_FREE_LLM_ALLOWLIST) {
+            throw new Error(`FREE_LLM_API_MODEL_NOT_ALLOWED: Model '${targetModel}' is not in the experimental allowlist.`);
+        }
+
+        const messages: any[] = [];
+        if (options.systemInstruction) {
+            messages.push({ role: "system", content: options.systemInstruction });
+        }
+        messages.push({ role: "user", content: prompt });
+
+        const requestPayload = {
+            model: targetModel,
+            messages,
+            temperature: options.temperature ?? 0.2,
+            response_format: options.schema ? { type: "json_object" } : undefined
+        };
+
+        const timeoutMs = options.timeoutMs || 20000;
+        const maxAttempts = 3;
+        let lastError: any = null;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                const res = await fetch(`${this.getBaseUrl()}/chat/completions`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${this.getApiKey()}`
+                    },
+                    body: JSON.stringify(requestPayload),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    throw new Error(`FreeLLMAPI returned status ${res.status}: ${await res.text().catch(() => "")}`);
+                }
+
+                const data = await res.json();
+                const choice = data.choices?.[0];
+                const text = choice?.message?.content || "";
+                
+                // Token accounting: use API values or fallback calculation
+                const promptTokens = data.usage?.prompt_tokens || Math.ceil(prompt.length / 4);
+                const completionTokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
+                const totalTokens = promptTokens + completionTokens;
+
+                CircuitBreaker.recordSuccess(this.id);
+                return { text, tokens: totalTokens };
+
+            } catch (err: any) {
+                clearTimeout(timeoutId);
+                lastError = err;
+                console.warn(`[FreeLLMProvider] Attempt ${attempt}/${maxAttempts} failed: ${err.message}`);
+                
+                if (attempt < maxAttempts) {
+                    // Linear backoff
+                    const delay = attempt * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // Failure isolation via Circuit Breaker
+        CircuitBreaker.recordFailure(this.id, lastError?.message || "Execution exhausted max attempts");
+        throw lastError || new Error("FreeLLMAPI request failed after retries.");
+    }
+
+    async health(): Promise<boolean> {
+        if (!this.isEnabled()) return false;
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(`${this.getBaseUrl()}/models`, {
+                headers: { "Authorization": `Bearer ${this.getApiKey()}` },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    estimateCost(model: string, tokens: number, isCached: boolean): { estimatedCost: number; savedCost: number } {
+        const ratePerToken = 0.0000005; // Equivalent to Level 1
+        const cost = Number((tokens * ratePerToken).toFixed(6));
+        return { estimatedCost: 0, savedCost: cost };
+    }
+}
+
+// ==========================================================
 // 4. Centralized AIGateway Orchestrator
 // ==========================================
 export class AIGateway {
@@ -421,7 +562,8 @@ export class AIGateway {
     ]);
 
     private static providers: Record<string, AIProvider> = {
-        google: new GoogleProvider()
+        google: new GoogleProvider(),
+        freellmapi: new FreeLLMProvider()
     };
 
     // In-memory cache telemetry buffers to avoid write-inflation on Firestore cache hits
@@ -921,9 +1063,30 @@ export class AIGateway {
         }
 
         // 5. Check Provider Health & Circuit Breakers
-        const providerId = "google";
-        const providerInstance = this.providers.google;
-        const circuitStatus = CircuitBreaker.getStatus(providerId);
+        let providerId = "google";
+        const lowerModel = (model || "").toLowerCase();
+        const isFreeLLMModel = ["llama", "qwen", "mistral", "gemma"].some(m => lowerModel.includes(m));
+        const enableFreeLLM = process.env.ENABLE_FREE_LLM_API === "true";
+
+        if (request.requireLocal || isFreeLLMModel || (enableFreeLLM && request.strategy === "cost" && !AIGateway.LEVEL_2_CAPABILITIES.has(feature))) {
+            providerId = "freellmapi";
+        }
+
+        let providerInstance = this.providers[providerId];
+        if (!providerInstance) {
+            providerId = "google";
+            providerInstance = this.providers.google;
+        }
+
+        let circuitStatus = CircuitBreaker.getStatus(providerId);
+        
+        // Failure isolation: fallback to Google if FreeLLMAPI's circuit is open or it is disabled
+        if (providerId === "freellmapi" && (circuitStatus === "OPEN" || !enableFreeLLM)) {
+            console.warn(`[AIGateway] FreeLLMAPI circuit is ${circuitStatus} or disabled. Falling back to google provider.`);
+            providerId = "google";
+            providerInstance = this.providers.google;
+            circuitStatus = CircuitBreaker.getStatus(providerId);
+        }
 
         let executionError: any = null;
 

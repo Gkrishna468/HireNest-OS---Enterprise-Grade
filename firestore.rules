@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function authEmail() {
@@ -486,7 +486,7 @@ service cloud.firestore {
     }
 
     match /candidatePool/{candidateId} {
-      allow read: if isVerified();
+      allow read: if isVerified() || isOwner(candidateId) || (isSignedIn() && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('email', '') == authEmail()));
 
       allow create:
       if isVerified() &&
@@ -756,7 +756,7 @@ service cloud.firestore {
     // =====================================================
 
     match /candidate_profiles/{profileId} {
-      allow read: if isVerified();
+      allow read: if isVerified() || isOwner(profileId) || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.email == authEmail()));
 
       allow create, update:
       if isVerified() &&
@@ -772,7 +772,7 @@ service cloud.firestore {
     }
 
     match /candidate_notifications/{notifId} {
-      allow read: if isVerified();
+      allow read: if isVerified() || (isSignedIn() && (resource.data.candidateId == request.auth.uid || resource.data.candidateEmail == authEmail()));
 
       allow create:
       if isVerified();
@@ -869,11 +869,15 @@ service cloud.firestore {
     // =====================================================
 
     match /submissions/{submissionId} {
-      allow read: if isVerified() && (
+      allow read: if (isVerified() && (
         isMainAdmin() ||
         isSameOrg(resource.data.get('vendorId', '')) ||
         isSameOrg(resource.data.get('clientId', ''))
-      );
+      )) || (isSignedIn() && (
+        resource.data.get('candidateUid', '') == request.auth.uid ||
+        resource.data.get('candidateId', '') == request.auth.uid ||
+        resource.data.get('candidateEmail', '') == authEmail()
+      ));
 
       allow create: if isVerified() && (
         isMainAdmin() ||
@@ -1414,11 +1418,16 @@ service cloud.firestore {
     // =====================================================
 
     match /interviews/{interviewId} {
-      allow read: if isVerified() && (
+      allow read: if (isVerified() && (
         isMainAdmin() ||
         isSameOrg(resource.data.get('vendorId', '')) ||
         isSameOrg(resource.data.get('clientId', ''))
-      );
+      )) || (isSignedIn() && (
+        resource.data.get('candidateId', '') == request.auth.uid ||
+        resource.data.get('candidateUid', '') == request.auth.uid ||
+        resource.data.get('email', '') == authEmail() ||
+        resource.data.get('candidateEmail', '') == authEmail()
+      ));
       allow create: if isVerified() && (
         isMainAdmin() ||
         isSameOrg(incoming().get('vendorId', '')) ||

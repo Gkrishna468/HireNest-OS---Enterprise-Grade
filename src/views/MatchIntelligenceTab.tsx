@@ -57,6 +57,7 @@ import {
 } from "../lib/permissions";
 import { formatINR, formatCompactINR, formatBudget } from "../lib/currency";
 import { CandidateMatchingService } from "../services/CandidateMatchingService";
+import { requirementVendorService } from "../services/requirementVendorService";
 
 /**
  * Dynamically computes criterion-level fitment matrix for a candidate and requirement.
@@ -407,36 +408,50 @@ export default function MatchIntelligenceTab() {
     );
 
     // 2. Requirements Subscription
-    let reqQuery;
-    if (roleIsClient && orgId) {
-      reqQuery = query(
-        collection(db, "requirements_public"),
-        where("clientId", "==", orgId),
-        limit(100),
+    let unsubReqs = () => {};
+    if (roleIsVendor && orgId) {
+      unsubReqs = requirementVendorService.subscribeToVendorAuthorizedRequirements(
+        orgId,
+        (authorizedReqs) => {
+          const reqMap: Record<string, any> = {};
+          authorizedReqs.forEach((req) => {
+            reqMap[req.id] = req;
+          });
+          setRequirements(reqMap);
+        }
       );
     } else {
-      reqQuery = query(collection(db, "requirements_public"), limit(100));
-    }
+      let reqQuery;
+      if (roleIsClient && orgId) {
+        reqQuery = query(
+          collection(db, "requirements_public"),
+          where("clientId", "==", orgId),
+          limit(100),
+        );
+      } else {
+        reqQuery = query(collection(db, "requirements_public"), limit(100));
+      }
 
-    const unsubReqs = onSnapshot(
-      reqQuery,
-      (snap) => {
-        const reqMap: Record<string, any> = {};
-        snap.docs.forEach((d) => {
-          const data = d.data();
-          if (
-            !data.status ||
-            (data.status !== "DELETED" && data.status !== "ARCHIVED")
-          ) {
-            reqMap[d.id] = { id: d.id, ...data };
-          }
-        });
-        setRequirements(reqMap);
-      },
-      (err) => {
-        console.warn("[MatchIntelligence] Requirements note:", err?.message);
-      },
-    );
+      unsubReqs = onSnapshot(
+        reqQuery,
+        (snap) => {
+          const reqMap: Record<string, any> = {};
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (
+              !data.status ||
+              (data.status !== "DELETED" && data.status !== "ARCHIVED")
+            ) {
+              reqMap[d.id] = { id: d.id, ...data };
+            }
+          });
+          setRequirements(reqMap);
+        },
+        (err) => {
+          console.warn("[MatchIntelligence] Requirements note:", err?.message);
+        },
+      );
+    }
 
     // 3. Candidate Pool Subscription
     let candQuery;
@@ -459,17 +474,9 @@ export default function MatchIntelligenceTab() {
           candMap[d.id] = { id: d.id, ...d.data() };
         });
 
-        // If vendor query returned 0, load general pool to allow vendor discovery
+        // Enforce strict tenant isolation: Do not load general pool if vendor query returned 0
         if (roleIsVendor && snap.docs.length === 0) {
-          getDocs(query(collection(db, "candidatePool"), limit(100))).then(
-            (fallbackSnap) => {
-              const fallbackMap: Record<string, any> = {};
-              fallbackSnap.docs.forEach((d) => {
-                fallbackMap[d.id] = { id: d.id, ...d.data() };
-              });
-              setCandidates(fallbackMap);
-            },
-          );
+          setCandidates({});
         } else {
           setCandidates(candMap);
         }

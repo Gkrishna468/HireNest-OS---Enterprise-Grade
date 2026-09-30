@@ -96,3 +96,60 @@ export interface HireNestAgent {
   metadata: AgentMetadata;
   execute(prompt: string, context: AgentExecutionContext): Promise<AgentResult>;
 }
+
+export type AgentTaskStatus = 'RUNNING' | 'WAITING_APPROVAL' | 'PAUSED' | 'FAILED' | 'COMPLETED' | 'CANCELLED';
+
+export interface AgentTask {
+  id: string;
+  goal: string;
+  agentId: string;
+  status: AgentTaskStatus;
+  orgId: string;
+  userId: string;
+  steps: AgentTaskStep[];
+  currentStepIndex: number;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: any;
+}
+
+export interface AgentTaskStep {
+  id: string;
+  taskId: string;
+  description: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+  toolUsed?: string;
+  input?: any;
+  output?: any;
+  error?: string;
+  requiresApproval?: boolean;
+  approvalId?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface AgentApproval {
+  id: string;
+  taskId: string;
+  stepId: string;
+  agentId: string;
+  orgId: string;
+  userId: string; // Recruiter requested by
+  actionType: string; // e.g. "CANDIDATE_SUBMISSION"
+  actionPayload: any;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvedBy?: string; // Recruiter approved by
+  notes?: string;
+  createdAt: string;
+  decidedAt?: string;
+  approvalToken: string; // Secure execution token
+}
+
+export interface BrowserSession {
+  id: string;
+  userId: string;
+  orgId: string;
+  url: string;
+  createdAt: string;
+  expiresAt: string;
+}

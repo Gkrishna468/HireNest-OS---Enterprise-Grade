@@ -440,6 +440,8 @@ const AppContent = () => {
     );
   }
 
+  const role = userData?.role || "guest";
+  const isAdmin = checkIsAdmin(role);
   const isUserInactive = userData?.status === "INACTIVE" || userData?.disabled === true;
 
   if (isUserInactive) {
@@ -517,8 +519,6 @@ const AppContent = () => {
     );
   }
 
-  const role = userData?.role || "guest";
-  const isAdmin = checkIsAdmin(role);
   const isClient = checkIsClient(role);
   const isVendor = checkIsVendor(role);
   const isRecruiter = checkIsRecruiter(role);

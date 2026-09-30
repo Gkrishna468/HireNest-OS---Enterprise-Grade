@@ -3,6 +3,7 @@ import { db } from '../../lib/firebase-admin.js';
 import { encryptText, decryptText } from '../../lib/encryption.js';
 
 export interface CalendarEvent {
+  id?: string;
   summary: string;
   description?: string;
   start: {

@@ -43,6 +43,10 @@ export function sanitizeAuthError(err: any): string {
     return "Too many failed attempts. Access temporarily restricted for safety. Please try again in a few minutes.";
   }
 
+  if (code === "auth/user-disabled" || message.includes("user-disabled") || message.includes("auth/user-disabled")) {
+    return "Your account has been deactivated or disabled. Please contact support.";
+  }
+
   if (code === "auth/popup-closed-by-user" || message.includes("popup-closed-by-user")) {
     return "Sign-in window was closed before completing authentication. Please try again.";
   }

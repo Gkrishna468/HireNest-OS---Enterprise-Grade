@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
 import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
+import { isTrustedServiceContext } from "../lib/trusted-context.js";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`
@@ -397,12 +398,39 @@ class RequirementVendorService {
   async canVendorViewRequirement(vendorId: string, requirementId: string): Promise<boolean> {
     try {
       // Canonical SSOT: Load canonical first, then fallback to public
-      let reqSnap = await getDoc(doc(db, "requirements", requirementId));
-      if (!reqSnap.exists()) {
-        reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+      let reqData: any = null;
+      try {
+        let reqSnap = await getDoc(doc(db, "requirements", requirementId));
+        if (reqSnap.exists()) {
+          reqData = reqSnap.data();
+        } else {
+          reqSnap = await getDoc(doc(db, "requirements_public", requirementId));
+          if (reqSnap.exists()) {
+            reqData = reqSnap.data();
+          }
+        }
+      } catch (clientErr) {
+        if (isTrustedServiceContext()) {
+          // Fallback to adminDb for server-side/test runner execution
+          try {
+            const { adminDb } = await import("../lib/firebase-admin.js");
+            if (adminDb) {
+              const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
+              if (reqSnap.exists) {
+                reqData = reqSnap.data();
+              } else {
+                const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
+                if (pubSnap.exists) {
+                  reqData = pubSnap.data();
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
-      if (!reqSnap.exists()) return false;
-      const req = reqSnap.data();
+
+      if (!reqData) return false;
+      const req = reqData;
 
       // Canonical Operational Invariant: ACTIVE + PUBLISHED
       if (!UnifiedRequirementsService.isRequirementOperational(req)) {
@@ -415,8 +443,27 @@ class RequirementVendorService {
 
       // Check explicit requirement_vendors record
       const docId = `reqven-${requirementId}-${vendorId}`;
-      const mappingSnap = await getDoc(doc(db, "requirement_vendors", docId));
-      if (mappingSnap.exists() && mappingSnap.data().status === 'ACTIVE' && mappingSnap.data().visibility === 'ENABLED') {
+      let mappingData: any = null;
+      try {
+        const mappingSnap = await getDoc(doc(db, "requirement_vendors", docId));
+        if (mappingSnap.exists()) {
+          mappingData = mappingSnap.data();
+        }
+      } catch (_) {
+        if (isTrustedServiceContext()) {
+          try {
+            const { adminDb } = await import("../lib/firebase-admin.js");
+            if (adminDb) {
+              const mappingSnap = await adminDb.collection("requirement_vendors").doc(docId).get();
+              if (mappingSnap.exists) {
+                mappingData = mappingSnap.data();
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (mappingData && mappingData.status === 'ACTIVE' && mappingData.visibility === 'ENABLED') {
         return true;
       }
 

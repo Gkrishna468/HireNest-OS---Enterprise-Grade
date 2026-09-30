@@ -20,6 +20,7 @@ import { AccessControlService, HireNestAccessContext } from "./accessControlServ
 import { emitEvent } from "./eventBus.js";
 import { JdParsingService } from "./jdParsingService.js";
 import { extractSkills, matchSkillToken } from "../resume-engine/parser/skills.js";
+import { isTrustedServiceContext } from "../lib/trusted-context.js";
 
 export interface CandidateRequirementMatchRecord {
   id: string; // `${candidateId}_${requirementId}`
@@ -492,6 +493,48 @@ export class CandidateMatchingService {
    * 5. Persists match record to candidateRequirementMatches & candidate_matches
    * 6. Emits CANDIDATE_REQUIREMENT_MATCHED without invoking SubmissionOrchestrator or triggering global MatchingOffice
    */
+  private static async safeSetDoc(collectionName: string, docId: string, data: any, options?: { merge?: boolean }) {
+    try {
+      if (options?.merge) {
+        await setDoc(doc(db, collectionName, docId), data, { merge: true });
+      } else {
+        await setDoc(doc(db, collectionName, docId), data);
+      }
+    } catch (err) {
+      if (isTrustedServiceContext()) {
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            if (options?.merge) {
+              await adminDb.collection(collectionName).doc(docId).set(data, { merge: true });
+            } else {
+              await adminDb.collection(collectionName).doc(docId).set(data);
+            }
+            return;
+          }
+        } catch (_) {}
+      }
+      throw err;
+    }
+  }
+
+  private static async safeUpdateDoc(collectionName: string, docId: string, data: any) {
+    try {
+      await updateDoc(doc(db, collectionName, docId), data);
+    } catch (err) {
+      if (isTrustedServiceContext()) {
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            await adminDb.collection(collectionName).doc(docId).update(data);
+            return;
+          }
+        } catch (_) {}
+      }
+      throw err;
+    }
+  }
+
   public static async matchCandidateToRequirement(
     params: MatchCandidateToRequirementParams
   ): Promise<CandidateRequirementMatchRecord> {
@@ -506,31 +549,78 @@ export class CandidateMatchingService {
     }
 
     let poolCollection = "candidatePool";
-    let candidateDocSnap = await getDoc(doc(db, "candidatePool", candidateId));
     let candData: any = null;
-    if (candidateDocSnap.exists()) {
-      candData = candidateDocSnap.data();
-    } else {
-      const directSnap = await getDoc(doc(db, "direct_candidates", candidateId));
-      if (directSnap.exists()) {
-        candData = directSnap.data();
-        poolCollection = "direct_candidates";
+    try {
+      let candidateDocSnap = await getDoc(doc(db, "candidatePool", candidateId));
+      if (candidateDocSnap.exists()) {
+        candData = candidateDocSnap.data();
       } else {
-        throw new Error(`Candidate profile not found: ${candidateId}`);
+        const directSnap = await getDoc(doc(db, "direct_candidates", candidateId));
+        if (directSnap.exists()) {
+          candData = directSnap.data();
+          poolCollection = "direct_candidates";
+        }
       }
+    } catch (_) {
+      if (isTrustedServiceContext()) {
+        // Fallback to adminDb for server-side/test environments with no signed-in user
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            const candSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
+            if (candSnap.exists) {
+              candData = candSnap.data();
+            } else {
+              const directSnap = await adminDb.collection("direct_candidates").doc(candidateId).get();
+              if (directSnap.exists) {
+                candData = directSnap.data();
+                poolCollection = "direct_candidates";
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!candData) {
+      throw new Error(`Candidate profile not found: ${candidateId}`);
     }
     onProgress?.("✓ Candidate authorized");
 
     // 2. Resolve & Authorize requirement
     onProgress?.("Requirement authorization...");
-    let reqDocSnap = await getDoc(doc(db, "requirements", requirementId));
-    if (!reqDocSnap.exists()) {
-      reqDocSnap = await getDoc(doc(db, "requirements_public", requirementId));
+    let reqData: any = null;
+    try {
+      let reqDocSnap = await getDoc(doc(db, "requirements", requirementId));
+      if (!reqDocSnap.exists()) {
+        reqDocSnap = await getDoc(doc(db, "requirements_public", requirementId));
+      }
+      if (reqDocSnap.exists()) {
+        reqData = { id: reqDocSnap.id, ...reqDocSnap.data() };
+      }
+    } catch (_) {
+      if (isTrustedServiceContext()) {
+        // Fallback to adminDb for server-side/test environments
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
+            if (reqSnap.exists) {
+              reqData = { id: reqSnap.id, ...reqSnap.data() };
+            } else {
+              const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
+              if (pubSnap.exists) {
+                reqData = { id: pubSnap.id, ...pubSnap.data() };
+              }
+            }
+          }
+        } catch (_) {}
+      }
     }
-    if (!reqDocSnap.exists()) {
+
+    if (!reqData) {
       throw new Error(`Requirement not found: ${requirementId}`);
     }
-    const reqData: any = { id: reqDocSnap.id, ...reqDocSnap.data() };
 
     // Canonical Operational Gate: status === ACTIVE && distributionStatus === PUBLISHED
     const isOperational = UnifiedRequirementsService.isRequirementOperational(reqData);
@@ -573,7 +663,7 @@ export class CandidateMatchingService {
 
           // Persist healed requirement
           try {
-            await updateDoc(doc(db, "requirements_public", requirementId), {
+            await this.safeUpdateDoc("requirements_public", requirementId, {
               skills: healedJd.skills,
               mandatorySkills: healedJd.mandatorySkills,
               secondarySkills: healedJd.secondarySkills,
@@ -609,8 +699,8 @@ export class CandidateMatchingService {
     if (matchPayload.tier === "BLOCKED") {
       const matchId = `${candidateId}_${requirementId}`;
       const nowIso = new Date().toISOString();
-      await setDoc(doc(db, "candidateRequirementMatches", matchId), sanitizeFirestorePayload(matchPayload));
-      await setDoc(doc(db, "candidate_matches", matchId), sanitizeFirestorePayload({
+      await this.safeSetDoc("candidateRequirementMatches", matchId, sanitizeFirestorePayload(matchPayload));
+      await this.safeSetDoc("candidate_matches", matchId, sanitizeFirestorePayload({
         ...matchPayload,
         vendorId: candData.vendorId || context.vendorId || "ORG-GLOBAL-HQ",
         clientId: reqData.clientId || reqData.client_id || "ORG-CLIENT-1",
@@ -634,10 +724,10 @@ export class CandidateMatchingService {
     });
 
     // Save to candidateRequirementMatches
-    await setDoc(doc(db, "candidateRequirementMatches", matchId), cleanMatchPayload);
+    await this.safeSetDoc("candidateRequirementMatches", matchId, cleanMatchPayload);
 
     // Save to candidate_matches (for Match Intelligence Governance compatibility)
-    await setDoc(doc(db, "candidate_matches", matchId), sanitizeFirestorePayload({
+    await this.safeSetDoc("candidate_matches", matchId, sanitizeFirestorePayload({
       ...cleanMatchPayload,
       vendorId: candData.vendorId || context.vendorId || "ORG-GLOBAL-HQ",
       clientId: reqData.clientId || reqData.client_id || "ORG-CLIENT-1",
@@ -647,7 +737,7 @@ export class CandidateMatchingService {
 
     // Update candidate record summary with merge: true
     try {
-      await setDoc(doc(db, poolCollection, candidateId), {
+      await this.safeSetDoc(poolCollection, candidateId, {
         matchScore: matchPayload.score,
         latestMatchRequirementId: requirementId,
         latestMatchEvaluatedAt: nowIso

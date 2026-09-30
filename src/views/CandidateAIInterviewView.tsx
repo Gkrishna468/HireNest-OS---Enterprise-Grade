@@ -657,7 +657,7 @@ export default function CandidateAIInterviewView() {
           <button
             onClick={() => {
               setPageState("CONSENT");
-              handleStartSession();
+              handleStartInterview();
             }}
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
           >

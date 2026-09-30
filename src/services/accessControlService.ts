@@ -1,7 +1,7 @@
 import { requirementVendorService } from "./requirementVendorService.js";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
 import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy.js";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../lib/firebase.js";
 
 export type RecruiterType = 'INTERNAL' | 'VENDOR' | 'FREELANCE';
@@ -58,20 +58,30 @@ export class AccessControlService {
    */
   static buildAccessContext(user: any): HireNestAccessContext {
     const rawRole = user?.role || user?.userRole || 'RECRUITER';
-    const role = rawRole.toUpperCase();
-    const orgId = user?.orgId || user?.organizationId || user?.vendorId || user?.clientId || 'ORG-GLOBAL-HQ';
-    const userId = user?.id || user?.uid || 'anonymous';
+    let role = rawRole.toUpperCase();
     
-    // Determine recruiter classification and ABAC scope
+    // Determine recruiter classification and ABAC scope before role normalization
     let recruiterType: RecruiterType | undefined = user?.recruiterType;
-    if (!recruiterType && role === 'RECRUITER') {
-      if (user?.vendorId) recruiterType = 'VENDOR';
+    if (!recruiterType && (role === 'RECRUITER' || role.includes('RECRUITER'))) {
+      if (user?.vendorId || role.includes('VENDOR')) recruiterType = 'VENDOR';
       else if (user?.isFreelance) recruiterType = 'FREELANCE';
       else recruiterType = 'INTERNAL';
     }
 
+    // Standardize role to core archetypes (VENDOR, CLIENT, CANDIDATE) for uniform ABAC evaluation
+    if (role.indexOf('VENDOR') !== -1) {
+      role = 'VENDOR';
+    } else if (role.indexOf('CLIENT') !== -1) {
+      role = 'CLIENT';
+    } else if (role.indexOf('CANDIDATE') !== -1) {
+      role = 'CANDIDATE';
+    }
+
+    const orgId = user?.orgId || user?.organizationId || user?.vendorId || user?.clientId || 'ORG-GLOBAL-HQ';
+    const userId = user?.id || user?.uid || 'anonymous';
+    
     let abacScope: ABACScope | undefined = user?.abacScope;
-    if (!abacScope && role === 'RECRUITER') {
+    if (!abacScope && (role === 'RECRUITER' || recruiterType === 'VENDOR')) {
       if (recruiterType === 'FREELANCE') abacScope = 'EXPLICIT_ONLY';
       else if (recruiterType === 'VENDOR') abacScope = 'ASSIGNED_ONLY';
       else abacScope = 'ASSIGNED_ONLY';
@@ -111,17 +121,190 @@ export class AccessControlService {
   }
 
   /**
+   * Helper to check if there is an active submission link between a candidate and a vendor.
+   */
+  static async hasActiveVendorSubmission(candidateId: string, vendorId: string): Promise<boolean> {
+    try {
+      const q = query(
+        collection(db, "submissions"),
+        where("candidateId", "==", candidateId),
+        where("vendorId", "==", vendorId),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      return !snap.empty;
+    } catch (_) {
+      try {
+        const { adminDb } = await import("../lib/firebase-admin.js");
+        if (adminDb) {
+          const snap = await adminDb.collection("submissions")
+            .where("candidateId", "==", candidateId)
+            .where("vendorId", "==", vendorId)
+            .limit(1)
+            .get();
+          return !snap.empty;
+        }
+      } catch (_) {}
+      return false;
+    }
+  }
+
+  /**
+   * Helper to check if a client has an active submission or application link for a candidate.
+   */
+  static async hasActiveClientSubmission(candidateId: string, clientId: string): Promise<boolean> {
+    try {
+      const q = query(
+        collection(db, "submissions"),
+        where("candidateId", "==", candidateId),
+        where("clientId", "==", clientId),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      return !snap.empty;
+    } catch (_) {
+      try {
+        const { adminDb } = await import("../lib/firebase-admin.js");
+        if (adminDb) {
+          const snap = await adminDb.collection("submissions")
+            .where("candidateId", "==", candidateId)
+            .where("clientId", "==", clientId)
+            .limit(1)
+            .get();
+          return !snap.empty;
+        }
+      } catch (_) {}
+      return false;
+    }
+  }
+
+  /**
+   * Helper to check if a candidate is explicitly associated with a requirement distributed to the vendor.
+   */
+  static async isCandidateAssociatedWithVendorRequirements(cand: any, vId: string): Promise<boolean> {
+    const reqIds = [cand.requirementId, cand.matchedRequirementId, cand.canonicalRequirementId].filter(Boolean);
+    for (const reqId of reqIds) {
+      try {
+        const canViewReq = await requirementVendorService.canVendorViewRequirement(vId, reqId);
+        if (canViewReq) {
+          return true;
+        }
+      } catch (_) {
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            const reqSnap = await adminDb.collection("requirements").doc(reqId).get();
+            if (reqSnap.exists) {
+              const req = reqSnap.data();
+              const isDistributedToVendor = (req.distributedVendorIds && req.distributedVendorIds.includes(vId)) || req.vendorId === vId;
+              if (isDistributedToVendor) return true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Helper to check if a candidate is explicitly associated with a requirement belonging to the client.
+   */
+  static async isCandidateAssociatedWithClientRequirements(cand: any, cId: string): Promise<boolean> {
+    const reqIds = [cand.requirementId, cand.matchedRequirementId, cand.canonicalRequirementId].filter(Boolean);
+    for (const reqId of reqIds) {
+      try {
+        const req = await this.getRequirementDocument(reqId);
+        if (req && (req.clientId === cId || req.client_id === cId)) {
+          return true;
+        }
+      } catch (_) {
+        try {
+          const { adminDb } = await import("../lib/firebase-admin.js");
+          if (adminDb) {
+            const reqSnap = await adminDb.collection("requirements").doc(reqId).get();
+            if (reqSnap.exists && (reqSnap.data().clientId === cId || reqSnap.data().client_id === cId)) {
+              return true;
+            }
+            const pubSnap = await adminDb.collection("requirements_public").doc(reqId).get();
+            if (pubSnap.exists && (pubSnap.data().clientId === cId || pubSnap.data().client_id === cId)) {
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    return false;
+  }
+
+  /**
    * Helper to retrieve a requirement from the canonical collection or legacy fallback
    */
   static async getRequirementDocument(requirementId: string): Promise<any | null> {
     try {
       const reqSnap = await getDoc(doc(db, 'requirements', requirementId));
       if (reqSnap.exists()) return reqSnap.data();
-    } catch (_) {}
+    } catch (_) {
+      try {
+        const { adminDb } = await import("../lib/firebase-admin.js");
+        if (adminDb) {
+          const reqSnap = await adminDb.collection('requirements').doc(requirementId).get();
+          if (reqSnap.exists) return reqSnap.data();
+        }
+      } catch (_) {}
+    }
     try {
       const reqSnap = await getDoc(doc(db, 'requirements_public', requirementId));
       if (reqSnap.exists()) return reqSnap.data();
+    } catch (_) {
+      try {
+        const { adminDb } = await import("../lib/firebase-admin.js");
+        if (adminDb) {
+          const reqSnap = await adminDb.collection('requirements_public').doc(requirementId).get();
+          if (reqSnap.exists) return reqSnap.data();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /**
+   * Helper to retrieve a candidate from any of the candidate collections (candidates, candidatePool, direct_candidates, candidate_profiles)
+   * with automatic fallback to adminDb for server/node test runner environments.
+   */
+  static async getCandidateDocument(candidateId: string): Promise<any | null> {
+    // 1. Try Client SDK first
+    try {
+      const candSnap = await getDoc(doc(db, 'candidates', candidateId));
+      if (candSnap.exists()) return candSnap.data();
     } catch (_) {}
+    try {
+      const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
+      if (poolSnap.exists()) return poolSnap.data();
+    } catch (_) {}
+    try {
+      const directSnap = await getDoc(doc(db, 'direct_candidates', candidateId));
+      if (directSnap.exists()) return directSnap.data();
+    } catch (_) {}
+    try {
+      const profileSnap = await getDoc(doc(db, 'candidate_profiles', candidateId));
+      if (profileSnap.exists()) return profileSnap.data();
+    } catch (_) {}
+
+    // 2. Fallback to adminDb if Client SDK reads fail or are unauthenticated
+    try {
+      const { adminDb } = await import("../lib/firebase-admin.js");
+      if (adminDb) {
+        const candSnap = await adminDb.collection('candidates').doc(candidateId).get();
+        if (candSnap.exists) return candSnap.data();
+        const poolSnap = await adminDb.collection('candidatePool').doc(candidateId).get();
+        if (poolSnap.exists) return poolSnap.data();
+        const directSnap = await adminDb.collection('direct_candidates').doc(candidateId).get();
+        if (directSnap.exists) return directSnap.data();
+        const profileSnap = await adminDb.collection('candidate_profiles').doc(candidateId).get();
+        if (profileSnap.exists) return profileSnap.data();
+      }
+    } catch (_) {}
+
     return null;
   }
 
@@ -242,25 +425,27 @@ export class AccessControlService {
       const rType = context.recruiterType || 'INTERNAL';
       const vId = context.vendorId || context.organizationId;
 
-      // Vendor Recruiter: MUST NOT access candidates outside their vendor's bench/submissions
+      // Vendor Recruiter: MUST NOT access candidates outside their vendor's bench/submissions unless direct candidate with explicit context
       if (rType === 'VENDOR') {
         if (!vId) return false;
         let cand = candidateData;
         if (!cand) {
-          try {
-            const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-            if (candSnap.exists()) cand = candSnap.data();
-            else {
-              const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
-              if (poolSnap.exists()) cand = poolSnap.data();
-            }
-          } catch (err) {
-            return false;
-          }
+          cand = await this.getCandidateDocument(candidateId);
         }
         if (!cand) return false;
 
         const candVendor = cand.vendorId || cand.submittedByVendorId || cand.sourceVendorId;
+        const isDirectCandidate = cand.sourceType === "DIRECT_CANDIDATE" || cand.ownershipType === "DIRECT" || cand.isDirect === true;
+
+        if (!candVendor || isDirectCandidate) {
+          // Unowned / direct candidate: Check explicit context (active vendor submission or distributed requirement association)
+          const hasSubmission = await this.hasActiveVendorSubmission(candidateId, vId);
+          if (hasSubmission) return true;
+          const isAssociatedWithRequirement = await this.isCandidateAssociatedWithVendorRequirements(cand, vId);
+          if (isAssociatedWithRequirement) return true;
+          return candVendor === vId;
+        }
+
         return candVendor === vId;
       }
 
@@ -268,12 +453,7 @@ export class AccessControlService {
       if (rType === 'FREELANCE') {
         let cand = candidateData;
         if (!cand) {
-          try {
-            const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-            if (candSnap.exists()) cand = candSnap.data();
-          } catch (err) {
-            return false;
-          }
+          cand = await this.getCandidateDocument(candidateId);
         }
         if (!cand) return false;
         const submittedBySelf = cand.recruiterId === context.userId || cand.submittedByUserId === context.userId;
@@ -289,44 +469,49 @@ export class AccessControlService {
     if (role === 'VENDOR') {
       const vId = context.vendorId || context.organizationId;
       if (!vId) return false;
-      if (candidateData) {
-        const candVendor = candidateData.vendorId || candidateData.submittedByVendorId || candidateData.sourceVendorId;
+      let cand = candidateData;
+      if (!cand) {
+        cand = await this.getCandidateDocument(candidateId);
+      }
+      if (!cand) return false;
+
+      const candVendor = cand.vendorId || cand.submittedByVendorId || cand.sourceVendorId;
+      const isDirectCandidate = cand.sourceType === "DIRECT_CANDIDATE" || cand.ownershipType === "DIRECT" || cand.isDirect === true;
+
+      if (!candVendor || isDirectCandidate) {
+        // Unowned / direct candidate: Check explicit context (active vendor submission or distributed requirement association)
+        const hasSubmission = await this.hasActiveVendorSubmission(candidateId, vId);
+        if (hasSubmission) return true;
+        const isAssociatedWithRequirement = await this.isCandidateAssociatedWithVendorRequirements(cand, vId);
+        if (isAssociatedWithRequirement) return true;
         return candVendor === vId;
       }
-      try {
-        const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-        if (candSnap.exists()) {
-          const cand = candSnap.data();
-          const candVendor = cand.vendorId || cand.submittedByVendorId || cand.sourceVendorId;
-          return candVendor === vId;
-        }
-        const poolSnap = await getDoc(doc(db, 'candidatePool', candidateId));
-        if (poolSnap.exists()) {
-          const poolCand = poolSnap.data();
-          const candVendor = poolCand.vendorId || poolCand.submittedByVendorId;
-          return candVendor === vId;
-        }
-        return false;
-      } catch (err) {
-        return false;
-      }
+
+      return candVendor === vId;
     }
 
     // CLIENT CHECKS
     if (role === 'CLIENT') {
       const cId = context.clientId || context.organizationId;
       if (!cId) return false;
-      if (candidateData && (candidateData.clientId === cId || candidateData.targetClientId === cId)) {
-        return true;
+      let cand = candidateData;
+      if (!cand) {
+        cand = await this.getCandidateDocument(candidateId);
       }
-      try {
-        const candSnap = await getDoc(doc(db, 'candidates', candidateId));
-        if (!candSnap.exists()) return false;
-        const cand = candSnap.data();
-        return cand.clientId === cId || cand.targetClientId === cId;
-      } catch (err) {
+      if (!cand) return false;
+
+      const isDirectCandidate = cand.sourceType === "DIRECT_CANDIDATE" || cand.ownershipType === "DIRECT" || cand.isDirect === true;
+      if (isDirectCandidate) {
+        // Direct / unowned candidate: Only allowed if target client, active submission, or associated with client requirements
+        if (cand.clientId === cId || cand.targetClientId === cId) return true;
+        const hasSubmission = await this.hasActiveClientSubmission(candidateId, cId);
+        if (hasSubmission) return true;
+        const isAssociatedWithRequirement = await this.isCandidateAssociatedWithClientRequirements(cand, cId);
+        if (isAssociatedWithRequirement) return true;
         return false;
       }
+
+      return cand.clientId === cId || cand.targetClientId === cId;
     }
 
     return false;
@@ -534,6 +719,8 @@ export class AccessControlService {
     }
     if (normRole === 'VENDOR' || normRole === 'VENDOR_ADMIN' || normRole === 'VENDOR_RECRUITER' || normRole.indexOf('VENDOR') !== -1) {
       const distributed = requirement.distributedVendorIds || [];
+      const mode = requirement.distributionMode || "ALL_MAPPED_VENDORS";
+      if (mode === "ALL_MAPPED_VENDORS") return true;
       return distributed.includes(actorId) || requirement.vendorId === actorId;
     }
     if (normRole === 'RECRUITER') {

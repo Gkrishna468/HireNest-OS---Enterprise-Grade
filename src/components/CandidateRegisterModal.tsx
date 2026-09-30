@@ -287,7 +287,7 @@ export function CandidateRegisterModal({
 
       // 6. RUN AUTOMATIC FITMENT INTELLIGENCE ENGINE (NON-FATAL)
       setLoadingState("Running Fitment Intelligence Engine across Full-Time & C2H jobs...");
-      let matches: CandidateMatchResult[] = [];
+      let matches: any = { strongMatches: [], validatableMatches: [], allMatches: [] };
       try {
         matches = await CandidateMatchingService.executeAutomaticMatching({
           id: candidateUid,
@@ -318,6 +318,7 @@ export function CandidateRegisterModal({
   };
 
   const handleEnterPortal = () => {
+    localStorage.setItem('entryContext', 'CANDIDATE');
     onClose();
     navigate("/");
     window.location.reload();

@@ -24,16 +24,20 @@ export function PlacementsTab() {
   const [userOrgId, setUserOrgId] = useState<string>('');
 
   useEffect(() => {
-     if (!auth.currentUser) return;
-     const fetchUser = async () => {
+    const unsubAuth = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) return;
+      try {
         const { doc, getDoc } = await import("firebase/firestore");
-        const u = await getDoc(doc(db, "users", auth.currentUser!.uid));
+        const u = await getDoc(doc(db, "users", currentUser.uid));
         if (u.exists()) {
-           setUserRole(u.data().role || 'guest');
-           setUserOrgId(u.data().organizationId || '');
+          setUserRole(u.data().role || 'guest');
+          setUserOrgId(u.data().organizationId || '');
         }
-     };
-     fetchUser();
+      } catch (err) {
+        console.error("Failed to fetch user context in PlacementsTab:", err);
+      }
+    });
+    return () => unsubAuth();
   }, []);
 
   useEffect(() => {

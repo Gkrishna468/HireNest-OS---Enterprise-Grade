@@ -81,23 +81,7 @@ export default function VendorPartnerWorkspace({
       if (cand.sourceType === "DIRECT_CANDIDATE" || cand.isDirectCandidate) continue;
 
       for (const req of liveReqs) {
-        const fit = CandidateMatchingService.evaluateFitment(
-          {
-            skills: cand.skills || [],
-            experienceYears: cand.experienceYears || cand.yearsOfExperience || 0,
-            location: cand.location || "",
-            preferredWorkMode: cand.preferredWorkMode || cand.workMode || ""
-          },
-          {
-            skills: req.skills || [],
-            experience: req.experience,
-            minExperience: req.minExperience,
-            location: req.location,
-            workMode: req.workMode,
-            jobType: req.jobType,
-            mandatorySkills: req.mandatorySkills || []
-          }
-        );
+        const fit = CandidateMatchingService.computeFitmentEvaluation(cand, req);
 
         list.push({
           candidateId: cand.id,
@@ -106,8 +90,8 @@ export default function VendorPartnerWorkspace({
           requirementTitle: req.title || req.role || "Technical Role",
           score: fit.score,
           tier: fit.tier,
-          skillsOverlap: fit.skillsOverlap,
-          missingSkills: fit.missingSkills,
+          skillsOverlap: fit.skillsOverlap || fit.strengths || [],
+          missingSkills: fit.missingSkills || [],
           hardGateVerdict: fit.hardGateVerdict,
           clientName: req.clientName || "Enterprise Partner",
           candidate: cand,

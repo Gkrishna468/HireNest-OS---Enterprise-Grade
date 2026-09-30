@@ -44,15 +44,19 @@ export default function SettingsTab() {
   };
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    let isCancelled = false;
+    const unsubAuth = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        if (!isCancelled) setLoading(false);
+        return;
+      }
       try {
-        if (!auth.currentUser) return;
-        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-        if (userDoc.exists()) {
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists() && !isCancelled) {
           setUserData(userDoc.data());
         }
 
-        const token = await auth.currentUser.getIdToken();
+        const token = await currentUser.getIdToken();
         const res = await fetch('/api/workspace/status', {
            headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -68,28 +72,34 @@ export default function SettingsTab() {
           data = { connected: false };
         }
 
-        setIsGoogleConnected(!!data.connected);
-        if (data.connected) {
-          setWorkspaceDetails(data);
-          try {
-            const rufloRes = await fetch("/api/ruflo/health", {
-              headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (rufloRes.ok) {
-              const rData = await rufloRes.json().catch(() => null);
-              if (rData) setRufloHealth(rData);
+        if (!isCancelled) {
+          setIsGoogleConnected(!!data.connected);
+          if (data.connected) {
+            setWorkspaceDetails(data);
+            try {
+              const rufloRes = await fetch("/api/ruflo/health", {
+                headers: { "Authorization": `Bearer ${token}` }
+              });
+              if (rufloRes.ok) {
+                const rData = await rufloRes.json().catch(() => null);
+                if (rData) setRufloHealth(rData);
+              }
+            } catch (e) {
+              console.warn("Ruflo health fetch failed", e);
             }
-          } catch (e) {
-            console.warn("Ruflo health fetch failed", e);
           }
         }
       } catch (err) {
-        console.error("Failed to load user profile:", err);
+        console.error("Failed to load user profile in SettingsTab:", err);
       } finally {
-        setLoading(false);
+        if (!isCancelled) setLoading(false);
       }
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubAuth();
     };
-    fetchProfile();
   }, []);
 
   const handleSignOut = async () => {

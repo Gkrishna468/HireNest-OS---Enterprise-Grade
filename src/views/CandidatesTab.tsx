@@ -792,9 +792,15 @@ export default function CandidatesTab() {
       }
     };
 
-    init();
+    const unsubAuth = auth.onAuthStateChanged((user) => {
+      if (user && !isCancelled) {
+        init();
+      }
+    });
+
     return () => {
       isCancelled = true;
+      unsubAuth();
       if (unsubscribe) unsubscribe();
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };

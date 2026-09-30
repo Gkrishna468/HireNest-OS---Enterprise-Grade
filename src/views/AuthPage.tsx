@@ -26,16 +26,13 @@ import { auth } from '../lib/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import { CandidateRegisterModal } from '../components/CandidateRegisterModal';
+import { sanitizeAuthError } from '../lib/authErrorSanitizer';
 
 export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [authMode, setAuthMode] = useState<'ENTERPRISE' | 'CANDIDATE'>('ENTERPRISE');
   const [candidateModalOpen, setCandidateModalOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('entryContext', authMode);
-  }, [authMode]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,6 +62,10 @@ export default function AuthPage() {
   };
 
   useEffect(() => {
+    localStorage.setItem('entryContext', authMode);
+  }, [authMode]);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const roleParam = params.get('role') || params.get('mode');
     if (roleParam === 'candidate' || roleParam === 'candidate-register' || roleParam === 'candidate-login') {
@@ -85,7 +86,7 @@ export default function AuthPage() {
       navigate('/');
     } catch (err: any) {
       console.error("Login error:", err);
-      setError(err.message || "Authentication failed. Check credentials.");
+      setError(sanitizeAuthError(err));
     } finally {
       setIsLoading(false);
     }
@@ -98,7 +99,7 @@ export default function AuthPage() {
       await signInWithPopup(auth, provider);
       navigate('/');
     } catch (err: any) {
-      setError(err.message || "Google sign-in failed.");
+      setError(sanitizeAuthError(err));
     }
   };
 

@@ -18,7 +18,8 @@ import { UnifiedRequirementsService } from "../../services/unifiedRequirementsSe
 import { AccessControlService } from "../../services/accessControlService";
 import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
 import { ResumeIngestionService } from "../../services/resumeIngestionService";
-import { db } from "../../lib/firebase";
+import { requirementVendorService } from "../../services/requirementVendorService";
+import { db, auth } from "../../lib/firebase";
 import { collection, onSnapshot, doc, getDoc, setDoc, query, limit, where } from "firebase/firestore";
 import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
 import { AIL1ScreeningReportModal } from "./AIL1ScreeningReportModal";
@@ -436,6 +437,19 @@ export default function Candidate360Modal({
       setInternalJobs(jobs);
       return;
     }
+
+    // Check if user is a Vendor to use the vendor-scoped subscription
+    const isVendor = userRole && (userRole.toLowerCase().includes("vendor") || userRole.toUpperCase() === "VENDOR");
+    if (isVendor && userOrgId) {
+      const unsub = requirementVendorService.subscribeToVendorAuthorizedRequirements(
+        userOrgId,
+        (authorizedReqs) => {
+          setInternalJobs(authorizedReqs);
+        }
+      );
+      return () => unsub();
+    }
+
     // SSOT Fallback: subscribe to both requirements_public and requirements (canonical) to prevent CRM/OS mismatches
     let publicDocs: any[] = [];
     let canonicalDocs: any[] = [];
@@ -477,7 +491,7 @@ export default function Candidate360Modal({
       unsubPublic();
       unsubCanonical();
     };
-  }, [jobs]);
+  }, [jobs, userRole, userOrgId]);
 
   const effectiveJobs = (jobs && jobs.length > 0) ? jobs : internalJobs;
   const availableJobs = effectiveJobs.filter((job) =>
@@ -493,9 +507,10 @@ export default function Candidate360Modal({
     try {
       const candidateId = candidate.candidateId || candidate.originalId || candidate.id;
       const context = AccessControlService.buildAccessContext({
-        id: (candidate as any)?.submitterId || "local_user",
+        id: auth.currentUser?.uid || (candidate as any)?.submitterId || "local_user",
         role: userRole,
         orgId: userOrgId,
+        email: auth.currentUser?.email || "",
       });
 
       const matchRecord = await CandidateMatchingService.matchCandidateToRequirement({
@@ -692,9 +707,10 @@ export default function Candidate360Modal({
         setResumeUpdateProgress("4/4: Re-running 7-Point AI Match against requirement...");
         try {
           const context = AccessControlService.buildAccessContext({
-            id: (candidate as any)?.submitterId || "local_user",
+            id: auth.currentUser?.uid || (candidate as any)?.submitterId || "local_user",
             role: userRole,
             orgId: userOrgId,
+            email: auth.currentUser?.email || "",
           });
 
           const matchRecord = await CandidateMatchingService.matchCandidateToRequirement({

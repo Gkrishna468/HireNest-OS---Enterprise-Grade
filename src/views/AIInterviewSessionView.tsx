@@ -132,6 +132,37 @@ export default function AIInterviewSessionView() {
     return () => unsub();
   }, [hashedId, isVerified]);
 
+  // Clean up speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const speakQuestion = (text: string) => {
+    if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const englishVoice = voices.find(v => v.lang.startsWith("en"));
+        if (englishVoice) {
+          utterance.voice = englishVoice;
+        }
+      }
+      utterance.onstart = () => setIsPlayingVoice(true);
+      utterance.onend = () => setIsPlayingVoice(false);
+      utterance.onerror = () => setIsPlayingVoice(false);
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Speech synthesis failed:", err);
+      setIsPlayingVoice(false);
+    }
+  };
+
   // Activate local WebRTC video / audio stream
   useEffect(() => {
     if (isVerified && session && (session.status === "IN_PROGRESS" || session.status === "VERIFIED" || session.status === "CREATED")) {
