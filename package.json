@@ -67,7 +67,6 @@
     "tailwindcss": "^4.3.3",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.23.12",
-    "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
@@ -79,5 +78,8 @@
     "jwks-rsa": {
       "jose": "4.15.9"
     }
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

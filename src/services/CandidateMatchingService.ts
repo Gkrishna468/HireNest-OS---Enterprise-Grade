@@ -20,7 +20,7 @@ import { AccessControlService, HireNestAccessContext } from "./accessControlServ
 import { emitEvent } from "./eventBus.js";
 import { JdParsingService } from "./jdParsingService.js";
 import { extractSkills, matchSkillToken } from "../resume-engine/parser/skills.js";
-import { isTrustedServiceContext } from "../lib/trusted-context.js";
+import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
 
 export interface CandidateRequirementMatchRecord {
   id: string; // `${candidateId}_${requirementId}`

@@ -1,30 +1,34 @@
-import { AsyncLocalStorage } from "async_hooks";
-
 export interface TrustedServiceIdentity {
   type: "SERVICE";
   service: string;
 }
 
-export const trustedContextStorage = new AsyncLocalStorage<TrustedServiceIdentity>();
-
 /**
- * Executes a function block under a trusted service identity
- */
-export function runAsTrustedService<T>(identity: TrustedServiceIdentity, fn: () => Promise<T>): Promise<T> {
-  return trustedContextStorage.run(identity, fn);
-}
-
-/**
- * Returns the current trusted service identity if active
- */
-export function getTrustedServiceIdentity(): TrustedServiceIdentity | undefined {
-  return trustedContextStorage.getStore();
-}
-
-/**
- * Checks if the current execution context is an explicitly trusted service
+ * Returns false. Server-side context is not available in browser.
  */
 export function isTrustedServiceContext(): boolean {
-  const store = trustedContextStorage.getStore();
-  return store?.type === "SERVICE";
+  return false;
+}
+
+/**
+ * Executes function directly. Server-side trust context is not available in browser.
+ */
+export async function runAsTrustedService<T>(
+  identityOrFn: TrustedServiceIdentity | (() => Promise<T>),
+  maybeFn?: () => Promise<T>
+): Promise<T> {
+  let fn: () => Promise<T>;
+  if (typeof identityOrFn === "function") {
+    fn = identityOrFn;
+  } else {
+    fn = maybeFn!;
+  }
+  return fn();
+}
+
+/**
+ * Returns undefined. Trusted context storage is not available in browser.
+ */
+export function getTrustedServiceIdentity(): TrustedServiceIdentity | undefined {
+  return undefined;
 }

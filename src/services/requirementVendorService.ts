@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
 import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
-import { isTrustedServiceContext } from "../lib/trusted-context.js";
+import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`
@@ -176,12 +176,12 @@ class RequirementVendorService {
       const reqSnap = await getDoc(reqDocRef);
       const reqData = reqSnap.exists() ? reqSnap.data() : null;
 
-      const recruiterId = reqData?.assignedRecruiterId || reqData?.recruiterId || 'recruiter-rahul';
-      const recruiterName = reqData?.assignedRecruiterName || reqData?.recruiterName || 'Rahul Sharma';
+      const recruiterId = reqData?.assignedRecruiterId || reqData?.recruiterId || null;
+      const recruiterName = reqData?.assignedRecruiterName || reqData?.recruiterName || null;
       const distributionMode: DistributionMode = reqData?.distributionMode || 'ALL_MAPPED_VENDORS';
 
-      // Get recruiter-vendor mappings
-      const recruiterVendorMaps = await recruiterVendorMappingService.getVendorsForRecruiter(recruiterId);
+      // Get recruiter-vendor mappings (if a recruiter is assigned)
+      const recruiterVendorMaps = recruiterId ? await recruiterVendorMappingService.getVendorsForRecruiter(recruiterId) : [];
       const mappedVendorIds = new Set(recruiterVendorMaps.filter(m => m.status === 'ACTIVE').map(m => m.vendorId));
 
       // Get requirement_vendors mappings
@@ -273,13 +273,13 @@ class RequirementVendorService {
 
       const status = (requirement.status || "ACTIVE").toUpperCase();
       const isActive = status === "ACTIVE" || status === "PUBLISHED";
-      const recruiterId = requirement.assignedRecruiterId || requirement.recruiterId || "recruiter-rahul";
-      const recruiterName = requirement.assignedRecruiterName || requirement.recruiterName || "Rahul Sharma";
+      const recruiterId = requirement.assignedRecruiterId || requirement.recruiterId || null;
+      const recruiterName = requirement.assignedRecruiterName || requirement.recruiterName || null;
       const distributionMode: DistributionMode = requirement.distributionMode || "ALL_MAPPED_VENDORS";
 
       if (isActive) {
-        // Resolve active vendors mapped to the assigned recruiter
-        const recruiterVendors = await recruiterVendorMappingService.getVendorsForRecruiter(recruiterId);
+        // Resolve active vendors mapped to the assigned recruiter (if any)
+        const recruiterVendors = recruiterId ? await recruiterVendorMappingService.getVendorsForRecruiter(recruiterId) : [];
         const activeMappedVendorIds = recruiterVendors
           .filter(m => m.status === 'ACTIVE')
           .map(m => m.vendorId);
@@ -467,18 +467,18 @@ class RequirementVendorService {
         return true;
       }
 
-      // Check distributedVendorIds array
-      if (Array.isArray(req.distributedVendorIds) && req.distributedVendorIds.includes(vendorId)) {
-        return true;
+      // Check distributedVendorIds array: if explicitly configured, it is authoritative
+      if (Array.isArray(req.distributedVendorIds) && req.distributedVendorIds.length > 0) {
+        return req.distributedVendorIds.includes(vendorId);
       }
 
       // Check recruiter mapping under ALL_MAPPED_VENDORS mode
       const mode: DistributionMode = req.distributionMode || 'ALL_MAPPED_VENDORS';
-      const recruiterId = req.assignedRecruiterId || req.recruiterId || 'recruiter-rahul';
-      if (mode === 'ALL_MAPPED_VENDORS') {
+      const recruiterId = req.assignedRecruiterId || req.recruiterId || null;
+      if (mode === 'ALL_MAPPED_VENDORS' && recruiterId) {
         const recruiterVendors = await recruiterVendorMappingService.getVendorsForRecruiter(recruiterId);
         const isMapped = recruiterVendors.some(m => m.vendorId === vendorId && m.status === 'ACTIVE');
-        if (isMapped || recruiterVendors.length === 0) return true;
+        if (isMapped) return true;
       }
 
       return false;
@@ -526,8 +526,8 @@ class RequirementVendorService {
         priority: raw.priority || "NORMAL",
         description: raw.description || raw.jobDescription || "Standard job description.",
         status: raw.status || "ACTIVE",
-        assignedRecruiterName: raw.assignedRecruiterName || raw.recruiterName || "Rahul Sharma",
-        assignedRecruiterId: raw.assignedRecruiterId || raw.recruiterId || "recruiter-rahul",
+        assignedRecruiterName: raw.assignedRecruiterName || raw.recruiterName || null,
+        assignedRecruiterId: raw.assignedRecruiterId || raw.recruiterId || null,
         recruiterSlaHours: 4,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt,
@@ -565,8 +565,8 @@ class RequirementVendorService {
       return {
         authorized: isAuthorized,
         requirementTitle: reqData?.title || reqData?.role || "Requirement",
-        recruiterId: reqData?.assignedRecruiterId || reqData?.recruiterId || "recruiter-rahul",
-        recruiterName: reqData?.assignedRecruiterName || reqData?.recruiterName || "Rahul Sharma",
+        recruiterId: reqData?.assignedRecruiterId || reqData?.recruiterId || null,
+        recruiterName: reqData?.assignedRecruiterName || reqData?.recruiterName || null,
         clientId: reqData?.clientId || "client-abc",
         clientName: reqData?.clientName || "Enterprise Partner",
         authorizationId: `reqven-${requirementId}-${vendorId}`
@@ -576,8 +576,8 @@ class RequirementVendorService {
       return {
         authorized: false,
         requirementTitle: "Requirement",
-        recruiterId: "recruiter-rahul",
-        recruiterName: "Rahul Sharma",
+        recruiterId: null as any,
+        recruiterName: null as any,
         clientId: "client-abc",
         clientName: "Enterprise Partner",
         authorizationId: `reqven-${requirementId}-${vendorId}`
@@ -621,7 +621,7 @@ class RequirementVendorService {
             if (!isVendorVisible) return false;
 
             const mode: DistributionMode = req.distributionMode || "ALL_MAPPED_VENDORS";
-            const reqRecruiterId = req.assignedRecruiterId || req.recruiterId || "recruiter-rahul";
+            const reqRecruiterId = req.assignedRecruiterId || req.recruiterId || null;
 
             // Explicit requirement_vendor mapping
             if (explicitReqIds.has(req.id)) {

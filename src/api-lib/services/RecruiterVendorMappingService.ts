@@ -14,92 +14,8 @@ export interface RecruiterVendorMappingDoc {
 }
 
 export class RecruiterVendorMappingBackendService {
-  private static MOCK_INITIAL: RecruiterVendorMappingDoc[] = [
-    {
-      id: "map-rahul-abc",
-      recruiterId: "recruiter-rahul",
-      recruiterName: "Rahul Sharma",
-      recruiterEmail: "rahul.sharma@hirenest.ai",
-      vendorId: "vendor-abc",
-      vendorName: "ABC Technologies",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: true
-    },
-    {
-      id: "map-rahul-xyz",
-      recruiterId: "recruiter-rahul",
-      recruiterName: "Rahul Sharma",
-      recruiterEmail: "rahul.sharma@hirenest.ai",
-      vendorId: "vendor-xyz",
-      vendorName: "XYZ Solutions",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: false
-    },
-    {
-      id: "map-rahul-apex",
-      recruiterId: "recruiter-rahul",
-      recruiterName: "Rahul Sharma",
-      recruiterEmail: "rahul.sharma@hirenest.ai",
-      vendorId: "vendor-apex",
-      vendorName: "Apex Global",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: false
-    },
-    {
-      id: "map-rahul-cloudstaff",
-      recruiterId: "recruiter-rahul",
-      recruiterName: "Rahul Sharma",
-      recruiterEmail: "rahul.sharma@hirenest.ai",
-      vendorId: "vendor-cloudstaff",
-      vendorName: "CloudStaff Solutions",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: false
-    },
-    {
-      id: "map-priya-xyz",
-      recruiterId: "recruiter-priya",
-      recruiterName: "Priya Kumar",
-      recruiterEmail: "priya.kumar@hirenest.ai",
-      vendorId: "vendor-xyz",
-      vendorName: "XYZ Solutions",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 22 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: true
-    },
-    {
-      id: "map-priya-nexus",
-      recruiterId: "recruiter-priya",
-      recruiterName: "Priya Kumar",
-      recruiterEmail: "priya.kumar@hirenest.ai",
-      vendorId: "vendor-nexus",
-      vendorName: "Nexus Talent Partners",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 18 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: false
-    },
-    {
-      id: "map-amit-apex",
-      recruiterId: "recruiter-amit",
-      recruiterName: "Amit Singh",
-      recruiterEmail: "amit.singh@hirenest.ai",
-      vendorId: "vendor-apex",
-      vendorName: "Apex Staffing",
-      assignedBy: "HQ Admin",
-      assignedAt: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString(),
-      status: "ACTIVE",
-      isPrimary: true
-    }
-  ];
+  // Strictly empty unless explicitly configured by Admin in Firestore
+  private static MOCK_INITIAL: RecruiterVendorMappingDoc[] = [];
 
   public static async getAllMappings(): Promise<RecruiterVendorMappingDoc[]> {
     try {
@@ -110,32 +26,37 @@ export class RecruiterVendorMappingBackendService {
         }
       }
     } catch (err) {
-      console.warn("[Backend MappingService] Error fetching mappings from Firestore, falling back:", err);
+      console.warn("[Backend MappingService] Error fetching mappings from Firestore:", err);
     }
     return this.MOCK_INITIAL;
   }
 
   public static async getMappedVendorsForRecruiter(recruiterId: string): Promise<string[]> {
+    if (!recruiterId) return [];
     const all = await this.getAllMappings();
     const mapped = all.filter(m => m.recruiterId === recruiterId && m.status === 'ACTIVE');
     return mapped.map(m => m.vendorId);
   }
 
   public static async getMappedRecruitersForVendor(vendorId: string): Promise<RecruiterVendorMappingDoc[]> {
+    if (!vendorId) return [];
     const all = await this.getAllMappings();
-    return all.filter(m => (m.vendorId === vendorId || vendorId.includes(m.vendorId)) && m.status === 'ACTIVE');
+    return all.filter(m => m.vendorId === vendorId && m.status === 'ACTIVE');
   }
 
   public static async assignMapping(mapping: Partial<RecruiterVendorMappingDoc>): Promise<RecruiterVendorMappingDoc> {
+    if (!mapping.recruiterId || !mapping.vendorId) {
+      throw new Error("Missing required mapping fields: recruiterId and vendorId");
+    }
     const id = `map-${mapping.recruiterId}-${mapping.vendorId}`;
     const fullDoc: RecruiterVendorMappingDoc = {
       id,
-      recruiterId: mapping.recruiterId || "recruiter-rahul",
-      recruiterName: mapping.recruiterName || "Rahul Sharma",
+      recruiterId: mapping.recruiterId,
+      recruiterName: mapping.recruiterName || "Assigned Recruiter",
       recruiterEmail: mapping.recruiterEmail,
-      vendorId: mapping.vendorId || "vendor-abc",
-      vendorName: mapping.vendorName || "ABC Technologies",
-      assignedBy: mapping.assignedBy || "HQ Admin",
+      vendorId: mapping.vendorId,
+      vendorName: mapping.vendorName || "Partner Vendor",
+      assignedBy: mapping.assignedBy || "Admin",
       assignedAt: new Date().toISOString(),
       status: "ACTIVE",
       isPrimary: mapping.isPrimary ?? false

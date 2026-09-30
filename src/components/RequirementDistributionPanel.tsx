@@ -42,10 +42,10 @@ export function RequirementDistributionPanel({
     job?.distributionMode || "ALL_MAPPED_VENDORS"
   );
   const [assignedRecruiterId, setAssignedRecruiterId] = useState<string>(
-    job?.assignedRecruiterId || job?.recruiterId || "recruiter-rahul"
+    job?.assignedRecruiterId || job?.recruiterId || ""
   );
   const [assignedRecruiterName, setAssignedRecruiterName] = useState<string>(
-    job?.assignedRecruiterName || job?.recruiterName || "Rahul Sharma"
+    job?.assignedRecruiterName || job?.recruiterName || ""
   );
 
   const [availableVendors, setAvailableVendors] = useState<{ id: string; name: string; status: string }[]>([]);

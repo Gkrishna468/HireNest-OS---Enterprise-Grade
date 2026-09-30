@@ -35,93 +35,8 @@ export interface RecruiterPerformanceMetrics {
   submissionQualityPercent: number;
 }
 
-// Initial seed mapping data for demo/fallback
-const INITIAL_MAPPINGS: RecruiterVendorMapping[] = [
-  {
-    id: "map-rahul-abc",
-    recruiterId: "recruiter-rahul",
-    recruiterName: "Rahul Sharma",
-    recruiterEmail: "rahul.sharma@hirenest.ai",
-    vendorId: "vendor-abc",
-    vendorName: "ABC Technologies",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: true
-  },
-  {
-    id: "map-rahul-xyz",
-    recruiterId: "recruiter-rahul",
-    recruiterName: "Rahul Sharma",
-    recruiterEmail: "rahul.sharma@hirenest.ai",
-    vendorId: "vendor-xyz",
-    vendorName: "XYZ Solutions",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: false
-  },
-  {
-    id: "map-rahul-apex",
-    recruiterId: "recruiter-rahul",
-    recruiterName: "Rahul Sharma",
-    recruiterEmail: "rahul.sharma@hirenest.ai",
-    vendorId: "vendor-apex",
-    vendorName: "Apex Global",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: false
-  },
-  {
-    id: "map-rahul-cloudstaff",
-    recruiterId: "recruiter-rahul",
-    recruiterName: "Rahul Sharma",
-    recruiterEmail: "rahul.sharma@hirenest.ai",
-    vendorId: "vendor-cloudstaff",
-    vendorName: "CloudStaff Solutions",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: false
-  },
-  {
-    id: "map-priya-xyz",
-    recruiterId: "recruiter-priya",
-    recruiterName: "Priya Kumar",
-    recruiterEmail: "priya.kumar@hirenest.ai",
-    vendorId: "vendor-xyz",
-    vendorName: "XYZ Solutions",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 22 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: true
-  },
-  {
-    id: "map-priya-nexus",
-    recruiterId: "recruiter-priya",
-    recruiterName: "Priya Kumar",
-    recruiterEmail: "priya.kumar@hirenest.ai",
-    vendorId: "vendor-nexus",
-    vendorName: "Nexus Talent Partners",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 18 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: false
-  },
-  {
-    id: "map-amit-apex",
-    recruiterId: "recruiter-amit",
-    recruiterName: "Amit Singh",
-    recruiterEmail: "amit.singh@hirenest.ai",
-    vendorId: "vendor-apex",
-    vendorName: "Apex Staffing",
-    assignedBy: "HQ Admin",
-    assignedAt: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString(),
-    status: "ACTIVE",
-    isPrimary: true
-  }
-];
+// Initial mappings: strictly empty unless explicitly configured by Admin
+const INITIAL_MAPPINGS: RecruiterVendorMapping[] = [];
 
 class RecruiterVendorMappingManager {
   private inMemoryMappings: RecruiterVendorMapping[] = [...INITIAL_MAPPINGS];
@@ -138,27 +53,23 @@ class RecruiterVendorMappingManager {
         }
       }
     } catch (err) {
-      console.warn("[RecruiterVendorMappingService] Using local fallback for mappings:", err);
+      console.warn("[RecruiterVendorMappingService] Warning querying recruiter_vendor_mappings:", err);
     }
     return this.inMemoryMappings;
   }
 
   // Get vendors assigned to a specific recruiter
   public async getVendorsForRecruiter(recruiterId: string): Promise<RecruiterVendorMapping[]> {
+    if (!recruiterId) return [];
     const all = await this.getAllMappings();
-    return all.filter(m => 
-      (m.recruiterId === recruiterId || recruiterId.includes(m.recruiterId) || m.recruiterId.includes(recruiterId) || recruiterId === 'default' || recruiterId.includes('rahul')) && 
-      m.status === 'ACTIVE'
-    );
+    return all.filter(m => m.recruiterId === recruiterId && m.status === 'ACTIVE');
   }
 
   // Get recruiters assigned to a specific vendor
   public async getRecruitersForVendor(vendorId: string): Promise<RecruiterVendorMapping[]> {
+    if (!vendorId) return [];
     const all = await this.getAllMappings();
-    return all.filter(m => 
-      (m.vendorId === vendorId || vendorId.includes(m.vendorId) || m.vendorId.includes(vendorId) || vendorId === 'vendor-abc' || vendorId.includes('abc')) && 
-      m.status === 'ACTIVE'
-    );
+    return all.filter(m => m.vendorId === vendorId && m.status === 'ACTIVE');
   }
 
   // Assign or update mapping between recruiter and vendor

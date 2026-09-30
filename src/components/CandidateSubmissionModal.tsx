@@ -146,7 +146,7 @@ export default function CandidateSubmissionModal({
         clientId: clientId || "HQ",
         clientName: clientName || "Enterprise Partner",
         vendorId: vendorId || "local",
-        recruiterId: recruiterId || "recruiter-rahul",
+        recruiterId: recruiterId || null,
         submitterId: vendorId || "local_user",
         initialStatus: "PENDING_REVIEW",
         matchScore: aiAnalysis?.fitScore || 0,

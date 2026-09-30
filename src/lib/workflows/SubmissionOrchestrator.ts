@@ -10,7 +10,7 @@ import {
   getDoc as fbGetDoc,
   setDoc as fbSetDoc,
 } from "firebase/firestore";
-import { isTrustedServiceContext, runAsTrustedService } from "../trusted-context.js";
+import { isTrustedServiceContext, runAsTrustedService } from "../trusted-context.server.js";
 
 async function getDoc(docRef: any): Promise<any> {
   try {

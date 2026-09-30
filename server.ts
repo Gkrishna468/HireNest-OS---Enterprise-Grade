@@ -233,6 +233,8 @@ import { rufloService } from './src/api-lib/services/RufloIntegrationService';
 import aiHealthHandler from './src/api-lib/handlers/ai-health';
 import reactivationHandler from './src/api-lib/handlers/reactivation';
 import networkMappingHandler from './src/api-lib/handlers/network-mapping';
+import { agentTasksHandler } from './src/api-lib/handlers/agentTasks.js';
+import { roiHandler } from './src/api-lib/handlers/roi.js';
 import { ErrorMonitor } from './src/api-lib/telemetry/errorMonitor.js';
 import { CRMEventBridge } from './src/integrations/crm/CRMEventBridge.js';
 
@@ -507,6 +509,8 @@ hirenest_active_requests 0
   app.use('/api/daily-briefing', dailyBriefingHandler);
   app.use('/api/reactivation', reactivationHandler);
   app.use('/api/network-mapping', networkMappingHandler);
+  app.use('/api/agent-tasks', agentTasksHandler);
+  app.use('/api/roi', roiHandler);
 
   // API Route Handler
   app.use('/api', async (req: any, res: any, next: any) => {

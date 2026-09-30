@@ -113,31 +113,9 @@ export default function VendorPartnerWorkspace({
       if (recs.length > 0) {
         setAssignedRecruiters(recs);
       } else {
-        // Fallback team
-        setAssignedRecruiters([
-          {
-            id: 'map-rahul-abc',
-            recruiterId: 'recruiter-rahul',
-            recruiterName: 'Rahul Sharma',
-            recruiterEmail: 'rahul.sharma@hirenest.ai',
-            vendorId: orgId || 'vendor-abc',
-            vendorName: vendorName,
-            assignedAt: new Date().toISOString(),
-            status: 'ACTIVE',
-            isPrimary: true
-          },
-          {
-            id: 'map-priya-abc',
-            recruiterId: 'recruiter-priya',
-            recruiterName: 'Priya Kumar',
-            recruiterEmail: 'priya.kumar@hirenest.ai',
-            vendorId: orgId || 'vendor-abc',
-            vendorName: vendorName,
-            assignedAt: new Date().toISOString(),
-            status: 'ACTIVE',
-            isPrimary: false
-          }
-        ]);
+        // No fake recruiter fallback per P0 architectural invariant:
+        // Recruiters are optional human actors and only assigned explicitly.
+        setAssignedRecruiters([]);
       }
     };
     fetchRecruiters();
@@ -426,22 +404,32 @@ export default function VendorPartnerWorkspace({
             <div>
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-sm font-black uppercase tracking-tight text-white">YOUR HIRENEST RECRUITMENT TEAM</h3>
+                <h3 className="text-sm font-black uppercase tracking-tight text-white">HIRENEST RECRUITMENT SUPPORT</h3>
                 <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px]">
-                  {assignedRecruiters.length} Assigned Recruiters
+                  {assignedRecruiters.length > 0 ? `${assignedRecruiters.length} Assigned Recruiters` : "Automated Workflow"}
                 </Badge>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                HireNest recruiters allocated to manage your candidate submissions and client interview rounds.
+                {assignedRecruiters.length > 0 
+                  ? "HireNest recruiters allocated to manage your candidate submissions and client interview rounds."
+                  : "No recruiter has been assigned to this vendor yet. Your submissions are currently processed through HireNestOS's automated workflow."}
               </p>
             </div>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-              Live Assigned Team
+              {assignedRecruiters.length > 0 ? "Live Assigned Team" : "Automated Processing"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {assignedRecruiters.map(rec => {
+          {assignedRecruiters.length === 0 ? (
+            <div className="bg-slate-950/80 border border-slate-800/80 p-6 rounded-2xl text-center space-y-2">
+              <span className="text-xs font-bold text-white block">Automated Intelligent Queue</span>
+              <p className="text-xs text-slate-400 max-w-lg mx-auto">
+                No recruiter has been assigned to this vendor yet. Your candidate profiles, bench submissions, and matches are processed directly through HireNestOS's verified AI pipeline.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {assignedRecruiters.map(rec => {
               const recPerf = recruiterVendorMappingService.getRecruiterPerformance(rec.recruiterId, rec.recruiterName);
               return (
                 <div key={rec.id} className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl space-y-3 hover:border-slate-700 transition-all">
@@ -482,7 +470,8 @@ export default function VendorPartnerWorkspace({
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -765,7 +754,7 @@ export default function VendorPartnerWorkspace({
                              onClick={() => setSubmittingReq({ 
                                 id: match.requirementId, 
                                 title: match.requirementTitle,
-                                recruiterId: match.requirement.assignedRecruiterId || match.requirement.recruiterId || "recruiter-rahul",
+                                recruiterId: match.requirement.assignedRecruiterId || match.requirement.recruiterId || null,
                                 clientId: match.requirement.clientId || "client-abc",
                                 clientName: match.clientName
                              })}
@@ -995,7 +984,7 @@ export default function VendorPartnerWorkspace({
                           </td>
                           <td className="py-3.5 px-4">
                             <span className="text-slate-200 font-medium block">
-                              👤 {req.assignedRecruiterName || "Rahul Sharma"}
+                              👤 {req.assignedRecruiterName || "Automated Workflow"}
                             </span>
                             <span className="text-[10px] text-emerald-400 font-mono">
                               SLA &lt; 4 hours
@@ -1046,7 +1035,7 @@ export default function VendorPartnerWorkspace({
                                 onClick={() => setSubmittingReq({
                                   id: req.id,
                                   title: req.title || req.role || "Requirement",
-                                  recruiterId: req.assignedRecruiterId || req.recruiterId || "recruiter-rahul",
+                                  recruiterId: req.assignedRecruiterId || req.recruiterId || null,
                                   clientId: req.clientId || "client-abc",
                                   clientName: req.clientName || "Enterprise Partner"
                                 })}

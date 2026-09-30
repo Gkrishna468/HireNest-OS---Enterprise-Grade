@@ -7,7 +7,7 @@ import { requirementVendorService } from "../services/requirementVendorService.j
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase.js";
 import { adminDb } from "../lib/firebase-admin.js";
-import { runAsTrustedService } from "../lib/trusted-context.js";
+import { runAsTrustedService } from "../lib/trusted-context.server.js";
 
 export async function runCandidateSecurityAndE2ETests() {
   await runAsTrustedService({ type: "SERVICE", service: "candidate-security-test" }, async () => {
