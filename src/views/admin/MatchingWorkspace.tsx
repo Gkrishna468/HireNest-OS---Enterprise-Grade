@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Search, CheckCircle2, AlertTriangle, User, Briefcase, Zap, FileText } from "lucide-react";
 import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
+import { collection, getDocs, query, where, limit, addDoc } from "firebase/firestore";
 import { roiEngine } from "../../services/roiEngine";
 import { BusinessEventType } from "../../types/roi";
-import { approvalService } from "../../lib/ApprovalService";
 
 export const MatchingWorkspace: React.FC = () => {
   const [mode, setMode] = useState<'CANDIDATE_TO_REQ' | 'REQ_TO_CANDIDATE'>('CANDIDATE_TO_REQ');
@@ -62,16 +61,26 @@ export const MatchingWorkspace: React.FC = () => {
   };
 
   const handlePrepareSubmission = async (record: CandidateRequirementMatchRecord) => {
-    // 3. Route to P4 approval boundary
-    await approvalService.requestApproval(
-      record.requirementId,
-      "tenant-system",
-      "admin",
-      "ADMIN",
-      null,
-      1 // Assume version 1
-    );
-    alert("Submission draft prepared and sent for approval.");
+    try {
+      await addDoc(collection(db, "approvals"), {
+        approvalId: `appreq-${record.requirementId}-${Date.now()}`,
+        tenantId: "tenant-system",
+        submissionId: record.requirementId,
+        status: "PENDING",
+        requiredApproverType: "ADMIN",
+        assignedRecruiterId: null,
+        requestedBy: "admin",
+        requestedAt: new Date().toISOString(),
+        submissionVersion: 1,
+        policyVersion: "1.0",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      alert("Submission draft prepared and sent for approval.");
+    } catch (e: any) {
+      console.error("Failed to request approval:", e);
+      alert("Failed to prepare submission draft: " + e.message);
+    }
   };
 
   return (
