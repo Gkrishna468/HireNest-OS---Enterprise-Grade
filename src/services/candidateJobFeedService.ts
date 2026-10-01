@@ -186,7 +186,13 @@ export class CandidateJobFeedService {
     const { requirementId, requirementTitle, createdByUserId, createdByRole } = params;
 
     // Generate secure random alphanumeric token
-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(12)))
+    const arr = new Uint8Array(12);
+    if (globalThis.crypto && globalThis.crypto.getRandomValues) {
+      globalThis.crypto.getRandomValues(arr);
+    } else {
+      for (let i = 0; i < arr.length; i++) arr[i] = Math.floor(Math.random() * 256);
+    }
+    const randomHex = Array.from(arr)
       .map(b => b.toString(16).padStart(2, "0"))
       .join("");
     const token = `cand_${requirementId.substring(0, 8)}_${randomHex}`;

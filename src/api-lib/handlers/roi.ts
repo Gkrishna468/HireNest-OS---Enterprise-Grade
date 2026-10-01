@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { roiEngine } from "../../services/roiEngine.js";
+import { runAsTrustedService } from "../../lib/trusted-context.server.js";
 
 /**
  * ROI API Handler (HN-ROI Layer)
@@ -16,7 +17,7 @@ export async function roiHandler(req: Request, res: Response) {
           return res.status(403).json({ success: false, error: "Access denied" });
         }
         const tenantId = (req.query?.tenantId as string) || (req as any).user?.tenantId || undefined;
-        const summary = await roiEngine.getSummary(tenantId);
+        const summary = await runAsTrustedService(() => roiEngine.getSummary(tenantId));
         return res.json({ success: true, summary });
       }
 
@@ -54,7 +55,7 @@ export async function roiHandler(req: Request, res: Response) {
         }
 
         // Strict P0 Invariant: recruiterId is null unless explicitly provided
-        const event = await roiEngine.recordEvent({
+        const event = await runAsTrustedService(() => roiEngine.recordEvent({
           tenantId,
           requirementId,
           eventType,
@@ -68,7 +69,7 @@ export async function roiHandler(req: Request, res: Response) {
           realizedValue: realizedValue || 0,
           cost,
           metadata
-        });
+        }));
 
         return res.status(201).json({ success: true, event });
       }
