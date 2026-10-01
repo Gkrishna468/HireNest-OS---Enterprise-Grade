@@ -31,8 +31,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: false,
-    rollupOptions: {
-      external: ['firebase-admin', 'path', 'fs', 'crypto', 'stream', 'url', 'util', 'assert', 'zlib', 'http', 'https', 'http2', 'net', 'tls', 'dns', 'child_process']
-    }
   },
 });
