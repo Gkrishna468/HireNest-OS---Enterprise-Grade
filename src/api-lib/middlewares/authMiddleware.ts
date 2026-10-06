@@ -21,8 +21,12 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
       '/api/ruflo/health'
     ].includes(currentPath);
 
-    // 2. Public API endpoints (starts with /api/public/)
-    const isPublicApi = currentPath.startsWith('/api/public/') || currentPath === '/api/public-candidate-resume';
+    // 2. Public API endpoints (starts with /api/public/ or /public/ depending on mount context)
+    const isPublicApi = 
+      currentPath.startsWith('/api/public/') || 
+      currentPath.startsWith('/public/') || 
+      currentPath === '/api/public-candidate-resume' ||
+      currentPath === '/public-candidate-resume';
 
     // 3. OAuth callbacks
     const isOAuthCallback = currentPath === '/oauth/callback' || currentPath === '/api/oauth/callback';
