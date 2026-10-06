@@ -25,9 +25,27 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+    match /resumes/{organizationId}/{candidateId}/{fileName} {
+      allow read: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'client_admin', 'client_hm', 'recruiter', 'admin', 'candidate']);
+      allow write: if isAdmin() || (
+        isOrgMember(organizationId) && 
+        request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'recruiter', 'admin', 'candidate'] &&
+        request.resource.size < 15 * 1024 * 1024 &&
+        (request.resource.contentType.matches('application/pdf') ||
+         request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+         request.resource.contentType.matches('application/msword') ||
+         request.resource.contentType.matches('text/plain'))
+      );
+      allow delete: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'admin']);
+    }
+
     match /resumes/{organizationId}/{allPaths=**} {
       allow read: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'client_admin', 'client_hm', 'recruiter', 'admin', 'candidate']);
-      allow write: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'recruiter', 'admin', 'candidate']);
+      allow write: if isAdmin() || (
+        isOrgMember(organizationId) && 
+        request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'recruiter', 'admin', 'candidate'] &&
+        request.resource.size < 15 * 1024 * 1024
+      );
       allow delete: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'admin']);
     }
 
