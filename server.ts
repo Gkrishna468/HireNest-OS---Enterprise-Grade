@@ -420,26 +420,24 @@ hirenest_active_requests 0
         return res.status(400).json({ success: false, error: 'Email is required' });
       }
 
+      const maskedEmail = email.replace(/^(.{2})(.*)(@.*)$/, "$1***$3");
+      const requestId = `LEAD-${Math.random().toString(36).substr(2, 9)}`;
+
       console.log("==========================================");
-      console.log("NEW LEAD CAPTURED - NOTIFICATION");
+      console.log(`NEW LEAD CAPTURED [requestId: ${requestId}]`);
       console.log(`Time: ${new Date().toISOString()}`);
-      console.log(`Name: ${fullName}`);
       console.log(`Plan: ${plan}`);
-      console.log(`Email: ${email}`);
-      console.log(`Company: ${company}`);
-      console.log(`Phone: ${phone}`);
+      console.log(`Masked Email: ${maskedEmail}`);
+      console.log(`Source: server_landing_page`);
       console.log("==========================================");
 
-      // Send simulated email alert to info@hirenestworkforce.com
+      // Send simulated email alert without exposing raw PII in logs
       console.log(`[ALERT_EMAIL] Sending system alert email to info@hirenestworkforce.com:
-      Subject: New Landing Page Lead Captured - ${fullName}
+      Subject: New Landing Page Lead Captured [requestId: ${requestId}]
       Body:
         A new lead has been captured from the landing page.
-        Name: ${fullName}
-        Email: ${email}
-        Company Name: ${company}
-        Phone: ${phone}
         Plan: ${plan}
+        Masked Email: ${maskedEmail}
         Timestamp: ${new Date().toISOString()}
       `);
 
@@ -462,7 +460,7 @@ hirenest_active_requests 0
         );
 
         if (!existingLeads.empty) {
-          console.warn(`[PublicAPI] Lead already exists for email: ${email}. Recorded duplicate attempt.`);
+          console.warn(`[PublicAPI] Lead already exists for email: ${maskedEmail}. Recorded duplicate attempt.`);
           return res.json({ success: true, message: "Lead already exists, recorded duplicate attempt." });
         }
       } catch (dbCheckErr: any) {
@@ -484,7 +482,7 @@ hirenest_active_requests 0
           8000,
           'Lead save'
         );
-        console.log(`[PublicAPI] Lead saved to Firestore for: ${email}`);
+        console.log(`[PublicAPI] Lead saved to Firestore for masked email: ${maskedEmail}`);
       } catch (saveErr: any) {
         // The lead has already been logged above (console + alert log), so
         // don't fail the visitor's submission just because the Firestore

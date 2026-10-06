@@ -4,20 +4,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /landing_page_leads_v1/{leadId} {
-      allow create: if request.resource.data.keys().hasAll(['email', 'fullName']) &&
-                       request.resource.data.email is string &&
-                       request.resource.data.email.size() <= 100 &&
-                       request.resource.data.email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$') &&
-                       request.resource.data.fullName is string &&
-                       request.resource.data.fullName.size() <= 100;
+      allow create: if false;
       allow read, update, delete: if isMainAdmin();
     }
 
     match /early_access_leads/{leadId} {
-      allow create: if request.resource.data.keys().hasAll(['email']) &&
-                       request.resource.data.email is string &&
-                       request.resource.data.email.size() <= 100 &&
-                       request.resource.data.email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+      allow create: if false;
       allow read, update, delete: if isMainAdmin();
     }
 
@@ -30,7 +22,11 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn();
+      return isSignedIn() && (
+        request.auth.token.get('email_verified', false) == true ||
+        request.auth.token.get('firebase', {}).get('sign_in_provider', '') != 'password' ||
+        authRole() in ['admin', 'super_admin', 'business_operations', 'hq_admin', 'ceo', 'ops_admin']
+      );
     }
 
     function authEmail() {
