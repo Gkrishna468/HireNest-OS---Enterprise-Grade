@@ -610,7 +610,12 @@ service cloud.firestore {
     }
 
     match /direct_candidates/{candidateId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        (resource != null && isSameOrg(resource.data.get('vendorId', ''))) ||
+        (resource != null && isSameOrg(resource.data.get('clientId', ''))) ||
+        (resource != null && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('email', '') == authEmail()))
+      );
 
       allow create:
       if isVerified() &&

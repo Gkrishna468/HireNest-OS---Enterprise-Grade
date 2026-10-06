@@ -332,6 +332,14 @@ hirenest_active_requests 0
     message: { error: 'Too many requests, please try again later.' }
   });
 
+  const publicLeadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req: any) => ipKeyGenerator(req.ip) || 'anonymous',
+    message: { success: false, error: 'Too many lead submissions from this IP address. Please try again later.' }
+  });
+  app.use('/api/public', publicLeadLimiter);
+
   // --- Structured Logging Middleware ---
   app.use((req: any, res: any, next: any) => {
     const requestId = req.headers['x-request-id'] || Math.random().toString(36).substring(2, 15);
