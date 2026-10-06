@@ -348,6 +348,7 @@ export default async function handler(req: any, res: any) {
       // Fetch user profile
       const userDoc = await adminDb.collection("users").doc(authUserId).get();
       const userData = userDoc.exists ? userDoc.data() : null;
+      const userEmail = userData?.email || req.user?.email || "";
 
       // Fetch user organization
       let orgData = null;
@@ -356,11 +357,45 @@ export default async function handler(req: any, res: any) {
         if (orgDoc.exists) orgData = orgDoc.data();
       }
 
+      // Fetch associated candidate records
+      const candidates: any[] = [];
+      try {
+        const cSnap = await adminDb.collection("candidatePool").where("userId", "==", authUserId).get();
+        cSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+        if (userEmail) {
+          const cSnapEmail = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
+          cSnapEmail.forEach(d => {
+            if (!candidates.some(c => c.id === d.id)) candidates.push({ id: d.id, ...d.data() });
+          });
+        }
+      } catch (e) {}
+
+      // Fetch candidate submissions
+      const submissions: any[] = [];
+      try {
+        const subSnap = await adminDb.collection("candidate_submissions").where("submittedBy", "==", authUserId).get();
+        subSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
+      } catch (e) {}
+
+      // Fetch interview sessions
+      const interviewSessions: any[] = [];
+      try {
+        const intSnap = await adminDb.collection("ai_interview_sessions").where("userId", "==", authUserId).get();
+        intSnap.forEach(d => interviewSessions.push({ id: d.id, ...d.data() }));
+      } catch (e) {}
+
+      // Fetch consent records
+      const consentRecords: any[] = [];
+      try {
+        const conSnap = await adminDb.collection("consent_records").where("userId", "==", authUserId).get();
+        conSnap.forEach(d => consentRecords.push({ id: d.id, ...d.data() }));
+      } catch (e) {}
+
       // Fetch user activity logs scoped to user
       const userAuditLogs: any[] = [];
       try {
         const auditSnap = await adminDb.collection("audit_logs")
-          .where("deletedUserId", "==", authUserId)
+          .where("userId", "==", authUserId)
           .limit(50)
           .get();
         auditSnap.forEach((d: any) => userAuditLogs.push(d.data()));
@@ -373,7 +408,7 @@ export default async function handler(req: any, res: any) {
         complianceFrameworks: ["DPDP Act 2023", "GDPR Art. 20", "CCPA/CPRA"],
         userProfile: {
           uid: authUserId,
-          email: userData?.email || req.user?.email || null,
+          email: userEmail,
           role: userData?.role || req.user?.role || "guest",
           name: userData?.name || userData?.displayName || null,
           createdAt: userData?.createdAt || null,
@@ -385,8 +420,13 @@ export default async function handler(req: any, res: any) {
           type: orgData.type || orgData.orgType,
           status: orgData.status,
         } : null,
+        candidateProfiles: candidates,
+        candidateSubmissions: submissions,
+        aiInterviewSessions: interviewSessions,
+        consentRecords: consentRecords,
+        auditTrail: userAuditLogs,
         metadata: {
-          exportType: "Subject Access Request",
+          exportType: "Comprehensive Subject Access Request",
           retentionNotice: "Operational system access logs are retained in rolling format up to 180 days per CERT-In Cyber Security Directions 2022.",
         }
       };
@@ -417,8 +457,9 @@ export default async function handler(req: any, res: any) {
       }
 
       const userEmail = req.user?.email || "redacted@hirenest.os";
+      const deletedCollections: string[] = [];
       
-      // Revoke tokens and delete user if adminAuth is available
+      // 1. Revoke tokens and delete user in Firebase Auth
       if (adminAuth) {
         try {
           await adminAuth.revokeRefreshTokens(authUserId).catch(() => {});
@@ -427,15 +468,61 @@ export default async function handler(req: any, res: any) {
           console.warn("[USER_API] adminAuth deleteUser fallback notice:", e.message);
         }
       }
+
+      // 2. Delete user profile
       await adminDb.collection("users").doc(authUserId).delete().catch(() => {});
+      deletedCollections.push("users");
+
+      // 3. Delete user-owned candidate records
+      try {
+        const cSnap = await adminDb.collection("candidatePool").where("userId", "==", authUserId).get();
+        for (const doc of cSnap.docs) {
+          await doc.ref.delete();
+        }
+        if (userEmail) {
+          const cSnapEmail = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
+          for (const doc of cSnapEmail.docs) {
+            await doc.ref.delete();
+          }
+        }
+        deletedCollections.push("candidatePool");
+      } catch (e) {}
+
+      // 4. Delete user submissions
+      try {
+        const subSnap = await adminDb.collection("candidate_submissions").where("submittedBy", "==", authUserId).get();
+        for (const doc of subSnap.docs) {
+          await doc.ref.delete();
+        }
+        deletedCollections.push("candidate_submissions");
+      } catch (e) {}
+
+      // 5. Delete AI interview sessions
+      try {
+        const intSnap = await adminDb.collection("ai_interview_sessions").where("userId", "==", authUserId).get();
+        for (const doc of intSnap.docs) {
+          await doc.ref.delete();
+        }
+        deletedCollections.push("ai_interview_sessions");
+      } catch (e) {}
+
+      // 6. Delete consent records
+      try {
+        const conSnap = await adminDb.collection("consent_records").where("userId", "==", authUserId).get();
+        for (const doc of conSnap.docs) {
+          await doc.ref.delete();
+        }
+        deletedCollections.push("consent_records");
+      } catch (e) {}
 
       // Record immutable audit event with CERT-In 180-day compliance metadata
       await adminDb.collection("audit_logs").add({
         date: new Date().toISOString(),
         timestamp: Date.now(),
-        action: "USER_SELF_ERASURE",
+        action: "USER_COMPREHENSIVE_ERASURE",
         userId: authUserId,
         userEmailMasked: userEmail.replace(/^(.{2})(.*)(@.*)$/, "$1***$3"),
+        erasedCollections: deletedCollections,
         reason: req.body?.reason || "Data Subject Erasure Request",
         legalBasis: "DPDP Act 2023 Sec 12 / GDPR Art 17",
         certInMandate: "Security telemetry retained under CERT-In Directions 2022 (180 days)",
@@ -445,7 +532,8 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         ok: true,
-        message: "Your account and personal profile have been successfully erased.",
+        message: "Your account, personal profile, resumes, submissions, and session records have been comprehensively erased.",
+        erasedCollections: deletedCollections,
         retentionNotice: "In accordance with CERT-In Cyber Security Directions 2022 and applicable financial compliance, non-PII security incident and transaction logs are maintained for a rolling statutory period of 180 days."
       });
     }

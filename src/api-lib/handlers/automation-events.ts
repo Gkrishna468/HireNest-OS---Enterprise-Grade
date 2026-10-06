@@ -9,7 +9,10 @@ export default async function handler(req: any, res: any) {
   }
 
   // --- HMAC SHA256 Signature Security Check ---
-  const webhookSecret = process.env.N8N_WEBHOOK_SECRET || "IsxD4vM3BTAAphK3xlv/PWHikuARJwoc/vnTUtKpj90/iP4+tIvG229Ky4lwJtO4";
+  const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return res.status(500).json({ success: false, error: "N8N_WEBHOOK_SECRET not configured" });
+  }
   if (webhookSecret) {
     const signature = req.headers["x-hirenest-signature"] || req.headers["X-HireNest-Signature"];
     if (!signature) {

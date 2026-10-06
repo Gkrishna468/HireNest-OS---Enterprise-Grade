@@ -1,7 +1,13 @@
 import rufloHandler from '../src/api-lib/handlers/ruflo.js';
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = ['https://os.hirenestworkforce.com', 'https://hirenestworkforce.com', 'http://localhost:3000', 'http://localhost:5173'];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', process.env.NODE_ENV === 'production' ? 'https://os.hirenestworkforce.com' : '*');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 

@@ -8,7 +8,10 @@ const communicationHandler = express.Router();
 const verifyHmacIfPresent = (req: any, res: any, next: any) => {
   const signature = req.headers["x-hirenest-signature"] || req.headers["X-HireNest-Signature"];
   if (signature) {
-    const webhookSecret = process.env.N8N_WEBHOOK_SECRET || "IsxD4vM3BTAAphK3xlv/PWHikuARJwoc/vnTUtKpj90/iP4+tIvG229Ky4lwJtO4";
+    const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      return res.status(500).json({ success: false, error: "N8N_WEBHOOK_SECRET not configured" });
+    }
     const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)

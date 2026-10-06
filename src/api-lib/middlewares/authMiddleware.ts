@@ -68,7 +68,11 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
         return res.status(401).json({ error: 'Unauthorized: Missing required signature header: X-HireNest-Signature' });
       }
 
-      const webhookSecret = process.env.N8N_WEBHOOK_SECRET || "IsxD4vM3BTAAphK3xlv/PWHikuARJwoc/vnTUtKpj90/iP4+tIvG229Ky4lwJtO4";
+      const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.error(`[AuthMiddleware] N8N_WEBHOOK_SECRET is not configured.`);
+        return res.status(500).json({ error: 'Server Configuration Error: Webhook secret not configured' });
+      }
       const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
       const expectedSignature = crypto
         .createHmac("sha256", webhookSecret)
@@ -195,8 +199,7 @@ export const verifyAuth = async (req: any, res: any, next: any) => {
         currentPath.includes('users') ||
         currentPath.includes('analytics') ||
         process.env.NODE_ENV !== 'production' ||
-        process.env.BYPASS_EMAIL_VERIFICATION === 'true' ||
-        true; // ponytail: relax email verification checks in sandbox/preview to enable complete workspace flows
+        process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 
       if (decoded.email_verified !== true && !isExemptFromEmailVerification) {
         return res.status(401).json({ error: 'Unauthorized: Email is not verified' });
