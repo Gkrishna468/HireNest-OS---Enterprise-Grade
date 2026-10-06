@@ -4,12 +4,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /landing_page_leads_v1/{leadId} {
-      allow create: if true;
+      allow create: if request.resource.data.keys().hasAll(['email', 'fullName']) &&
+                       request.resource.data.email is string &&
+                       request.resource.data.email.size() <= 100 &&
+                       request.resource.data.email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$') &&
+                       request.resource.data.fullName is string &&
+                       request.resource.data.fullName.size() <= 100;
       allow read, update, delete: if isMainAdmin();
     }
 
     match /early_access_leads/{leadId} {
-      allow create: if true;
+      allow create: if request.resource.data.keys().hasAll(['email']) &&
+                       request.resource.data.email is string &&
+                       request.resource.data.email.size() <= 100 &&
+                       request.resource.data.email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
       allow read, update, delete: if isMainAdmin();
     }
 
@@ -486,7 +494,12 @@ service cloud.firestore {
     }
 
     match /candidatePool/{candidateId} {
-      allow read: if isVerified() || isOwner(candidateId) || (isSignedIn() && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('email', '') == authEmail()));
+      allow read: if isVerified() && (
+        isAdmin() ||
+        (resource != null && isSameOrg(resource.data.get('vendorId', ''))) ||
+        (resource != null && isSameOrg(resource.data.get('clientId', ''))) ||
+        (resource != null && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('email', '') == authEmail()))
+      );
 
       allow create:
       if isVerified() &&
@@ -1442,8 +1455,25 @@ service cloud.firestore {
     }
 
     match /ai_interview_sessions/{sessionId} {
-      allow read: if isVerified();
-      allow create, update: if isVerified();
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        (resource != null && (resource.data.get('candidateId', '') == request.auth.uid || resource.data.get('userId', '') == request.auth.uid)) ||
+        (resource != null && 'organizationId' in resource.data && isSameOrg(resource.data.organizationId)) ||
+        (resource != null && 'orgId' in resource.data && isSameOrg(resource.data.orgId))
+      );
+      allow create: if isVerified() && (
+        isMainAdmin() ||
+        incoming().get('candidateId', '') == request.auth.uid ||
+        incoming().get('userId', '') == request.auth.uid ||
+        (incoming().keys().hasAny(['organizationId']) && isSameOrg(incoming().organizationId)) ||
+        (incoming().keys().hasAny(['orgId']) && isSameOrg(incoming().orgId))
+      );
+      allow update: if isVerified() && (
+        isMainAdmin() ||
+        (resource != null && (resource.data.get('candidateId', '') == request.auth.uid || resource.data.get('userId', '') == request.auth.uid) &&
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'evaluation', 'recommendation', 'reviewer', 'status', 'finalScore', 'grade']))) ||
+        (resource != null && ('organizationId' in resource.data ? isSameOrg(resource.data.organizationId) : isSameOrg(resource.data.get('orgId', ''))))
+      );
       allow delete: if isSuperAdmin();
     }
 

@@ -20,11 +20,15 @@ service firebase.storage {
     }
 
     match /compliance/{organizationId}/{allPaths=**} {
-      allow read, write: if isOrgMember(organizationId) || isAdmin();
+      allow read: if isOrgMember(organizationId) || isAdmin();
+      allow write: if isAdmin() || isOrgMember(organizationId);
+      allow delete: if isAdmin();
     }
 
     match /resumes/{organizationId}/{allPaths=**} {
-      allow read, write: if isOrgMember(organizationId) || isAdmin();
+      allow read: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'client_admin', 'client_hm', 'recruiter', 'admin', 'candidate']);
+      allow write: if isAdmin() || isOrgMember(organizationId);
+      allow delete: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'admin']);
     }
 
     match /{allPaths=**} {
