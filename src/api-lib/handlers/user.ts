@@ -345,63 +345,63 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({ error: "Database not available" });
       }
 
-      // Fetch user profile
       const userDoc = await adminDb.collection("users").doc(authUserId).get();
       const userData = userDoc.exists ? userDoc.data() : null;
       const userEmail = userData?.email || req.user?.email || "";
 
-      // Fetch user organization
       let orgData = null;
       if (userData?.organizationId) {
         const orgDoc = await adminDb.collection("organizations").doc(userData.organizationId).get();
         if (orgDoc.exists) orgData = orgDoc.data();
       }
 
-      // Fetch associated candidate records
-      const candidates: any[] = [];
+      const exportInventory: Record<string, any[]> = {
+        candidatePool: [],
+        direct_candidates: [],
+        candidate_submissions: [],
+        submissions: [],
+        applications: [],
+        ai_interview_sessions: [],
+        ai_interview_reports: [],
+        consent_records: [],
+        communications: [],
+        notifications: [],
+        audit_logs: []
+      };
+
       try {
         const cSnap = await adminDb.collection("candidatePool").where("userId", "==", authUserId).get();
-        cSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+        cSnap.forEach(d => exportInventory.candidatePool.push({ id: d.id, ...d.data() }));
         if (userEmail) {
           const cSnapEmail = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
-          cSnapEmail.forEach(d => {
-            if (!candidates.some(c => c.id === d.id)) candidates.push({ id: d.id, ...d.data() });
-          });
+          cSnapEmail.forEach(d => { if (!exportInventory.candidatePool.some(c => c.id === d.id)) exportInventory.candidatePool.push({ id: d.id, ...d.data() }); });
         }
-      } catch (e) {}
+      } catch (e) { console.warn("Export candidatePool error:", e); }
 
-      // Fetch candidate submissions
-      const submissions: any[] = [];
+      try {
+        const dcSnap = await adminDb.collection("direct_candidates").where("userId", "==", authUserId).get();
+        dcSnap.forEach(d => exportInventory.direct_candidates.push({ id: d.id, ...d.data() }));
+      } catch (e) { console.warn("Export direct_candidates error:", e); }
+
       try {
         const subSnap = await adminDb.collection("candidate_submissions").where("submittedBy", "==", authUserId).get();
-        subSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
-      } catch (e) {}
+        subSnap.forEach(d => exportInventory.candidate_submissions.push({ id: d.id, ...d.data() }));
+      } catch (e) { console.warn("Export candidate_submissions error:", e); }
 
-      // Fetch interview sessions
-      const interviewSessions: any[] = [];
       try {
         const intSnap = await adminDb.collection("ai_interview_sessions").where("userId", "==", authUserId).get();
-        intSnap.forEach(d => interviewSessions.push({ id: d.id, ...d.data() }));
-      } catch (e) {}
+        intSnap.forEach(d => exportInventory.ai_interview_sessions.push({ id: d.id, ...d.data() }));
+      } catch (e) { console.warn("Export ai_interview_sessions error:", e); }
 
-      // Fetch consent records
-      const consentRecords: any[] = [];
       try {
         const conSnap = await adminDb.collection("consent_records").where("userId", "==", authUserId).get();
-        conSnap.forEach(d => consentRecords.push({ id: d.id, ...d.data() }));
-      } catch (e) {}
+        conSnap.forEach(d => exportInventory.consent_records.push({ id: d.id, ...d.data() }));
+      } catch (e) { console.warn("Export consent_records error:", e); }
 
-      // Fetch user activity logs scoped to user
-      const userAuditLogs: any[] = [];
       try {
-        const auditSnap = await adminDb.collection("audit_logs")
-          .where("userId", "==", authUserId)
-          .limit(50)
-          .get();
-        auditSnap.forEach((d: any) => userAuditLogs.push(d.data()));
-      } catch (e) {
-        // ignore
-      }
+        const auditSnap = await adminDb.collection("audit_logs").where("userId", "==", authUserId).get();
+        auditSnap.forEach(d => exportInventory.audit_logs.push({ id: d.id, ...d.data() }));
+      } catch (e) { console.warn("Export audit_logs error:", e); }
 
       const exportPayload = {
         exportTimestamp: new Date().toISOString(),
@@ -420,13 +420,9 @@ export default async function handler(req: any, res: any) {
           type: orgData.type || orgData.orgType,
           status: orgData.status,
         } : null,
-        candidateProfiles: candidates,
-        candidateSubmissions: submissions,
-        aiInterviewSessions: interviewSessions,
-        consentRecords: consentRecords,
-        auditTrail: userAuditLogs,
+        dataInventory: exportInventory,
         metadata: {
-          exportType: "Comprehensive Subject Access Request",
+          exportType: "Comprehensive System-Wide Subject Access Request",
           retentionNotice: "Operational system access logs are retained in rolling format up to 180 days per CERT-In Cyber Security Directions 2022.",
         }
       };
@@ -451,90 +447,86 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: "Explicit confirmation required: confirm must be 'DELETE' or boolean true." });
       }
 
-      // Check if user is sole admin of ORG-GLOBAL-HQ
       if (authOrgId === "ORG-GLOBAL-HQ" && (authRole === "admin" || authRole === "super_admin")) {
         return res.status(400).json({ error: "Root Global HQ administrators cannot delete their root account via self-service. Contact platform governance." });
       }
 
       const userEmail = req.user?.email || "redacted@hirenest.os";
       const deletedCollections: string[] = [];
-      
-      // 1. Revoke tokens and delete user in Firebase Auth
+      const deletionErrors: any[] = [];
+
       if (adminAuth) {
         try {
-          await adminAuth.revokeRefreshTokens(authUserId).catch(() => {});
-          await adminAuth.deleteUser(authUserId).catch(() => {});
+          await adminAuth.revokeRefreshTokens(authUserId);
+          await adminAuth.deleteUser(authUserId);
         } catch (e: any) {
-          console.warn("[USER_API] adminAuth deleteUser fallback notice:", e.message);
+          console.warn("[USER_API] adminAuth deleteUser notice:", e.message);
+          deletionErrors.push({ target: "firebaseAuth", error: e.message });
         }
       }
 
-      // 2. Delete user profile
-      await adminDb.collection("users").doc(authUserId).delete().catch(() => {});
-      deletedCollections.push("users");
+      const collectionsToPurge = [
+        "users",
+        "candidatePool",
+        "direct_candidates",
+        "candidate_submissions",
+        "submissions",
+        "applications",
+        "ai_interview_sessions",
+        "ai_interview_reports",
+        "consent_records",
+        "communications",
+        "notifications",
+        "candidate_notifications",
+        "job_match_notifications",
+        "candidateOwnership",
+        "ownershipVault",
+        "ownership_claims",
+        "ownership_disputes",
+        "integration_tokens"
+      ];
 
-      // 3. Delete user-owned candidate records
-      try {
-        const cSnap = await adminDb.collection("candidatePool").where("userId", "==", authUserId).get();
-        for (const doc of cSnap.docs) {
-          await doc.ref.delete();
-        }
-        if (userEmail) {
-          const cSnapEmail = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
-          for (const doc of cSnapEmail.docs) {
+      for (const col of collectionsToPurge) {
+        try {
+          const snap = await adminDb.collection(col).where(col === "users" ? "__name__" : "userId", "==", authUserId).get();
+          for (const doc of snap.docs) {
             await doc.ref.delete();
           }
+          if (col === "candidatePool" && userEmail) {
+            const emailSnap = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
+            for (const doc of emailSnap.docs) {
+              await doc.ref.delete();
+            }
+          }
+          deletedCollections.push(col);
+        } catch (err: any) {
+          console.warn(`[USER_API] Deletion error on collection ${col}:`, err.message);
+          deletionErrors.push({ collection: col, error: err.message });
         }
-        deletedCollections.push("candidatePool");
-      } catch (e) {}
+      }
 
-      // 4. Delete user submissions
-      try {
-        const subSnap = await adminDb.collection("candidate_submissions").where("submittedBy", "==", authUserId).get();
-        for (const doc of subSnap.docs) {
-          await doc.ref.delete();
-        }
-        deletedCollections.push("candidate_submissions");
-      } catch (e) {}
-
-      // 5. Delete AI interview sessions
-      try {
-        const intSnap = await adminDb.collection("ai_interview_sessions").where("userId", "==", authUserId).get();
-        for (const doc of intSnap.docs) {
-          await doc.ref.delete();
-        }
-        deletedCollections.push("ai_interview_sessions");
-      } catch (e) {}
-
-      // 6. Delete consent records
-      try {
-        const conSnap = await adminDb.collection("consent_records").where("userId", "==", authUserId).get();
-        for (const doc of conSnap.docs) {
-          await doc.ref.delete();
-        }
-        deletedCollections.push("consent_records");
-      } catch (e) {}
-
-      // Record immutable audit event with CERT-In 180-day compliance metadata
       await adminDb.collection("audit_logs").add({
         date: new Date().toISOString(),
         timestamp: Date.now(),
-        action: "USER_COMPREHENSIVE_ERASURE",
+        action: "USER_COMPREHENSIVE_ERASURE_REPORT",
         userId: authUserId,
         userEmailMasked: userEmail.replace(/^(.{2})(.*)(@.*)$/, "$1***$3"),
         erasedCollections: deletedCollections,
+        deletionErrors: deletionErrors,
         reason: req.body?.reason || "Data Subject Erasure Request",
         legalBasis: "DPDP Act 2023 Sec 12 / GDPR Art 17",
         certInMandate: "Security telemetry retained under CERT-In Directions 2022 (180 days)",
-        status: "COMPLETED",
+        status: deletionErrors.length > 0 ? "PARTIAL_COMPLETED" : "COMPLETED",
         ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown'
       });
 
       return res.status(200).json({
         ok: true,
-        message: "Your account, personal profile, resumes, submissions, and session records have been comprehensively erased.",
+        message: "Account erasure orchestration completed.",
         erasedCollections: deletedCollections,
-        retentionNotice: "In accordance with CERT-In Cyber Security Directions 2022 and applicable financial compliance, non-PII security incident and transaction logs are maintained for a rolling statutory period of 180 days."
+        errors: deletionErrors,
+        status: deletionErrors.length > 0 ? "PARTIAL" : "COMPLETED",
+        retentionNotice: "In accordance with CERT-In Cyber Security Directions 2022, security telemetry logs are maintained for a rolling statutory period of 180 days."
       });
     }
 

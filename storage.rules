@@ -27,7 +27,7 @@ service firebase.storage {
 
     match /resumes/{organizationId}/{allPaths=**} {
       allow read: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'client_admin', 'client_hm', 'recruiter', 'admin', 'candidate']);
-      allow write: if isAdmin() || isOrgMember(organizationId);
+      allow write: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'vendor_recruiter', 'recruiter', 'admin', 'candidate']);
       allow delete: if isAdmin() || (isOrgMember(organizationId) && request.auth.token.get('role', '') in ['vendor_admin', 'admin']);
     }
 
