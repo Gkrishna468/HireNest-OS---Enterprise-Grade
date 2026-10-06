@@ -507,8 +507,7 @@ service cloud.firestore {
            isAdmin() ||
            isSameOrg(incoming().vendorId) ||
            isSameOrg(incoming().clientId) ||
-           (incoming().sourceType == "DIRECT_CANDIDATE" && incoming().email == authEmail()) ||
-           true
+           (incoming().sourceType == "DIRECT_CANDIDATE" && incoming().email == authEmail()) /* removed bypass */ false
          ) &&
          isValidCandidate(incoming());
 
@@ -585,8 +584,7 @@ service cloud.firestore {
              "portfolioUrl",
              "linkedinUrl",
              "githubUrl"
-         ]) ||
-         true
+         ]) /* removed bypass */ false
       ) && (
          !('status' in request.resource.data) ||
          request.resource.data.status != 'DELETED' ||
@@ -620,8 +618,7 @@ service cloud.firestore {
            isAdmin() ||
            isSameOrg(incoming().vendorId) ||
            isSameOrg(incoming().clientId) ||
-           (incoming().sourceType == "DIRECT_CANDIDATE" && incoming().email == authEmail()) ||
-           true
+           (incoming().sourceType == "DIRECT_CANDIDATE" && incoming().email == authEmail()) /* removed bypass */ false
          ) &&
          isValidCandidate(incoming());
 
@@ -698,8 +695,7 @@ service cloud.firestore {
              "portfolioUrl",
              "linkedinUrl",
              "githubUrl"
-         ]) ||
-         true
+         ]) /* removed bypass */ false
       ) && (
          !('status' in request.resource.data) ||
          request.resource.data.status != 'DELETED' ||

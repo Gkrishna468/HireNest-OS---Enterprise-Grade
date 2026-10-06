@@ -72,7 +72,7 @@ export default async function publicHandler(req: any, res: any) {
         );
 
         if (!existingLeads.empty) {
-          console.warn(`[PublicAPI] Lead already exists for email: ${email}. Recorded duplicate attempt.`);
+          console.warn(`[PublicAPI] Lead already exists for email: ${maskedEmail}. Recorded duplicate attempt.`);
           return res.json({ success: true, message: "Lead already exists, recorded duplicate attempt." });
         }
       } catch (dbCheckErr: any) {
