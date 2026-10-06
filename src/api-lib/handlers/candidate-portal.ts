@@ -220,6 +220,11 @@ export default async function handler(req: any, res: any) {
       case "apply": {
         const {
           requirementId,
+          consentGiven,
+          consentType,
+          consentVersion,
+          privacyPolicyVersion,
+          candidateTermsVersion,
           screenAvailability,
           screenOnsiteReady,
           screenCurrentCTC,
@@ -232,6 +237,13 @@ export default async function handler(req: any, res: any) {
 
         if (!requirementId) {
           return res.status(400).json({ error: "Missing requirementId" });
+        }
+
+        // Server-Side Affirmative Consent Enforcement (DPDP Act Sec. 6 / GDPR)
+        if (consentGiven !== true && req.body?.consentGiven !== true) {
+          return res.status(400).json({
+            error: "Affirmative consent required: You must agree to data processing, the Privacy Policy, and Candidate Terms before submitting an application."
+          });
         }
 
         // 1. Retrieve the Requirement details securely
@@ -254,6 +266,29 @@ export default async function handler(req: any, res: any) {
         const candEmail = req.user.email || profile.email || "";
         const candName = req.user.name || req.user.displayName || profile.name || "Candidate";
         const candPhone = profile.phone || "Not provided";
+
+        // Create Durable Consent Record in consent_records Collection
+        try {
+          const consentId = `CONSENT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+          await adminDb.collection("consent_records").doc(consentId).set({
+            id: consentId,
+            userId,
+            candidateUid: userId,
+            email: candEmail,
+            organizationId: requirement.organizationId || requirement.clientId || "HIRENEST-HQ",
+            requirementId,
+            consentType: consentType || "CANDIDATE_RECRUITMENT_DATA_PROCESSING",
+            consentGiven: true,
+            consentVersion: consentVersion || "v1.0",
+            privacyPolicyVersion: privacyPolicyVersion || "2026.1",
+            candidateTermsVersion: candidateTermsVersion || "2026.1",
+            timestamp: new Date().toISOString(),
+            source: "DIRECT_CANDIDATE_APPLY_PAGE",
+            ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown'
+          });
+        } catch (consentErr: any) {
+          console.warn("[CANDIDATE_PORTAL] Non-fatal consent logging notice:", consentErr.message);
+        }
 
         // Determine resume snapshot details
         let finalResumeFileName = profile.resumeFileName || "Direct_Resume.pdf";

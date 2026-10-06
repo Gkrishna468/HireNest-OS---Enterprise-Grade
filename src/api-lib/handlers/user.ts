@@ -1,5 +1,7 @@
 import { adminDb, adminAuth } from "../../lib/firebase-admin.js";
 import { normalizeRole, getPermissionsForRole, isRoleAdminEquivalent, normalizeRecruiterSubtype } from "../../lib/rbac.js";
+import { DeletionJobService } from "../../services/deletionJobService.js";
+import { RetentionWorkerService } from "../../services/retentionWorkerService.js";
 
 export default async function handler(req: any, res: any) {
   // Extract action from path or query
@@ -430,6 +432,43 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, data: exportPayload });
     }
 
+    // Check Deletion Job Status
+    if (action === "deletion-status") {
+      const jobId = req.query?.jobId || req.body?.jobId;
+      if (!jobId) {
+        return res.status(400).json({ error: "Missing jobId parameter" });
+      }
+      if (!authUserId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const job = await DeletionJobService.getJobStatus(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Deletion job not found" });
+      }
+
+      // Security check: verify user owns this deletion job
+      if (job.userId !== authUserId && job.candidateUid !== authUserId && !isAdmin) {
+        return res.status(403).json({ error: "Access denied: Unauthorized access to deletion job" });
+      }
+
+      return res.status(200).json({ ok: true, job });
+    }
+
+    // Retention Audit Worker Trigger (Admin only)
+    if (action === "retention-audit") {
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Administrator authorization required for retention audit" });
+      }
+      const dryRun = req.query?.dryRun !== "false" && req.body?.dryRun !== false;
+      const summary = await RetentionWorkerService.executeRetentionAudit({
+        maxInactiveDays: 730,
+        dryRun,
+        limit: 50
+      });
+      return res.status(200).json({ ok: true, summary });
+    }
+
     // Right to Erasure / Account Deletion Request (GDPR Art. 17, DPDP Act 2023 Sec. 12)
     if (action === "delete-account") {
       if (req.method !== "POST") {
@@ -452,81 +491,21 @@ export default async function handler(req: any, res: any) {
       }
 
       const userEmail = req.user?.email || "redacted@hirenest.os";
-      const deletedCollections: string[] = [];
-      const deletionErrors: any[] = [];
 
-      if (adminAuth) {
-        try {
-          await adminAuth.revokeRefreshTokens(authUserId);
-          await adminAuth.deleteUser(authUserId);
-        } catch (e: any) {
-          console.warn("[USER_API] adminAuth deleteUser notice:", e.message);
-          deletionErrors.push({ target: "firebaseAuth", error: e.message });
-        }
-      }
+      // Initialize durable deletion job
+      const job = await DeletionJobService.createDeletionJob(authUserId, userEmail, authOrgId || "HIRENEST-HQ");
 
-      const collectionsToPurge = [
-        "users",
-        "candidatePool",
-        "direct_candidates",
-        "candidate_submissions",
-        "submissions",
-        "applications",
-        "ai_interview_sessions",
-        "ai_interview_reports",
-        "consent_records",
-        "communications",
-        "notifications",
-        "candidate_notifications",
-        "job_match_notifications",
-        "candidateOwnership",
-        "ownershipVault",
-        "ownership_claims",
-        "ownership_disputes",
-        "integration_tokens"
-      ];
-
-      for (const col of collectionsToPurge) {
-        try {
-          const snap = await adminDb.collection(col).where(col === "users" ? "__name__" : "userId", "==", authUserId).get();
-          for (const doc of snap.docs) {
-            await doc.ref.delete();
-          }
-          if (col === "candidatePool" && userEmail) {
-            const emailSnap = await adminDb.collection("candidatePool").where("email", "==", userEmail).get();
-            for (const doc of emailSnap.docs) {
-              await doc.ref.delete();
-            }
-          }
-          deletedCollections.push(col);
-        } catch (err: any) {
-          console.warn(`[USER_API] Deletion error on collection ${col}:`, err.message);
-          deletionErrors.push({ collection: col, error: err.message });
-        }
-      }
-
-      await adminDb.collection("audit_logs").add({
-        date: new Date().toISOString(),
-        timestamp: Date.now(),
-        action: "USER_COMPREHENSIVE_ERASURE_REPORT",
-        userId: authUserId,
-        userEmailMasked: userEmail.replace(/^(.{2})(.*)(@.*)$/, "$1***$3"),
-        erasedCollections: deletedCollections,
-        deletionErrors: deletionErrors,
-        reason: req.body?.reason || "Data Subject Erasure Request",
-        legalBasis: "DPDP Act 2023 Sec 12 / GDPR Art 17",
-        certInMandate: "Security telemetry retained under CERT-In Directions 2022 (180 days)",
-        status: deletionErrors.length > 0 ? "PARTIAL_COMPLETED" : "COMPLETED",
-        ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown'
-      });
+      // Execute multi-phase deletion state machine
+      const processedJob = await DeletionJobService.processDeletionJob(job.jobId);
 
       return res.status(200).json({
         ok: true,
-        message: "Account erasure orchestration completed.",
-        erasedCollections: deletedCollections,
-        errors: deletionErrors,
-        status: deletionErrors.length > 0 ? "PARTIAL" : "COMPLETED",
-        retentionNotice: "In accordance with CERT-In Cyber Security Directions 2022, security telemetry logs are maintained for a rolling statutory period of 180 days."
+        jobId: processedJob.jobId,
+        status: processedJob.status, // "COMPLETE" | "PARTIAL_FAILURE" | "RETRY_REQUIRED"
+        deletedResourcesCount: processedJob.deletedResources.length,
+        failedResources: processedJob.failedResources,
+        verificationResult: processedJob.verificationResult,
+        retentionNotice: "In accordance with Rule 11 of CERT-In Cyber Security Directions 2022, security telemetry audit records are maintained for a rolling period of 180 days."
       });
     }
 

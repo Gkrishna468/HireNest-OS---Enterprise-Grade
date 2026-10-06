@@ -62,6 +62,9 @@ export default function DirectCandidateApplyPage() {
   // Form Mode for Logged-Out Candidates: "REGISTER" or "SIGNIN"
   const [authMode, setAuthMode] = useState<"REGISTER" | "SIGNIN">("REGISTER");
 
+  // Affirmative Consent & Privacy Disclosures State
+  const [consentGiven, setConsentGiven] = useState<boolean>(false);
+
   // Registration Form State
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -216,6 +219,11 @@ export default function DirectCandidateApplyPage() {
     e.preventDefault();
     if (!job) return;
 
+    if (!consentGiven) {
+      setSubmitError("Mandatory affirmative consent required: Please check the consent box agreeing to the Privacy Policy and Candidate Terms.");
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -347,6 +355,11 @@ export default function DirectCandidateApplyPage() {
         },
         body: JSON.stringify({
           requirementId: job.id,
+          consentGiven: true,
+          consentType: "CANDIDATE_RECRUITMENT_DATA_PROCESSING",
+          consentVersion: "v1.0",
+          privacyPolicyVersion: "2026.1",
+          candidateTermsVersion: "2026.1",
           screenAvailability: availability,
           screenOnsiteReady: onsiteReady,
           screenCurrentCTC: currentCTC,
@@ -914,13 +927,62 @@ export default function DirectCandidateApplyPage() {
                   </div>
                 </div>
 
+                {/* AI Screening Disclosure & Affirmative Consent Section */}
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  {/* AI Screening Disclosure */}
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-950 space-y-1">
+                    <div className="font-semibold flex items-center gap-1.5 text-indigo-900">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      AI-Assisted Screening Disclosure
+                    </div>
+                    <p className="text-[11px] text-indigo-800/90 leading-relaxed">
+                      This application uses AI-assisted technology to extract skills and experience from your resume and assist recruiters in reviewing your application. Final recruitment decisions remain subject to human review under our{" "}
+                      <Link to="/privacy" className="text-indigo-700 font-semibold underline hover:text-indigo-900" target="_blank">
+                        Privacy Policy
+                      </Link>.
+                    </p>
+                  </div>
+
+                  {/* Mandatory Affirmative Consent Checkbox */}
+                  <div className="p-3.5 border border-slate-200 rounded-xl bg-slate-50/60 space-y-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        id="candidate-consent-checkbox"
+                        checked={consentGiven}
+                        onChange={(e) => setConsentGiven(e.target.checked)}
+                        required
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                      />
+                      <span className="text-xs text-slate-700 leading-normal">
+                        I agree to the processing of my personal information and resume for recruitment purposes as described in the{" "}
+                        <Link to="/privacy" className="text-indigo-600 font-semibold underline hover:text-indigo-800" target="_blank">
+                          Privacy Policy
+                        </Link>
+                        . <span className="text-rose-500 font-bold">*</span>
+                      </span>
+                    </label>
+
+                    <div className="text-[11px] text-slate-500 pl-6 border-t border-slate-200/60 pt-2">
+                      By submitting this application, you agree to the{" "}
+                      <Link to="/terms" className="text-indigo-600 font-semibold underline hover:text-indigo-800" target="_blank">
+                        Candidate Terms
+                      </Link>{" "}
+                      and{" "}
+                      <Link to="/privacy" className="text-indigo-600 font-semibold underline hover:text-indigo-800" target="_blank">
+                        Privacy Policy
+                      </Link>.
+                    </div>
+                  </div>
+                </div>
+
                 {/* Submit Action Button */}
                 <div className="pt-2">
                   <Button
                     type="submit"
                     variant="primary"
-                    disabled={isSubmitting || isExtractingResume}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-semibold text-sm shadow-md flex items-center justify-center gap-2"
+                    disabled={isSubmitting || isExtractingResume || !consentGiven}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold text-sm shadow-md flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? (
                       "Submitting Application..."

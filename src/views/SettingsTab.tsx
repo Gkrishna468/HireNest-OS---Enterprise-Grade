@@ -18,6 +18,9 @@ export default function SettingsTab() {
   const [syncResult, setSyncResult] = useState<any>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // AI Skill Indexing Consent Preference State
+  const [aiSkillIndexingAllowed, setAiSkillIndexingAllowed] = useState<boolean>(true);
+
   const handleSyncGoogleSheets = async (overrideUrl?: string) => {
     setIsSyncingSheets(true);
     setSyncError(null);
@@ -53,7 +56,11 @@ export default function SettingsTab() {
       try {
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists() && !isCancelled) {
-          setUserData(userDoc.data());
+          const uData = userDoc.data();
+          setUserData(uData);
+          if (uData.aiSkillIndexingAllowed !== undefined) {
+            setAiSkillIndexingAllowed(uData.aiSkillIndexingAllowed !== false);
+          }
         }
 
         const token = await currentUser.getIdToken();
@@ -484,6 +491,63 @@ export default function SettingsTab() {
                     <div className="w-12 h-6 bg-indigo-500 rounded-full relative cursor-pointer">
                        <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5 shadow-sm"></div>
                     </div>
+                 </div>
+              </div>
+            </section>
+
+            {/* Privacy & AI Processing Consent */}
+            <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 mb-6">
+                <Sparkles className="text-indigo-600" size={20} />
+                <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">AI & Privacy Preferences</h3>
+              </div>
+              <div className="space-y-4">
+                 <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    <div>
+                       <p className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                          <Sparkles size={16} className="text-indigo-600" />
+                          Allow AI Skill Indexing & Semantic Matching
+                       </p>
+                       <p className="text-xs text-slate-500 mt-1 max-w-lg">
+                          Enable automated AI extraction, skill indexing, and candidate-to-job matching for your profile. Disabling this stops future candidate-requirement semantic evaluation.
+                       </p>
+                    </div>
+                    <button
+                       onClick={async () => {
+                          const newValue = !aiSkillIndexingAllowed;
+                          setAiSkillIndexingAllowed(newValue);
+                          try {
+                             const token = await auth.currentUser?.getIdToken();
+                             if (token) {
+                                await fetch('/api/candidate-portal?action=update-profile', {
+                                   method: 'POST',
+                                   headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${token}`
+                                   },
+                                   body: JSON.stringify({
+                                      profile: {
+                                         aiSkillIndexingAllowed: newValue,
+                                         aiConsentUpdatedAt: new Date().toISOString()
+                                      }
+                                   })
+                                });
+                             }
+                          } catch (e) {
+                             console.warn("AI Skill Indexing preference error:", e);
+                          }
+                       }}
+                       className={cn(
+                          "w-12 h-6 rounded-full relative transition-colors cursor-pointer shrink-0",
+                          aiSkillIndexingAllowed ? "bg-indigo-600" : "bg-slate-300"
+                       )}
+                       aria-label="Toggle AI Skill Indexing & Semantic Matching"
+                    >
+                       <div className={cn(
+                          "w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform",
+                          aiSkillIndexingAllowed ? "right-0.5" : "left-0.5"
+                       )}></div>
+                    </button>
                  </div>
               </div>
             </section>

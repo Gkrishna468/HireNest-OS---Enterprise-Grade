@@ -189,6 +189,7 @@ export class CandidateMatchingService {
       experienceYears?: number;
       location?: string;
       preferredWorkMode?: string;
+      aiSkillIndexingAllowed?: boolean;
     },
     requirement: {
       skills?: string[];
@@ -248,7 +249,10 @@ export class CandidateMatchingService {
     let hardGateVerdict: "PASS" | "FAIL" = "PASS";
     let hardGateReason: string | undefined = undefined;
 
-    if (minExpReq > 0 && candExp > 0 && candExp < minExpReq - 2) {
+    if (candidate.aiSkillIndexingAllowed === false) {
+      hardGateVerdict = "FAIL";
+      hardGateReason = "Candidate has withdrawn consent for AI Skill Indexing and Semantic Matching.";
+    } else if (minExpReq > 0 && candExp > 0 && candExp < minExpReq - 2) {
       hardGateVerdict = "FAIL";
       hardGateReason = `Experience requirement (${minExpReq}+ years) exceeds candidate profile (${candExp} years)`;
     } else if (missingMandatoryCount > 1) {

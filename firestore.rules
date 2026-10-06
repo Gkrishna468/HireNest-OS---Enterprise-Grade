@@ -468,6 +468,18 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // CONSENT RECORDS (IMMUTABLE SERVER-ONLY WRITES)
+    // =====================================================
+
+    match /consent_records/{consentId} {
+      allow create, update, delete: if false;
+      allow read: if isVerified() && (
+        isMainAdmin() ||
+        (resource != null && (resource.data.userId == request.auth.uid || resource.data.candidateUid == request.auth.uid))
+      );
+    }
+
+    // =====================================================
     // CANDIDATES & OWNERSHIP
     // =====================================================
 
