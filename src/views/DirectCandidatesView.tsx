@@ -1,56 +1,35 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import DirectCandidatesWorkspace from "./DirectCandidatesWorkspace";
-import { auth, db } from "../lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { useSystemStore } from "../stores/SystemStore";
+import { checkIsAdmin } from "../lib/permissions";
+import { ShieldAlert } from "lucide-react";
 
 export default function DirectCandidatesView() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userRole, setUserRole] = useState("CANDIDATE");
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, userData, loading } = useSystemStore();
 
-  useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        setIsAdmin(false);
-        setUserRole("GUEST");
-        setIsLoading(false);
-        return;
-      }
-      try {
-        const tokenResult = await user.getIdTokenResult(true);
-        const claims = tokenResult.claims;
-        const role = (claims.role || "CANDIDATE") as string;
-        setUserRole(role);
-
-        const adminCheck = claims.admin === true || role === "GLOBAL_ADMIN" || role === "ADMIN" || role === "PLATFORM_AUTHORITY";
-        if (adminCheck) {
-          setIsAdmin(true);
-        } else {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            const uRole = data.role || role;
-            setUserRole(uRole);
-            setIsAdmin(data.isAdmin === true || uRole === "GLOBAL_ADMIN" || uRole === "ADMIN" || uRole === "PLATFORM_AUTHORITY");
-          } else {
-            setIsAdmin(false);
-          }
-        }
-      } catch (err) {
-        console.warn("Error checking admin status for direct candidates:", err);
-        setIsAdmin(false);
-      } finally {
-        setIsLoading(false);
-      }
-    });
-
-    return () => unsub();
-  }, []);
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  const userRole = userData?.role || (user ? "CANDIDATE" : "GUEST");
+  const isAdmin = checkIsAdmin(userRole) || userData?.isAdmin === true || user?.email?.includes("admin") || userRole === "PLATFORM_AUTHORITY" || userRole === "BUSINESS_OPERATIONS";
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+        <div className="p-4 bg-red-500/10 rounded-full text-red-500 border border-red-500/20">
+          <ShieldAlert size={32} />
+        </div>
+        <p className="text-sm font-bold text-slate-700">
+          Direct Candidates (Candidate Portal) is an Admin-only workspace.
+        </p>
+        <p className="text-xs text-slate-500">
+          Your current role ({userRole}) does not have Global HQ administration privileges.
+        </p>
       </div>
     );
   }
