@@ -39,103 +39,25 @@ function verifySyncAuthorization(req: any): { authorized: boolean; reason?: stri
 }
 
 /**
- * Trigger requirements synchronization from Google Sheets / Published CSV / Drive
+ * Retired Google Sheets requirement synchronization endpoint
  * Endpoint: POST /api/sync-requirements
  */
 syncRequirementsHandler.post("/", async (req: any, res: any) => {
-  try {
-    const authCheck = verifySyncAuthorization(req);
-    if (!authCheck.authorized) {
-      return res.status(401).json({
-        success: false,
-        imported: 0,
-        updated: 0,
-        skipped: 0,
-        errors: [authCheck.reason || "Unauthorized"],
-        message: authCheck.reason || "Unauthorized"
-      });
-    }
-
-    const { overrideUrl, sheetUrl, sourceUrl, url } = req.body || {};
-    const targetUrl = overrideUrl || sheetUrl || sourceUrl || url;
-
-    const result = await RequirementSyncService.syncGoogleSheets(targetUrl);
-
-    return res.status(result.success ? 200 : 400).json({
-      success: result.success,
-      imported: result.createdCount,
-      updated: result.updatedCount,
-      skipped: (result as any).skipped || 0,
-      errors: (result as any).errors || [],
-      message: result.success
-        ? "Google Sheets Requirements Synchronized successfully."
-        : "Failed to synchronize requirements.",
-      syncRunId: result.syncRunId,
-      syncedCount: result.syncedCount,
-      isFallbackPreview: result.isFallbackPreview,
-      syncStatus: result.syncStatus,
-      details: result.details
-    });
-  } catch (err: any) {
-    console.error("[SyncRequirementsHandler] POST sync execution failed:", err);
-    return res.status(500).json({
-      success: false,
-      imported: 0,
-      updated: 0,
-      skipped: 0,
-      errors: [err.message || "An internal error occurred during requirement sync."],
-      message: err.message || "An internal error occurred during requirement sync."
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    error: "Gone: Google Sheets requirement synchronization has been retired. Firestore is now the sole authoritative source for requirements."
+  });
 });
 
 /**
- * Trigger requirements synchronization from Google Sheets
+ * Retired Google Sheets requirement synchronization endpoint
  * Endpoint: GET /api/sync-requirements
  */
 syncRequirementsHandler.get("/", async (req: any, res: any) => {
-  try {
-    const authCheck = verifySyncAuthorization(req);
-    if (!authCheck.authorized) {
-      return res.status(401).json({
-        success: false,
-        imported: 0,
-        updated: 0,
-        skipped: 0,
-        errors: [authCheck.reason || "Unauthorized"],
-        message: authCheck.reason || "Unauthorized"
-      });
-    }
-
-    const overrideUrl = (req.query?.overrideUrl || req.query?.sheetUrl || req.query?.url) as string | undefined;
-    const result = await RequirementSyncService.syncGoogleSheets(overrideUrl);
-
-    return res.status(result.success ? 200 : 400).json({
-      success: result.success,
-      imported: result.createdCount,
-      updated: result.updatedCount,
-      skipped: (result as any).skipped || 0,
-      errors: (result as any).errors || [],
-      message: result.success
-        ? "Google Sheets Requirements Synchronized successfully."
-        : "Failed to synchronize requirements.",
-      syncRunId: result.syncRunId,
-      syncedCount: result.syncedCount,
-      isFallbackPreview: result.isFallbackPreview,
-      syncStatus: result.syncStatus,
-      details: result.details
-    });
-  } catch (err: any) {
-    console.error("[SyncRequirementsHandler] GET sync execution failed:", err);
-    return res.status(500).json({
-      success: false,
-      imported: 0,
-      updated: 0,
-      skipped: 0,
-      errors: [err.message || "An internal error occurred during requirement sync."],
-      message: err.message || "An internal error occurred during requirement sync."
-    });
-  }
+  return res.status(410).json({
+    success: false,
+    error: "Gone: Google Sheets requirement synchronization has been retired. Firestore is now the sole authoritative source for requirements."
+  });
 });
 
 /**

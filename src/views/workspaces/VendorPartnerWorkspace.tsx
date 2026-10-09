@@ -67,8 +67,6 @@ export default function VendorPartnerWorkspace({
   const [liveReqs, setLiveReqs] = useState<any[]>([]);
   const [vendorSubs, setVendorSubs] = useState<any[]>([]);
   const [vendorCandidates, setVendorCandidates] = useState<any[]>([]);
-  const [syncingSheets, setSyncingSheets] = useState(false);
-  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [reqFilter, setReqFilter] = useState<string>('ALL');
   const [reqSearch, setReqSearch] = useState<string>('');
 
@@ -165,24 +163,7 @@ export default function VendorPartnerWorkspace({
     };
   }, [orgId]);
 
-  const handleSyncSheets = async () => {
-    try {
-      setSyncingSheets(true);
-      setSyncNotice(null);
-      const res = await fetch("/api/sync-requirements", { credentials: "omit" });
-      const data = await res.json();
-      if (data && data.success) {
-        setSyncNotice(`Synced ${data.metrics?.synced || data.metrics?.total || "all"} requirements from Google Sheets!`);
-      } else {
-        setSyncNotice("Requirements sync refreshed.");
-      }
-    } catch (e: any) {
-      setSyncNotice("Sync initiated with Google Sheets.");
-    } finally {
-      setSyncingSheets(false);
-      setTimeout(() => setSyncNotice(null), 5000);
-    }
-  };
+
 
   useEffect(() => {
     let active = true;
@@ -301,18 +282,7 @@ export default function VendorPartnerWorkspace({
         </div>
       </div>
 
-      {/* Sync Alert Banner */}
-      {syncNotice && (
-        <div className="bg-emerald-950/40 border-b border-emerald-500/30 px-8 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-emerald-300 font-mono">
-            <span className="flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-400" />
-              {syncNotice}
-            </span>
-            <span className="text-[10px] text-emerald-500 uppercase">Live SSOT Active</span>
-          </div>
-        </div>
-      )}
+
 
       {/* High-Impact Enterprise Metrics Strip */}
       <div className="px-8 py-6 bg-slate-900/50 border-b border-slate-800">
@@ -324,15 +294,7 @@ export default function VendorPartnerWorkspace({
               <span className="text-[10px] font-mono uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
                 <Briefcase size={12} className="text-emerald-400" /> Network Requirements
               </span>
-              <button
-                onClick={handleSyncSheets}
-                disabled={syncingSheets}
-                className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded-md transition-colors"
-                title="Synchronize requirements from Google Sheets"
-              >
-                <RefreshCw size={10} className={syncingSheets ? "animate-spin" : ""} />
-                {syncingSheets ? "Syncing..." : "Sync Sheets"}
-              </button>
+
             </div>
             <div className="mt-3 flex items-baseline justify-between">
               <span className="text-3xl font-black text-white">{totalPublicRequirements}</span>
@@ -911,15 +873,7 @@ export default function VendorPartnerWorkspace({
                     ))}
                   </div>
 
-                  <Button
-                    size="sm"
-                    onClick={handleSyncSheets}
-                    disabled={syncingSheets}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-mono h-9 flex items-center gap-1.5"
-                  >
-                    <RefreshCw size={12} className={syncingSheets ? "animate-spin" : ""} />
-                    {syncingSheets ? "Syncing..." : "Sync Sheets"}
-                  </Button>
+
                 </div>
               </div>
 

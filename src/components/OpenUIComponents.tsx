@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { formatExperience, formatBudget } from "../lib/currency";
 import { 
   Brain, 
   Sparkles, 
@@ -292,7 +293,7 @@ export function CandidateCard({ candidate }: { candidate?: any }) {
         <div className="p-3 bg-slate-950 rounded-lg border border-slate-850">
           <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider block">EXPERIENCE</span>
           <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mt-1">
-            <Briefcase size={12} className="text-indigo-400" /> {data.experience}
+            <Briefcase size={12} className="text-indigo-400" /> {formatExperience(data.experience)}
           </span>
         </div>
         <div className="p-3 bg-slate-950 rounded-lg border border-slate-850">
@@ -310,7 +311,7 @@ export function CandidateCard({ candidate }: { candidate?: any }) {
         <div className="p-3 bg-slate-950 rounded-lg border border-slate-850">
           <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider block">COMPENSATION</span>
           <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mt-1">
-            <DollarSign size={12} className="text-indigo-400" /> {data.salaryExpectation}
+            <DollarSign size={12} className="text-indigo-400" /> {formatBudget(data.salaryExpectation)}
           </span>
         </div>
       </div>
@@ -508,11 +509,11 @@ export function RequirementCard({ requirement }: { requirement?: any }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="p-3 bg-slate-950 rounded-lg border border-slate-850">
           <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider block">EXPERIENCE CORE</span>
-          <span className="text-xs font-bold text-slate-200 mt-1 block">{data.experienceRequired}</span>
+          <span className="text-xs font-bold text-slate-200 mt-1 block">{formatExperience(data.experienceRequired)}</span>
         </div>
         <div className="p-3 bg-slate-950 rounded-lg border border-slate-850">
           <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider block">COMPENSATION BAND</span>
-          <span className="text-xs font-bold text-slate-200 mt-1 block">{data.targetCTC}</span>
+          <span className="text-xs font-bold text-slate-200 mt-1 block">{formatBudget(data.targetCTC)}</span>
         </div>
       </div>
 

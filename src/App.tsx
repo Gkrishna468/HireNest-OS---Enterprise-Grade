@@ -1314,7 +1314,7 @@ const AppContent = () => {
             <Route path="/timesheets" element={<TimesheetsTab />} />
             <Route path="/invoices" element={<InvoicesTab />} />
             {isAdmin && <Route path="/admin/candidate-360" element={<CandidatesTab />} />}
-            {isAdmin && <Route path="/admin/requirement-360" element={<JobsTab />} />}
+            <Route path="/admin/requirement-360" element={<JobsTab />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/cookies" element={<CookiePolicyPage />} />

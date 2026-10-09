@@ -1420,7 +1420,7 @@ export default function MatchIntelligenceTab() {
                 const clientBudgetStr = req?.financials?.clientBilling
                   ? formatINR(req.financials.clientBilling)
                   : req?.budgetMax
-                    ? formatBudget(req.budgetMin || 0, req.budgetMax)
+                    ? formatBudget(req.budget || { min: req.budgetMin, max: req.budgetMax })
                     : "--";
 
                 return (

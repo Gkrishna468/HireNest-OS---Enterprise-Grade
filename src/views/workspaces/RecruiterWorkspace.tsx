@@ -115,8 +115,6 @@ export default function RecruiterWorkspace({
 
   // Submitting requirement state
   const [submittingReq, setSubmittingReq] = useState<{ id: string; title: string } | null>(null);
-  const [syncingSheets, setSyncingSheets] = useState(false);
-  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [modalCandidate, setModalCandidate] = useState<any | null>(null);
   const [selectedVendorForModal, setSelectedVendorForModal] = useState<any | null>(null);
 
@@ -236,26 +234,7 @@ export default function RecruiterWorkspace({
     setModalCandidate(found);
   };
 
-  const handleSyncSheets = async () => {
-    try {
-      setSyncingSheets(true);
-      setSyncNotice(null);
-      const res = await fetch("/api/sync-requirements", { credentials: "omit" });
-      const data = await res.json();
-      if (data && data.success) {
-        setSyncNotice(`Synced ${data.metrics?.synced || data.metrics?.total || "all"} requirements from Google Sheets!`);
-        triggerToast("Google Sheets requirements synchronized with platform OS!");
-      } else {
-        setSyncNotice("Requirements sync completed.");
-        triggerToast("Requirements updated from Google Sheets.");
-      }
-    } catch (e: any) {
-      setSyncNotice("Sync initiated with Google Sheets.");
-    } finally {
-      setSyncingSheets(false);
-      setTimeout(() => setSyncNotice(null), 5000);
-    }
-  };
+
 
   const executeAction = async (actionId: string, actionType: string, payload: any, successMsg: string) => {
     setProcessingAction(actionId);
@@ -434,14 +413,6 @@ export default function RecruiterWorkspace({
               <p className="text-[10px] text-slate-400">Core staffing operating workspace</p>
             </div>
             <div className="flex items-center gap-2">
-              <button 
-                onClick={handleSyncSheets} 
-                disabled={syncingSheets}
-                className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white"
-                aria-label="Refresh sheets sync"
-              >
-                <RefreshCw size={14} className={syncingSheets ? "animate-spin" : ""} />
-              </button>
             </div>
           </div>
 
@@ -648,18 +619,7 @@ export default function RecruiterWorkspace({
         </div>
       </div>
 
-      {/* Google Sheets Sync Alert Banner */}
-      {syncNotice && (
-        <div className="hidden md:block bg-emerald-950/40 border-b border-emerald-500/30 px-8 py-2.5">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-emerald-300 font-mono">
-            <span className="flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-400" />
-              {syncNotice}
-            </span>
-            <span className="text-[10px] text-emerald-500 uppercase">Live SSOT Active</span>
-          </div>
-        </div>
-      )}
+
 
       {/* Lifecycle Layer Navigation Row - Robust Flex Column-to-Row */}
       <div className="hidden md:block px-8 py-3 bg-slate-900/40 border-b border-slate-800/60">
@@ -1065,14 +1025,7 @@ export default function RecruiterWorkspace({
                       placeholder="Search requirements..."
                       className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold outline-none text-white focus:border-indigo-500 w-44"
                     />
-                    <Button
-                      size="sm"
-                      onClick={handleSyncSheets}
-                      disabled={syncingSheets}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-[10px] uppercase h-8"
-                    >
-                      <RefreshCw size={10} className={syncingSheets ? "animate-spin" : ""} /> Sync Sheets
-                    </Button>
+
                   </div>
                 </div>
 

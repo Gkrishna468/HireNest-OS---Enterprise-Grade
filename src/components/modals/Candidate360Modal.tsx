@@ -67,10 +67,28 @@ function parseEducationRecords(edu: any): ParsedEducationItem[] {
 }
 
 function formatExperienceDisplay(cand: any): string {
-  if (typeof cand?.experience === 'string' && cand.experience.trim()) return cand.experience;
-  if (typeof cand?.experience === 'number') return `${cand.experience} Years`;
-  if (cand?.totalExperience !== undefined && cand?.totalExperience !== null) return `${cand.totalExperience} Years`;
-  if (cand?.experienceTracker?.computedYears !== undefined) return `${cand.experienceTracker.computedYears} Years`;
+  if (!cand) return 'Experience Under Review';
+  if (typeof cand === 'string') return cand;
+  if (typeof cand === 'number') return `${cand} Years`;
+  if (typeof cand === 'object') {
+    if (typeof cand.experience === 'string' && cand.experience.trim()) return cand.experience;
+    if (typeof cand.experience === 'number') return `${cand.experience} Years`;
+    if (cand.totalExperience !== undefined && cand.totalExperience !== null) return `${cand.totalExperience} Years`;
+    if (cand.experienceTracker?.computedYears !== undefined) return `${cand.experienceTracker.computedYears} Years`;
+    const min = cand.min ?? cand.minimumYears ?? cand.minExperience ?? cand.from;
+    const max = cand.max ?? cand.maximumYears ?? cand.maxExperience ?? cand.to;
+    if (min !== undefined && max !== undefined && min !== null && max !== null) {
+      return `${min}-${max} Yrs`;
+    }
+    if (min !== undefined && min !== null) {
+      return `${min}+ Yrs`;
+    }
+    if (max !== undefined && max !== null) {
+      return `Up to ${max} Yrs`;
+    }
+    if (typeof cand.label === 'string') return cand.label;
+    if (typeof cand.text === 'string') return cand.text;
+  }
   return 'Experience Under Review';
 }
 

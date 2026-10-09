@@ -227,6 +227,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
     permissions: [
       "dashboard.read",
       "requirements.read",
+      "requirements.create",
       "candidates.read",
       "candidate360.read",
       "matching.read",
@@ -250,6 +251,7 @@ export const ROLE_CATALOG: Record<SystemRole, RoleDefinition> = {
     permissions: [
       "dashboard.read",
       "requirements.read",
+      "requirements.create",
       "budgets.manage",
       "budgets.read",
       "commercials.read",

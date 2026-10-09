@@ -22,11 +22,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && (
-        request.auth.token.get('email_verified', false) == true ||
-        request.auth.token.get('firebase', {}).get('sign_in_provider', '') != 'password' ||
-        authRole() in ['admin', 'super_admin', 'business_operations', 'hq_admin', 'ceo', 'ops_admin']
-      );
+      return isSignedIn();
     }
 
     function authEmail() {

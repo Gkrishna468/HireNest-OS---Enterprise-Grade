@@ -51,7 +51,7 @@ import {
 } from "../lib/infrastructureService";
 import { Switch } from "../lib/Switch";
 import { analyzeCandidateMatch } from "../services/aiService";
-import { formatBudget } from "../lib/currency";
+import { formatBudget, formatExperience } from "../lib/currency";
 
 import { RequirementDiscussionThread } from "../components/RequirementDiscussionThread";
 import Candidate360Modal from "../components/modals/Candidate360Modal";
@@ -59,6 +59,7 @@ import { requirementVendorService } from "../services/requirementVendorService";
 import { requirementLifecycleService, RequirementStatus } from "../services/requirementLifecycleService";
 import { requirementDistributionService } from "../services/requirementDistributionService";
 import { AccessControlService } from "../services/accessControlService";
+import { getPermissionsForRole } from "../lib/rbac";
 
 const setDoc = async (ref: any, data: any, options?: any) => {
   const result = await firebaseSetDoc(ref, data, options);
@@ -571,6 +572,8 @@ export default function JobsTab() {
     userRole?.startsWith("independent_") ||
     userRole === "independent";
   const isSupplyLayer = isVendor || isRecruiter || isIndependent;
+  const canCreateRequirement =
+    isAdmin || (userRole ? getPermissionsForRole(userRole).includes("requirements.create") : false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -1456,28 +1459,7 @@ export default function JobsTab() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch('/api/sync-requirements', { method: 'POST' });
-                    const data = await res.json();
-                    if (data.success) {
-                      alert(`Successfully synced ${data.syncedCount || 0} requirements from Google Drive & Sheets! (${data.createdCount || 0} new, ${data.updatedCount || 0} updated)`);
-                      window.location.reload();
-                    } else {
-                      alert(data.message || 'Failed to sync Google Sheets');
-                    }
-                  } catch (e: any) {
-                    alert(e.message || 'Sync failed');
-                  }
-                }}
-                className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 h-10 px-4 rounded-2xl shadow-sm font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                title="Sync Requirements from connected Google Drive & Sheets"
-              >
-                <FileSpreadsheet size={14} className="text-emerald-600" />
-                <span>Sync Google Sheets</span>
-              </button>
-              {(isAdmin || isClient) && !selectedJob && (
+              {canCreateRequirement && !selectedJob && (
                 <Button
                   onClick={() => setShowIntakeForm(!showIntakeForm)}
                   className="bg-indigo-600 hover:bg-slate-900 text-white h-10 px-6 rounded-2xl shadow-xl shadow-indigo-100 font-black uppercase tracking-widest text-[11px] transition-all hover:scale-[1.02]"
@@ -1488,7 +1470,7 @@ export default function JobsTab() {
             </div>
           </div>
 
-          {(isAdmin || isClient) && !selectedJob && showIntakeForm && (
+          {canCreateRequirement && !selectedJob && showIntakeForm && (
             <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden shrink-0 animate-in fade-in slide-in-from-top duration-500">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex flex-col">
@@ -1844,10 +1826,10 @@ export default function JobsTab() {
                       title="No requirements available"
                       description="You don't have any active requirements in your pipeline at the moment. Let's create one based on your hiring needs."
                       actionLabel={
-                        isAdmin || isClient ? "Create Requirement" : undefined
+                        canCreateRequirement ? "Create Requirement" : undefined
                       }
                       onAction={
-                        isAdmin || isClient
+                        canCreateRequirement
                           ? () => setShowIntakeForm(true)
                           : undefined
                       }

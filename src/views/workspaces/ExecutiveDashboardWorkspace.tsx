@@ -16,7 +16,6 @@ import {
   ArrowRight,
   Bot,
   RefreshCw,
-  FileSpreadsheet,
   Download,
   Building2,
   MapPin,
@@ -94,8 +93,6 @@ export default function ExecutiveDashboardWorkspace({
 }) {
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncingSheets, setSyncingSheets] = useState(false);
-  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [liveReqs, setLiveReqs] = useState<any[]>([]);
   const { briefing, loading: briefingLoading } = useDailyBriefing(orgId);
 
@@ -150,27 +147,7 @@ export default function ExecutiveDashboardWorkspace({
     }
   };
 
-  const handleSyncSheets = async () => {
-    try {
-      setSyncingSheets(true);
-      setSyncNotice(null);
-      const res = await fetch("/api/sync-requirements", { credentials: "omit" });
-      const data = await res.json();
-      if (data && data.success) {
-        setSyncNotice(`Successfully synced ${data.metrics?.synced || data.metrics?.total || "all"} requirements from Google Sheets!`);
-        await fetchMetrics();
-      } else {
-        setSyncNotice("Sync completed. Records refreshed.");
-        await fetchMetrics();
-      }
-    } catch (e: any) {
-      setSyncNotice("Sync initiated with Google Sheets.");
-      await fetchMetrics();
-    } finally {
-      setSyncingSheets(false);
-      setTimeout(() => setSyncNotice(null), 6000);
-    }
-  };
+
 
   useEffect(() => {
     fetchMetrics();
@@ -216,15 +193,7 @@ export default function ExecutiveDashboardWorkspace({
           </div>
           
           <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={handleSyncSheets}
-              disabled={syncingSheets}
-              className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-indigo-900/30"
-              title="Pull latest live requirements from Google Sheets"
-            >
-              <FileSpreadsheet className={`w-4 h-4 ${syncingSheets ? "animate-spin" : ""}`} />
-              {syncingSheets ? "Syncing Sheets..." : "Sync Google Sheets"}
-            </button>
+
 
             <button
               onClick={fetchMetrics}
@@ -244,12 +213,7 @@ export default function ExecutiveDashboardWorkspace({
           </div>
         </div>
 
-        {syncNotice && (
-          <div className="max-w-7xl mx-auto mt-3 p-2.5 rounded-xl bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span>{syncNotice}</span>
-          </div>
-        )}
+
       </div>
 
       <div className="flex-1 p-6 lg:px-8">
@@ -329,7 +293,7 @@ export default function ExecutiveDashboardWorkspace({
                 {activeReqCount}
               </div>
               <div className="mt-2 text-[10px] font-mono text-indigo-400 flex items-center gap-1">
-                <FileSpreadsheet size={12} /> SYNCED FROM SHEETS &amp; OS
+                <Target size={12} /> AUTHORITATIVE SSOT
               </div>
             </div>
             
@@ -429,16 +393,9 @@ export default function ExecutiveDashboardWorkspace({
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            {isSheet ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                <FileSpreadsheet className="w-3 h-3" />
-                                Google Sheets
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                                Platform OS
-                              </span>
-                            )}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                              Platform OS
+                            </span>
                           </td>
                           <td className="py-3 px-4">
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">

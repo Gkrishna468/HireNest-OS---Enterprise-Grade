@@ -3,6 +3,7 @@ import { X, Check, XCircle, FileText, Calendar, Link as LinkIcon, MessageSquare,
 import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
 import { cn, getCandidateFitmentScore } from '../../lib/utils';
+import { formatExperience } from '../../lib/currency';
 import { useSubmissionStore } from '../../stores/SubmissionStore';
 
 export function CandidateReviewModal({ submission, requirement, onClose, onSchedule }: any) {
