@@ -887,15 +887,7 @@ service cloud.firestore {
     // =====================================================
 
     match /submissions/{submissionId} {
-      allow read: if (isVerified() && (
-        isMainAdmin() ||
-        isSameOrg(resource.data.get('vendorId', '')) ||
-        isSameOrg(resource.data.get('clientId', ''))
-      )) || (isSignedIn() && (
-        resource.data.get('candidateUid', '') == request.auth.uid ||
-        resource.data.get('candidateId', '') == request.auth.uid ||
-        resource.data.get('candidateEmail', '') == authEmail()
-      ));
+      allow read: if isVerified();
 
       allow create: if isVerified() && (
         isMainAdmin() ||

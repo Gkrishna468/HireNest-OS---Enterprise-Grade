@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
+import { formatExperience } from "../../lib/currency";
 import { useDailyBriefing } from "../../hooks/useDailyBriefing";
 import { auth, db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";

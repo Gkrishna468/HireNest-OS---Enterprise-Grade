@@ -46,6 +46,7 @@ import {
 import { ExecutionFeed } from "../components/ExecutionFeed";
 import { motion, AnimatePresence } from "motion/react";
 import { DealRoomCopilot } from "../components/DealRoomCopilot";
+import { formatExperience } from "../lib/currency";
 import { emitEvent } from "../services/eventBus";
 import { publishEvent } from "../lib/eventEngine";
 

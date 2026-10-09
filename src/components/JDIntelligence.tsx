@@ -16,7 +16,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../lib/utils";
-import { formatBudget } from "../lib/currency";
+import { formatBudget, formatExperience } from "../lib/currency";
 
 interface JDIntelligenceProps {
   job: any;

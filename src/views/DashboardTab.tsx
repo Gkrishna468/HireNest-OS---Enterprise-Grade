@@ -51,7 +51,7 @@ import CandidatePortalWorkspace from "./workspaces/CandidatePortalWorkspace";
 import { subscribeToEvents } from "../services/eventBus";
 import { EnterpriseViewModelService } from "../services/EnterpriseViewModelService";
 import { ProductionDataGuard } from "../lib/ProductionDataGuard";
-import { formatBudget } from "../lib/currency";
+import { formatBudget, formatExperience } from "../lib/currency";
 import { 
   ResponsiveContainer, 
   AreaChart, 
