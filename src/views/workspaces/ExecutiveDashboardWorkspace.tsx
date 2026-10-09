@@ -97,13 +97,14 @@ export default function ExecutiveDashboardWorkspace({
   const [liveReqs, setLiveReqs] = useState<any[]>([]);
   const { briefing, loading: briefingLoading } = useDailyBriefing(orgId);
 
-  // Real-time listener for public requirements
+  // Real-time listener for public requirements (Platform records only, excluding Google Sheets CSV imports)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "requirements_public"), (snap) => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const active = items.filter((r: any) => {
         const s = (r.status || "").toUpperCase();
-        return s !== "DELETED" && s !== "ARCHIVED";
+        const isSheet = r.source === "GOOGLE_SHEET" || r.sourceType === "PUBLISHED_CSV" || r.syncRunId;
+        return s !== "DELETED" && s !== "ARCHIVED" && !isSheet;
       });
       setLiveReqs(active);
     }, (err) => {
@@ -346,7 +347,7 @@ export default function ExecutiveDashboardWorkspace({
                   Active Public Requirements ({liveReqs.length})
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Unified from Google Sheets published CSV &amp; Platform OS
+                  Published directly from HireNestOS Platform (Google Sheets imports excluded)
                 </p>
               </div>
             </div>

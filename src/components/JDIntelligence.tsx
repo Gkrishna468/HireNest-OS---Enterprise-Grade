@@ -71,7 +71,7 @@ export const JDIntelligence: React.FC<JDIntelligenceProps> = ({ job }) => {
                   Experience
                 </p>
                 <p className="text-sm font-bold">
-                  {job.experience || `${job.minExp}+ YRS`}
+                  {formatExperience(job.experience, job.minExp ? `${job.minExp}+ YRS` : "Not Specified")}
                 </p>
               </div>
             </div>

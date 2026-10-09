@@ -565,7 +565,7 @@ export default function DirectCandidateApplyPage() {
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800 text-xs">
                 <div>
                   <span className="text-slate-400 block mb-0.5">Experience</span>
-                  <span className="font-semibold text-slate-200">{job.experience || "3-6 Years"}</span>
+                  <span className="font-semibold text-slate-200">{formatExperience(job.experience, "3-6 Years")}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block mb-0.5">Work Arrangement</span>

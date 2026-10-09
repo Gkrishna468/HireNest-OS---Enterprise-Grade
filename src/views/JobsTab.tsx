@@ -1960,7 +1960,7 @@ export default function JobsTab() {
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase">
                             <Clock size={12} className="text-slate-300" />{" "}
-                            {job.experience}
+                            {formatExperience(job.experience, "Not Specified")}
                           </div>
                           <div className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase border-l pl-4 border-slate-100">
                             <MapPin size={12} className="text-slate-300" />{" "}

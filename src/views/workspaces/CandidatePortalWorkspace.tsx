@@ -44,7 +44,7 @@ import {
 import { signOut } from "firebase/auth";
 import { Badge } from "../../lib/Badge";
 import { Button } from "../../lib/Button";
-import { formatBudget } from "../../lib/currency";
+import { formatBudget, formatExperience } from "../../lib/currency";
 import { auth, db } from "../../lib/firebase";
 import {
   collection,
@@ -1095,7 +1095,7 @@ export default function CandidatePortalWorkspace({
                           </span>
                           <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[11px] font-semibold">
                             <Clock className="w-3 h-3 text-slate-400" />
-                            {job.experience || "4–7 Years"}
+                            {formatExperience(job.experience, "4–7 Years")}
                           </span>
                           {job.budget && (
                             <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[11px] font-semibold">
