@@ -53,18 +53,18 @@ export async function runPhase4Tests(): Promise<{
   // 2. Multi-Turn AI Coach Continuity
   console.log("-> 2. Testing Multi-Turn AI Coach Session Continuity:");
   try {
+    const testSessionId = `sess-test-${Date.now()}`;
     const coachRes1 = await ChiefRecruiterAI.runCoachSession({
-      sessionId: "sess-test-01",
+      sessionId: testSessionId,
       candidateId: "CAN-001",
       requirementId: "REQ-001",
       userQuery: "How should I highlight my microservices experience for this Senior Staff Architect role?"
     });
 
-    console.log("DEBUG coachRes1 history length:", coachRes1.history?.length, coachRes1.history);
     assert(coachRes1.history.length === 2, "First coach turn recorded user query and assistant response");
 
     const coachRes2 = await ChiefRecruiterAI.runCoachSession({
-      sessionId: "sess-test-01",
+      sessionId: testSessionId,
       candidateId: "CAN-001",
       requirementId: "REQ-001",
       userQuery: "Can you give me an example architectural decision tradeoff I can explain?"

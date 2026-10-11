@@ -126,7 +126,9 @@ export const db = new Proxy({}, {
 
 export const auth = new Proxy({}, {
   get: (target, prop) => {
-    if (!adminAuth) return undefined;
+    if (!adminAuth) {
+      throw new Error("FIREBASE_ADMIN_AUTH_UNAVAILABLE");
+    }
     const val = adminAuth[prop];
     return typeof val === 'function' ? val.bind(adminAuth) : val;
   }
