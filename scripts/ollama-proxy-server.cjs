@@ -4,6 +4,8 @@
  * Enforces Bearer token auth, timing-safe validation, model allowlists, 2MB payload limits,
  * rate limiting, bounded concurrency, upstream timeouts, and zero paid fallback isolation.
  *
+ * Extension: .cjs (CommonJS module extension so Node treats it as CJS in "type": "module" package)
+ *
  * Environment Variables:
  * - OLLAMA_PROXY_KEY: Required. Strong Bearer token secret (minimum 16 characters).
  * - PORT: Local proxy port (default: 11435).
@@ -14,7 +16,7 @@
  *
  * Startup Command (Windows CMD):
  *   set OLLAMA_PROXY_KEY=your_strong_secret_bearer_token_here_32chars
- *   node scripts/ollama-proxy-server.js
+ *   node scripts/ollama-proxy-server.cjs
  */
 
 const express = require("express");

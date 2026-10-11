@@ -14,7 +14,7 @@ import net from "net";
 import { AIGateway } from "../services/AIGateway.js";
 
 const require = createRequire(import.meta.url);
-const { createProxyApp } = require("../../../scripts/ollama-proxy-server.js");
+const { createProxyApp } = require("../../../scripts/ollama-proxy-server.cjs");
 
 export async function runOllamaProxySecurityAuditTests(): Promise<{
   passed: number;
