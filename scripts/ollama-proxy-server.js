@@ -5,7 +5,7 @@
  * rate limiting, bounded concurrency, upstream timeouts, and zero paid fallback isolation.
  *
  * Environment Variables:
- * - OLLAMA_PROXY_KEY: Required. Bearer token secret (default: "local_secure_proxy_key" for dev/test).
+ * - OLLAMA_PROXY_KEY: Required. Strong Bearer token secret (minimum 16 characters).
  * - PORT: Local proxy port (default: 11435).
  * - HOST: Local interface bind address (default: "127.0.0.1").
  * - OLLAMA_TARGET_URL: Upstream Ollama service (default: "http://127.0.0.1:11434").
@@ -13,7 +13,7 @@
  * - TIMEOUT_MS: Upstream request timeout in ms (default: 30000).
  *
  * Startup Command (Windows CMD):
- *   set OLLAMA_PROXY_KEY=your_secure_bearer_token_here
+ *   set OLLAMA_PROXY_KEY=your_strong_secret_bearer_token_here_32chars
  *   node scripts/ollama-proxy-server.js
  */
 
@@ -24,7 +24,18 @@ const crypto = require("crypto");
 const DEFAULT_PORT = 11435;
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_TARGET_URL = "http://127.0.0.1:11434";
-const DEFAULT_KEY = "local_secure_proxy_key";
+
+const WEAK_PLACEHOLDERS = new Set([
+  "password",
+  "123456",
+  "12345678",
+  "secret",
+  "local_secure_proxy_key",
+  "admin",
+  "test",
+  "ollama_key",
+  "bearer_token"
+]);
 
 const ALLOWED_MODELS = new Set([
   "qwen3:8b",
@@ -36,8 +47,18 @@ const ALLOWED_MODELS = new Set([
 ]);
 
 function createProxyApp(options = {}) {
+  const apiKey = options.apiKey || process.env.OLLAMA_PROXY_KEY;
+
+  if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+    throw new Error("Ollama proxy secret is required. Set process.env.OLLAMA_PROXY_KEY or pass options.apiKey.");
+  }
+
+  const trimmedKey = apiKey.trim();
+  if (trimmedKey.length < 16 || WEAK_PLACEHOLDERS.has(trimmedKey.toLowerCase())) {
+    throw new Error("Insecure Ollama proxy secret: Secret must be at least 16 characters long and cannot be a weak placeholder value.");
+  }
+
   const app = express();
-  const apiKey = options.apiKey || process.env.OLLAMA_PROXY_KEY || DEFAULT_KEY;
   const targetUrlStr = options.targetUrl || process.env.OLLAMA_TARGET_URL || DEFAULT_TARGET_URL;
   const maxConcurrency = options.maxConcurrency || parseInt(process.env.MAX_CONCURRENT_INFERENCES || "5", 10);
   const timeoutMs = options.timeoutMs || parseInt(process.env.TIMEOUT_MS || "30000", 10);
@@ -65,11 +86,11 @@ function createProxyApp(options = {}) {
       return false;
     }
     const token = authHeader.slice(7).trim();
-    if (token.length !== apiKey.length) {
+    if (token.length !== trimmedKey.length) {
       return false;
     }
     try {
-      return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(apiKey));
+      return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(trimmedKey));
     } catch {
       return false;
     }
