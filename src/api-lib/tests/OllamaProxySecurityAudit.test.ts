@@ -260,9 +260,96 @@ export async function runOllamaProxySecurityAuditTests(): Promise<{
       offlineProxyServer.close();
     }
 
-    // 12. Upstream Timeout Simulation on Ephemeral Port -> HTTP 504
+    // 12. Upstream Timeout & Slow CPU Inference Simulation
+    console.log("-> 6. Testing Upstream Slow CPU Inference & Timeout Handling:");
+
+    // 12a. Successful Slow Inference Within Timeout Window
+    const mockSlowServer = http.createServer((req, res) => {
+      // Delay 200ms to simulate slow CPU inference
+      setTimeout(() => {
+        if (!res.writableEnded) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ response: "HIRENEST_LOCAL_AI_OK", model: "qwen3:8b" }));
+        }
+      }, 200);
+    });
+    mockSlowServer.on("error", (err) => console.warn("[Slow Server Warning]:", err.message));
+    await new Promise<void>((res) => mockSlowServer.listen(0, "127.0.0.1", () => res()));
+    const mockSlowPort = (mockSlowServer.address() as net.AddressInfo).port;
+
+    const slowProxyApp = createProxyApp({
+      apiKey: STRONG_TEST_KEY,
+      targetUrl: `http://127.0.0.1:${mockSlowPort}`,
+      timeoutMs: 1000 // 1000ms > 200ms delay
+    });
+
+    let slowProxyServer: http.Server;
+    await new Promise<void>((resolve) => {
+      slowProxyServer = slowProxyApp.listen(0, "127.0.0.1", () => resolve());
+    });
+    slowProxyServer.on("error", (err) => console.warn("[Slow Proxy Warning]:", err.message));
+    const slowProxyPort = (slowProxyServer.address() as net.AddressInfo).port;
+
+    try {
+      // Fast /health check on slow proxy app (should not wait for upstream model)
+      const startHealth = Date.now();
+      const resHealthFast = await new Promise<{ status: number; body: any }>((resolve) => {
+        const req = http.request({
+          hostname: "127.0.0.1",
+          port: slowProxyPort,
+          path: "/health",
+          method: "GET",
+          headers: { "Authorization": `Bearer ${STRONG_TEST_KEY}` }
+        }, (res) => {
+          let data = "";
+          res.on("data", chunk => data += chunk);
+          res.on("end", () => {
+            let parsed = null;
+            try { parsed = JSON.parse(data); } catch { parsed = data; }
+            resolve({ status: res.statusCode || 500, body: parsed });
+          });
+        });
+        req.end();
+      });
+      const healthDuration = Date.now() - startHealth;
+      assert(resHealthFast.status === 200, "GET /health responds with HTTP 200");
+      assert(healthDuration < 100, `GET /health responds immediately (${healthDuration}ms) without invoking model`);
+
+      // POST /api/generate slow CPU inference test
+      const resSlowInference = await new Promise<{ status: number; body: any }>((resolve) => {
+        const req = http.request({
+          hostname: "127.0.0.1",
+          port: slowProxyPort,
+          path: "/api/generate",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${STRONG_TEST_KEY}`
+          }
+        }, (res) => {
+          let data = "";
+          res.on("data", chunk => data += chunk);
+          res.on("end", () => {
+            let parsed = null;
+            try { parsed = JSON.parse(data); } catch { parsed = data; }
+            resolve({ status: res.statusCode || 500, body: parsed });
+          });
+        });
+        req.on("error", (err) => resolve({ status: 500, body: { error: err.message } }));
+        req.write(JSON.stringify({ model: "qwen3:8b", prompt: "Reply with HIRENEST_LOCAL_AI_OK" }));
+        req.end();
+      });
+
+      assert(resSlowInference.status === 200, "Slow local CPU inference within timeout window succeeds (HTTP 200)");
+      assert(resSlowInference.body?.response === "HIRENEST_LOCAL_AI_OK", "Slow inference returns expected Ollama payload");
+    } finally {
+      slowProxyServer.close();
+      mockSlowServer.close();
+    }
+
+    // 12b. Genuine Timeout Simulation Beyond Configured TIMEOUT_MS -> HTTP 504
     const mockTimeoutServer = http.createServer((req, res) => {
-      // Delay response past 500ms timeout
+      // Delay response past 300ms timeout
       setTimeout(() => {
         if (!res.writableEnded) res.end("slow");
       }, 1500);
@@ -311,8 +398,8 @@ export async function runOllamaProxySecurityAuditTests(): Promise<{
         req.end();
       });
 
-      assert(resTimeout.status === 504, "Slow upstream request returns HTTP 504 Gateway Timeout");
-      assert(resTimeout.body?.error?.includes("Gateway Timeout"), "Response specifies Gateway Timeout");
+      assert(resTimeout.status === 504, "Genuine timeout beyond TIMEOUT_MS returns HTTP 504 Gateway Timeout");
+      assert(resTimeout.body?.error?.includes("Gateway Timeout"), "Response specifies Gateway Timeout error");
     } finally {
       timeoutProxyServer.close();
       mockTimeoutServer.close();

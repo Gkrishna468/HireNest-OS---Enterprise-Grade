@@ -12,7 +12,7 @@
  * - HOST: Local interface bind address (default: "127.0.0.1").
  * - OLLAMA_TARGET_URL: Upstream Ollama service (default: "http://127.0.0.1:11434").
  * - MAX_CONCURRENT_INFERENCES: Maximum parallel active inference requests (default: 5).
- * - TIMEOUT_MS: Upstream request timeout in ms (default: 30000).
+ * - TIMEOUT_MS: Upstream request timeout in ms (default: 180000 / 3 minutes for slow CPU inference).
  *
  * Startup Command (Windows CMD):
  *   set OLLAMA_PROXY_KEY=your_strong_secret_bearer_token_here_32chars
@@ -26,6 +26,7 @@ const crypto = require("crypto");
 const DEFAULT_PORT = 11435;
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_TARGET_URL = "http://127.0.0.1:11434";
+const DEFAULT_TIMEOUT_MS = 180000; // 3 minutes for slow local CPU inference
 
 const WEAK_PLACEHOLDERS = new Set([
   "password",
@@ -63,7 +64,7 @@ function createProxyApp(options = {}) {
   const app = express();
   const targetUrlStr = options.targetUrl || process.env.OLLAMA_TARGET_URL || DEFAULT_TARGET_URL;
   const maxConcurrency = options.maxConcurrency || parseInt(process.env.MAX_CONCURRENT_INFERENCES || "5", 10);
-  const timeoutMs = options.timeoutMs || parseInt(process.env.TIMEOUT_MS || "30000", 10);
+  const timeoutMs = options.timeoutMs || parseInt(process.env.TIMEOUT_MS || String(DEFAULT_TIMEOUT_MS), 10);
 
   let activeInferences = 0;
 
@@ -156,6 +157,17 @@ function createProxyApp(options = {}) {
       return res.status(429).json({
         error: `Too Many Requests: Maximum concurrent inference limit (${maxConcurrency}) reached. Please retry shortly.`
       });
+    }
+
+    // Adjust socket and request timeouts to accommodate slow CPU inference up to timeoutMs
+    if (req.socket && typeof req.socket.setTimeout === "function") {
+      req.socket.setTimeout(timeoutMs + 10000);
+    }
+    if (typeof req.setTimeout === "function") {
+      req.setTimeout(timeoutMs + 10000);
+    }
+    if (typeof res.setTimeout === "function") {
+      res.setTimeout(timeoutMs + 10000);
     }
 
     activeInferences++;
