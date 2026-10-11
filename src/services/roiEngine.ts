@@ -10,6 +10,7 @@ import {
   orderBy 
 } from "firebase/firestore";
 import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
+import { adminDb } from "../lib/firebase-admin.js";
 import { emitEvent } from "./eventBus.js";
 import { 
   BusinessEventType, 
@@ -153,12 +154,9 @@ export class ROIEngine {
     try {
       await setDoc(doc(db, this.collectionName, eventId), event);
     } catch (err: any) {
-      if (isTrustedServiceContext()) {
+      if (isTrustedServiceContext() && adminDb) {
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
-          if (adminDb) {
-            await adminDb.collection(this.collectionName).doc(eventId).set(event);
-          }
+          await adminDb.collection(this.collectionName).doc(eventId).set(event);
         } catch (adminErr) {
           console.warn("[ROIEngine] Failed adminDb write fallback:", adminErr);
         }
@@ -238,14 +236,11 @@ export class ROIEngine {
     const events: BusinessValueEvent[] = [];
 
     try {
-      if (isTrustedServiceContext()) {
-        const { adminDb } = await import("../lib/firebase-admin.js");
-        if (adminDb) {
-          let ref: any = adminDb.collection(this.collectionName);
-          if (tenantId) ref = ref.where("tenantId", "==", tenantId);
-          const snap = await ref.limit(500).get();
-          snap.forEach((d: any) => events.push(d.data() as BusinessValueEvent));
-        }
+      if (isTrustedServiceContext() && adminDb) {
+        let ref: any = adminDb.collection(this.collectionName);
+        if (tenantId) ref = ref.where("tenantId", "==", tenantId);
+        const snap = await ref.limit(500).get();
+        snap.forEach((d: any) => events.push(d.data() as BusinessValueEvent));
       } else {
         let q = query(collection(db, this.collectionName), limit(500));
         if (tenantId) {

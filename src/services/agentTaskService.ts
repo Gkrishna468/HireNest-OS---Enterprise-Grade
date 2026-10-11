@@ -9,6 +9,7 @@ import {
   orderBy 
 } from "firebase/firestore";
 import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
+import { adminDb } from "../lib/firebase-admin.js";
 import { 
   AgentTask, 
   AgentTaskStep, 
@@ -439,12 +440,9 @@ export class AgentTaskService {
     const stepsPath = `${this.tasksCollection}/${taskId}/steps`;
 
     try {
-      if (isTrustedServiceContext()) {
-        const { adminDb } = await import("../lib/firebase-admin.js");
-        if (adminDb) {
-          const snap = await adminDb.collection(this.tasksCollection).doc(taskId).collection("steps").orderBy("stepIndex", "asc").get();
-          snap.forEach((d: any) => steps.push(d.data() as AgentTaskStep));
-        }
+      if (isTrustedServiceContext() && adminDb) {
+        const snap = await adminDb.collection(this.tasksCollection).doc(taskId).collection("steps").orderBy("stepIndex", "asc").get();
+        snap.forEach((d: any) => steps.push(d.data() as AgentTaskStep));
       } else {
         const snap = await getDocs(query(collection(db, stepsPath), orderBy("stepIndex", "asc")));
         snap.forEach(d => steps.push(d.data() as AgentTaskStep));
@@ -458,12 +456,9 @@ export class AgentTaskService {
 
   public async getTask(taskId: string): Promise<AgentTask | null> {
     try {
-      if (isTrustedServiceContext()) {
-        const { adminDb } = await import("../lib/firebase-admin.js");
-        if (adminDb) {
-          const snap = await adminDb.collection(this.tasksCollection).doc(taskId).get();
-          return snap.exists ? (snap.data() as AgentTask) : null;
-        }
+      if (isTrustedServiceContext() && adminDb) {
+        const snap = await adminDb.collection(this.tasksCollection).doc(taskId).get();
+        return snap.exists ? (snap.data() as AgentTask) : null;
       }
 
       const snap = await getDoc(doc(db, this.tasksCollection, taskId));
@@ -478,11 +473,8 @@ export class AgentTaskService {
     try {
       await setDoc(doc(db, this.tasksCollection, task.id), task);
     } catch (err) {
-      if (isTrustedServiceContext()) {
-        const { adminDb } = await import("../lib/firebase-admin.js");
-        if (adminDb) {
-          await adminDb.collection(this.tasksCollection).doc(task.id).set(task);
-        }
+      if (isTrustedServiceContext() && adminDb) {
+        await adminDb.collection(this.tasksCollection).doc(task.id).set(task);
       } else {
         handleFirestoreError(err, OperationType.WRITE, `${this.tasksCollection}/${task.id}`);
       }
@@ -494,11 +486,8 @@ export class AgentTaskService {
     try {
       await setDoc(doc(db, stepPath, step.id), step);
     } catch (err) {
-      if (isTrustedServiceContext()) {
-        const { adminDb } = await import("../lib/firebase-admin.js");
-        if (adminDb) {
-          await adminDb.collection(this.tasksCollection).doc(step.taskId).collection("steps").doc(step.id).set(step);
-        }
+      if (isTrustedServiceContext() && adminDb) {
+        await adminDb.collection(this.tasksCollection).doc(step.taskId).collection("steps").doc(step.id).set(step);
       } else {
         handleFirestoreError(err, OperationType.WRITE, `${stepPath}/${step.id}`);
       }

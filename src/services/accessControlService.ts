@@ -3,6 +3,7 @@ import { recruiterVendorMappingService } from "./recruiterVendorMappingService.j
 import { CandidateRequirementEligibilityPolicy } from "./CandidateRequirementEligibilityPolicy.js";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../lib/firebase.js";
+import { adminDb } from "../lib/firebase-admin.js";
 
 export type RecruiterType = 'INTERNAL' | 'VENDOR' | 'FREELANCE';
 export type ABACScope = 'ASSIGNED_ONLY' | 'ALL_PERMITTED' | 'EXPLICIT_ONLY';
@@ -135,7 +136,6 @@ export class AccessControlService {
       return !snap.empty;
     } catch (_) {
       try {
-        const { adminDb } = await import("../lib/firebase-admin.js");
         if (adminDb) {
           const snap = await adminDb.collection("submissions")
             .where("candidateId", "==", candidateId)
@@ -164,7 +164,6 @@ export class AccessControlService {
       return !snap.empty;
     } catch (_) {
       try {
-        const { adminDb } = await import("../lib/firebase-admin.js");
         if (adminDb) {
           const snap = await adminDb.collection("submissions")
             .where("candidateId", "==", candidateId)
@@ -191,7 +190,6 @@ export class AccessControlService {
         }
       } catch (_) {
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
           if (adminDb) {
             const reqSnap = await adminDb.collection("requirements").doc(reqId).get();
             if (reqSnap.exists) {
@@ -219,7 +217,6 @@ export class AccessControlService {
         }
       } catch (_) {
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
           if (adminDb) {
             const reqSnap = await adminDb.collection("requirements").doc(reqId).get();
             if (reqSnap.exists && (reqSnap.data().clientId === cId || reqSnap.data().client_id === cId)) {
@@ -245,7 +242,6 @@ export class AccessControlService {
       if (reqSnap.exists()) return reqSnap.data();
     } catch (_) {
       try {
-        const { adminDb } = await import("../lib/firebase-admin.js");
         if (adminDb) {
           const reqSnap = await adminDb.collection('requirements').doc(requirementId).get();
           if (reqSnap.exists) return reqSnap.data();
@@ -257,7 +253,6 @@ export class AccessControlService {
       if (reqSnap.exists()) return reqSnap.data();
     } catch (_) {
       try {
-        const { adminDb } = await import("../lib/firebase-admin.js");
         if (adminDb) {
           const reqSnap = await adminDb.collection('requirements_public').doc(requirementId).get();
           if (reqSnap.exists) return reqSnap.data();
@@ -292,7 +287,6 @@ export class AccessControlService {
 
     // 2. Fallback to adminDb if Client SDK reads fail or are unauthenticated
     try {
-      const { adminDb } = await import("../lib/firebase-admin.js");
       if (adminDb) {
         const candSnap = await adminDb.collection('candidates').doc(candidateId).get();
         if (candSnap.exists) return candSnap.data();

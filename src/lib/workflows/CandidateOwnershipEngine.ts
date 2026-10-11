@@ -1,18 +1,10 @@
 import { db } from "../firebase.js";
+import { adminDb } from "../firebase-admin.js";
 import { collection, doc, setDoc, getDoc, query, where, getDocs, serverTimestamp, addDoc } from "firebase/firestore";
 
-let cachedAdminDb: any = null;
 async function getAdminDb() {
   if (typeof window !== "undefined") return null;
-  if (!cachedAdminDb) {
-    try {
-      const mod = await import("../firebase-admin.js");
-      cachedAdminDb = mod.adminDb;
-    } catch {
-      cachedAdminDb = null;
-    }
-  }
-  return cachedAdminDb;
+  return adminDb;
 }
 
 export interface OwnershipRecord {

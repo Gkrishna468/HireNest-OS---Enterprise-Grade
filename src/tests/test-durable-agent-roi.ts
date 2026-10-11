@@ -3,6 +3,7 @@ import { roiEngine } from "../services/roiEngine.js";
 import { AgentTaskStatus } from "../types/agentTask.js";
 import { BusinessEventType } from "../types/roi.js";
 import { runAsTrustedService } from "../lib/trusted-context.server.js";
+import { adminDb } from "../lib/firebase-admin.js";
 import { AgentTaskActivities } from "../temporal/activities/AgentTaskActivities.js";
 
 async function runHardenedDurableAgentRoiTests() {
@@ -24,7 +25,6 @@ async function runHardenedDurableAgentRoiTests() {
   }
 
   await runAsTrustedService(async () => {
-    const { adminDb } = await import("../lib/firebase-admin.js");
     if (adminDb) {
       await adminDb.collection("requirements_public").doc("req-cloud-001").set({
         id: "req-cloud-001",

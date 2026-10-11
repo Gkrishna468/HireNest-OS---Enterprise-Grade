@@ -6,6 +6,7 @@ import { BusinessEventType } from "../../types/roi.js";
 import { db } from "../../lib/firebase.js";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { isTrustedServiceContext } from "../../lib/trusted-context.server.js";
+import { adminDb } from "../../lib/firebase-admin.js";
 
 /**
  * AgentTaskActivities
@@ -32,12 +33,9 @@ export class AgentTaskActivities {
   }) {
     let reqData: any = null;
 
-    if (isTrustedServiceContext()) {
-      const { adminDb } = await import("../../lib/firebase-admin.js");
-      if (adminDb) {
-        const snap = await adminDb.collection("requirements_public").doc(params.requirementId).get();
-        if (snap.exists) reqData = { id: snap.id, ...snap.data() };
-      }
+    if (isTrustedServiceContext() && adminDb) {
+      const snap = await adminDb.collection("requirements_public").doc(params.requirementId).get();
+      if (snap.exists) reqData = { id: snap.id, ...snap.data() };
     }
 
     if (!reqData) {
@@ -94,16 +92,13 @@ export class AgentTaskActivities {
     const candidateLimit = params.maxCount || 10;
     const candidates: any[] = [];
 
-    if (isTrustedServiceContext()) {
-      const { adminDb } = await import("../../lib/firebase-admin.js");
-      if (adminDb) {
-        let q: any = adminDb.collection("candidates");
-        if (params.vendorId) {
-          q = q.where("ownerVendorId", "==", params.vendorId);
-        }
-        const snap = await q.limit(candidateLimit).get();
-        snap.forEach((d: any) => candidates.push({ id: d.id, ...d.data() }));
+    if (isTrustedServiceContext() && adminDb) {
+      let q: any = adminDb.collection("candidates");
+      if (params.vendorId) {
+        q = q.where("ownerVendorId", "==", params.vendorId);
       }
+      const snap = await q.limit(candidateLimit).get();
+      snap.forEach((d: any) => candidates.push({ id: d.id, ...d.data() }));
     }
 
     if (candidates.length === 0) {

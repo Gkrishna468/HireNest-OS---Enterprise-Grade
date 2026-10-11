@@ -21,6 +21,7 @@ import { emitEvent } from "./eventBus.js";
 import { JdParsingService } from "./jdParsingService.js";
 import { extractSkills, matchSkillToken } from "../resume-engine/parser/skills.js";
 import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
+import { adminDb } from "../lib/firebase-admin.js";
 
 export interface CandidateRequirementMatchRecord {
   id: string; // `${candidateId}_${requirementId}`
@@ -505,17 +506,14 @@ export class CandidateMatchingService {
         await setDoc(doc(db, collectionName, docId), data);
       }
     } catch (err) {
-      if (isTrustedServiceContext()) {
+      if (isTrustedServiceContext() && adminDb) {
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
-          if (adminDb) {
-            if (options?.merge) {
-              await adminDb.collection(collectionName).doc(docId).set(data, { merge: true });
-            } else {
-              await adminDb.collection(collectionName).doc(docId).set(data);
-            }
-            return;
+          if (options?.merge) {
+            await adminDb.collection(collectionName).doc(docId).set(data, { merge: true });
+          } else {
+            await adminDb.collection(collectionName).doc(docId).set(data);
           }
+          return;
         } catch (_) {}
       }
       throw err;
@@ -526,13 +524,10 @@ export class CandidateMatchingService {
     try {
       await updateDoc(doc(db, collectionName, docId), data);
     } catch (err) {
-      if (isTrustedServiceContext()) {
+      if (isTrustedServiceContext() && adminDb) {
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
-          if (adminDb) {
-            await adminDb.collection(collectionName).doc(docId).update(data);
-            return;
-          }
+          await adminDb.collection(collectionName).doc(docId).update(data);
+          return;
         } catch (_) {}
       }
       throw err;
@@ -566,20 +561,17 @@ export class CandidateMatchingService {
         }
       }
     } catch (_) {
-      if (isTrustedServiceContext()) {
+      if (isTrustedServiceContext() && adminDb) {
         // Fallback to adminDb for server-side/test environments with no signed-in user
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
-          if (adminDb) {
-            const candSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
-            if (candSnap.exists) {
-              candData = candSnap.data();
-            } else {
-              const directSnap = await adminDb.collection("direct_candidates").doc(candidateId).get();
-              if (directSnap.exists) {
-                candData = directSnap.data();
-                poolCollection = "direct_candidates";
-              }
+          const candSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
+          if (candSnap.exists) {
+            candData = candSnap.data();
+          } else {
+            const directSnap = await adminDb.collection("direct_candidates").doc(candidateId).get();
+            if (directSnap.exists) {
+              candData = directSnap.data();
+              poolCollection = "direct_candidates";
             }
           }
         } catch (_) {}
@@ -603,19 +595,16 @@ export class CandidateMatchingService {
         reqData = { id: reqDocSnap.id, ...reqDocSnap.data() };
       }
     } catch (_) {
-      if (isTrustedServiceContext()) {
+      if (isTrustedServiceContext() && adminDb) {
         // Fallback to adminDb for server-side/test environments
         try {
-          const { adminDb } = await import("../lib/firebase-admin.js");
-          if (adminDb) {
-            const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
-            if (reqSnap.exists) {
-              reqData = { id: reqSnap.id, ...reqSnap.data() };
-            } else {
-              const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
-              if (pubSnap.exists) {
-                reqData = { id: pubSnap.id, ...pubSnap.data() };
-              }
+          const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
+          if (reqSnap.exists) {
+            reqData = { id: reqSnap.id, ...reqSnap.data() };
+          } else {
+            const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
+            if (pubSnap.exists) {
+              reqData = { id: pubSnap.id, ...pubSnap.data() };
             }
           }
         } catch (_) {}

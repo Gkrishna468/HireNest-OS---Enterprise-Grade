@@ -5,13 +5,15 @@ import fs from 'fs';
 import path from 'path';
 
 let firebaseConfig: any = {};
-try {
-  const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+if (typeof window === 'undefined') {
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (e) {
+    console.error("Failed to load firebase-applet-config.json in admin:", e);
   }
-} catch (e) {
-  console.error("Failed to load firebase-applet-config.json in admin:", e);
 }
 
 function sanitizePrivateKey(key: string): string {
@@ -69,43 +71,45 @@ let app: any = undefined;
 export let adminDb: any = null;
 export let adminAuth: any = null;
 
-try {
-  const credentials = getCredentials();
-  const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
-  let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
-  
-  if (getApps().length === 0) {
-    const tryAppDefault = () => {
-      try {
-        return initializeApp({ credential: applicationDefault(), projectId });
-      } catch (e: any) { return null; }
-    };
-    const tryManual = () => {
-      if (!credentials) return null;
-      try {
-        return initializeApp({ credential: cert(credentials), projectId });
-      } catch (e: any) { return null; }
-    };
-    if (isManagedEnv && !credentials) {
-      app = tryAppDefault() || initializeApp({ projectId });
+if (typeof window === 'undefined') {
+  try {
+    const credentials = getCredentials();
+    const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
+    let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
+    
+    if (getApps().length === 0) {
+      const tryAppDefault = () => {
+        try {
+          return initializeApp({ credential: applicationDefault(), projectId });
+        } catch (e: any) { return null; }
+      };
+      const tryManual = () => {
+        if (!credentials) return null;
+        try {
+          return initializeApp({ credential: cert(credentials), projectId });
+        } catch (e: any) { return null; }
+      };
+      if (isManagedEnv && !credentials) {
+        app = tryAppDefault() || initializeApp({ projectId });
+      } else {
+        app = tryManual() || tryAppDefault() || initializeApp({ projectId });
+      }
     } else {
-      app = tryManual() || tryAppDefault() || initializeApp({ projectId });
+      app = getApps()[0];
     }
-  } else {
-    app = getApps()[0];
-  }
 
-  if (app) {
-    try {
-      adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
-      adminDb.settings({ ignoreUndefinedProperties: true });
-    } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminDb:", e.message); }
-    try {
-      adminAuth = getAuth(app);
-    } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message); }
+    if (app) {
+      try {
+        adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
+        adminDb.settings({ ignoreUndefinedProperties: true });
+      } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminDb:", e.message); }
+      try {
+        adminAuth = getAuth(app);
+      } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message); }
+    }
+  } catch (globalInitError: any) {
+    console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
   }
-} catch (globalInitError: any) {
-  console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
 }
 
 export let runtimeMode: "FULL_ADMIN" | "CLIENT_FALLBACK" | "DEGRADED" = adminDb ? "FULL_ADMIN" : "CLIENT_FALLBACK";

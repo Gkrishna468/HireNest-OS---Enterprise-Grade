@@ -15,6 +15,7 @@ import {
 import { recruiterVendorMappingService } from "./recruiterVendorMappingService.js";
 import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
 import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
+import { adminDb } from "../lib/firebase-admin.js";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`
@@ -410,19 +411,16 @@ class RequirementVendorService {
           }
         }
       } catch (clientErr) {
-        if (isTrustedServiceContext()) {
+        if (isTrustedServiceContext() && adminDb) {
           // Fallback to adminDb for server-side/test runner execution
           try {
-            const { adminDb } = await import("../lib/firebase-admin.js");
-            if (adminDb) {
-              const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
-              if (reqSnap.exists) {
-                reqData = reqSnap.data();
-              } else {
-                const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
-                if (pubSnap.exists) {
-                  reqData = pubSnap.data();
-                }
+            const reqSnap = await adminDb.collection("requirements").doc(requirementId).get();
+            if (reqSnap.exists) {
+              reqData = reqSnap.data();
+            } else {
+              const pubSnap = await adminDb.collection("requirements_public").doc(requirementId).get();
+              if (pubSnap.exists) {
+                reqData = pubSnap.data();
               }
             }
           } catch (_) {}
@@ -450,14 +448,11 @@ class RequirementVendorService {
           mappingData = mappingSnap.data();
         }
       } catch (_) {
-        if (isTrustedServiceContext()) {
+        if (isTrustedServiceContext() && adminDb) {
           try {
-            const { adminDb } = await import("../lib/firebase-admin.js");
-            if (adminDb) {
-              const mappingSnap = await adminDb.collection("requirement_vendors").doc(docId).get();
-              if (mappingSnap.exists) {
-                mappingData = mappingSnap.data();
-              }
+            const mappingSnap = await adminDb.collection("requirement_vendors").doc(docId).get();
+            if (mappingSnap.exists) {
+              mappingData = mappingSnap.data();
             }
           } catch (_) {}
         }

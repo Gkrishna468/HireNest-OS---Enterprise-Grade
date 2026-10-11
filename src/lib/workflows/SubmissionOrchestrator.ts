@@ -11,24 +11,22 @@ import {
   setDoc as fbSetDoc,
 } from "firebase/firestore";
 import { isTrustedServiceContext, runAsTrustedService } from "../trusted-context.server.js";
+import { adminDb } from "../firebase-admin.js";
 
 async function getDoc(docRef: any): Promise<any> {
   try {
     return await fbGetDoc(docRef);
   } catch (err) {
-    if (isTrustedServiceContext()) {
+    if (isTrustedServiceContext() && adminDb) {
       try {
-        const { adminDb } = await import("../firebase-admin.js");
-        if (adminDb) {
-          const path = docRef.path;
-          const parts = path.split("/");
-          const snap = await adminDb.collection(parts[0]).doc(parts[1]).get();
-          return {
-            exists: () => snap.exists,
-            data: () => snap.data(),
-            id: snap.id,
-          };
-        }
+        const path = docRef.path;
+        const parts = path.split("/");
+        const snap = await adminDb.collection(parts[0]).doc(parts[1]).get();
+        return {
+          exists: () => snap.exists,
+          data: () => snap.data(),
+          id: snap.id,
+        };
       } catch (_) {}
     }
     throw err;
@@ -39,68 +37,65 @@ async function getDocs(q: any): Promise<any> {
   try {
     return await fbGetDocs(q);
   } catch (err) {
-    if (isTrustedServiceContext()) {
+    if (isTrustedServiceContext() && adminDb) {
       try {
-        const { adminDb } = await import("../firebase-admin.js");
-        if (adminDb) {
-          let collPath = "submissions";
-          if (q.path) collPath = q.path;
-          else if (q._query && q._query.path && q._query.path.segments) {
-            collPath = q._query.path.segments.join("/");
-          }
-          
-          let adminQuery: any = adminDb.collection(collPath);
-          const filters = q._query?.filters || [];
-          let filterCount = 0;
-          
-          for (const f of filters) {
-            let field = null;
-            if (f.field && Array.isArray(f.field.segments)) {
-              field = f.field.segments.join(".");
-            } else if (f.field) {
-              field = String(f.field);
-            }
-            
-            let op = "==";
-            if (f.op) {
-              if (typeof f.op === "string") {
-                op = f.op;
-              } else if (f.op.name) {
-                op = f.op.name;
-              } else if (f.op.toString) {
-                op = f.op.toString();
-              }
-            }
-            if (op === "EQUAL" || op === "eq" || op === "eq_op") {
-              op = "==";
-            }
-            
-            let val = undefined;
-            if (f.value) {
-              if (f.value.internalValue !== undefined) {
-                val = f.value.internalValue;
-              } else if (f.value.value !== undefined) {
-                val = f.value.value;
-              } else {
-                val = f.value;
-              }
-            }
-            
-            if (field) {
-              adminQuery = adminQuery.where(field, op, val);
-              filterCount++;
-            }
-          }
-          
-          const snap = await adminQuery.get();
-          return {
-            empty: snap.empty,
-            docs: snap.docs.map((d: any) => ({
-              id: d.id,
-              data: () => d.data(),
-            })),
-          };
+        let collPath = "submissions";
+        if (q.path) collPath = q.path;
+        else if (q._query && q._query.path && q._query.path.segments) {
+          collPath = q._query.path.segments.join("/");
         }
+          
+        let adminQuery: any = adminDb.collection(collPath);
+        const filters = q._query?.filters || [];
+        let filterCount = 0;
+        
+        for (const f of filters) {
+          let field = null;
+          if (f.field && Array.isArray(f.field.segments)) {
+            field = f.field.segments.join(".");
+          } else if (f.field) {
+            field = String(f.field);
+          }
+          
+          let op = "==";
+          if (f.op) {
+            if (typeof f.op === "string") {
+              op = f.op;
+            } else if (f.op.name) {
+              op = f.op.name;
+            } else if (f.op.toString) {
+              op = f.op.toString();
+            }
+          }
+          if (op === "EQUAL" || op === "eq" || op === "eq_op") {
+            op = "==";
+          }
+          
+          let val = undefined;
+          if (f.value) {
+            if (f.value.internalValue !== undefined) {
+              val = f.value.internalValue;
+            } else if (f.value.value !== undefined) {
+              val = f.value.value;
+            } else {
+              val = f.value;
+            }
+          }
+          
+          if (field) {
+            adminQuery = adminQuery.where(field, op, val);
+            filterCount++;
+          }
+        }
+        
+        const snap = await adminQuery.get();
+        return {
+          empty: snap.empty,
+          docs: snap.docs.map((d: any) => ({
+            id: d.id,
+            data: () => d.data(),
+          })),
+        };
       } catch (e: any) {
         console.error("[getDocs Fallback] adminDb query exception:", e.message);
       }
@@ -113,20 +108,17 @@ async function addDoc(collectionRef: any, data: any): Promise<any> {
   try {
     return await fbAddDoc(collectionRef, data);
   } catch (err) {
-    if (isTrustedServiceContext()) {
+    if (isTrustedServiceContext() && adminDb) {
       try {
-        const { adminDb } = await import("../firebase-admin.js");
-        if (adminDb) {
-          const path = collectionRef.path;
-          const cleanData = { ...data };
-          for (const key of Object.keys(cleanData)) {
-            if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
-              cleanData[key] = new Date().toISOString();
-            }
+        const path = collectionRef.path;
+        const cleanData = { ...data };
+        for (const key of Object.keys(cleanData)) {
+          if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
+            cleanData[key] = new Date().toISOString();
           }
-          const docRef = await adminDb.collection(path).add(cleanData);
-          return { id: docRef.id };
         }
+        const docRef = await adminDb.collection(path).add(cleanData);
+        return { id: docRef.id };
       } catch (_) {}
     }
     throw err;
@@ -137,21 +129,18 @@ async function updateDoc(docRef: any, data: any): Promise<any> {
   try {
     return await fbUpdateDoc(docRef, data);
   } catch (err) {
-    if (isTrustedServiceContext()) {
+    if (isTrustedServiceContext() && adminDb) {
       try {
-        const { adminDb } = await import("../firebase-admin.js");
-        if (adminDb) {
-          const path = docRef.path;
-          const parts = path.split("/");
-          const cleanData = { ...data };
-          for (const key of Object.keys(cleanData)) {
-            if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
-              cleanData[key] = new Date().toISOString();
-            }
+        const path = docRef.path;
+        const parts = path.split("/");
+        const cleanData = { ...data };
+        for (const key of Object.keys(cleanData)) {
+          if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
+            cleanData[key] = new Date().toISOString();
           }
-          await adminDb.collection(parts[0]).doc(parts[1]).update(cleanData);
-          return;
         }
+        await adminDb.collection(parts[0]).doc(parts[1]).update(cleanData);
+        return;
       } catch (_) {}
     }
     throw err;
@@ -162,21 +151,18 @@ async function setDoc(docRef: any, data: any, options?: any): Promise<any> {
   try {
     return await fbSetDoc(docRef, data, options);
   } catch (err) {
-    if (isTrustedServiceContext()) {
+    if (isTrustedServiceContext() && adminDb) {
       try {
-        const { adminDb } = await import("../firebase-admin.js");
-        if (adminDb) {
-          const path = docRef.path;
-          const parts = path.split("/");
-          const cleanData = { ...data };
-          for (const key of Object.keys(cleanData)) {
-            if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
-              cleanData[key] = new Date().toISOString();
-            }
+        const path = docRef.path;
+        const parts = path.split("/");
+        const cleanData = { ...data };
+        for (const key of Object.keys(cleanData)) {
+          if (cleanData[key] && typeof cleanData[key] === "object" && cleanData[key]._methodName === "serverTimestamp") {
+            cleanData[key] = new Date().toISOString();
           }
-          await adminDb.collection(parts[0]).doc(parts[1]).set(cleanData, options);
-          return;
         }
+        await adminDb.collection(parts[0]).doc(parts[1]).set(cleanData, options);
+        return;
       } catch (_) {}
     }
     throw err;
