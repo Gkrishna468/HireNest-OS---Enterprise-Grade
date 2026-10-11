@@ -50,11 +50,8 @@ export class ChiefRecruiterAI {
     const resumeText = (cand.parsedData?.rawText || cand.resumeText || cand.text || "").trim();
     const candidateSkills: string[] = cand.skills || cand.normalizedSkills || [];
 
-    // 2. Fetch Requirement (Canonical requirements, fallback to requirements_public)
-    let reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
-    if (!reqDoc.exists) {
-      reqDoc = await adminDb.collection("requirements_public").doc(requirementId).get();
-    }
+    // 2. Fetch Requirement (Canonical requirements collection)
+    const reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
     const req = reqDoc.exists ? reqDoc.data() || {} : {};
     const jdText = (req.description || req.rawText || req.jdText || "").trim();
     const mandatorySkills: string[] = req.mandatorySkills || req.skills || [];
@@ -170,10 +167,7 @@ Analyze and return JSON with keys:
         const candDoc = await adminDb.collection("candidatePool").doc(params.candidateId).get();
         cand = candDoc.exists ? candDoc.data() || {} : {};
 
-        let reqDoc = await adminDb.collection("requirements").doc(params.requirementId).get();
-        if (!reqDoc.exists) {
-          reqDoc = await adminDb.collection("requirements_public").doc(params.requirementId).get();
-        }
+        const reqDoc = await adminDb.collection("requirements").doc(params.requirementId).get();
         req = reqDoc.exists ? reqDoc.data() || {} : {};
       }
     } catch (dbErr: any) {
@@ -250,8 +244,7 @@ Provide constructive, evidence-grounded coaching feedback and 1 targeted follow-
     const cand = candDoc.exists ? candDoc.data() || {} : {};
     const resumeText = (cand.parsedData?.rawText || cand.resumeText || "").substring(0, 2000);
 
-    let reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
-    if (!reqDoc.exists) reqDoc = await adminDb.collection("requirements_public").doc(requirementId).get();
+    const reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
     const req = reqDoc.exists ? reqDoc.data() || {} : {};
 
     const prompt = `Generate 4 deep project-probing questions covering:
@@ -358,8 +351,7 @@ Return JSON with keys:
     const candDoc = await adminDb.collection("candidatePool").doc(candidateId).get();
     const cand = candDoc.exists ? candDoc.data() || {} : {};
 
-    let reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
-    if (!reqDoc.exists) reqDoc = await adminDb.collection("requirements_public").doc(requirementId).get();
+    const reqDoc = await adminDb.collection("requirements").doc(requirementId).get();
     const req = reqDoc.exists ? reqDoc.data() || {} : {};
 
     const candidateSkills: string[] = cand.skills || [];

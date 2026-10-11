@@ -532,7 +532,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-emerald-400">{contact.clientName}</span>
                     <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-slate-700 text-slate-300">
-                      {contact.decisionAuthority.replace(/_/g, " ")}
+                      {(contact.decisionAuthority || "").replace(/_/g, " ")}
                     </span>
                   </div>
 
@@ -586,7 +586,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-white">{signal.company}</span>
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-700 text-slate-300">
-                          {signal.type.replace(/_/g, " ")}
+                          {(signal.type || "").replace(/_/g, " ")}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">{signal.description}</p>
@@ -651,7 +651,7 @@ export default function CRMWorkspace({ userRole, orgId }: { userRole?: string; o
                             : "bg-amber-500/20 text-amber-300 border-amber-500/30"
                         )}
                       >
-                        {draft.approvalStatus.replace(/_/g, " ")}
+                        {(draft.approvalStatus || "").replace(/_/g, " ")}
                       </span>
                     </div>
 

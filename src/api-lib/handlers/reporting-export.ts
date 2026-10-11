@@ -1,23 +1,80 @@
 /**
  * HireNestOS Read-Only Reporting Export Endpoint
  * Authorized, read-only projection endpoint for spreadsheet viewers / reporting tools.
- * Enforces role-based field minimization, refresh timestamps, and ABAC privacy.
- * Does NOT allow external mutations or spreadsheet-to-Firestore synchronization.
+ * Enforces server-verified authentication, ABAC field minimization, and PII privacy.
+ * Zero fabricated numbers or default rates.
  */
 
-import { adminDb } from "../../lib/firebase-admin.js";
+import { adminDb, adminAuth } from "../../lib/firebase-admin.js";
 import { formatINR } from "../../lib/currency.js";
+
+async function authenticateRequest(req: any): Promise<{ authenticated: boolean; user?: any; error?: string }> {
+  if (req.user && req.user.role && req.user.role !== "guest") {
+    return { authenticated: true, user: req.user };
+  }
+
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.replace("Bearer ", "").trim();
+
+  if (!token) {
+    return { authenticated: false, error: "Missing authentication token. Bearer token required for export." };
+  }
+
+  if (adminAuth) {
+    try {
+      const decoded = await adminAuth.verifyIdToken(token);
+      let role = decoded.role || decoded.userRole || "recruiter";
+      let tenantId = decoded.tenantId || decoded.orgId || decoded.organizationId || "tenant-default";
+
+      if (!decoded.role && adminDb) {
+        const userDoc = await adminDb.collection("users").doc(decoded.uid).get().catch(() => null);
+        if (userDoc && userDoc.exists) {
+          const uData = userDoc.data() || {};
+          role = uData.role || uData.userRole || role;
+          tenantId = uData.tenantId || uData.organizationId || tenantId;
+        }
+      }
+
+      const user = {
+        uid: decoded.uid,
+        email: decoded.email,
+        role: String(role).toLowerCase(),
+        tenantId
+      };
+      req.user = user;
+      return { authenticated: true, user };
+    } catch (authErr: any) {
+      return { authenticated: false, error: `Authentication token verification failed: ${authErr.message}` };
+    }
+  }
+
+  return { authenticated: false, error: "Authentication service unavailable" };
+}
+
+function maskCandidateName(name?: string): string {
+  if (!name || name === "Unspecified Candidate") return "Candidate [Masked]";
+  const parts = name.trim().split(" ");
+  if (parts.length === 1) return `${parts[0][0]}. ***`;
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method Not Allowed: Reporting export is read-only" });
+    return res.status(405).json({ error: "Method Not Allowed: Reporting export is strictly read-only" });
   }
 
   if (!adminDb) {
     return res.status(500).json({ error: "Firestore Admin DB unavailable" });
   }
 
-  const userRole = (req.user?.role || req.headers["x-user-role"] || "guest").toLowerCase();
+  // Enforce server-validated authentication - Never trust x-user-role client headers
+  const authState = await authenticateRequest(req);
+  if (!authState.authenticated || !authState.user) {
+    return res.status(401).json({ error: authState.error || "Unauthorized" });
+  }
+
+  const user = authState.user;
+  const userRole = user.role;
 
   // Reject Vendor and Client access to internal reporting exports
   if (userRole.includes("vendor") || userRole.includes("client")) {
@@ -25,28 +82,31 @@ export default async function handler(req: any, res: any) {
   }
 
   const isFinanceAuthorized = ["admin", "hq_admin", "super_admin", "finance", "ceo"].includes(userRole);
+  const canViewFullPII = isFinanceAuthorized || ["lead_recruiter", "account_manager"].includes(userRole);
 
   try {
     const format = req.query?.format === "csv" ? "csv" : "json";
     const now = new Date().toISOString();
 
-    // Fetch Submissions and Active Requirements
-    const subsSnap = await adminDb.collection("submissions").get().catch(() => ({ docs: [] }));
+    const subsSnap = await adminDb.collection("submissions").get();
     const submissions = subsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-    const reqsSnap = await adminDb.collection("requirements").get().catch(() => ({ docs: [] }));
-    const requirements = reqsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-
     const rows = submissions.map(sub => {
-      const billing = Number(sub.clientBillingRate || 1000);
-      const payout = Number(sub.vendorPayoutRate || 650);
-      const margin = billing - payout;
+      const hasBilling = sub.clientBillingRate !== undefined && sub.clientBillingRate !== null;
+      const hasPayout = sub.vendorPayoutRate !== undefined && sub.vendorPayoutRate !== null;
+
+      const billing = hasBilling ? Number(sub.clientBillingRate) : null;
+      const payout = hasPayout ? Number(sub.vendorPayoutRate) : null;
+      const margin = (billing !== null && payout !== null) ? billing - payout : null;
+
+      const rawCandidateName = sub.candidateName || "Unspecified Candidate";
+      const displayName = canViewFullPII ? rawCandidateName : maskCandidateName(rawCandidateName);
 
       const baseRow: any = {
         submissionId: sub.id,
         requirementId: sub.requirementId || "N/A",
         candidateId: sub.candidateId || "N/A",
-        candidateName: sub.candidateName || "Candidate",
+        candidateName: displayName,
         source: sub.vendorId ? "Vendor Partner" : "Direct Applicant",
         stage: sub.status || "SUBMITTED",
         updatedAt: sub.updatedAt || sub.createdAt || now,
@@ -54,9 +114,9 @@ export default async function handler(req: any, res: any) {
       };
 
       if (isFinanceAuthorized) {
-        baseRow.billingRateINR = formatINR(billing);
-        baseRow.payoutRateINR = formatINR(payout);
-        baseRow.grossMarginINR = formatINR(margin);
+        baseRow.billingRateINR = billing !== null ? formatINR(billing) : "N/A";
+        baseRow.payoutRateINR = payout !== null ? formatINR(payout) : "N/A";
+        baseRow.grossMarginINR = margin !== null ? formatINR(margin) : "N/A";
       }
 
       return baseRow;
@@ -79,7 +139,8 @@ export default async function handler(req: any, res: any) {
         refreshTimestamp: now,
         format: "JSON Projection",
         recordCount: rows.length,
-        financeFieldsIncluded: isFinanceAuthorized
+        financeFieldsIncluded: isFinanceAuthorized,
+        piiMinimized: !canViewFullPII
       },
       data: rows
     });

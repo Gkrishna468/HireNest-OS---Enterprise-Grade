@@ -18,7 +18,12 @@
 const http = require("http");
 
 const DEFAULT_SERVER_URL = process.env.SERVER_URL || "http://127.0.0.1:3000";
-const WORKER_SECRET = process.env.OLLAMA_PROXY_KEY || process.env.WORKER_SECRET || "test_secret_bearer_key_998877_secure";
+const WORKER_SECRET = process.env.OLLAMA_PROXY_KEY || process.env.WORKER_SECRET || process.env.AI_WORKER_SECRET;
+
+if (!WORKER_SECRET) {
+  console.error("[Local AI Worker] CRITICAL: Worker authorization secret is missing from environment. Set OLLAMA_PROXY_KEY, WORKER_SECRET, or AI_WORKER_SECRET.");
+  process.exit(1);
+}
 const OLLAMA_PROXY_URL = process.env.OLLAMA_PROXY_URL || "http://127.0.0.1:11435";
 const WORKER_ID = process.env.WORKER_ID || `local-windows-worker-${process.pid}`;
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "3000", 10);

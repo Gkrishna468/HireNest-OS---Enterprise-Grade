@@ -249,8 +249,10 @@ export class ROIEngine {
         const snap = await getDocs(q);
         snap.forEach(d => events.push(d.data() as BusinessValueEvent));
       }
-    } catch (err) {
-      console.warn("[ROIEngine] Ledger query warning:", err);
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied' && !err?.message?.includes('permission')) {
+        console.warn("[ROIEngine] Ledger query warning:", err?.message || err);
+      }
     }
 
     let totalAiCost = 0;
