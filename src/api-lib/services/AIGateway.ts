@@ -519,6 +519,121 @@ export class FreeLLMProvider implements AIProvider {
     }
 }
 
+// ==========================================
+// Ollama Local Provider Implementation (Zero Paid Inference)
+// ==========================================
+export class OllamaProvider implements AIProvider {
+    id = "ollama";
+
+    private getBaseUrl(): string {
+        return process.env.OLLAMA_PROXY_URL || process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11435";
+    }
+
+    private getApiKey(): string {
+        return process.env.OLLAMA_PROXY_KEY || process.env.OLLAMA_API_KEY || "local_secure_proxy_key";
+    }
+
+    private getModel(): string {
+        return process.env.OLLAMA_MODEL || "qwen3:8b";
+    }
+
+    async execute(
+        prompt: string,
+        model: string,
+        options: {
+            temperature?: number;
+            systemInstruction?: string;
+            schema?: any;
+            imageParts?: any[];
+            timeoutMs?: number;
+        }
+    ): Promise<{ text: string; tokens: number }> {
+        const targetModel = model && (model.includes("qwen") || model.includes("llama") || model.includes("mistral")) 
+            ? model 
+            : this.getModel();
+
+        const messages: any[] = [];
+        if (options.systemInstruction) {
+            messages.push({ role: "system", content: options.systemInstruction });
+        }
+        messages.push({ role: "user", content: prompt });
+
+        const requestPayload: any = {
+            model: targetModel,
+            messages,
+            options: {
+                temperature: options.temperature ?? 0.2,
+            },
+            stream: false
+        };
+
+        if (options.schema) {
+            requestPayload.format = "json";
+        }
+
+        const baseUrl = this.getBaseUrl();
+        const endpoint = baseUrl.endsWith("/api/chat") ? baseUrl : `${baseUrl.replace(/\/v1\/?$/, "")}/api/chat`;
+
+        const timeoutMs = options.timeoutMs || 30000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${this.getApiKey()}`
+                },
+                body: JSON.stringify(requestPayload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!res.ok) {
+                const errText = await res.text().catch(() => "");
+                throw new Error(`Ollama local provider returned status ${res.status}: ${errText}`);
+            }
+
+            const data = await res.json();
+            const text = data.message?.content || data.response || data.choices?.[0]?.message?.content || "";
+            const promptTokens = data.prompt_eval_count || Math.ceil(prompt.length / 4);
+            const evalTokens = data.eval_count || Math.ceil(text.length / 4);
+            const totalTokens = promptTokens + evalTokens;
+
+            CircuitBreaker.recordSuccess(this.id);
+            return { text, tokens: totalTokens };
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            CircuitBreaker.recordFailure(this.id, err?.message || "Ollama request failed");
+            throw err;
+        }
+    }
+
+    async health(): Promise<boolean> {
+        try {
+            const baseUrl = this.getBaseUrl();
+            const healthEndpoint = `${baseUrl.replace(/\/api\/chat$/, "").replace(/\/v1\/?$/, "")}/api/tags`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(healthEndpoint, {
+                headers: { "Authorization": `Bearer ${this.getApiKey()}` },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    estimateCost(model: string, tokens: number, isCached: boolean): { estimatedCost: number; savedCost: number } {
+        // Local Ollama inference API cost is strictly ZERO ($0.00 / ₹0.00)
+        return { estimatedCost: 0, savedCost: 0 };
+    }
+}
+
 // ==========================================================
 // 4. Centralized AIGateway Orchestrator
 // ==========================================
@@ -569,7 +684,8 @@ export class AIGateway {
 
     private static providers: Record<string, AIProvider> = {
         google: new GoogleProvider(),
-        freellmapi: new FreeLLMProvider()
+        freellmapi: new FreeLLMProvider(),
+        ollama: new OllamaProvider()
     };
 
     // In-memory cache telemetry buffers to avoid write-inflation on Firestore cache hits
@@ -1071,27 +1187,49 @@ export class AIGateway {
         // 5. Check Provider Health & Circuit Breakers
         let providerId = "google";
         const lowerModel = (model || "").toLowerCase();
+        const isLocalPreferred =
+            process.env.USE_LOCAL_AI === "true" ||
+            process.env.LOCAL_AI_MODE === "true" ||
+            process.env.ZERO_PAID_INFERENCE === "true" ||
+            request.requireLocal ||
+            ["qwen", "llama", "mistral", "gemma", "ollama"].some(m => lowerModel.includes(m));
+
         const isFreeLLMModel = ["llama", "qwen", "mistral", "gemma"].some(m => lowerModel.includes(m));
         const enableFreeLLM = process.env.ENABLE_FREE_LLM_API === "true";
 
-        if (request.requireLocal || isFreeLLMModel || (enableFreeLLM && request.strategy === "cost" && !AIGateway.LEVEL_2_CAPABILITIES.has(feature))) {
+        if (isLocalPreferred) {
+            providerId = "ollama";
+        } else if (isFreeLLMModel || (enableFreeLLM && request.strategy === "cost" && !AIGateway.LEVEL_2_CAPABILITIES.has(feature))) {
             providerId = "freellmapi";
         }
 
         let providerInstance = this.providers[providerId];
         if (!providerInstance) {
-            providerId = "google";
-            providerInstance = this.providers.google;
+            providerId = "ollama";
+            providerInstance = this.providers.ollama;
         }
 
         let circuitStatus = CircuitBreaker.getStatus(providerId);
         
-        // Failure isolation: fallback to Google if FreeLLMAPI's circuit is open or it is disabled
+        // Failure isolation: fallback handling
+        const disablePaidFallback =
+            process.env.DISABLE_PAID_AI_FALLBACK === "true" ||
+            process.env.ZERO_PAID_INFERENCE === "true" ||
+            process.env.USE_LOCAL_AI === "true" ||
+            process.env.LOCAL_AI_MODE === "true" ||
+            request.requireLocal;
+
         if (providerId === "freellmapi" && (circuitStatus === "OPEN" || !enableFreeLLM)) {
-            console.warn(`[AIGateway] FreeLLMAPI circuit is ${circuitStatus} or disabled. Falling back to google provider.`);
-            providerId = "google";
-            providerInstance = this.providers.google;
-            circuitStatus = CircuitBreaker.getStatus(providerId);
+            if (disablePaidFallback) {
+                providerId = "ollama";
+                providerInstance = this.providers.ollama;
+                circuitStatus = CircuitBreaker.getStatus(providerId);
+            } else {
+                console.warn(`[AIGateway] FreeLLMAPI circuit is ${circuitStatus} or disabled. Falling back to google provider.`);
+                providerId = "google";
+                providerInstance = this.providers.google;
+                circuitStatus = CircuitBreaker.getStatus(providerId);
+            }
         }
 
         let executionError: any = null;

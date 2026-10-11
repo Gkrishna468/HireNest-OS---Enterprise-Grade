@@ -7,11 +7,11 @@ let transporter: Transporter | null = null;
 function getTransporter(): Transporter | null {
   if (transporter) return transporter;
   
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
   const secure = process.env.SMTP_SECURE === 'true';
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.SMTP_USER || 'info@hirenestworkforce.com';
+  const pass = process.env.SMTP_PASS || 'uimedxffxoupgjsl';
 
   if (!host || !user || !pass) {
     return null;

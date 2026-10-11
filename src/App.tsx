@@ -108,6 +108,7 @@ import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
 import AdminSecurityDashboard from "./views/AdminSecurityDashboard";
 import AdminOpsDashboard from "./views/AdminOpsDashboard";
 import AdminUsersManager from "./views/AdminUsersManager";
+import AdminCostGuardDashboard from "./views/AdminCostGuardDashboard";
 import TraceView from "./views/TraceView";
 import MemoryMapView from "./views/MemoryMapView";
 import TenantUsageDashboard from "./views/TenantUsageDashboard";
@@ -227,7 +228,8 @@ const AdminGlobalHQNav = ({
     '/client-360',
     '/vendor-360',
     '/admin/candidate-360',
-    '/admin/requirement-360'
+    '/admin/requirement-360',
+    '/admin/cost-guard'
   ];
   
   const isChildActive = adminRoutes.some(r => location.pathname === r);
@@ -304,6 +306,13 @@ const AdminGlobalHQNav = ({
             icon={FileText}
             label="Requirement 360"
             active={location.pathname === "/admin/requirement-360"}
+            onClick={closeMobileMenu}
+          />
+          <SubSidebarItem
+            to="/admin/cost-guard"
+            icon={ShieldCheck}
+            label="Cloud Cost Guard"
+            active={location.pathname === "/admin/cost-guard"}
             onClick={closeMobileMenu}
           />
         </div>
@@ -1070,6 +1079,7 @@ const AppContent = () => {
             <Route path="/ai-interviews" element={<AIInterviewsView />} />
             <Route path="/direct-candidates" element={<DirectCandidatesView />} />
             {isAdmin && <Route path="/admin/roi" element={<ROICommandCenter />} />}
+            {isAdmin && <Route path="/admin/cost-guard" element={<AdminCostGuardDashboard />} />}
             {isAdmin && <Route path="/admin/matching/candidates" element={<MatchingWorkspace />} />}
             {isAdmin && <Route path="/admin/matching/requirements" element={<MatchingWorkspace />} />}
             {isAdmin && <Route path="/hq" element={<AgentHQ />} />}

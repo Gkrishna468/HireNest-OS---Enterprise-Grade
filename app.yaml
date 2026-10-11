@@ -1,0 +1,8 @@
+runtime: nodejs20
+instance_class: F1
+automatic_scaling:
+  min_num_instances: 0
+  max_num_instances: 2
+  min_idle_instances: 0
+  max_idle_instances: 1
+  target_cpu_utilization: 0.75
