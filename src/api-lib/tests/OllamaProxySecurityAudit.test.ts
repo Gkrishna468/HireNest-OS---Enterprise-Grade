@@ -14,7 +14,7 @@ import net from "net";
 import { AIGateway } from "../services/AIGateway.js";
 
 const require = createRequire(import.meta.url);
-const { createProxyApp } = require("../../../scripts/ollama-proxy-server.cjs");
+const { createProxyApp, startServer } = require("../../../scripts/ollama-proxy-server.cjs");
 
 export async function runOllamaProxySecurityAuditTests(): Promise<{
   passed: number;
@@ -337,10 +337,19 @@ export async function runOllamaProxySecurityAuditTests(): Promise<{
     assert(gatewayRes.provider !== "google", "Paid Google GenAI provider was NOT invoked");
     assert(gatewayRes.estimatedCost === 0, "Inference cost is strictly $0.00 / ₹0.00");
 
-    // 14. Local Interface Bind Verification
+    // 14. Local Interface Bind Verification & Async startServer Test
     console.log("-> 8. Testing Local Host Interface Bind Isolation:");
     const addressInfo = testProxyServer.address() as net.AddressInfo;
     assert(addressInfo.address === "127.0.0.1" || addressInfo.address === "::1", `Proxy server binds strictly to local interface (${addressInfo.address})`);
+
+    const asyncStartedServer = await startServer({
+      port: 0,
+      host: "127.0.0.1",
+      apiKey: STRONG_TEST_KEY
+    });
+    const asyncAddr = asyncStartedServer.address() as net.AddressInfo;
+    assert(asyncAddr.address === "127.0.0.1" || asyncAddr.address === "::1", "Async startServer succeeds and verifies loopback bind address");
+    await new Promise<void>((res) => asyncStartedServer.close(() => res()));
 
   } finally {
     testProxyServer.close();

@@ -223,22 +223,48 @@ function createProxyApp(options = {}) {
   return app;
 }
 
-// Start listener ONLY if run directly
-if (require.main === module || (process.argv[1] && process.argv[1].includes("ollama-proxy-server"))) {
-  const port = parseInt(process.env.PORT || String(DEFAULT_PORT), 10);
-  const host = process.env.HOST || DEFAULT_HOST;
-  const app = createProxyApp();
+/**
+ * Start proxy server and verify loopback bind address asynchronously.
+ */
+function startServer(options = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const port = options.port !== undefined ? options.port : parseInt(process.env.PORT || String(DEFAULT_PORT), 10);
+      const host = options.host || process.env.HOST || DEFAULT_HOST;
+      const app = createProxyApp(options);
 
-  const server = app.listen(port, host, () => {
-    console.log(`[HireNestOS Proxy] Express Ollama Proxy listening strictly on ${host}:${port}`);
-    console.log(`[HireNestOS Proxy] Approved models: ${Array.from(ALLOWED_MODELS).join(", ")}`);
+      const server = app.listen(port, host, function () {
+        const address = server.address();
+        if (!address || typeof address !== "object" || (address.address !== "127.0.0.1" && address.address !== "::1")) {
+          const boundAddr = address && typeof address === "object" ? address.address : String(address);
+          console.error(`[CRITICAL SECURITY FAILURE] Proxy bound to invalid or non-loopback address: ${boundAddr}. Failing closed.`);
+          server.close(() => {
+            reject(new Error(`Security Check Failed: Bound to non-loopback address (${boundAddr})`));
+          });
+          return;
+        }
+
+        console.log(`[HireNestOS Proxy] Express Ollama Proxy listening strictly on ${address.address}:${address.port}`);
+        console.log(`[HireNestOS Proxy] Approved models: ${Array.from(ALLOWED_MODELS).join(", ")}`);
+        resolve(server);
+      });
+
+      server.on("error", (err) => {
+        console.error(`[HireNestOS Proxy Startup Error]: ${err.message}`);
+        reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
   });
-
-  // Verify bound interface address
-  const address = server.address();
-  if (typeof address === "object" && address.address !== "127.0.0.1" && address.address !== "::1") {
-    console.error(`[CRITICAL SECURITY WARNING] Proxy bound to non-localhost address: ${address.address}`);
-  }
 }
 
-module.exports = { createProxyApp, ALLOWED_MODELS };
+// Start listener ONLY if run directly
+if (require.main === module || (process.argv[1] && process.argv[1].includes("ollama-proxy-server"))) {
+  startServer().catch((err) => {
+    console.error(`[HireNestOS Proxy Fatal Startup Error]: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { createProxyApp, startServer, ALLOWED_MODELS };
