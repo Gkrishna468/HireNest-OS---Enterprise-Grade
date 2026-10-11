@@ -102,6 +102,7 @@ import Onboarding from "./views/Onboarding";
 import MatchIntelligenceTab from "./views/MatchIntelligenceTab";
 import AdminOverview from "./views/AdminOverview";
 import { ROICommandCenter } from "./views/admin/ROICommandCenter";
+import { RecruitmentControlTower } from "./views/admin/RecruitmentControlTower";
 import { MatchingWorkspace } from "./views/admin/MatchingWorkspace";
 import NetworkTab from "./views/NetworkTab";
 import AdminGovernanceDashboard from "./views/AdminGovernanceDashboard";
@@ -1079,6 +1080,7 @@ const AppContent = () => {
             <Route path="/ai-interviews" element={<AIInterviewsView />} />
             <Route path="/direct-candidates" element={<DirectCandidatesView />} />
             {isAdmin && <Route path="/admin/roi" element={<ROICommandCenter />} />}
+            {isAdmin && <Route path="/admin/control-tower" element={<RecruitmentControlTower />} />}
             {isAdmin && <Route path="/admin/cost-guard" element={<AdminCostGuardDashboard />} />}
             {isAdmin && <Route path="/admin/matching/candidates" element={<MatchingWorkspace />} />}
             {isAdmin && <Route path="/admin/matching/requirements" element={<MatchingWorkspace />} />}

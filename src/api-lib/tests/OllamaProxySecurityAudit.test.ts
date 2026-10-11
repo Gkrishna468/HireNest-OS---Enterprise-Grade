@@ -450,7 +450,7 @@ export async function runOllamaProxySecurityAuditTests(): Promise<{
   return { passed, failed, errors };
 }
 
-if (import.meta.url.endsWith("OllamaProxySecurityAudit.test.ts") || process.argv[1]?.includes("OllamaProxySecurityAudit")) {
+if (process.argv[1] && process.argv[1].includes("OllamaProxySecurityAudit")) {
   runOllamaProxySecurityAuditTests().then(res => {
     if (res.failed > 0) process.exit(1);
   }).catch(err => {

@@ -4,6 +4,16 @@ import { WorkOrchestrator } from './WorkOrchestrator.js';
 import { BusinessEvent } from '../os/kernel/RuntimeTypes.js';
 
 export class EventBus {
+    private static listeners: Map<string, Array<(event: any) => Promise<void>>> = new Map();
+
+    static subscribe(eventType: string, handler: (event: any) => Promise<void>, subscriberName?: string) {
+        const list = this.listeners.get(eventType) || [];
+        list.push(handler);
+        this.listeners.set(eventType, list);
+        if (subscriberName) {
+            console.log(`[EventBus] Registered in-memory subscription for '${eventType}' by ${subscriberName}`);
+        }
+    }
     
     // Seed default subscriptions if none exist to guarantee an operational foundation
     private static async ensureDefaultSubscriptions() {
@@ -90,6 +100,12 @@ export class EventBus {
 
         // 1. Record the event in the events collection
         await db.collection('business_events').doc(event.eventId).set(event);
+
+        // Notify in-memory listeners
+        const eventListeners = this.listeners.get(type) || [];
+        for (const listener of eventListeners) {
+            listener(event).catch(err => console.warn(`[EventBus] Listener error for ${type}:`, err?.message || err));
+        }
 
         // Record to system_runtime if running
         try {

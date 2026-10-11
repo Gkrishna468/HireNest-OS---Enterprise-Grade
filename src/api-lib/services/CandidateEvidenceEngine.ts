@@ -153,39 +153,46 @@ export class CandidateEvidenceEngine {
 
     // A. Use provided requirementId if valid
     if (inputRequirementId) {
-      const doc = await adminDb.collection("requirements_public").doc(inputRequirementId).get();
+      let doc = await adminDb.collection("requirements_public").doc(inputRequirementId).get();
+      if (!doc.exists) {
+        doc = await adminDb.collection("requirements").doc(inputRequirementId).get();
+      }
       if (doc.exists) {
         const d = doc.data();
         return {
           requirementId: inputRequirementId,
-          jdText: d?.description || d?.rawText || "",
+          jdText: d?.description || d?.rawText || d?.jdText || "",
           title: d?.title || "Strategic Role",
         };
       }
     }
 
     // B. Check submissions where candidate is submitted
-    const subSnap = await adminDb
-      .collection("submissions")
-      .where("candidateId", "==", candidateId)
-      .orderBy("updatedAt", "desc")
-      .limit(1)
-      .get();
+    try {
+      const subSnap = await adminDb
+        .collection("submissions")
+        .where("candidateId", "==", candidateId)
+        .orderBy("updatedAt", "desc")
+        .limit(1)
+        .get();
 
-    if (!subSnap.empty) {
-      const sub = subSnap.docs[0].data();
-      const reqId = sub.requirementId;
-      if (reqId) {
-        const doc = await adminDb.collection("requirements_public").doc(reqId).get();
-        if (doc.exists) {
-          const d = doc.data();
-          return {
-            requirementId: reqId,
-            jdText: d?.description || d?.rawText || "",
-            title: d?.title || "Strategic Role",
-          };
+      if (!subSnap.empty) {
+        const sub = subSnap.docs[0].data();
+        const reqId = sub.requirementId;
+        if (reqId) {
+          const doc = await adminDb.collection("requirements_public").doc(reqId).get();
+          if (doc.exists) {
+            const d = doc.data();
+            return {
+              requirementId: reqId,
+              jdText: d?.description || d?.rawText || "",
+              title: d?.title || "Strategic Role",
+            };
+          }
         }
       }
+    } catch (e: any) {
+      console.warn("[CandidateEvidenceEngine] Submissions lookup skipped or index missing:", e?.message);
     }
 
     // C. Check candidate pool document for linked role
