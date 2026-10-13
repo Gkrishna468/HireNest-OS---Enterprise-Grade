@@ -355,6 +355,34 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // RECRUITER ↔ VENDOR MAPPINGS (NETWORK MATRIX)
+    // =====================================================
+
+    match /recruiter_vendor_mappings/{mappingId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        (resource.data.recruiterId == request.auth.uid)
+      );
+      allow create, update: if isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // =====================================================
+    // REQUIREMENT DISTRIBUTION (VENDORS)
+    // =====================================================
+
+    match /requirement_vendors/{mappingId} {
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.vendorId) ||
+        (resource.data.recruiterId == request.auth.uid)
+      );
+      allow create, update: if isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // =====================================================
     // ONBOARDING & DASHBOARD CACHE
     // =====================================================
 
@@ -1412,7 +1440,11 @@ service cloud.firestore {
     // =====================================================
 
     match /candidate_matches/{matchId} {
-      allow read: if isVerified();
+      allow read: if isVerified() && (
+        isAdmin() ||
+        isSameOrg(resource.data.get('vendorId', '')) ||
+        isSameOrg(resource.data.get('clientId', ''))
+      );
       allow create, update: if isVerified();
       allow delete: if isSuperAdmin();
     }

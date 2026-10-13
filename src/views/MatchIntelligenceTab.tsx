@@ -361,7 +361,17 @@ export default function MatchIntelligenceTab() {
 
     // 1. Candidate Matches Subscription
     // Use requirement_match_index for lookups (to be implemented), but retain SSOT for individual records
-    const matchQuery = query(collection(db, "candidate_matches"), limit(150));
+    let matchQuery;
+    if (roleIsAdmin) {
+      matchQuery = query(collection(db, "candidate_matches"), limit(150));
+    } else if (roleIsVendor && orgId) {
+      matchQuery = query(collection(db, "candidate_matches"), where("vendorId", "==", orgId), limit(150));
+    } else if (roleIsClient && orgId) {
+      matchQuery = query(collection(db, "candidate_matches"), where("clientId", "==", orgId), limit(150));
+    } else {
+      // Fallback for others (recruiter, etc.) - might need further refinement
+      matchQuery = query(collection(db, "candidate_matches"), limit(150));
+    }
     
     const unsubMatches = onSnapshot(
       matchQuery,
