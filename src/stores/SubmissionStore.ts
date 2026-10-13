@@ -179,7 +179,7 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
   submitCandidateProfile: async (payload: any) => {
     set({ isLoading: true, error: null });
     try {
-       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator.js");
+       const { SubmissionOrchestrator } = await import("../lib/workflows/SubmissionOrchestrator");
        const res = await SubmissionOrchestrator.submitCandidate(payload);
        set({ isLoading: false });
        return res;

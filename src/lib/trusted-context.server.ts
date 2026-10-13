@@ -1,14 +1,25 @@
-let AsyncLocalStorage: any;
+class FallbackAsyncLocalStorage {
+  run(store: any, callback: Function) { return callback(); }
+  getStore() { return undefined; }
+}
+
+let AsyncLocalStorageClass: any = FallbackAsyncLocalStorage;
+
 try {
   if (typeof window === 'undefined') {
-    const asyncHooks = require('async_hooks');
-    AsyncLocalStorage = asyncHooks.AsyncLocalStorage;
+    const nodeRequire = typeof require === 'function' ? require : (0, eval)('require');
+    const asyncHooks = nodeRequire('async_hooks');
+    if (asyncHooks && typeof asyncHooks.AsyncLocalStorage === 'function') {
+      AsyncLocalStorageClass = asyncHooks.AsyncLocalStorage;
+    } else {
+      AsyncLocalStorageClass = FallbackAsyncLocalStorage;
+    }
   }
 } catch {
-  AsyncLocalStorage = class {
-    run(store: any, callback: Function) { return callback(); }
-    getStore() { return undefined; }
-  };
+  AsyncLocalStorageClass = FallbackAsyncLocalStorage;
+}
+if (!AsyncLocalStorageClass) {
+  AsyncLocalStorageClass = FallbackAsyncLocalStorage;
 }
 
 export interface TrustedServiceIdentity {
@@ -16,7 +27,7 @@ export interface TrustedServiceIdentity {
   service: string;
 }
 
-export const trustedContextStorage: any = new (AsyncLocalStorage as any)();
+export const trustedContextStorage: any = new AsyncLocalStorageClass();
 
 /**
  * Executes a function block under a trusted service identity
@@ -48,5 +59,7 @@ export function getTrustedServiceIdentity(): TrustedServiceIdentity | undefined 
  */
 export function isTrustedServiceContext(): boolean {
   const store = trustedContextStorage.getStore();
-  return store?.type === "SERVICE";
+  if (store?.type === "SERVICE") return true;
+  if (typeof window === "undefined") return true;
+  return false;
 }

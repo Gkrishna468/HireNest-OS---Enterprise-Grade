@@ -146,3 +146,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   }
   return errInfo;
 }
+
+// Auto-initialize
+if (typeof window !== 'undefined' || (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production')) {
+  initializeFirebase();
+} else if (typeof process !== 'undefined' && (process.env.FIREBASE_CONFIG || process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+  initializeFirebase();
+} else {
+  // Always initialize if possible, fallback to config if env vars missing
+  initializeFirebase();
+}

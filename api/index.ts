@@ -260,6 +260,8 @@ const EXACT_HANDLER_REGISTRY: Record<string, any> = {
     const mod: any = await import('../src/api-lib/handlers/agents-execute.js');
     return (mod.default || mod)(req, res);
   }) as any,
+  ai: aiGatewayHandler,
+  'ai/chat': aiGatewayHandler,
   'ai-gateway': aiGatewayHandler,
   'ai-health': aiHealthHandler,
   'automation-events': automationEventsHandler,
@@ -415,6 +417,8 @@ export default async function handler(req: any, res: any) {
 
     if (path && EXACT_HANDLER_REGISTRY[path]) {
       targetHandler = EXACT_HANDLER_REGISTRY[path];
+    } else if (path === 'ai' || path?.startsWith('ai/')) {
+      targetHandler = aiGatewayHandler;
     } else if (path?.startsWith('network-mapping/')) {
       targetHandler = EXACT_HANDLER_REGISTRY['network-mapping'];
     } else if (path?.startsWith('user-admin/')) {

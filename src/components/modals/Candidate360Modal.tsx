@@ -10,7 +10,6 @@ import { Badge } from '../../lib/Badge';
 import { Button } from '../../lib/Button';
 import { cn, getCandidateFitmentScore } from '../../lib/utils';
 import { publishEvent } from '../../lib/eventEngine';
-import { SubmissionOrchestrator } from '../../lib/workflows/SubmissionOrchestrator';
 import { parseBulkResumes } from "../../services/aiService";
 import { CandidateReactivationService } from "../../services/CandidateReactivationService";
 import { ReactivationOpportunityCard } from "../ReactivationOpportunityCard";
@@ -845,14 +844,23 @@ export default function Candidate360Modal({
   };
 
   const handleSubmitCandidate = async () => {
-    if (!selectedJobId) return;
+    if (!selectedJobId) {
+      setSubmissionFeedback({ success: false, message: "Please select an active, eligible requirement before submitting." });
+      return;
+    }
+    const selectedReq = effectiveJobs.find(j => j.id === selectedJobId);
+    if (!selectedReq) {
+      setSubmissionFeedback({ success: false, message: "The selected requirement is not available or eligible for submission." });
+      return;
+    }
+
     setIsSubmittingCandidate(true);
     setSubmissionFeedback(null);
     try {
       const { useSubmissionStore } = await import("../../stores/SubmissionStore");
-      const selectedReq = effectiveJobs.find(j => j.id === selectedJobId);
       const targetClientId = selectedReq?.clientId || "ORG-CLIENT-1";
       const candidateId = candidate.candidateId || candidate.originalId || candidate.id;
+      const currentUserId = auth.currentUser?.uid || (candidate as any)?.submitterId || "local_user";
 
       const response = await useSubmissionStore.getState().submitCandidateProfile({
         candidateData: {
@@ -866,7 +874,7 @@ export default function Candidate360Modal({
         requirementId: selectedJobId,
         clientId: targetClientId,
         vendorId: userOrgId || "local",
-        submitterId: "local_user",
+        submitterId: currentUserId,
         initialStatus: "PENDING_REVIEW",
         matchScore: mappingResult?.matchScore || mappingResult?.fitScore || 0,
         aiAnalysis: mappingResult || null,

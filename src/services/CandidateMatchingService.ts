@@ -561,22 +561,23 @@ export class CandidateMatchingService {
           poolCollection = "direct_candidates";
         }
       }
-    } catch (_) {
-      if (isTrustedServiceContext() && adminDb) {
-        // Fallback to adminDb for server-side/test environments with no signed-in user
-        try {
-          const candSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
-          if (candSnap.exists) {
-            candData = candSnap.data();
-          } else {
-            const directSnap = await adminDb.collection("direct_candidates").doc(candidateId).get();
-            if (directSnap.exists) {
-              candData = directSnap.data();
-              poolCollection = "direct_candidates";
-            }
+    } catch (_) {}
+
+    if (!candData && isTrustedServiceContext() && adminDb) {
+      // Fallback to adminDb for server-side/test environments with no signed-in user or missing client-side record
+      try {
+        const poolSnap = await adminDb.collection("candidatePool").doc(candidateId).get();
+        if (poolSnap.exists) {
+          candData = poolSnap.data();
+          poolCollection = "candidatePool";
+        } else {
+          const directSnap = await adminDb.collection("direct_candidates").doc(candidateId).get();
+          if (directSnap.exists) {
+            candData = directSnap.data();
+            poolCollection = "direct_candidates";
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
 
     if (!candData) {

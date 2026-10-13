@@ -76,7 +76,7 @@ const isRunningInTestContext =
   process.env.npm_lifecycle_event === 'test' ||
   (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.some(arg => /[\/\\\.](test|spec)[\.\\\/]/i.test(arg) || arg.endsWith('.test.ts') || arg.endsWith('.test.js') || arg === '--test'));
 
-if (typeof window === 'undefined' && !isRunningInTestContext) {
+if (typeof window === 'undefined') {
   const credentials = getCredentials();
   const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
   let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
