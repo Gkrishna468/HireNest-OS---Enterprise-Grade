@@ -11,6 +11,8 @@
  * 5. directApplyEnabled !== false
  */
 
+import { VendorRequirementEligibilityPolicy } from "./VendorRequirementEligibilityPolicy.js";
+
 export interface CandidateRequirementPolicyEvaluation {
   isEligible: boolean;
   reasons: string[];
@@ -151,4 +153,14 @@ export class CandidateRequirementEligibilityPolicy {
       sanitizedEmploymentType: "FTE"
     };
   }
+
+  /**
+   * Authoritatively checks if a raw requirement meets criteria for vendor-workspace visibility.
+   * Delegates to VendorRequirementEligibilityPolicy.
+   */
+  public static isVendorEligible(rawReq: any): boolean {
+    return VendorRequirementEligibilityPolicy.isVendorEligible(rawReq);
+  }
 }
+
+export { VendorRequirementEligibilityPolicy };

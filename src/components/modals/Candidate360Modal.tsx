@@ -19,6 +19,7 @@ import { AccessControlService } from "../../services/accessControlService";
 import { CandidateMatchingService, CandidateRequirementMatchRecord } from "../../services/CandidateMatchingService";
 import { ResumeIngestionService } from "../../services/resumeIngestionService";
 import { requirementVendorService } from "../../services/requirementVendorService";
+import { VendorRequirementEligibilityPolicy } from "../../services/VendorRequirementEligibilityPolicy";
 import { db, auth } from "../../lib/firebase";
 import { collection, onSnapshot, doc, getDoc, setDoc, query, limit, where } from "firebase/firestore";
 import { sanitizeFirestorePayload } from "../../lib/firestoreUtils";
@@ -512,10 +513,12 @@ export default function Candidate360Modal({
   }, [jobs, userRole, userOrgId]);
 
   const effectiveJobs = (jobs && jobs.length > 0) ? jobs : internalJobs;
-  const availableJobs = effectiveJobs.filter((job) =>
-    UnifiedRequirementsService.isRequirementOperational(job) &&
-    AccessControlService.isRequirementAuthorized(userOrgId, userRole, job)
-  );
+  const isVendorRole = userRole && (userRole.toLowerCase().includes("vendor") || userRole.toUpperCase() === "VENDOR");
+  const availableJobs = effectiveJobs.filter((job) => {
+    const isOp = UnifiedRequirementsService.isRequirementOperational(job) ||
+      (isVendorRole && VendorRequirementEligibilityPolicy.isVendorEligible(job));
+    return isOp && AccessControlService.isRequirementAuthorized(userOrgId, userRole, job);
+  });
 
   const handleRunMatch = async () => {
     if (!selectedJobId) return;

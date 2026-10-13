@@ -13,13 +13,10 @@ export class UnifiedRequirementsService {
    */
   static isRequirementOperational(req: any): boolean {
     if (!req) return false;
-    const status = (req.status || "").toUpperCase();
-    const distStatus = (req.distributionStatus || "").toUpperCase();
+    const status = (req.status || "").toString().trim().toUpperCase();
+    const distStatus = (req.distributionStatus || "").toString().trim().toUpperCase();
 
-    const isStatusOk = status === "ACTIVE" || status === "PUBLISHED" || status === "OPEN";
-    const isDistOk = distStatus === "PUBLISHED" || distStatus === "ACTIVE" || distStatus === "OPEN";
-
-    return isStatusOk && isDistOk;
+    return status === "ACTIVE" && distStatus === "PUBLISHED";
   }
 
   /**

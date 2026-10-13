@@ -37,6 +37,7 @@ import { useDailyBriefing } from "../../hooks/useDailyBriefing";
 import { formatINR, formatCompactINR, formatBudget } from "../../lib/currency";
 import { RecruiterPerformanceModal } from "../../components/modals/RecruiterPerformanceModal";
 import Requirement360Modal from "../../components/modals/Requirement360Modal";
+import Candidate360Modal from "../../components/modals/Candidate360Modal";
 import { recruiterVendorMappingService, RecruiterVendorMapping } from "../../services/recruiterVendorMappingService";
 import { requirementVendorService } from "../../services/requirementVendorService";
 import { CandidateMatchingService } from "../../services/CandidateMatchingService";
@@ -59,6 +60,7 @@ export default function VendorPartnerWorkspace({
   } | null>(null);
 
   const [selectedReq360, setSelectedReq360] = useState<any | null>(null);
+  const [selectedCandidateForModal, setSelectedCandidateForModal] = useState<any | null>(null);
 
   const [interviews, setInterviews] = useState<any[]>([]);
   const { briefing, loading: briefingLoading } = useDailyBriefing(orgId);
@@ -554,7 +556,15 @@ export default function VendorPartnerWorkspace({
                     <h4 className="font-bold text-white text-sm">Bench Health Queue</h4>
                     <p className="text-[11px] text-slate-400 font-mono mt-1">Available consultants in active marketing channels</p>
                   </div>
-                  <Button variant="outline" className="w-full mt-5 justify-between group border-slate-800 text-blue-400 hover:bg-blue-500/5 text-xs h-9">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      if (vendorCandidates.length > 0) {
+                        setSelectedCandidateForModal(vendorCandidates[0]);
+                      }
+                    }}
+                    className="w-full mt-5 justify-between group border-slate-800 text-blue-400 hover:bg-blue-500/5 text-xs h-9"
+                  >
                     Manage Bench <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
@@ -681,7 +691,12 @@ export default function VendorPartnerWorkspace({
                           </div>
 
                           <div>
-                             <h4 className="text-sm font-black text-white leading-tight">{match.candidateName}</h4>
+                             <h4 
+                               onClick={() => setSelectedCandidateForModal(match.candidate)}
+                               className="text-sm font-black text-white leading-tight cursor-pointer hover:text-indigo-300 transition-colors"
+                             >
+                               {match.candidateName}
+                             </h4>
                              <p className="text-xs text-slate-400 font-mono mt-1">Matched to: {match.requirementTitle}</p>
                              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Client: {match.clientName}</p>
                           </div>
@@ -712,18 +727,27 @@ export default function VendorPartnerWorkspace({
                             )}
                           </div>
 
-                          <Button 
-                             onClick={() => setSubmittingReq({ 
-                                id: match.requirementId, 
-                                title: match.requirementTitle,
-                                recruiterId: match.requirement.assignedRecruiterId || match.requirement.recruiterId || null,
-                                clientId: match.requirement.clientId || "client-abc",
-                                clientName: match.clientName
-                             })}
-                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest h-10 shadow-lg shadow-indigo-500/10"
-                          >
-                             Submit To Client
-                          </Button>
+                          <div className="flex gap-2">
+                             <Button 
+                                variant="outline"
+                                onClick={() => setSelectedCandidateForModal(match.candidate)}
+                                className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 text-[10px] font-mono uppercase font-bold h-10"
+                             >
+                                Candidate 360
+                             </Button>
+                             <Button 
+                                onClick={() => setSubmittingReq({ 
+                                   id: match.requirementId, 
+                                   title: match.requirementTitle,
+                                   recruiterId: match.requirement.assignedRecruiterId || match.requirement.recruiterId || null,
+                                   clientId: match.requirement.clientId || "client-abc",
+                                   clientName: match.clientName
+                                })}
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-mono uppercase font-black text-[10px] tracking-widest h-10 shadow-lg shadow-indigo-500/10"
+                             >
+                                Submit To Client
+                             </Button>
+                          </div>
                        </div>
                     ))
                  )}
@@ -1014,6 +1038,10 @@ export default function VendorPartnerWorkspace({
               role="VENDOR"
               orgId={orgId}
               title="Bench Candidate Reactivation Opportunities"
+              onOpenCandidate360={(candId) => {
+                const cand = vendorCandidates.find(c => c.id === candId || c.candidateId === candId) || { id: candId, candidateId: candId };
+                setSelectedCandidateForModal(cand);
+              }}
             />
           </div>
 
@@ -1036,6 +1064,17 @@ export default function VendorPartnerWorkspace({
           clientId={submittingReq.clientId}
           clientName={submittingReq.clientName}
           onClose={() => setSubmittingReq(null)}
+        />
+      )}
+
+      {selectedCandidateForModal && (
+        <Candidate360Modal
+          candidate={selectedCandidateForModal}
+          onClose={() => setSelectedCandidateForModal(null)}
+          isAdmin={false}
+          userRole="VENDOR"
+          userOrgId={orgId || "vendor-abc"}
+          jobs={liveReqs}
         />
       )}
 

@@ -16,6 +16,7 @@ import { SkillNormalizer } from "../resume-engine/matching/skill-normalizer.js";
 import { formatBudget } from "../lib/currency.js";
 import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
 import { CandidateJobFeedService } from "./candidateJobFeedService.js";
+import { VendorRequirementEligibilityPolicy } from "./VendorRequirementEligibilityPolicy.js";
 import { AccessControlService, HireNestAccessContext } from "./accessControlService.js";
 import { emitEvent } from "./eventBus.js";
 import { JdParsingService } from "./jdParsingService.js";
@@ -615,8 +616,10 @@ export class CandidateMatchingService {
       throw new Error(`Requirement not found: ${requirementId}`);
     }
 
-    // Canonical Operational Gate: status === ACTIVE && distributionStatus === PUBLISHED
-    const isOperational = UnifiedRequirementsService.isRequirementOperational(reqData);
+    // Canonical Operational Gate: status === ACTIVE && distributionStatus === PUBLISHED (or Vendor eligible)
+    const isVendorRole = context.role && (context.role.toLowerCase().includes("vendor") || context.role.toUpperCase() === "VENDOR");
+    const isOperational = UnifiedRequirementsService.isRequirementOperational(reqData) ||
+      (isVendorRole && VendorRequirementEligibilityPolicy.isVendorEligible(reqData));
     if (!isOperational) {
       throw new Error(
         `Requirement ${requirementId} is not operational (status: "${reqData.status || 'UNSET'}", distributionStatus: "${reqData.distributionStatus || 'UNSET'}"). Only ACTIVE + PUBLISHED requirements are eligible for matching.`

@@ -16,6 +16,7 @@ import { recruiterVendorMappingService } from "./recruiterVendorMappingService.j
 import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
 import { isTrustedServiceContext } from "../lib/trusted-context.server.js";
 import { adminDb } from "../lib/firebase-admin.js";
+import { VendorRequirementEligibilityPolicy } from "./VendorRequirementEligibilityPolicy.js";
 
 export interface RequirementVendorMapping {
   id: string; // `reqven-${requirementId}-${vendorId}`
@@ -584,7 +585,8 @@ class RequirementVendorService {
     callback: (reqs: any[]) => void
   ): () => void {
     let unsubReqVendors: (() => void) | null = null;
-    let unsubAllReqs: (() => void) | null = null;
+    let unsubPublicReqs: (() => void) | null = null;
+    let unsubCanonicalReqs: (() => void) | null = null;
 
     // First fetch recruiter mappings for this vendor
     recruiterVendorMappingService.getRecruitersForVendor(vendorId).then(recruiterMappings => {
@@ -602,18 +604,26 @@ class RequirementVendorService {
       unsubReqVendors = onSnapshot(qReqVen, (reqVenSnap) => {
         const explicitReqIds = new Set(reqVenSnap.docs.map(d => d.data().requirementId));
 
-        // Listener on requirements_public
-        unsubAllReqs = onSnapshot(collection(db, "requirements_public"), (reqSnap) => {
-          const allReqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let publicDocs: any[] = [];
+        let canonicalDocs: any[] = [];
+
+        const recomputeAuthorized = () => {
+          const mergedMap = new Map();
+          publicDocs.forEach(d => {
+            const reqId = d.id || d.requirementId;
+            if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
+          });
+          canonicalDocs.forEach(d => {
+            const reqId = d.id || d.requirementId;
+            if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
+          });
+          const allReqs = Array.from(mergedMap.values());
 
           const authorizedReqs = allReqs.filter((req: any) => {
-            // Canonical Operational Invariant: ACTIVE + PUBLISHED
-            if (!UnifiedRequirementsService.isRequirementOperational(req)) {
+            // Check vendor eligibility (canonical operational lifecycle + allows remote, contract, C2C, FTE)
+            if (!VendorRequirementEligibilityPolicy.isVendorEligible(req)) {
               return false;
             }
-
-            const isVendorVisible = req.vendor_visibility !== "DISABLED" && req.vendorVisibility !== "DISABLED";
-            if (!isVendorVisible) return false;
 
             const mode: DistributionMode = req.distributionMode || "ALL_MAPPED_VENDORS";
             const reqRecruiterId = req.assignedRecruiterId || req.recruiterId || null;
@@ -623,26 +633,48 @@ class RequirementVendorService {
               return true;
             }
 
-            // Automatic distribution mode: ALL_MAPPED_VENDORS
-            if (mode === "ALL_MAPPED_VENDORS" && (activeRecruiterIds.includes(reqRecruiterId) || activeRecruiterIds.length === 0)) {
-              return true;
-            }
-
             // Explicit distributedVendorIds array check on requirement doc
             if (Array.isArray(req.distributedVendorIds) && req.distributedVendorIds.includes(vendorId)) {
               return true;
             }
 
+            // Explicit assignedVendorIds array check on requirement doc
+            if (Array.isArray(req.assignedVendorIds) && req.assignedVendorIds.includes(vendorId)) {
+              return true;
+            }
+
+            // Explicit direct vendor ownership
+            if (req.vendorId === vendorId) {
+              return true;
+            }
+
+            // Automatic distribution mode: ALL_MAPPED_VENDORS
+            if (mode === "ALL_MAPPED_VENDORS" && (activeRecruiterIds.includes(reqRecruiterId) || activeRecruiterIds.length === 0)) {
+              return true;
+            }
+
             // Fallback for default seed/legacy requirements without distribution tags
-            if (!req.distributionMode && !req.distributedVendorIds && explicitReqIds.size === 0) {
-              return true; // Keep baseline requirements accessible in initial seed
+            if (!req.distributionMode && !req.distributedVendorIds && !req.assignedVendorIds && explicitReqIds.size === 0) {
+              return true;
             }
 
             return false;
           });
 
           callback(authorizedReqs);
-        }, (err) => console.warn("[RequirementVendorService] reqs listener note:", err?.message));
+        };
+
+        // Listen to requirements_public
+        unsubPublicReqs = onSnapshot(collection(db, "requirements_public"), (reqSnap) => {
+          publicDocs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          recomputeAuthorized();
+        }, (err) => console.warn("[RequirementVendorService] public reqs listener note:", err?.message));
+
+        // Listen to canonical requirements collection
+        unsubCanonicalReqs = onSnapshot(collection(db, "requirements"), (reqSnap) => {
+          canonicalDocs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          recomputeAuthorized();
+        }, (err) => console.warn("[RequirementVendorService] canonical reqs listener note:", err?.message));
       }, (err) => console.warn("[RequirementVendorService] req_vendors listener note:", err?.message));
     }).catch(err => {
       console.warn("[RequirementVendorService] recruiter mapping error:", err?.message);
@@ -650,7 +682,8 @@ class RequirementVendorService {
 
     return () => {
       if (unsubReqVendors) unsubReqVendors();
-      if (unsubAllReqs) unsubAllReqs();
+      if (unsubPublicReqs) unsubPublicReqs();
+      if (unsubCanonicalReqs) unsubCanonicalReqs();
     };
   }
 }

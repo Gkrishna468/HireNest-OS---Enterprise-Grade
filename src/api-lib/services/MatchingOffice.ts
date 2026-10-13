@@ -30,8 +30,14 @@ export class MatchingOffice {
                     const candId = payload.candidateId;
                     if (reqId && candId) {
                         await this.withTimeout((async () => {
-                            const reqDoc = await db.collection("requirements_public").doc(reqId).get();
-                            const candDoc = await db.collection("candidatePool").doc(candId).get();
+                            let reqDoc = await db.collection("requirements_public").doc(reqId).get();
+                            if (!reqDoc.exists) {
+                                reqDoc = await db.collection("requirements").doc(reqId).get();
+                            }
+                            let candDoc = await db.collection("candidatePool").doc(candId).get();
+                            if (!candDoc.exists) {
+                                candDoc = await db.collection("direct_candidates").doc(candId).get();
+                            }
                             if (reqDoc.exists && candDoc.exists) {
                                 await this.computeAndSaveMatch({ id: candDoc.id, ...candDoc.data() }, { id: reqDoc.id, ...reqDoc.data() });
                                 await this.updateRequirementMatchIndex(reqId);
@@ -59,8 +65,14 @@ export class MatchingOffice {
                     const candId = payload.candidateId;
                     if (reqId && candId) {
                         await this.withTimeout((async () => {
-                            const reqDoc = await db.collection("requirements_public").doc(reqId).get();
-                            const candDoc = await db.collection("candidatePool").doc(candId).get();
+                            let reqDoc = await db.collection("requirements_public").doc(reqId).get();
+                            if (!reqDoc.exists) {
+                                reqDoc = await db.collection("requirements").doc(reqId).get();
+                            }
+                            let candDoc = await db.collection("candidatePool").doc(candId).get();
+                            if (!candDoc.exists) {
+                                candDoc = await db.collection("direct_candidates").doc(candId).get();
+                            }
                             if (reqDoc.exists && candDoc.exists) {
                                 await this.computeAndSaveMatch({ id: candDoc.id, ...candDoc.data() }, { id: reqDoc.id, ...reqDoc.data() });
                                 await this.updateRequirementMatchIndex(reqId);
@@ -238,7 +250,10 @@ export class MatchingOffice {
         
         console.log(`[MatchingOffice] Matching all candidates against requirement: ${requirementId}`);
         
-        const reqDoc = await db.collection("requirements_public").doc(requirementId).get();
+        let reqDoc = await db.collection("requirements_public").doc(requirementId).get();
+        if (!reqDoc.exists) {
+            reqDoc = await db.collection("requirements").doc(requirementId).get();
+        }
         if (!reqDoc.exists) {
             console.warn(`[MatchingOffice] Requirement ${requirementId} not found.`);
             return;
@@ -263,7 +278,10 @@ export class MatchingOffice {
         
         console.log(`[MatchingOffice] Matching candidate: ${candidateId} against all active requirements`);
         
-        const candDoc = await db.collection("candidatePool").doc(candidateId).get();
+        let candDoc = await db.collection("candidatePool").doc(candidateId).get();
+        if (!candDoc.exists) {
+            candDoc = await db.collection("direct_candidates").doc(candidateId).get();
+        }
         if (!candDoc.exists) {
             console.warn(`[MatchingOffice] Candidate ${candidateId} not found.`);
             return;
@@ -271,12 +289,19 @@ export class MatchingOffice {
         
         const candObj = { id: candDoc.id, ...candDoc.data() };
         
-        // Fetch all active/open requirements
-        const reqSnapshot = await db.collection("requirements_public")
-            .where("status", "in", ["PUBLISHED", "ACTIVE", "OPEN"])
-            .get();
-            
-        const requirements = reqSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Fetch all active/open requirements from both collections
+        const [reqPubSnap, reqCanonSnap] = await Promise.all([
+            db.collection("requirements_public")
+                .where("status", "in", ["PUBLISHED", "ACTIVE", "OPEN"])
+                .get(),
+            db.collection("requirements")
+                .where("status", "in", ["PUBLISHED", "ACTIVE", "OPEN"])
+                .get()
+        ]);
+        const reqMap = new Map();
+        reqPubSnap.docs.forEach(d => reqMap.set(d.id, { id: d.id, ...d.data() }));
+        reqCanonSnap.docs.forEach(d => reqMap.set(d.id, { id: d.id, ...d.data() }));
+        const requirements = Array.from(reqMap.values());
         
         for (const reqObj of requirements) {
             await this.computeAndSaveMatch(candObj, reqObj);

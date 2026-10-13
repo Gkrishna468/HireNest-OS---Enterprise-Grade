@@ -712,8 +712,17 @@ export class AccessControlService {
       return true;
     }
     if (normRole === 'VENDOR' || normRole === 'VENDOR_ADMIN' || normRole === 'VENDOR_RECRUITER' || normRole.indexOf('VENDOR') !== -1) {
-      const distributed = requirement.distributedVendorIds || [];
-      return distributed.includes(actorId) || requirement.vendorId === actorId;
+      const distributed = requirement.distributedVendorIds || requirement.assignedVendorIds || [];
+      if (Array.isArray(distributed) && distributed.length > 0) {
+        return distributed.includes(actorId);
+      }
+      if (requirement.vendorId) {
+        return requirement.vendorId === actorId;
+      }
+      if (requirement.distributionMode === 'ALL_MAPPED_VENDORS' || !requirement.distributionMode) {
+        return true;
+      }
+      return false;
     }
     if (normRole === 'RECRUITER') {
       const assigned = requirement.assignedRecruiterId || requirement.recruiterId;

@@ -54,6 +54,7 @@ import { parseBulkResumes } from "../services/aiService";
 import { publishEvent } from "../lib/eventEngine";
 import { emitEvent } from "../services/eventBus";
 import { UnifiedRequirementsService } from "../services/unifiedRequirementsService";
+import { VendorRequirementEligibilityPolicy } from "../services/VendorRequirementEligibilityPolicy";
 import { AccessControlService } from "../services/accessControlService";
 import { dedupeCandidates } from "../services/candidateCanonicalizationService";
 
@@ -594,9 +595,11 @@ export default function CandidatesTab() {
           publicDocs.forEach((d) => mergedMap.set(d.id, d));
           canonicalDocs.forEach((d) => mergedMap.set(d.id, d));
           const allReqs = Array.from(mergedMap.values());
+          const isVendor = role && (role.toLowerCase().includes("vendor") || role.toUpperCase() === "VENDOR");
           const operational = allReqs.filter(
             (r) =>
-              UnifiedRequirementsService.isRequirementOperational(r) &&
+              (UnifiedRequirementsService.isRequirementOperational(r) ||
+                (isVendor && VendorRequirementEligibilityPolicy.isVendorEligible(r))) &&
               AccessControlService.isRequirementAuthorized(orgId, role, r)
           );
           setJobs(operational);

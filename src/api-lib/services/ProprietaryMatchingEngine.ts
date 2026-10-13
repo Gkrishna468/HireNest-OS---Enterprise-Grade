@@ -27,10 +27,17 @@ export class ProprietaryMatchingEngine {
   static async calculateMatch(candidateId: string, requirementId: string, orgId: string): Promise<MatchResult> {
     if (!db) throw new Error("Database not initialized");
 
-    const [candDoc, reqDoc] = await Promise.all([
+    let [candDoc, reqDoc] = await Promise.all([
       db.collection('candidatePool').doc(candidateId).get(),
       db.collection('requirements_public').doc(requirementId).get()
     ]);
+
+    if (!reqDoc.exists) {
+      reqDoc = await db.collection('requirements').doc(requirementId).get();
+    }
+    if (!candDoc.exists) {
+      candDoc = await db.collection('direct_candidates').doc(candidateId).get();
+    }
 
     if (!candDoc.exists || !reqDoc.exists) {
       throw new Error("Candidate or Requirement not found");

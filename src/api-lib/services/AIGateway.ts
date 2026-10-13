@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { SecretManager } from "../../lib/secretManager.js";
 import { headroomOptimizer } from "./HeadroomOptimizer.js";
 import { AITelemetry } from "../telemetry/aiTelemetry.js";
@@ -212,312 +211,8 @@ export class CircuitBreaker {
 }
 
 // ==========================================
-// 3. Google GenAI Provider Implementation
+// 4. Centralized AIGateway Orchestrator
 // ==========================================
-export class GoogleProvider implements AIProvider {
-    id = "google";
-    private aiInstance: GoogleGenAI | null = null;
-
-    private async getAIClient(): Promise<GoogleGenAI> {
-        if (!this.aiInstance) {
-            const apiKey = await SecretManager.getSecret("GEMINI_API_KEY") || process.env.GEMINI_API_KEY || "dummy";
-            this.aiInstance = new GoogleGenAI({ apiKey });
-        }
-        return this.aiInstance;
-    }
-
-    async execute(
-        prompt: string,
-        model: string,
-        options: {
-            temperature?: number;
-            systemInstruction?: string;
-            schema?: any;
-            imageParts?: any[];
-            timeoutMs?: number;
-        }
-    ): Promise<{ text: string; tokens: number }> {
-        const client = await this.getAIClient();
-        const contentParts: any[] = [prompt];
-        if (options.imageParts && options.imageParts.length > 0) {
-            contentParts.push(...options.imageParts);
-        }
-
-        const config: any = {
-            temperature: options.temperature ?? 0.2,
-        };
-
-        if (options.systemInstruction) {
-            config.systemInstruction = options.systemInstruction;
-        }
-
-        if (options.schema) {
-            config.responseMimeType = "application/json";
-            if (typeof options.schema === "object") {
-                config.responseSchema = options.schema;
-            }
-        }
-
-        // Validate model: Pro models are strictly disabled
-        const lowerModel = (model || "").toLowerCase();
-        if (lowerModel.includes("pro") && !AIGateway.isProModelAllowed()) {
-            throw new Error("AI_PRO_MODEL_DISABLED: Pro models are disabled. HireNest OS uses Level 1 (gemini-3.1-flash-lite) and Level 2 (gemini-3.8-flash).");
-        }
-
-        // Primary and candidate flash fallbacks
-        const requestedModel = model || AIGateway.getLevel2Model();
-        const candidateModels = Array.from(new Set([
-            requestedModel,
-            "gemini-3.8-flash",
-            "gemini-3.1-flash-lite"
-        ]));
-        const timeoutMs = options.timeoutMs || 25000;
-
-        let lastError: any = null;
-        for (const targetModel of candidateModels) {
-            const maxAttempts = 2;
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    const apiCall = client.models.generateContent({
-                        model: targetModel,
-                        contents: contentParts,
-                        config,
-                    });
-
-                    const timeoutPromise = new Promise<never>((_, reject) => {
-                        setTimeout(() => {
-                            reject(new Error(`Google GenAI request timeout after ${timeoutMs}ms`));
-                        }, timeoutMs);
-                    });
-
-                    const response = await Promise.race([apiCall, timeoutPromise]);
-                    const text = response.text || "";
-                    const usage = response.usageMetadata;
-                    const totalTokens = usage?.totalTokenCount || Math.ceil((prompt.length + text.length) / 4);
-
-                    return { text, tokens: totalTokens };
-                } catch (err: any) {
-                    lastError = err;
-                    const msg = err?.message || String(err);
-
-                    // Definitive Quota Exhaustion (429 with quota/billing message or RESOURCE_EXHAUSTED)
-                    const lowerMsg = msg.toLowerCase();
-                    const isQuotaExhausted =
-                        lowerMsg.includes("exceeded your current quota") ||
-                        lowerMsg.includes("resource_exhausted") ||
-                        lowerMsg.includes("quota") ||
-                        lowerMsg.includes("rate exceeded") ||
-                        lowerMsg.includes("billing_disabled") ||
-                        lowerMsg.includes("depleted") ||
-                        (lowerMsg.includes("429") && (lowerMsg.includes("quota") || lowerMsg.includes("exceeded") || lowerMsg.includes("billing") || lowerMsg.includes("plan")));
-
-                    if (isQuotaExhausted) {
-                        console.warn(`[GoogleProvider] Gemini API Quota Exceeded (429). Fast-failing to deterministic fallback engine.`);
-                        CircuitBreaker.recordFailure("google", "Google API Quota/Credits Exhausted (429)", true);
-                        throw new Error(`Google API Quota/Credits Exhausted (429)`);
-                    }
-                    
-                    // Permanent errors (404, deprecated models, invalid arg) -> skip immediately to next model
-                    const isPermanent = msg.includes("404") || msg.includes("NOT_FOUND") || msg.includes("no longer available") || msg.includes("INVALID_ARGUMENT");
-                    if (isPermanent) {
-                        console.warn(`[GoogleProvider] Model ${targetModel} is permanently unavailable: ${msg.slice(0, 100)}. Trying next candidate model...`);
-                        break;
-                    }
-
-                    // Transient rate-limits or backend overload (503 / 500 / UNAVAILABLE / high demand)
-                    const isTransient = 
-                        msg.includes("503") || 
-                        msg.includes("500") ||
-                        msg.includes("UNAVAILABLE") || 
-                        msg.includes("high demand") || 
-                        (msg.includes("429") && !msg.includes("quota"));
-                    
-                    if (isTransient && attempt < maxAttempts) {
-                        const backoffDelay = 600;
-                        console.warn(`[GoogleProvider] Model ${targetModel} transient issue (${msg.slice(0, 80)}). Retrying in ${backoffDelay}ms (attempt ${attempt}/${maxAttempts})...`);
-                        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-                        continue;
-                    }
-
-                    if (isTransient) {
-                        console.warn(`[GoogleProvider] Model ${targetModel} capacity issue. Switching to next fallback model...`);
-                        break;
-                    }
-
-                    console.warn(`[GoogleProvider] Model ${targetModel} failed: ${msg.slice(0, 100)}. Trying next candidate model...`);
-                    break;
-                }
-            }
-        }
-        
-        const lastMsg = lastError?.message || String(lastError);
-        if (lastMsg.includes("429") || lastMsg.includes("RESOURCE_EXHAUSTED") || lastMsg.includes("depleted") || lastMsg.includes("quota")) {
-            throw new Error(`Google API Quota/Credits Exhausted (429)`);
-        }
-        throw lastError || new Error("All Google candidate models failed");
-    }
-
-    async health(): Promise<boolean> {
-        try {
-            const apiKey = await SecretManager.getSecret("GEMINI_API_KEY") || process.env.GEMINI_API_KEY;
-            return !!apiKey;
-        } catch {
-            return false;
-        }
-    }
-
-    estimateCost(model: string, tokens: number, isCached: boolean): { estimatedCost: number; savedCost: number } {
-        const lowerModel = (model || "").toLowerCase();
-        // Level 1: Gemini 3.1 Flash-Lite: $0.30/1M input, $2.50/1M output, blended ~$0.0000005/token
-        // Level 2: Gemini 3.7 Flash: $0.75/1M input, $3.75/1M output, blended ~$0.0000015/token
-        let ratePerToken = 0.0000005; // Default Level 1 (Flash-Lite)
-        if (lowerModel.includes("3.7") || lowerModel.includes("flash-2") || (!lowerModel.includes("lite") && lowerModel.includes("flash"))) {
-            ratePerToken = 0.0000015; // Level 2 (3.7 Flash)
-        }
-        const cost = Number((tokens * ratePerToken).toFixed(6));
-        return isCached ? { estimatedCost: 0, savedCost: cost } : { estimatedCost: cost, savedCost: 0 };
-    }
-}
-
-// ==========================================
-// FreeLLMAPI Adapter Implementation (P1)
-// ==========================================
-export class FreeLLMProvider implements AIProvider {
-    id = "freellmapi";
-
-    private getBaseUrl(): string {
-        return process.env.FREE_LLM_API_BASE_URL || "https://api.freellmapi.com/v1";
-    }
-
-    private getApiKey(): string {
-        return process.env.FREE_LLM_API_KEY || "dummy";
-    }
-
-    private isEnabled(): boolean {
-        return process.env.ENABLE_FREE_LLM_API === "true";
-    }
-
-    private getModelAllowlist(): Set<string> {
-        // Enforce strict model allowlist for experimental/economical routing
-        return new Set<string>([
-            "llama-3-8b-instruct",
-            "qwen-2.5-7b-instruct",
-            "mistral-7b-instruct",
-            "gemma-2-9b-it"
-        ]);
-    }
-
-    async execute(
-        prompt: string,
-        model: string,
-        options: {
-            temperature?: number;
-            systemInstruction?: string;
-            schema?: any;
-            imageParts?: any[];
-            timeoutMs?: number;
-        }
-    ): Promise<{ text: string; tokens: number }> {
-        if (!this.isEnabled()) {
-            throw new Error("FREE_LLM_API_DISABLED: FreeLLMAPI adapter is currently disabled.");
-        }
-
-        const allowedModels = this.getModelAllowlist();
-        const targetModel = model || "qwen-2.5-7b-instruct";
-        if (!allowedModels.has(targetModel.toLowerCase()) && !process.env.BYPASS_FREE_LLM_ALLOWLIST) {
-            throw new Error(`FREE_LLM_API_MODEL_NOT_ALLOWED: Model '${targetModel}' is not in the experimental allowlist.`);
-        }
-
-        const messages: any[] = [];
-        if (options.systemInstruction) {
-            messages.push({ role: "system", content: options.systemInstruction });
-        }
-        messages.push({ role: "user", content: prompt });
-
-        const requestPayload = {
-            model: targetModel,
-            messages,
-            temperature: options.temperature ?? 0.2,
-            response_format: options.schema ? { type: "json_object" } : undefined
-        };
-
-        const timeoutMs = options.timeoutMs || 20000;
-        const maxAttempts = 3;
-        let lastError: any = null;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-            try {
-                const res = await fetch(`${this.getBaseUrl()}/chat/completions`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${this.getApiKey()}`
-                    },
-                    body: JSON.stringify(requestPayload),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-
-                if (!res.ok) {
-                    throw new Error(`FreeLLMAPI returned status ${res.status}: ${await res.text().catch(() => "")}`);
-                }
-
-                const data = await res.json();
-                const choice = data.choices?.[0];
-                const text = choice?.message?.content || "";
-                
-                // Token accounting: use API values or fallback calculation
-                const promptTokens = data.usage?.prompt_tokens || Math.ceil(prompt.length / 4);
-                const completionTokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
-                const totalTokens = promptTokens + completionTokens;
-
-                CircuitBreaker.recordSuccess(this.id);
-                return { text, tokens: totalTokens };
-
-            } catch (err: any) {
-                clearTimeout(timeoutId);
-                lastError = err;
-                console.warn(`[FreeLLMProvider] Attempt ${attempt}/${maxAttempts} failed: ${err.message}`);
-                
-                if (attempt < maxAttempts) {
-                    // Linear backoff
-                    const delay = attempt * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
-
-        // Failure isolation via Circuit Breaker
-        CircuitBreaker.recordFailure(this.id, lastError?.message || "Execution exhausted max attempts");
-        throw lastError || new Error("FreeLLMAPI request failed after retries.");
-    }
-
-    async health(): Promise<boolean> {
-        if (!this.isEnabled()) return false;
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
-            const res = await fetch(`${this.getBaseUrl()}/models`, {
-                headers: { "Authorization": `Bearer ${this.getApiKey()}` },
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            return res.ok;
-        } catch {
-            return false;
-        }
-    }
-
-    estimateCost(model: string, tokens: number, isCached: boolean): { estimatedCost: number; savedCost: number } {
-        const ratePerToken = 0.0000005; // Equivalent to Level 1
-        const cost = Number((tokens * ratePerToken).toFixed(6));
-        return { estimatedCost: 0, savedCost: cost };
-    }
-}
 
 // ==========================================
 // Ollama Local Provider Implementation (Zero Paid Inference)
@@ -683,8 +378,6 @@ export class AIGateway {
     ]);
 
     private static providers: Record<string, AIProvider> = {
-        google: new GoogleProvider(),
-        freellmapi: new FreeLLMProvider(),
         ollama: new OllamaProvider()
     };
 
@@ -750,15 +443,15 @@ export class AIGateway {
     }
 
     static getLevel1Model(): string {
-        return process.env.AI_LOW_COST_MODEL || process.env.AI_LEVEL_1_MODEL || "gemini-3.1-flash-lite";
+        return process.env.AI_LOW_COST_MODEL || process.env.AI_LEVEL_1_MODEL || "qwen3:8b";
     }
 
     static getLevel2Model(): string {
-        return process.env.AI_DEFAULT_MODEL || process.env.AI_LEVEL_2_MODEL || "gemini-3.8-flash";
+        return process.env.AI_DEFAULT_MODEL || process.env.AI_LEVEL_2_MODEL || "qwen3:8b";
     }
 
     static getComplexModel(): string {
-        return process.env.AI_COMPLEX_MODEL || "gemini-3.1-pro-preview";
+        return process.env.AI_COMPLEX_MODEL || "qwen3:8b";
     }
 
     static isProModelAllowed(): boolean {
