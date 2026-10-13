@@ -98,6 +98,20 @@ export class MatchingOffice {
         }
     }
 
+    private static async resolveClientName(orgId: string): Promise<string> {
+        if (!orgId || orgId === "GLOBAL" || orgId === "TENANT-HQ") return "Enterprise Client";
+        try {
+            const orgDoc = await db.collection("organizations").doc(orgId).get();
+            if (orgDoc.exists) {
+                const data = orgDoc.data();
+                return data?.companyName || data?.name || "Enterprise Client";
+            }
+        } catch (err) {
+            console.warn(`[MatchingOffice] Failed to resolve client name for ${orgId}:`, err);
+        }
+        return "Enterprise Client";
+    }
+
     private static async computeAndSaveMatch(cand: any, reqObj: any) {
         if (!db) return null;
 
@@ -164,9 +178,14 @@ export class MatchingOffice {
                 const existingMatch = await matchDocRef.get();
                 const isNew = !existingMatch.exists;
 
+                const clientName = await this.resolveClientName(effectiveOrgId);
+                
                 const matchPayload = {
                     ...matchResult,
                     candidateId: cand.id,
+                    candidateName: cand.name || cand.candidateName || cand.fullName || (cand.firstName ? `${cand.firstName} ${cand.lastName}` : "Unknown Candidate"),
+                    requirementTitle: reqObj.title || reqObj.requirementTitle || "Active Requirement",
+                    clientName: reqObj.clientName || clientName,
                     vendorId: vendorId,
                     orgId: cand.orgId || vendorId || "SYSTEM",
                     source: "PROPRIETARY_MATCHING_ENGINE_V1",
@@ -340,7 +359,7 @@ export class MatchingOffice {
         await db.collection("requirement_match_index").doc(requirementId).set({
             requirementId: requirementId,
             totalMatches: totalMatches,
-            topMatchScore: topScore,
+            topMatchScore: Math.round(topScore),
             lastCalculated: new Date().toISOString(),
         });
     }

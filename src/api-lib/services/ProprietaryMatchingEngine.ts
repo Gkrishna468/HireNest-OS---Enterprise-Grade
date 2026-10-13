@@ -1,4 +1,5 @@
 import { db } from '../../lib/firebase-admin.js';
+import { AIGateway } from './AIGateway.js';
 
 export interface MatchResult {
   candidateId: string;
@@ -166,9 +167,28 @@ export class ProprietaryMatchingEngine {
   }
 
   private static async calculateSemanticScore(candidate: any, requirement: any) {
-    // ZERO-AI REQUIREMENT: Semantic scoring via LLM is removed.
-    // The system must fall back to deterministic scoring.
-    return null;
+    const prompt = `Evaluate the semantic fit between the candidate and the requirement.
+    Candidate Skills: ${(candidate.skills || []).join(', ')}
+    Requirement Skills: ${(requirement.skills || []).join(', ')}
+    Candidate Experience: ${candidate.experienceYears || 'N/A'} years
+    Requirement Experience: ${requirement.experienceYears || 'N/A'} years
+    
+    Return a JSON object with:
+    - score (0-100)
+    - reasoning (brief explanation)
+    `;
+
+    try {
+        const result = await AIGateway.callOllama(prompt, "qwen3:8b", {
+            schema: { type: "object", properties: { score: { type: "number" }, reasoning: { type: "string" } }, required: ["score", "reasoning"] }
+        });
+        
+        const parsed = AIGateway.extractAndParseJSON(result.text);
+        return { score: parsed.score, reasoning: parsed.reasoning };
+    } catch (err) {
+        console.error("[ProprietaryMatchingEngine] Semantic scoring failed:", err);
+        return null;
+    }
   }
 
   private static async calculateBusinessScore(candidate: any, requirement: any, orgId: string): Promise<number> {

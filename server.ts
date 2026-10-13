@@ -2,7 +2,6 @@ import { startTracing } from './src/api-lib/telemetry/tracer.js';
 // startTracing(); // Optionally start telemetry (disabled in dev to reduce console spam)
 import 'dotenv/config';
 import express from 'express';
-// express-async-errors is incompatible with Express 5 and unnecessary since Express 5 natively handles async errors.
 import helmet from 'helmet';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 

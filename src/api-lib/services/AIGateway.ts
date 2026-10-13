@@ -901,7 +901,7 @@ export class AIGateway {
     }
 
     static async callOllama(prompt: string, model: string, options: any = {}) {
-        throw new Error("NON_GOOGLE_PROVIDER_DISABLED: Ollama is disabled. HireNest OS exclusively uses Google GenAI SDK.");
+        return this.providers.ollama.execute(prompt, model, options);
     }
 
     static async callOpenAI(prompt: string, model: string, options: any = {}) {

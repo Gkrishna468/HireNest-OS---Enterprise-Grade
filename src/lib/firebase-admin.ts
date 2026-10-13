@@ -72,11 +72,56 @@ export let adminDb: any = null;
 export let adminAuth: any = null;
 
 if (typeof window === 'undefined') {
+  const credentials = getCredentials();
+  const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
+  let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
+
+  // FAIL-CLOSED TARGET PROJECT GUARD
+  const isEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+  const isRunningInTestContext = 
+    process.env.NODE_ENV === 'test' || 
+    process.env.npm_lifecycle_event === 'test' ||
+    (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.some(arg => /[\/\\\.](test|spec)[\.\\\/]/i.test(arg) || arg.endsWith('.test.ts') || arg.endsWith('.test.js') || arg === '--test'));
+
+  const isTestOrStaging = 
+    isRunningInTestContext ||
+    process.env.NODE_ENV === 'staging' || 
+    process.env.STAGING_MODE === 'true' || 
+    process.env.IS_STAGING === 'true';
+
+  const isEmulatorOrStagingOrTest = isEmulator || isTestOrStaging;
+  const isLiveProductionProject = projectId === 'hirenest-os';
+
+  // Security Audit Log: Check for prohibited override attempts
+  if (isEmulatorOrStagingOrTest && process.env.ALLOW_PRODUCTION_WRITES === 'true') {
+    console.warn("[FAIL-CLOSED GUARD] SECURITY AUDIT WARNING: ALLOW_PRODUCTION_WRITES is prohibited and rejected in non-production environments.");
+  }
+
+  // GAP 1 & GAP 2: Fail-closed production protection guard.
+  // In staging or test mode, targeting 'hirenest-os' without a local emulator is strictly prohibited.
+  // ALLOW_PRODUCTION_WRITES cannot bypass this guard.
+  // Thrown outside try/catch so it can NEVER be swallowed.
+  if (isEmulatorOrStagingOrTest && isLiveProductionProject && !isEmulator) {
+    const msg = "[FAIL-CLOSED GUARD] CRITICAL SECURITY ALERT: Staging, Test, or Local environment attempted to target live production project 'hirenest-os' without a local emulator. ALLOW_PRODUCTION_WRITES is prohibited in non-production. Execution halted immediately to protect production data integrity.";
+    console.error(msg);
+    throw new Error("FAIL_CLOSED_PRODUCTION_PROTECTION_GUARD_TRIGGERED: Live production project 'hirenest-os' cannot be targeted in Staging/Test/Emulator environment.");
+  }
+
+  // GAP 4: Placeholder 'hirenest-staging-db' clarification.
+  // 'hirenest-staging-db' is NOT a provisioned Firebase project.
+  // If targeted without emulator, hard fail to prevent assuming unprovisioned remote staging.
+  if (isTestOrStaging && !isEmulator && (projectId === 'hirenest-staging-db' || !projectId)) {
+    const msg = "[FAIL-CLOSED GUARD] CRITICAL: 'hirenest-staging-db' is an unprovisioned placeholder. Remote staging is on hold. Please configure FIRESTORE_EMULATOR_HOST to run against the local emulator.";
+    console.error(msg);
+    throw new Error("UNPROVISIONED_STAGING_TARGET_ERROR: 'hirenest-staging-db' is an unprovisioned placeholder. Remote staging is on hold. Connect to the local Firebase Emulator (FIRESTORE_EMULATOR_HOST) for local testing.");
+  }
+
+  // If running in local emulator mode, force offline demo project namespace if targeting production or placeholder
+  if (isEmulator && (isLiveProductionProject || !projectId || projectId === 'hirenest-staging-db')) {
+    projectId = "demo-hirenest-emulator";
+  }
+
   try {
-    const credentials = getCredentials();
-    const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
-    let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
-    
     if (getApps().length === 0) {
       const tryAppDefault = () => {
         try {
@@ -108,6 +153,12 @@ if (typeof window === 'undefined') {
       } catch (e: any) { console.error("[Firebase Admin] Failed to initialize adminAuth:", e.message); }
     }
   } catch (globalInitError: any) {
+    if (
+      globalInitError?.message?.includes("FAIL_CLOSED_PRODUCTION_PROTECTION_GUARD_TRIGGERED") ||
+      globalInitError?.message?.includes("UNPROVISIONED_STAGING_TARGET_ERROR")
+    ) {
+      throw globalInitError;
+    }
     console.error("[Firebase Admin] Global critical init failed:", globalInitError.message);
   }
 }

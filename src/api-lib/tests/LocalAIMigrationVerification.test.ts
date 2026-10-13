@@ -35,6 +35,7 @@ export async function runLocalAIMigrationVerificationTests(): Promise<{
 
   // 1. Ollama Local Provider Routing & $0 Cost Accounting
   console.log("-> 1. Testing Ollama Local Provider Registration & $0 Cost Accounting:");
+  process.env.NODE_ENV = "test";
   process.env.USE_LOCAL_AI = "true";
   process.env.ZERO_PAID_INFERENCE = "true";
   process.env.OLLAMA_MODEL = "qwen3:8b";
@@ -108,7 +109,13 @@ export async function runLocalAIMigrationVerificationTests(): Promise<{
   console.log("-> 3b. Testing Candidate Record Persistence During AI Gateway Failure:");
   try {
     const { CandidateEvidenceEngine } = await import("../services/CandidateEvidenceEngine.js");
-    const { adminDb } = await import("../../lib/firebase-admin.js");
+    let adminDb: any = null;
+    try {
+      const fbAdmin = await import("../../lib/firebase-admin.js");
+      adminDb = fbAdmin.adminDb;
+    } catch {
+      adminDb = null; // Guard prevented access to production in test mode
+    }
 
     if (adminDb) {
       // Seed test candidate and requirement

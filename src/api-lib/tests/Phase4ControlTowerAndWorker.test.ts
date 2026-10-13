@@ -12,6 +12,7 @@ export async function runPhase4Tests(): Promise<{
   failed: number;
   errors: string[];
 }> {
+  process.env.NODE_ENV = "test";
   process.env.USE_LOCAL_AI = "true";
   process.env.ZERO_PAID_INFERENCE = "true";
   process.env.OLLAMA_MODEL = "qwen3:8b";

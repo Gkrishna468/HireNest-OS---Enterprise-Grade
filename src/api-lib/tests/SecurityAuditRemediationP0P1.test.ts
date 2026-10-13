@@ -90,4 +90,19 @@ describe("Security Audit Remediation P0 & P1 Automated Test Suite", () => {
     assert.strictEqual(sanitized2, "An account with this email address already exists. Please sign in or reset your password.");
     assert.ok(sanitized3.includes("Too many failed attempts"));
   });
+
+  it("STAGING-001: should verify firebase-admin.ts contains Fail-Closed Target Project Guard for hirenest-os", () => {
+    const fbAdmin = fs.readFileSync("src/lib/firebase-admin.ts", "utf-8");
+    assert.ok(fbAdmin.includes("FAIL-CLOSED TARGET PROJECT GUARD"), "firebase-admin.ts must contain Fail-Closed Target Project Guard");
+    assert.ok(fbAdmin.includes("FAIL_CLOSED_PRODUCTION_PROTECTION_GUARD_TRIGGERED"), "firebase-admin.ts must throw protection error when targeting hirenest-os in staging/test mode");
+    assert.ok(fbAdmin.includes('hirenest-staging-db'), "firebase-admin.ts must check hirenest-staging-db placeholder");
+    assert.strictEqual(fbAdmin.includes("!allowProdWrites"), false, "firebase-admin.ts must NOT contain !allowProdWrites bypass");
+  });
+
+  it("STAGING-002: should verify client firebase.ts contains Fail-Closed Target Guard and emulator connections", () => {
+    const fbClient = fs.readFileSync("src/lib/firebase.ts", "utf-8");
+    assert.ok(fbClient.includes("FAIL-CLOSED CLIENT TARGET GUARD"), "firebase.ts must contain Fail-Closed Client Target Guard");
+    assert.ok(fbClient.includes("FAIL_CLOSED_PRODUCTION_PROTECTION_GUARD_TRIGGERED"), "firebase.ts must throw protection error when targeting hirenest-os in staging/test mode");
+    assert.ok(fbClient.includes("connectFirestoreEmulator"), "firebase.ts must connect to firestore emulator when configured");
+  });
 });

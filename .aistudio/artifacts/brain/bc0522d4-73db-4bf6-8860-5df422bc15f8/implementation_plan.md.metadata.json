@@ -1,0 +1,6 @@
+{
+  "summary": "Implementation plan to integrate Ollama-powered semantic matching into HireNestOS, preserving the existing proprietary engine's hard-gate architecture and ensuring data integrity across Admin, Vendor, and Client experiences.",
+  "updatedAt": "2026-10-13T08:49:40.730975702Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

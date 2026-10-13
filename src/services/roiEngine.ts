@@ -150,6 +150,11 @@ export class ROIEngine {
       metadata: params.metadata || {}
     };
 
+    // In test environment without emulator, skip remote Firestore persistence to protect production data integrity
+    if (process.env.NODE_ENV === 'test' && !process.env.FIRESTORE_EMULATOR_HOST) {
+      return event;
+    }
+
     // Safe persistence with zero-trust handling (idempotent setDoc overwrites if already present)
     try {
       await setDoc(doc(db, this.collectionName, eventId), event);

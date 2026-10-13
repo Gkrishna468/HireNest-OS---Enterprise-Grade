@@ -36,67 +36,50 @@ export const MatchingWorkspace: React.FC = () => {
   const [direction, setDirection] = useState<'REQ_TO_CANDIDATES' | 'CANDIDATE_TO_REQS'>('REQ_TO_CANDIDATES');
   const [submittingId, setSubmittingId] = useState<string | null>(null);
 
-  // Load canonical candidate_matches and requirements/candidates on mount
+  // Load matches
   useEffect(() => {
     const loadUniversalMatches = async () => {
       setLoading(true);
       try {
-        const matchSnap = await getDocs(query(collection(db, "candidate_matches"), limit(100)));
-        let fetchedMatches: MatchItem[] = matchSnap.docs.map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            candidateId: data.candidateId || 'cand-unknown',
-            requirementId: data.requirementId || 'req-unknown',
-            candidateName: data.candidateName || 'Candidate',
-            reqTitle: data.reqTitle || data.requirementTitle || 'Active Requirement',
-            clientName: data.clientName || 'Enterprise Client',
-            location: data.location || 'Hyderabad',
-            score: data.score || data.matchScore || 88,
-            tier: data.tier || 'STRONG',
-            evidence: data.evidence || { skillsScore: 90, experienceScore: 85, workModeScore: 92 },
-            source: data.vendorId || data.vendorName ? 'VENDOR' : 'DIRECT',
-            vendorId: data.vendorId || null,
-            vendorName: data.vendorName || null,
-            isDirect: !data.vendorId && !data.vendorName,
-            isExistingMatch: true,
-            status: data.status || 'MATCHED',
-            createdAt: data.createdAt || new Date().toISOString()
-          };
+        // 1. Get requirement index
+        const indexSnap = await getDocs(query(collection(db, "requirement_match_index"), limit(50)));
+        const indexDocs = indexSnap.docs.map(d => ({ reqId: d.id, ...d.data() }));
+
+        // 2. Fetch detailed matches from SSOT
+        const matchSnap = await getDocs(query(collection(db, "candidate_matches"), limit(200)));
+        const allMatchesData = matchSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // 3. Fetch canonical candidates and requirements to resolve names
+        const [candSnap, reqSnap] = await Promise.all([
+            getDocs(collection(db, "candidatePool")),
+            getDocs(collection(db, "requirements_public"))
+        ]);
+        const candMap = new Map(candSnap.docs.map(d => [d.id, d.data()]));
+        const reqMap = new Map(reqSnap.docs.map(d => [d.id, d.data()]));
+
+        let fetchedMatches: MatchItem[] = allMatchesData.map((data: any) => {
+            const cand = candMap.get(data.candidateId);
+            const req = reqMap.get(data.requirementId);
+            return {
+                id: data.id,
+                candidateId: data.candidateId || 'cand-unknown',
+                requirementId: data.requirementId || 'req-unknown',
+                candidateName: data.candidateName || cand?.name || cand?.fullName || 'Unknown Candidate',
+                reqTitle: data.requirementTitle || req?.title || 'Unknown Requirement',
+                clientName: data.clientName || req?.clientName || 'Unknown Client',
+                location: data.location || cand?.location || 'Unknown',
+                score: data.matchScore || 85,
+                tier: data.matchTier || 'STRONG',
+                evidence: data.fitmentMatrix || {},
+                source: data.vendorId || data.vendorName ? 'VENDOR' : 'DIRECT',
+                vendorId: data.vendorId || null,
+                vendorName: data.vendorName || null,
+                isDirect: !data.vendorId && !data.vendorName,
+                isExistingMatch: true,
+                status: data.status || 'MATCHED',
+                createdAt: data.createdAt || new Date().toISOString()
+            };
         });
-
-        // If candidate_matches is empty, generate realistic grounded items from candidatePool and requirements
-        if (fetchedMatches.length === 0) {
-          const candSnap = await getDocs(query(collection(db, "candidatePool"), limit(15)));
-          const reqSnap = await getDocs(query(collection(db, "requirements_public"), limit(5)));
-          const cands = candSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const reqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-
-          if (reqs.length > 0 && cands.length > 0) {
-            fetchedMatches = cands.map((c: any, idx: number) => {
-              const req: any = reqs[idx % reqs.length];
-              const isVendor = idx % 2 === 0;
-              return {
-                id: `match_${c.id}_${req.id}`,
-                candidateId: c.id,
-                requirementId: req.id,
-                candidateName: c.fullName || c.name || `Candidate #${idx + 1}`,
-                reqTitle: req.title || 'Senior Software Engineer',
-                clientName: req.clientName || 'Enterprise Corp',
-                location: req.location || 'Bangalore / Remote',
-                score: 92 - (idx * 3),
-                tier: idx < 2 ? 'STRONG' : 'VALIDATABLE',
-                evidence: { skillsScore: 90, experienceScore: 88, workModeScore: 95 },
-                source: isVendor ? 'VENDOR' : 'DIRECT',
-                vendorId: isVendor ? 'vendor-xyz' : null,
-                vendorName: isVendor ? 'ABC Staffing Solutions' : null,
-                isDirect: !isVendor,
-                isExistingMatch: idx % 3 === 0,
-                status: 'READY'
-              };
-            });
-          }
-        }
 
         setMatches(fetchedMatches);
       } catch (err) {

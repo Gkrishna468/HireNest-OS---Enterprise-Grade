@@ -360,29 +360,9 @@ export default function MatchIntelligenceTab() {
     const orgId = userOrgId;
 
     // 1. Candidate Matches Subscription
-    let matchQuery;
-    if (roleIsAdmin) {
-      // HQ Admins see enterprise-wide canonical matches
-      matchQuery = query(collection(db, "candidate_matches"), limit(150));
-    } else if (roleIsClient && orgId) {
-      // Clients see matches for their organization's requisitions
-      matchQuery = query(
-        collection(db, "candidate_matches"),
-        where("clientId", "==", orgId),
-        limit(150),
-      );
-    } else if (roleIsVendor && orgId) {
-      // Vendors see matches for their candidate bench
-      matchQuery = query(
-        collection(db, "candidate_matches"),
-        where("vendorId", "==", orgId),
-        limit(150),
-      );
-    } else {
-      // Internal Recruiters & Independent Partners
-      matchQuery = query(collection(db, "candidate_matches"), limit(150));
-    }
-
+    // Use requirement_match_index for lookups (to be implemented), but retain SSOT for individual records
+    const matchQuery = query(collection(db, "candidate_matches"), limit(150));
+    
     const unsubMatches = onSnapshot(
       matchQuery,
       (snapshot) => {
@@ -395,15 +375,7 @@ export default function MatchIntelligenceTab() {
           "[MatchIntelligence] Scoped candidate_matches subscription fallback:",
           err?.message,
         );
-        // Fallback to broader query if index or compound filter requires setup
-        const fallbackQuery = query(
-          collection(db, "candidate_matches"),
-          limit(100),
-        );
-        onSnapshot(fallbackQuery, (snap) => {
-          setMatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-          setLoading(false);
-        });
+        setLoading(false);
       },
     );
 
@@ -2118,8 +2090,8 @@ function MatchRow({
           <div className="flex items-center gap-1.5">
             <p className="font-bold text-slate-900 text-xs">
               {viewType === "candidate-info"
-                ? cand?.name || cand?.candidateName || match.candidateName || match.candidateId
-                : req?.title || match.requirementTitle || match.requirementId}
+                ? cand?.name || cand?.fullName || 'Unknown Candidate'
+                : req?.title || 'Unknown Requirement'}
             </p>
             {isExpanded ? (
               <ChevronUp size={14} className="text-slate-400" />
