@@ -71,20 +71,20 @@ let app: any = undefined;
 export let adminDb: any = null;
 export let adminAuth: any = null;
 
-if (typeof window === 'undefined') {
+const isRunningInTestContext = 
+  process.env.NODE_ENV === 'test' || 
+  process.env.npm_lifecycle_event === 'test' ||
+  (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.some(arg => /[\/\\\.](test|spec)[\.\\\/]/i.test(arg) || arg.endsWith('.test.ts') || arg.endsWith('.test.js') || arg === '--test'));
+
+if (typeof window === 'undefined' && !isRunningInTestContext) {
   const credentials = getCredentials();
   const isManagedEnv = !!(process.env.K_SERVICE || process.env.GOOGLE_CLOUD_PROJECT);
   let projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || process.env.GOOGLE_CLOUD_PROJECT;
 
   // FAIL-CLOSED TARGET PROJECT GUARD
   const isEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
-  const isRunningInTestContext = 
-    process.env.NODE_ENV === 'test' || 
-    process.env.npm_lifecycle_event === 'test' ||
-    (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.some(arg => /[\/\\\.](test|spec)[\.\\\/]/i.test(arg) || arg.endsWith('.test.ts') || arg.endsWith('.test.js') || arg === '--test'));
 
   const isTestOrStaging = 
-    isRunningInTestContext ||
     process.env.NODE_ENV === 'staging' || 
     process.env.STAGING_MODE === 'true' || 
     process.env.IS_STAGING === 'true';
@@ -98,9 +98,6 @@ if (typeof window === 'undefined') {
   }
 
   // GAP 1 & GAP 2: Fail-closed production protection guard.
-  // In staging or test mode, targeting 'hirenest-os' without a local emulator is strictly prohibited.
-  // ALLOW_PRODUCTION_WRITES cannot bypass this guard.
-  // Thrown outside try/catch so it can NEVER be swallowed.
   if (isEmulatorOrStagingOrTest && isLiveProductionProject && !isEmulator) {
     const msg = "[FAIL-CLOSED GUARD] CRITICAL SECURITY ALERT: Staging, Test, or Local environment attempted to target live production project 'hirenest-os' without a local emulator. ALLOW_PRODUCTION_WRITES is prohibited in non-production. Execution halted immediately to protect production data integrity.";
     console.error(msg);
@@ -108,8 +105,6 @@ if (typeof window === 'undefined') {
   }
 
   // GAP 4: Placeholder 'hirenest-staging-db' clarification.
-  // 'hirenest-staging-db' is NOT a provisioned Firebase project.
-  // If targeted without emulator, hard fail to prevent assuming unprovisioned remote staging.
   if (isTestOrStaging && !isEmulator && (projectId === 'hirenest-staging-db' || !projectId)) {
     const msg = "[FAIL-CLOSED GUARD] CRITICAL: 'hirenest-staging-db' is an unprovisioned placeholder. Remote staging is on hold. Please configure FIRESTORE_EMULATOR_HOST to run against the local emulator.";
     console.error(msg);
@@ -154,6 +149,7 @@ if (typeof window === 'undefined') {
     }
   } catch (globalInitError: any) {
     if (
+      globalInitError?.message?.includes("FAIL-CLOSED GUARD") ||
       globalInitError?.message?.includes("FAIL_CLOSED_PRODUCTION_PROTECTION_GUARD_TRIGGERED") ||
       globalInitError?.message?.includes("UNPROVISIONED_STAGING_TARGET_ERROR")
     ) {

@@ -1,7 +1,9 @@
 let AsyncLocalStorage: any;
 try {
-  const asyncHooks = (eval('require')('async_hooks'));
-  AsyncLocalStorage = asyncHooks.AsyncLocalStorage;
+  if (typeof window === 'undefined') {
+    const asyncHooks = require('async_hooks');
+    AsyncLocalStorage = asyncHooks.AsyncLocalStorage;
+  }
 } catch {
   AsyncLocalStorage = class {
     run(store: any, callback: Function) { return callback(); }

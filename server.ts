@@ -276,6 +276,15 @@ async function createServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+  // --- Security: Block direct access to source code ---
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/src/')) {
+      console.warn(`[Security] Blocked access to source file: ${req.url}`);
+      return res.status(404).json({ error: "Not Found" });
+    }
+    next();
+  });
+
   // --- Health Endpoints ---
   app.get('/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));
   app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', version: '1.0' }));

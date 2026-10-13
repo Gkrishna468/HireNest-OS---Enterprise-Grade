@@ -3,10 +3,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { auth } from './lib/firebase';
+import * as firebaseModule from './lib/firebase';
 import { initializeWorkflows } from './workflows';
 import { initializeEventBus } from './events';
 import { onAuthStateChanged } from 'firebase/auth';
+
+firebaseModule.initializeFirebase();
 
 // Polyfill Uint8Array.prototype.toHex for newer versions of pdfjs-dist
 if (typeof (Uint8Array.prototype as any).toHex !== 'function') {
@@ -128,7 +130,7 @@ if (typeof (Math as any).sumPrecise !== 'function') {
 
 let isInitialized = false;
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(firebaseModule.auth, (user) => {
   if (user && !isInitialized) {
     console.log("[Runtime] User authenticated, initializing AI & workflows...");
     initializeWorkflows();
@@ -144,7 +146,7 @@ Object.defineProperty(window, 'fetch', {
   value: async (...args: any[]) => {
     const [resource] = args;
     if (typeof resource === 'string' && resource.startsWith('/api/')) {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await firebaseModule.auth.currentUser?.getIdToken();
       if (token) {
         if (args[1]) {
           args[1].headers = {
@@ -159,6 +161,8 @@ Object.defineProperty(window, 'fetch', {
     return originalFetch(args[0], args[1]);
   }
 });
+
+(window as any).__ENV = (import.meta as any).env;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
