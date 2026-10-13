@@ -131,27 +131,13 @@ export default function DealRoomsTab() {
 
         // Fallback to Firestore
         let q;
-        const normRole = (userRole || "").toLowerCase();
-        if (normRole.startsWith("client")) {
-          q = query(
-            collection(db, "dealRooms"),
-            where("clientId", "==", orgId),
-            limit(50),
-          );
-        } else if (normRole.includes("vendor")) {
-          q = query(
-            collection(db, "dealRooms"),
-            where("vendorId", "==", orgId),
-            limit(50),
-          );
-        } else {
-          q = query(collection(db, "dealRooms"), limit(50)); // HQ/Admin
-        }
+        q = query(collection(db, "dealRooms"), limit(50)); // HQ/Admin/Test
 
         const unsubscribe = onSnapshot(
           q,
           (snap) => {
             const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            console.log("[DealRoomsTab] raw deal rooms:", raw);
             const data = raw.filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
             setDealRooms(data);
           },

@@ -485,6 +485,7 @@ export default function MatchIntelligenceTab() {
         vendorId: cand?.vendorId || match.vendorId || userOrgId || "DIRECT",
         currentStage: "shortlisted",
         status: "ACTIVE",
+        participants: [match.vendorId || userOrgId || "DIRECT", req.clientId || "CLIENT-ORG"],
         createdAt: new Date().toISOString(),
         createdBy: userData?.displayName || userData?.name || "Recruiter",
         matchScore: match.score || match.matchScore || 0,
