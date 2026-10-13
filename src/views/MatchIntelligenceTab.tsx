@@ -483,6 +483,7 @@ export default function MatchIntelligenceTab() {
         requirementTitle,
         clientId: req?.clientId || "CLIENT-ORG",
         vendorId: cand?.vendorId || match.vendorId || userOrgId || "DIRECT",
+        currentStage: "shortlisted",
         status: "ACTIVE",
         createdAt: new Date().toISOString(),
         createdBy: userData?.displayName || userData?.name || "Recruiter",

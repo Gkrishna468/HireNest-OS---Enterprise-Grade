@@ -1,41 +1,23 @@
-# Implementation Plan: Match Intelligence — Ollama Integration
+# Implementation Plan: Deal Room UI Remediation (HN-008/Submission Hub)
 
-## 1. Objective
-Enable Ollama-powered semantic reranking within the HireNestOS matching engine, improving fitment reasoning while maintaining deterministic hard gates, ABAC-compliant data isolation, and single-source-of-truth (SSOT) data integrity for candidates and requirements.
+## 1. Architectural Analysis
+The Deal Room UI in `DealRoomsTab.tsx` incorrectly defaults to an empty state when a newly submitted candidate (pre-interview) is selected in the Submission Hub. The current system logic assumes Deal Rooms are only functional at the `interview` stage, leading to incomplete or unusable UI state for submissions. This violates the goal of seamless recruiter/vendor collaboration.
 
-## 2. Architecture & Data Flow
-- **Orchestration:** `MatchingOffice` (SSOT: `candidate_matches`)
-- **Scoring Engine:** `ProprietaryMatchingEngine` (Deterministic + Semantic)
-- **AI Gateway:** `AIGateway` (Ollama Provider, Circuit Breaker, Telemetry)
+## 2. Proposed Changes
+- **Update Deal Room Initialization**: Ensure `MatchIntelligenceTab` properly initializes the `currentStage` field (defaulting to 'shortlisted') when creating a new deal room via the "Submit" action.
+- **Remediate UI Rendering Logic**: Update `DealRoomsTab.tsx` to display the Deal Room interface immediately upon submission, allowing initial vendor-recruiter collaboration, even if full interview-stage features are locked.
+- **Enable Early Collaboration**: Implement conditional UI rendering in `DealRoomCopilot` and `DealRoomsTab` to safely expose collaboration tools based on the deal room's state (pre-interview vs. active-interview).
+- **Audit Data Integrity**: Ensure all newly created deal rooms have `clientId`, `vendorId`, `candidateId`, and `requirementId` populated correctly to avoid UI crashes or filtering mismatches. All reads/writes must maintain strict tenant isolation (ABAC).
 
-Data integrity for candidate/requirement names is the mandatory prerequisite (Phase 1).
+## 3. Implementation Steps
+1. **Audit & Patch Creation Logic**: Modify `src/views/MatchIntelligenceTab.tsx` to include `currentStage: "shortlisted"` and verify all required IDs (clientId, vendorId, candidateId, requirementId) are passed to the `dealRooms` collection.
+2. **UI Rendering Fix**: Modify `DealRoomsTab.tsx` to render the right-side collaboration panel when `selectedRoom` is present, regardless of `currentStage`.
+3. **Collaboration Capability Locking**: Implement a light capability check to lock down interview-specific tools (e.g., calendar scheduling) until the interview stage is reached, while keeping chat and basic candidate info unlocked.
+4. **Data Integrity & Security Audit**: Validate that the new `dealRooms` document satisfies ABAC requirements.
+5. **Validation**: Test submission-to-deal-room transition in the dev environment. Verify no PII leakage.
 
-## 3. Implementation Phases
-
-### Phase 1: Data Integrity Verification (Pre-requisite)
-- Audit name resolution in `MatchingOffice` and UI layers.
-- Eliminate synthetic fallback strings ("Unknown Candidate").
-- Verify vendor/tenant attribution logic to ensure ABAC compliance for Vendor/Client roles.
-
-### Phase 2: AIGateway Activation
-- Reconcile routing in `src/api-lib/services/AIGateway.ts` to allow `OllamaProvider` usage.
-- Implement health checks and proper model routing (Qwen/BGE).
-- Ensure the `callOllama()` method is safely re-enabled with strict security/cost controls.
-
-### Phase 3: Semantic Engine Integration
-- Refactor `ProprietaryMatchingEngine.calculateSemanticScore` to invoke `AIGateway` for structured semantic reasoning.
-- Implement output validation (JSON schema enforcement) for model responses.
-- Preserve deterministic hard gates: `ProprietaryMatchingEngine` *must* cap composite scores if mandatory skills are missing, regardless of AI output.
-
-### Phase 4: Role-Based Matching (ABAC)
-- Update matching service contracts to pass `orgId` / `tenantId` consistently.
-- Ensure all matching operations route through `MatchingOffice` using role-scoped queries.
-
-### Phase 5: Verification & Pilot
-- Validate match totals and consistency in Admin desk.
-- Conduct A/B performance comparison (Current vs. Ollama-assisted rankings).
-- Security audit of role-based data isolation.
-
-## 4. Rollback Strategy
-- Disabling the Ollama provider in `AIGateway.ts` reverts to the current deterministic-only engine behavior.
-- Data integrity fixes (name resolution) are maintained independently to prevent UI regression.
+## 4. Verification
+- Verify that clicking a submission in Submission Hub correctly loads the right-side panel.
+- Confirm that chat is available immediately upon submission.
+- Ensure interview-stage features are appropriately gated.
+- Ensure logs do not reveal PII and Firestore rules permit access based on tenant/user role.
