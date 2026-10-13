@@ -592,17 +592,24 @@ export default function CandidatesTab() {
 
         const processJobsMapping = () => {
           const mergedMap = new Map();
-          publicDocs.forEach((d) => mergedMap.set(d.id, d));
-          canonicalDocs.forEach((d) => mergedMap.set(d.id, d));
+          publicDocs.forEach((d) => {
+            const reqId = d.requirementId || d.id;
+            if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
+          });
+          canonicalDocs.forEach((d) => {
+            const reqId = d.requirementId || d.id;
+            if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
+          });
           const allReqs = Array.from(mergedMap.values());
           const isVendor = role && (role.toLowerCase().includes("vendor") || role.toUpperCase() === "VENDOR");
           const operational = allReqs.filter(
             (r) =>
-              (UnifiedRequirementsService.isRequirementOperational(r) ||
-                (isVendor && VendorRequirementEligibilityPolicy.isVendorEligible(r))) &&
+              (isVendor
+                ? VendorRequirementEligibilityPolicy.isVendorEligible(r)
+                : UnifiedRequirementsService.isRequirementOperational(r)) &&
               AccessControlService.isRequirementAuthorized(orgId, role, r)
           );
-          setJobs(operational);
+          setJobs(UnifiedRequirementsService.deduplicateRequirements(operational));
         };
 
         onSnapshot(

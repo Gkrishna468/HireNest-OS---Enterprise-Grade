@@ -1,5 +1,6 @@
 import { db } from '../../lib/firebase-admin.js';
 import { AIGateway } from './AIGateway.js';
+import { UnifiedRequirementsService } from '../../services/unifiedRequirementsService.js';
 
 export interface MatchResult {
   candidateId: string;
@@ -44,7 +45,12 @@ export class ProprietaryMatchingEngine {
     }
 
     const candidate = candDoc.data() || {};
-    const requirement = reqDoc.data() || {};
+    const requirement = { id: reqDoc.id, ...reqDoc.data() };
+
+    // Operational gate: non-operational requirements cannot be scored
+    if (!UnifiedRequirementsService.isRequirementOperational(requirement)) {
+      throw new Error(`Requirement ${requirementId} is not operational for matching (must be ACTIVE/OPEN and PUBLISHED).`);
+    }
 
     // 1. Layer 1: Deterministic Scoring (Binary & Weighted)
     const detScore = this.calculateDeterministicScore(candidate, requirement);

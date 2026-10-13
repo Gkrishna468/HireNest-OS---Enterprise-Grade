@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   X, User, FileText, Bot, Briefcase, Activity, 
   MessageSquare, ShieldAlert, CheckCircle, MapPin, 
@@ -408,6 +408,13 @@ export default function Candidate360Modal({
   // Merge full data so that we have resume, skills, etc.
   const displayCandidate = fullCandidateData ? { ...candidate, ...fullCandidateData } : candidate;
 
+  // Helper to normalize skills array
+  const getSkillsArray = (skills: any): string[] => {
+    if (Array.isArray(skills)) return skills;
+    if (typeof skills === "string") return skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+    return [];
+  };
+
   const handleDeleteCandidate = async () => {
     if (deleteConfirmText !== "DELETE") return;
     setIsDeleting(true);
@@ -477,7 +484,7 @@ export default function Candidate360Modal({
       const mergedMap = new Map();
       
       publicDocs.forEach(d => {
-        const reqId = d.id || d.requirementId || d.id;
+        const reqId = d.requirementId || d.id;
         if (reqId) {
           const docCopy = { ...d, id: reqId, requirementId: reqId };
           mergedMap.set(reqId, docCopy);
@@ -485,7 +492,7 @@ export default function Candidate360Modal({
       });
       
       canonicalDocs.forEach(d => {
-        const reqId = d.id || d.requirementId || d.id;
+        const reqId = d.requirementId || d.id;
         if (reqId) {
           const docCopy = { ...d, id: reqId, requirementId: reqId };
           // Canonical overrides public
@@ -493,7 +500,8 @@ export default function Candidate360Modal({
         }
       });
       
-      setInternalJobs(Array.from(mergedMap.values()));
+      const deduped = UnifiedRequirementsService.deduplicateRequirements(Array.from(mergedMap.values()));
+      setInternalJobs(deduped);
     };
 
     const unsubPublic = onSnapshot(query(collection(db, "requirements_public"), limit(50)), (snap) => {
@@ -514,11 +522,65 @@ export default function Candidate360Modal({
 
   const effectiveJobs = (jobs && jobs.length > 0) ? jobs : internalJobs;
   const isVendorRole = userRole && (userRole.toLowerCase().includes("vendor") || userRole.toUpperCase() === "VENDOR");
-  const availableJobs = effectiveJobs.filter((job) => {
-    const isOp = UnifiedRequirementsService.isRequirementOperational(job) ||
-      (isVendorRole && VendorRequirementEligibilityPolicy.isVendorEligible(job));
-    return isOp && AccessControlService.isRequirementAuthorized(userOrgId, userRole, job);
-  });
+  
+  // Available operational, authorized, deduplicated requirements sorted by role relevance
+  const availableJobs = useMemo(() => {
+    const filtered = effectiveJobs.filter((job) => {
+      const isOp = isVendorRole
+        ? VendorRequirementEligibilityPolicy.isVendorEligible(job)
+        : UnifiedRequirementsService.isRequirementOperational(job);
+      return isOp && AccessControlService.isRequirementAuthorized(userOrgId, userRole, job);
+    });
+
+    const deduped = UnifiedRequirementsService.deduplicateRequirements(filtered);
+
+    // Rank / sort by role relevance for this candidate
+    const candSkills = getSkillsArray(displayCandidate?.skills || candidate?.skills).map((s: string) => s.toLowerCase());
+    const candRole = (displayCandidate?.currentRole || displayCandidate?.role || displayCandidate?.title || candidate?.currentRole || candidate?.role || "").toLowerCase();
+
+    return deduped.sort((a, b) => {
+      const aSkills = (Array.isArray(a.skills) ? a.skills : []).map((s: string) => String(s).toLowerCase());
+      const bSkills = (Array.isArray(b.skills) ? b.skills : []).map((s: string) => String(b.skills).toLowerCase());
+      
+      const aOverlap = aSkills.filter((s: string) => candSkills.some((cs: string) => cs.includes(s) || s.includes(cs))).length;
+      const bOverlap = bSkills.filter((s: string) => candSkills.some((cs: string) => cs.includes(s) || s.includes(cs))).length;
+
+      if (bOverlap !== aOverlap) {
+        return bOverlap - aOverlap;
+      }
+
+      const aTitleMatch = candRole && (a.title || "").toLowerCase().includes(candRole) ? 1 : 0;
+      const bTitleMatch = candRole && (b.title || "").toLowerCase().includes(candRole) ? 1 : 0;
+      if (bTitleMatch !== aTitleMatch) {
+        return bTitleMatch - aTitleMatch;
+      }
+
+      return (a.title || "").localeCompare(b.title || "");
+    });
+  }, [effectiveJobs, isVendorRole, userOrgId, userRole, displayCandidate, candidate]);
+
+  // Keep selectedJobId synchronized with authorized operational requirements
+  useEffect(() => {
+    if (availableJobs.length === 0) {
+      if (selectedJobId) setSelectedJobId("");
+      return;
+    }
+
+    const candidateReqId = candidate?.requirementId || displayCandidate?.requirementId;
+    if (candidateReqId && availableJobs.some(j => j.id === candidateReqId)) {
+      if (selectedJobId !== candidateReqId) {
+        setSelectedJobId(candidateReqId);
+      }
+      return;
+    }
+
+    if (selectedJobId && availableJobs.some(j => j.id === selectedJobId)) {
+      return;
+    }
+
+    // Default to highest role-relevant open requirement
+    setSelectedJobId(availableJobs[0].id);
+  }, [availableJobs, candidate?.requirementId, displayCandidate?.requirementId]);
 
   const handleRunMatch = async () => {
     if (!selectedJobId) return;
@@ -844,9 +906,14 @@ export default function Candidate360Modal({
        if (!userRole.includes("client")) {
           unsubEvents = store.subscribeToEvents(id, (evs) => setEvents(evs));
           unsubInterviews = store.subscribeToInterviews(id, (ints) => setInterviews(ints));
-          unsubMatches = store.subscribeToMatches(id, selectedJobId || candidate.requirementId, (match) => {
-             if (match) setMappingResult(match);
-          });
+          const activeReqToSubscribe = selectedJobId || (availableJobs.some(j => j.id === candidate.requirementId) ? candidate.requirementId : undefined);
+          if (activeReqToSubscribe) {
+            unsubMatches = store.subscribeToMatches(id, activeReqToSubscribe, (match) => {
+               if (match) setMappingResult(match);
+            });
+          } else {
+            setMappingResult(null);
+          }
        } else {
              fetch(`/api/client-candidate?candidateId=${id}&clientId=${userOrgId}`)
              .then(res => res.json())
@@ -867,17 +934,11 @@ export default function Candidate360Modal({
        unsubInterviews();
        unsubMatches();
     };
-  }, [candidate, selectedJobId, userRole, userOrgId]);
+  }, [candidate, selectedJobId, userRole, userOrgId, availableJobs]);
 
   const candidateIdStr = displayCandidate.candidateId || displayCandidate.id || "HN-CAN-PENDING";
   const nameStr = displayCandidate.candidateName || displayCandidate.displayName || displayCandidate.fullName || displayCandidate.name || displayCandidate.parsedName || displayCandidate.parsedResume?.name || displayCandidate.resumeData?.name || "Unknown Candidate";
   const vendorStr = vendorMap?.[displayCandidate.vendorId] || displayCandidate.vendorName || (displayCandidate.vendorId === "ORG-GLOBAL-HQ" ? "WorkNexa Infotech" : displayCandidate.vendorId) || "Direct/Unknown";
-  
-  const getSkillsArray = (skills: any): string[] => {
-    if (Array.isArray(skills)) return skills;
-    if (typeof skills === "string") return skills.split(",").map((s: string) => s.trim()).filter(Boolean);
-    return [];
-  };
 
   const skillsArr = getSkillsArray(displayCandidate.skills);
 
@@ -1973,11 +2034,16 @@ export default function Candidate360Modal({
                                  }}
                               >
                                  <option value="">Select an open requirement...</option>
-                                 {availableJobs.map(j => (
-                                    <option key={j.id} value={j.id}>
-                                       {j.title} ({j.clientName || j.company || "Enterprise Partner"})
-                                    </option>
-                                 ))}
+                                 {availableJobs.map(j => {
+                                    const jSkills = (Array.isArray(j.skills) ? j.skills : []).map((s: string) => String(s).toLowerCase());
+                                    const candSkills = getSkillsArray(displayCandidate?.skills || candidate?.skills).map((s: string) => s.toLowerCase());
+                                    const overlapCount = jSkills.filter((s: string) => candSkills.some((cs: string) => cs.includes(s) || s.includes(cs))).length;
+                                    return (
+                                       <option key={j.id} value={j.id}>
+                                          {j.title} ({j.clientName || j.company || "Enterprise Partner"}){overlapCount > 0 ? ` • ${overlapCount} skills match` : ""}
+                                       </option>
+                                    );
+                                 })}
                               </select>
                               <Button 
                                  onClick={handleRunMatch} 

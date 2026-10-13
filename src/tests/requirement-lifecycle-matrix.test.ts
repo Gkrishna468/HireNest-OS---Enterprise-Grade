@@ -25,6 +25,8 @@ interface MatrixTestCase {
     status?: string | null;
     distributionStatus?: string | null;
     published?: boolean;
+    approvalStatus?: string | null;
+    [key: string]: any;
   };
   expectedOperational: boolean;
 }
@@ -106,6 +108,41 @@ export function runRequirementMatrixTests(): { passed: number; failed: number; e
       req: null as any,
       expectedOperational: false,
     },
+    {
+      name: "15. CANCELLED + PUBLISHED => REJECTED",
+      req: { id: "req-15", title: "Cancelled Role", status: "CANCELLED", distributionStatus: "PUBLISHED" },
+      expectedOperational: false,
+    },
+    {
+      name: "16. ON_HOLD + PUBLISHED => REJECTED",
+      req: { id: "req-16", title: "On Hold Role", status: "ON_HOLD", distributionStatus: "PUBLISHED" },
+      expectedOperational: false,
+    },
+    {
+      name: "17. FULFILLED + PUBLISHED => REJECTED",
+      req: { id: "req-17", title: "Filled Role", status: "FULFILLED", distributionStatus: "PUBLISHED" },
+      expectedOperational: false,
+    },
+    {
+      name: "18. ACTIVE + PUBLISHED + PENDING_REVIEW approvalStatus => REJECTED",
+      req: { id: "req-18", title: "Unapproved Role", status: "ACTIVE", distributionStatus: "PUBLISHED", approvalStatus: "PENDING_REVIEW" },
+      expectedOperational: false,
+    },
+    {
+      name: "19. ACTIVE + PUBLISHED + REJECTED approvalStatus => REJECTED",
+      req: { id: "req-19", title: "Rejected Role", status: "ACTIVE", distributionStatus: "PUBLISHED", approvalStatus: "REJECTED" },
+      expectedOperational: false,
+    },
+    {
+      name: "20. ACTIVE + PUBLISHED + APPROVED approvalStatus => OPERATIONAL",
+      req: { id: "req-20", title: "Approved Role", status: "ACTIVE", distributionStatus: "PUBLISHED", approvalStatus: "APPROVED" },
+      expectedOperational: true,
+    },
+    {
+      name: "21. OPEN + PUBLISHED => OPERATIONAL",
+      req: { id: "req-21", title: "Open Role", status: "OPEN", distributionStatus: "PUBLISHED" },
+      expectedOperational: true,
+    },
   ];
 
   let passed = 0;
@@ -125,7 +162,27 @@ export function runRequirementMatrixTests(): { passed: number; failed: number; e
     }
   }
 
-  console.log(`\nMatrix Result: ${passed}/${testCases.length} assertions passed (${failed} failures).`);
+  // Deduplication Verification
+  const duplicatePool = [
+    { id: "req-dup-1", requirementId: "req-dup-1", title: "Cloud Engineer", clientName: "Acme Corp" },
+    { id: "req-dup-1", requirementId: "req-dup-1", title: "Cloud Engineer", clientName: "Acme Corp" },
+    { id: "req-dup-alt", requirementId: "req-dup-1", title: "Cloud Engineer", clientName: "Acme Corp" },
+    { id: "req-dup-sync", title: "cloud engineer", clientName: "acme corp" },
+    { id: "req-distinct-2", requirementId: "req-distinct-2", title: "Data Analyst", clientName: "Acme Corp" }
+  ];
+  const deduped = UnifiedRequirementsService.deduplicateRequirements(duplicatePool);
+  if (deduped.length === 2 && deduped[0].id === "req-dup-1" && deduped[1].id === "req-distinct-2") {
+    console.log("  ✓ PASS: Deduplication collapses duplicate IDs, requirementIds, and title+client fingerprints to unique canonical requirements");
+    passed++;
+  } else {
+    const err = `FAIL: Deduplication expected 2 requirements, got ${deduped.length}`;
+    console.error(`  ✗ ${err}`);
+    errors.push(err);
+    failed++;
+  }
+
+  const totalAssertions = testCases.length + 1;
+  console.log(`\nMatrix Result: ${passed}/${totalAssertions} assertions passed (${failed} failures).`);
   return { passed, failed, errors };
 }
 

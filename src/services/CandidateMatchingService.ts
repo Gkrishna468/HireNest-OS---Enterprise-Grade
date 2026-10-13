@@ -616,10 +616,11 @@ export class CandidateMatchingService {
       throw new Error(`Requirement not found: ${requirementId}`);
     }
 
-    // Canonical Operational Gate: status === ACTIVE && distributionStatus === PUBLISHED (or Vendor eligible)
+    // Canonical Operational Gate: status === ACTIVE/OPEN && distributionStatus === PUBLISHED && approved
     const isVendorRole = context.role && (context.role.toLowerCase().includes("vendor") || context.role.toUpperCase() === "VENDOR");
-    const isOperational = UnifiedRequirementsService.isRequirementOperational(reqData) ||
-      (isVendorRole && VendorRequirementEligibilityPolicy.isVendorEligible(reqData));
+    const isOperational = isVendorRole
+      ? VendorRequirementEligibilityPolicy.isVendorEligible(reqData)
+      : UnifiedRequirementsService.isRequirementOperational(reqData);
     if (!isOperational) {
       throw new Error(
         `Requirement ${requirementId} is not operational (status: "${reqData.status || 'UNSET'}", distributionStatus: "${reqData.distributionStatus || 'UNSET'}"). Only ACTIVE + PUBLISHED requirements are eligible for matching.`

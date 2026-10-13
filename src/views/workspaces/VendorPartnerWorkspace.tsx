@@ -41,6 +41,7 @@ import Candidate360Modal from "../../components/modals/Candidate360Modal";
 import { recruiterVendorMappingService, RecruiterVendorMapping } from "../../services/recruiterVendorMappingService";
 import { requirementVendorService } from "../../services/requirementVendorService";
 import { CandidateMatchingService } from "../../services/CandidateMatchingService";
+import { VendorRequirementEligibilityPolicy } from "../../services/VendorRequirementEligibilityPolicy";
 
 export default function VendorPartnerWorkspace({
   vendorName,
@@ -76,11 +77,18 @@ export default function VendorPartnerWorkspace({
   const vendorMatches = useMemo(() => {
     const list: any[] = [];
     if (!orgId || vendorCandidates.length === 0 || liveReqs.length === 0) return list;
+    const seenMatchKeys = new Set<string>();
 
     for (const cand of vendorCandidates) {
       if (cand.sourceType === "DIRECT_CANDIDATE" || cand.isDirectCandidate) continue;
 
       for (const req of liveReqs) {
+        if (!VendorRequirementEligibilityPolicy.isVendorEligible(req)) continue;
+
+        const matchKey = `${cand.id || cand.candidateId}_${req.id || req.requirementId}`;
+        if (seenMatchKeys.has(matchKey)) continue;
+        seenMatchKeys.add(matchKey);
+
         const fit = CandidateMatchingService.computeFitmentEvaluation(cand, req);
 
         list.push({

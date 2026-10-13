@@ -610,11 +610,11 @@ class RequirementVendorService {
         const recomputeAuthorized = () => {
           const mergedMap = new Map();
           publicDocs.forEach(d => {
-            const reqId = d.id || d.requirementId;
+            const reqId = d.requirementId || d.id;
             if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
           });
           canonicalDocs.forEach(d => {
-            const reqId = d.id || d.requirementId;
+            const reqId = d.requirementId || d.id;
             if (reqId) mergedMap.set(reqId, { ...d, id: reqId, requirementId: reqId });
           });
           const allReqs = Array.from(mergedMap.values());
@@ -661,7 +661,8 @@ class RequirementVendorService {
             return false;
           });
 
-          callback(authorizedReqs);
+          const dedupedAuthorizedReqs = UnifiedRequirementsService.deduplicateRequirements(authorizedReqs);
+          callback(dedupedAuthorizedReqs);
         };
 
         // Listen to requirements_public

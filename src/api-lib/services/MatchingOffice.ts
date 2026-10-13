@@ -2,6 +2,7 @@ import { db } from '../../lib/firebase-admin.js';
 import { EventBus } from './EventBus.js';
 import { BusinessGraphService } from './BusinessGraphService.js';
 import { ProprietaryMatchingEngine } from './ProprietaryMatchingEngine.js';
+import { UnifiedRequirementsService } from '../../services/unifiedRequirementsService.js';
 
 export class MatchingOffice {
     
@@ -261,6 +262,13 @@ export class MatchingOffice {
         
         const reqObj = { id: reqDoc.id, ...reqDoc.data() };
         
+        // Operational predicate gate: If requirement is closed or non-operational, cleanup matches and return
+        if (!UnifiedRequirementsService.isRequirementOperational(reqObj)) {
+            console.log(`[MatchingOffice] Requirement ${requirementId} is not operational. Cleaning up matches.`);
+            await this.cleanupRequirementMatches(requirementId);
+            return;
+        }
+
         // Fetch all active candidates
         const activeCandidates = await db.collection("candidatePool").get();
         const candidates = activeCandidates.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -299,9 +307,18 @@ export class MatchingOffice {
                 .get()
         ]);
         const reqMap = new Map();
-        reqPubSnap.docs.forEach(d => reqMap.set(d.id, { id: d.id, ...d.data() }));
-        reqCanonSnap.docs.forEach(d => reqMap.set(d.id, { id: d.id, ...d.data() }));
-        const requirements = Array.from(reqMap.values());
+        reqPubSnap.docs.forEach(d => {
+            const key = d.data().requirementId || d.id;
+            reqMap.set(key, { id: key, ...d.data() });
+        });
+        reqCanonSnap.docs.forEach(d => {
+            const key = d.data().requirementId || d.id;
+            reqMap.set(key, { id: key, ...d.data() });
+        });
+        const operationalReqs = Array.from(reqMap.values()).filter(r => 
+            UnifiedRequirementsService.isRequirementOperational(r)
+        );
+        const requirements = UnifiedRequirementsService.deduplicateRequirements(operationalReqs);
         
         for (const reqObj of requirements) {
             await this.computeAndSaveMatch(candObj, reqObj);

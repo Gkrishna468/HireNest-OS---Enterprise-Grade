@@ -8,15 +8,79 @@ import { AccessControlService, HireNestAccessContext } from "./accessControlServ
  */
 export class UnifiedRequirementsService {
   /**
-   * Canonical Operational Gate Test
-   * Consistent Invariant: status is ACTIVE, PUBLISHED, or OPEN.
+   * Canonical Operational Gate Predicate
+   * A requirement is eligible for operational matching ONLY when all canonical conditions hold:
+   * - Canonical lifecycle status is ACTIVE or OPEN (trimmed, case-insensitive)
+   * - Distribution status is PUBLISHED (or authorized multi-vendor distribution states)
+   * - If approvalStatus exists: strictly APPROVED (fail closed on PENDING, REJECTED, etc.)
+   * - Inactive states (CLOSED, ARCHIVED, HOLD, PAUSED, EXPIRED, DRAFT, CANCELLED, UNPUBLISHED) are strictly rejected
    */
   static isRequirementOperational(req: any): boolean {
     if (!req) return false;
-    const status = (req.status || "").toString().trim().toUpperCase();
-    const distStatus = (req.distributionStatus || "").toString().trim().toUpperCase();
+    const status = (req.status || req.lifecycleStatus || "").toString().trim().toUpperCase();
+    const distStatus = (req.distributionStatus || req.distributionState || "").toString().trim().toUpperCase();
+    const approvalStatus = (req.approvalStatus || "").toString().trim().toUpperCase();
 
-    return status === "ACTIVE" && distStatus === "PUBLISHED";
+    // 1. Inactive lifecycle / distribution states strictly disqualify
+    const inactiveStatuses = [
+      "CLOSED", "ARCHIVED", "HOLD", "ON_HOLD", "ON-HOLD", "PAUSED",
+      "EXPIRED", "DRAFT", "CANCELLED", "CANCELED", "FULFILLED", "FILLED",
+      "INACTIVE", "SUSPENDED", "COMPLETED", "REJECTED"
+    ];
+    if (inactiveStatuses.includes(status)) return false;
+
+    const inactiveDistStatuses = [
+      "UNPUBLISHED", "DRAFT", "HOLD", "ON_HOLD", "PAUSED", "ARCHIVED", "CLOSED"
+    ];
+    if (inactiveDistStatuses.includes(distStatus)) return false;
+
+    // 2. If approvalStatus exists, fail closed if not APPROVED
+    if (approvalStatus && approvalStatus !== "APPROVED") {
+      return false;
+    }
+
+    // 3. Canonical lifecycle status must be ACTIVE or OPEN
+    const isStatusOk = status === "ACTIVE" || status === "OPEN";
+    if (!isStatusOk) return false;
+
+    // 4. Distribution status must be PUBLISHED or authorized operational distribution state
+    const isDistOk = distStatus === "PUBLISHED" || distStatus === "OPEN_ALL_VENDORS" || distStatus === "TIER_1_ONLY";
+    if (!isDistOk) return false;
+
+    return true;
+  }
+
+  /**
+   * Canonical In-Memory Deduplication:
+   * Deduplicates requirement objects across collections, sync IDs, and aliases.
+   */
+  static deduplicateRequirements(requirements: any[]): any[] {
+    if (!Array.isArray(requirements)) return [];
+    const seenIds = new Set<string>();
+    const seenFingerprints = new Set<string>();
+    const deduplicated: any[] = [];
+
+    for (const req of requirements) {
+      if (!req) continue;
+      const canonicalId = (req.id || req.requirementId || req.reqId || "").toString().trim();
+      const altId = (req.requirementId || req.id || "").toString().trim();
+
+      const normTitle = (req.title || req.role || "").toString().trim().toLowerCase();
+      const normClient = (req.clientName || req.company || req.clientId || "").toString().trim().toLowerCase();
+      const fingerprint = normTitle ? `${normTitle}___${normClient}` : "";
+
+      if (canonicalId && seenIds.has(canonicalId)) continue;
+      if (altId && seenIds.has(altId)) continue;
+      if (fingerprint && seenFingerprints.has(fingerprint)) continue;
+
+      if (canonicalId) seenIds.add(canonicalId);
+      if (altId) seenIds.add(altId);
+      if (fingerprint) seenFingerprints.add(fingerprint);
+
+      deduplicated.push(req);
+    }
+
+    return deduplicated;
   }
 
   /**
@@ -41,7 +105,8 @@ export class UnifiedRequirementsService {
     role?: string
   ): any[] {
     if (!Array.isArray(reqs)) return [];
-    return reqs.filter((req) => this.isAuthorizedOperational(req, actorId, role));
+    const operational = reqs.filter((req) => this.isAuthorizedOperational(req, actorId, role));
+    return this.deduplicateRequirements(operational);
   }
 
   /**
@@ -116,7 +181,7 @@ export class UnifiedRequirementsService {
         }
       }
 
-      return authorized;
+      return this.deduplicateRequirements(authorized);
     } catch (err: any) {
       console.error(
         "[UnifiedRequirementsService] Error fetching authorized operational requirements:",

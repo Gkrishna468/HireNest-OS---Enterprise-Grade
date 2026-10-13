@@ -21,6 +21,8 @@
  *    - Ensures requirement is not explicitly hidden from vendors (visibility.vendors !== false, vendorVisible !== false)
  */
 
+import { UnifiedRequirementsService } from "./unifiedRequirementsService.js";
+
 export interface VendorRequirementPolicyEvaluation {
   isEligible: boolean;
   reasons: string[];
@@ -35,33 +37,8 @@ export class VendorRequirementEligibilityPolicy {
   public static isVendorEligible(rawReq: any): boolean {
     if (!rawReq) return false;
 
-    // 1. Lifecycle Status Gate
-    const status = (rawReq.status || "").toString().trim().toUpperCase();
-    const distStatus = (rawReq.distributionStatus || "").toString().trim().toUpperCase();
-
-    // Inactive lifecycle states are strictly excluded from vendor matching
-    if (
-      status === "CLOSED" ||
-      status === "ARCHIVED" ||
-      status === "HOLD" ||
-      status === "PAUSED" ||
-      status === "EXPIRED" ||
-      status === "DRAFT" ||
-      distStatus === "UNPUBLISHED" ||
-      distStatus === "DRAFT" ||
-      distStatus === "HOLD"
-    ) {
-      return false;
-    }
-
-    // Must have active operational status
-    const isStatusActive = status === "ACTIVE" || status === "OPEN" || status === "PUBLISHED" || status === "APPROVED";
-    if (!isStatusActive) {
-      return false;
-    }
-
-    // If distributionStatus is explicitly present, it must be PUBLISHED or ACTIVE
-    if (distStatus && distStatus !== "PUBLISHED" && distStatus !== "ACTIVE") {
+    // 1. Canonical Operational Gate: Must be active/open, published, approved, non-inactive
+    if (!UnifiedRequirementsService.isRequirementOperational(rawReq)) {
       return false;
     }
 
@@ -90,28 +67,8 @@ export class VendorRequirementEligibilityPolicy {
     const status = (rawReq.status || "").toString().trim().toUpperCase();
     const distStatus = (rawReq.distributionStatus || "").toString().trim().toUpperCase();
 
-    if (
-      status === "CLOSED" ||
-      status === "ARCHIVED" ||
-      status === "HOLD" ||
-      status === "PAUSED" ||
-      status === "EXPIRED" ||
-      status === "DRAFT"
-    ) {
-      reasons.push(`Requirement status '${status}' is not operational`);
-    }
-
-    if (distStatus === "UNPUBLISHED" || distStatus === "DRAFT" || distStatus === "HOLD") {
-      reasons.push(`Distribution status '${distStatus}' is not published`);
-    }
-
-    const isStatusActive = status === "ACTIVE" || status === "OPEN" || status === "PUBLISHED" || status === "APPROVED";
-    if (!isStatusActive) {
-      reasons.push(`Status '${status}' is not ACTIVE/OPEN/PUBLISHED/APPROVED`);
-    }
-
-    if (distStatus && distStatus !== "PUBLISHED" && distStatus !== "ACTIVE") {
-      reasons.push(`Distribution status '${distStatus}' is not PUBLISHED or ACTIVE`);
+    if (!UnifiedRequirementsService.isRequirementOperational(rawReq)) {
+      reasons.push(`Requirement is not operational (status: '${status || "UNSET"}', distribution: '${distStatus || "UNSET"}')`);
     }
 
     if (rawReq.visibility?.vendors === false || rawReq.vendorVisible === false) {
