@@ -137,8 +137,10 @@ export default function DealRoomsTab() {
           q,
           (snap) => {
             const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            console.log("[DealRoomsTab] orgId:", orgId, "userRole:", userRole);
             console.log("[DealRoomsTab] raw deal rooms:", raw);
             const data = raw.filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
+            console.log("[DealRoomsTab] filtered (status/active) deal rooms:", data);
             setDealRooms(data);
           },
           (error) => {
