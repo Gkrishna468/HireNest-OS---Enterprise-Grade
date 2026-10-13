@@ -104,6 +104,7 @@ export default function DealRoomsTab() {
               }
             }
 
+            console.log("[DealRoomsTab] Auth state change:", { userUid: user.uid, role, userOrgId });
             setUserRole(role);
             setOrgId(userOrgId);
           } catch (e) {
@@ -115,51 +116,43 @@ export default function DealRoomsTab() {
 
     // Listen to Deal Rooms
     const loadDealRooms = async () => {
-      if (!orgId) return;
-      try {
-        // Try Proxy FIRST (Filtered by user context)
-        const response = await fetch(
-          `/api/user-context?orgId=${orgId}&role=${userRole}`,
-        );
-        if (response.ok) {
-          const resData = await response.json();
-          if (resData.dealRooms) {
-            setDealRooms(resData.dealRooms);
-            return;
-          }
-        }
-
-        // Fallback to Firestore
-        let q;
-        q = query(collection(db, "dealRooms"), limit(50)); // HQ/Admin/Test
-
-        const unsubscribe = onSnapshot(
-          q,
-          (snap) => {
-            const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            console.log("[DealRoomsTab] orgId:", orgId, "userRole:", userRole);
-            console.log("[DealRoomsTab] raw deal rooms:", raw);
-            const data = raw.filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false);
-            console.log("[DealRoomsTab] filtered (status/active) deal rooms:", data);
-            setDealRooms(data);
-          },
-          (error) => {
-            handleFirestoreError(error, OperationType.GET, "dealRooms");
-          },
-        );
-        return unsubscribe;
-      } catch (err) {
-        console.warn("DealRoom sync fallback triggered");
-      }
+      // Need to capture current orgId for this scope
+      // Using a ref would be better, but for now we trust setOrgId will trigger this.
     };
 
-    loadDealRooms().then((u) => (unsubDealRooms = u));
-    
     return () => {
       if (unsubAuth) unsubAuth();
       if (unsubDealRooms) unsubDealRooms();
     };
-  }, [orgId, userRole]); // Added dependencies
+  }, []); // orgId is set via auth, no need for dependency loop
+  
+  useEffect(() => {
+    if (!orgId) return;
+    console.log("[DealRoomsTab] Loading deal rooms for org:", orgId);
+    let unsubscribe: any;
+    
+    // Firestore: Use two listeners to fetch rooms where user is either client or vendor
+    const qClient = query(collection(db, "dealRooms"), where("clientId", "==", orgId), limit(50));
+    const qVendor = query(collection(db, "dealRooms"), where("vendorId", "==", orgId), limit(50));
+    
+    const combinedRooms = new Map();
+    const updateCombined = () => {
+        setDealRooms(Array.from(combinedRooms.values()).filter((dr: any) => dr.status !== "DELETED" && dr.isActive !== false));
+    };
+
+    const unsubClient = onSnapshot(qClient, (snap) => {
+        snap.docs.forEach(d => combinedRooms.set(d.id, { id: d.id, ...d.data() }));
+        updateCombined();
+    }, (error) => handleFirestoreError(error, OperationType.GET, "dealRooms"));
+    
+    const unsubVendor = onSnapshot(qVendor, (snap) => {
+        snap.docs.forEach(d => combinedRooms.set(d.id, { id: d.id, ...d.data() }));
+        updateCombined();
+    }, (error) => handleFirestoreError(error, OperationType.GET, "dealRooms"));
+
+    return () => { unsubClient(); unsubVendor(); };
+  }, [orgId]);
+
 
   useEffect(() => {
     if (selectedRoom) {
@@ -660,7 +653,7 @@ export default function DealRoomsTab() {
                 <EmptyState
                   icon={MessageSquare}
                   title="No active deal rooms"
-                  description="A deal room is automatically created when a candidate enters the interview stage."
+                  description="Deal rooms appear here when a vendor submits a candidate (shortlisted) or when a candidate reaches interview."
                   actionLabel="View Pipeline"
                   onAction={() => window.location.hash = '#/pipeline'}
                 />

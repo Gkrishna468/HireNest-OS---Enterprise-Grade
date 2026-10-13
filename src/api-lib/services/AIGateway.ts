@@ -574,7 +574,7 @@ export class OllamaProvider implements AIProvider {
         const baseUrl = this.getBaseUrl();
         const endpoint = baseUrl.endsWith("/api/chat") ? baseUrl : `${baseUrl.replace(/\/v1\/?$/, "")}/api/chat`;
 
-        const timeoutMs = options.timeoutMs || 30000;
+        const timeoutMs = options.timeoutMs || 150000;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -1236,7 +1236,7 @@ export class AIGateway {
 
         if (circuitStatus !== "OPEN") {
             try {
-                const timeoutMs = request.timeoutMs || 25000;
+                const timeoutMs = request.timeoutMs || (providerId === "ollama" ? 150000 : 25000);
                 console.log(`[AIGateway] Executing Level ${level} task '${feature}' on ${providerId} (${model}) [Circuit: ${circuitStatus}]`);
 
                 const result = await providerInstance.execute(finalPrompt, model, {

@@ -713,8 +713,6 @@ export class AccessControlService {
     }
     if (normRole === 'VENDOR' || normRole === 'VENDOR_ADMIN' || normRole === 'VENDOR_RECRUITER' || normRole.indexOf('VENDOR') !== -1) {
       const distributed = requirement.distributedVendorIds || [];
-      const mode = requirement.distributionMode || "ALL_MAPPED_VENDORS";
-      if (mode === "ALL_MAPPED_VENDORS") return true;
       return distributed.includes(actorId) || requirement.vendorId === actorId;
     }
     if (normRole === 'RECRUITER') {

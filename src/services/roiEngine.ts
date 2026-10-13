@@ -1,4 +1,4 @@
-import { db, handleFirestoreError, OperationType } from "../lib/firebase.js";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase.js";
 import { 
   collection, 
   doc, 
@@ -156,6 +156,10 @@ export class ROIEngine {
     }
 
     // Safe persistence with zero-trust handling (idempotent setDoc overwrites if already present)
+    if (typeof window !== 'undefined' && !auth.currentUser) {
+      console.warn("[ROIEngine] Skipping Firestore write: user not authenticated");
+      return event;
+    }
     try {
       await setDoc(doc(db, this.collectionName, eventId), event);
     } catch (err: any) {
