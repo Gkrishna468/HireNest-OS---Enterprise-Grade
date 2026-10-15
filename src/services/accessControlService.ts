@@ -712,16 +712,26 @@ export class AccessControlService {
       return true;
     }
     if (normRole === 'VENDOR' || normRole === 'VENDOR_ADMIN' || normRole === 'VENDOR_RECRUITER' || normRole.indexOf('VENDOR') !== -1) {
-      const distributed = requirement.distributedVendorIds || requirement.assignedVendorIds || [];
+      const distributed = requirement.distributedVendorIds || requirement.assignedVendorIds;
       if (Array.isArray(distributed) && distributed.length > 0) {
         return distributed.includes(actorId);
       }
+      
+      // If distributed is present but empty, and we have a specific distribution mode, respect it
       if (requirement.vendorId) {
         return requirement.vendorId === actorId;
       }
-      if (requirement.distributionMode === 'ALL_MAPPED_VENDORS' || !requirement.distributionMode) {
+      
+      const mode = requirement.distributionMode || '';
+      if (mode === 'ALL_MAPPED_VENDORS' || !mode || mode === 'OPEN_ALL_VENDORS') {
         return true;
       }
+      
+      // If it was explicitly restricted to other vendors via an empty array and non-matching mode
+      if (Array.isArray(distributed)) {
+        return false;
+      }
+
       return false;
     }
     if (normRole === 'RECRUITER') {

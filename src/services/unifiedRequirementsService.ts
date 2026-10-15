@@ -43,8 +43,9 @@ export class UnifiedRequirementsService {
     const isStatusOk = status === "ACTIVE" || status === "OPEN";
     if (!isStatusOk) return false;
 
-    // 4. Distribution status must be PUBLISHED or authorized operational distribution state
-    const isDistOk = distStatus === "PUBLISHED" || distStatus === "OPEN_ALL_VENDORS" || distStatus === "TIER_1_ONLY";
+    // 4. Distribution status check: allow if missing or if it matches authorized states
+    // If it's in a public collection or distributed to vendors, it is operational.
+    const isDistOk = !distStatus || distStatus === "PUBLISHED" || distStatus === "OPEN_ALL_VENDORS" || distStatus === "TIER_1_ONLY" || distStatus === "ACTIVE";
     if (!isDistOk) return false;
 
     return true;
