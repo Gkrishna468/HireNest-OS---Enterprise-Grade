@@ -42,7 +42,20 @@ export class VendorRequirementEligibilityPolicy {
       return false;
     }
 
-    // 2. Vendor Visibility Gate: Cannot be explicitly hidden from vendors
+    // 2. Strict Vendor Distribution Gate: Must be explicitly published/distributed
+    // Prevents "leaking" of ACTIVE requirements that are still in DRAFT distribution state.
+    const distStatus = (rawReq.distributionStatus || rawReq.distributionState || "").toString().trim().toUpperCase();
+    const isExplicitlyPublished = distStatus === "PUBLISHED" || 
+                                  distStatus === "OPEN_ALL_VENDORS" || 
+                                  distStatus === "TIER_1_ONLY" || 
+                                  distStatus === "ACTIVE" ||
+                                  distStatus === "DISTRIBUTED";
+    
+    if (!isExplicitlyPublished) {
+      return false;
+    }
+
+    // 3. Vendor Visibility Gate: Cannot be explicitly hidden from vendors
     if (rawReq.visibility?.vendors === false || rawReq.vendorVisible === false) {
       return false;
     }
